@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+
+ * Copyright (c) 2020 LabKey Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+
+ -->
+<tables xsi:schemaLocation="http://labkey.org/data/xml ..\..\..\..\schemas\tableInfo.xsd"
+        xmlns="http://labkey.org/data/xml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <table tableName="workflow" tableDbType="TABLE">
+        <titleColumn>Name</titleColumn>
+        <columns>
+            <column columnName="_ts">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Id">
+                <description>Contains a unique id for this workflow job</description>
+            </column>
+            <column columnName="Created"/>
+            <column columnName="CreatedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+            </column>
+            <column columnName="Modified"/>
+            <column columnName="ModifiedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+            </column>
+            <column columnName="Name">
+                <description>Name of this workflow</description>
+                <nullable>false</nullable>
+            </column>
+            <column columnName="Version">
+                <description>Workflow version</description>
+            </column>
+            <column columnName="Wdl">
+                <columnTitle>WDL</columnTitle>
+                <description>Workflow description in WDL format</description>
+            </column>
+        </columns>
+    </table>
+
+    <table tableName="cromwelljob" tableDbType="TABLE">
+        <columns>
+            <column columnName="_ts">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Id">
+                <description>Contains a unique id for a job submitted to the cromwell server</description>
+            </column>
+            <column columnName="Container">
+                <columnTitle>Folder</columnTitle>
+                <isReadOnly>false</isReadOnly>
+                <fk>
+                    <fkColumnName>EntityId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>containers</fkTable>
+                </fk>
+                <description>Folder in which this workflow job was created</description>
+            </column>
+            <column columnName="Created"/>
+            <column columnName="CreatedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+            </column>
+            <column columnName="Modified"/>
+            <column columnName="ModifiedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+            </column>
+            <column columnName="WorkflowId">
+                <description>Database Id of the workflow definition used for the job</description>
+                <fk>
+                    <fkColumnName>Id</fkColumnName>
+                    <fkDbSchema>maccossworkflows</fkDbSchema>
+                    <fkTable>workflow</fkTable>
+                </fk>
+            </column>
+            <column columnName="PipelineJobId">
+                <fk>
+                    <fkColumnName>RowId</fkColumnName>
+                    <fkDbSchema>pipeline</fkDbSchema>
+                    <fkTable>statusFiles</fkTable>
+                </fk>
+            </column>
+
+            <column columnName="CromwellJobId">
+                <description>Id of the job on the Cromwell server</description>
+            </column>
+            <column columnName="CromwellStatus">
+                <description>Status of the job on the Cromwell server</description>
+            </column>
+            <column columnName="Inputs">
+                <description>Inputs used for the job</description>
+            </column>
+        </columns>
+    </table>
+</tables>
