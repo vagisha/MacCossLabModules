@@ -20,29 +20,45 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
 import org.labkey.api.action.FormViewAction;
+import org.labkey.api.action.LabKeyError;
 import org.labkey.api.action.ReturnUrlForm;
+import org.labkey.api.action.SimpleErrorView;
+import org.labkey.api.action.SimpleRedirectAction;
+import org.labkey.api.action.SimpleViewAction;
 import org.labkey.api.action.SpringActionController;
 import org.labkey.api.admin.AdminUrls;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerManager;
+import org.labkey.api.data.DataColumn;
+import org.labkey.api.data.DataRegion;
 import org.labkey.api.data.PropertyManager;
+import org.labkey.api.data.RenderContext;
+import org.labkey.api.data.SimpleDisplayColumn;
+import org.labkey.api.data.TableInfo;
+import org.labkey.api.module.ModuleLoader;
 import org.labkey.api.pipeline.PipeRoot;
 import org.labkey.api.pipeline.PipelineService;
+import org.labkey.api.pipeline.PipelineStatusUrls;
 import org.labkey.api.pipeline.PipelineUrls;
 import org.labkey.api.pipeline.PipelineValidationException;
+import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.Group;
 import org.labkey.api.security.GroupManager;
 import org.labkey.api.security.RequiresPermission;
 import org.labkey.api.security.User;
 import org.labkey.api.security.permissions.AdminOperationsPermission;
 import org.labkey.api.security.permissions.AdminPermission;
+import org.labkey.api.util.DOM;
+import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.util.URLHelper;
 import org.labkey.api.view.ActionURL;
+import org.labkey.api.view.DetailsView;
 import org.labkey.api.view.HtmlView;
 import org.labkey.api.view.JspView;
 import org.labkey.api.view.NavTree;
+import org.labkey.api.view.VBox;
 import org.labkey.api.view.ViewBackgroundInfo;
 import org.labkey.api.view.WebPartView;
 import org.labkey.cromwell.pipeline.CromwellPipelineJob;
@@ -51,9 +67,10 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.Errors;
 import org.springframework.web.servlet.ModelAndView;
 
+import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.labkey.api.util.DOM.BR;
@@ -266,46 +283,94 @@ public class CromwellController extends SpringActionController
     }
 
     @RequiresPermission(AdminPermission.class)
-    public static class SubmitCromwellJob extends FormViewAction<CromwellJobForm>
+    public static class SubmitCromwellJobAction extends FormViewAction<CromwellJobForm>
     {
         @Override
         public void validateCommand(CromwellJobForm form, Errors errors)
         {
-           if(!hasCromwellRole(getUser(), getContainer()))
-           {
-               errors.reject(ERROR_MSG, "User does not have permission to submit Cromwell jobs.");
-           }
+            if(!getContainer().getActiveModules().contains(ModuleLoader.getInstance().getModule(CromwellModule.NAME)))
+            {
+                errors.reject(ERROR_MSG, "Cromwell module is not enabled in the container. Cannot submit Cromwell jobs.");
+                return;
+            }
+            if(!hasCromwellRole(getUser(), getContainer()))
+            {
+                errors.reject(ERROR_MSG, "User does not have permission to submit Cromwell jobs.");
+                return;
+            }
+
+            Workflow workflow = form.getWorkflow();
+            if(workflow == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find a workflow in the request.");
+            }
         }
 
         @Override
-        public ModelAndView getView(CromwellJobForm form, boolean reshow, BindException errors)
+        public ModelAndView getView(CromwellJobForm form, boolean reshow, BindException errors) throws Exception
         {
-            if(!reshow)
+            Workflow workflow;
+            var manager = CromwellManager.get();
+            if(reshow)
             {
-                var manager = CromwellManager.get();
-                List<Workflow> workflows = manager.getWorkflows();
-                Workflow workflow = workflows.get(0);
-                form.setWorkflowId(workflow.getId());
-                form.setWorkflowName(workflow.getName());
+                workflow = form.getWorkflow();
+                if(workflow == null)
+                {
+                    errors.reject(ERROR_MSG, "No workflow found in request");
+                    return new SimpleErrorView(errors);
+                }
+                List<CromwellInput> formInputs = Workflow.getInputs(workflow);
+                formInputs = Workflow.populateInputs(formInputs, getViewContext().getRequest().getParameterMap());
+                form.setInputsArray(formInputs);
+            }
+            else
+            {
+                if(form.getJobId() != null)
+                {
+                    // We are making a copy of an existing Cromwell job.
+                    CromwellJob job = manager.getCromwellJob(form.getJobId());
+                    if(job == null)
+                    {
+                        errors.reject(ERROR_MSG, "Could not find a job with Id " + form.getJobId());
+                        return new SimpleErrorView(errors);
+                    }
+
+                    workflow = manager.getWorkflow(job.getWorkflowId());
+                    form.setWorkflow(workflow);
+                    List<CromwellInput> formInputs = Workflow.getInputs(workflow);
+                    formInputs = Workflow.copyInputsFromJob(formInputs, job);
+                    form.setInputsArray(formInputs);
+                }
+                else
+                {
+                    if(form.getWorkflow() == null)
+                    {
+                        List<Workflow> workflows = manager.getWorkflows();
+                        workflow = workflows.get(0); // TODO
+                    }
+                    else
+                    {
+                        workflow = form.getWorkflow();
+                    }
+                    form.setWorkflow(workflow);
+                    form.setInputsArray(Workflow.getInputs(workflow)); // Set the input fields based on the WDL definition
+                }
             }
 
             return new JspView<>("/org/labkey/cromwell/view/createJob.jsp", form, errors);
         }
 
         @Override
-        public boolean handlePost(CromwellJobForm form, BindException errors)
+        public boolean handlePost(CromwellJobForm form, BindException errors) throws Exception
         {
-            int workflowId = form.getWorkflowId();
+            Workflow workflow = form.getWorkflow();
+
+            // We do not have form fields for the workflow inputs.  Read them from the request parameter map.
+            List<CromwellInput> workflowInputs = Workflow.getInputs(workflow);
+            workflowInputs = Workflow.populateInputs(workflowInputs, getViewContext().getRequest().getParameterMap());
+
             Container container = getContainer();
-
-            Workflow workflow = CromwellManager.get().getWorkflow(workflowId);
-            if(workflow == null)
-            {
-                errors.reject(ERROR_MSG, "Could not find a workflow with id " + workflowId);
-                return false;
-            }
-
-            PipeRoot root = PipelineService.get().findPipelineRoot(getContainer());
+            PipeRoot root = PipelineService.get().findPipelineRoot(container);
             if (root == null || !root.isValid())
             {
                 errors.reject(ERROR_MSG, "No valid pipeline root found for " + container.getPath());
@@ -315,18 +380,18 @@ public class CromwellController extends SpringActionController
             CromwellManager cromwellManager = CromwellManager.get();
 
             ViewBackgroundInfo info = new ViewBackgroundInfo(container, getUser(), null);
-            CromwellJob cromwellJob = new CromwellJob(workflowId, getContainer());
-            cromwellJob.setInputs(form.getInputsJSON());
+            CromwellJob cromwellJob = new CromwellJob(workflow.getId(), container);
+            cromwellJob.setInputs(Workflow.getInputsJSON(workflowInputs));
             cromwellJob = cromwellManager.saveNewJob(cromwellJob, getUser());
 
-            CromwellPipelineJob job = new CromwellPipelineJob(info, root, workflow, cromwellJob);
+            CromwellPipelineJob job = new CromwellPipelineJob(info, root, workflow, cromwellJob.getId());
             try
             {
                 PipelineService.get().queueJob(job);
             }
             catch (PipelineValidationException e)
             {
-                // lincsManager.deleteLincsPspJob(newPspJob);
+                cromwellManager.deleteJob(cromwellJob);
                 errors.reject(ERROR_MSG, e.getMessage());
                 return false;
             }
@@ -353,7 +418,7 @@ public class CromwellController extends SpringActionController
     private static boolean hasCromwellRole(@NotNull User user, @NotNull Container container)
     {
         Group cromwellGroup = GroupManager.getGroup(ContainerManager.getRoot(), "Cromwell", GroupEnumType.SITE);
-        return cromwellGroup != null && user.isInGroup(cromwellGroup.getUserId());
+        return cromwellGroup == null || user.isInGroup(cromwellGroup.getUserId());
 
         //Role cromwellRole = RoleManager.getRole(CromwellRole.class);
         //return cromwellRole != null && container.getPolicy().getEffectiveRoles(user).contains(cromwellRole);
@@ -361,117 +426,217 @@ public class CromwellController extends SpringActionController
 
     public static class CromwellJobForm extends ReturnUrlForm
     {
-        private int _workflowId;
-        private String _workflowName;
-        private String _skylineTemplateUrl;
-        private String _rawFilesFolderUrl;
-        private String _targetFolderUrl;
-        private String _rawFileExtention;
-        private String _apiKey;
+        private Workflow _workflow;
         private List<CromwellInput> _inputs;
+        private Integer _jobId;
 
+        public void setWorkflowId(int workflowId)
+        {
+           setWorkflow(CromwellManager.get().getWorkflow(workflowId));
+        }
         public int getWorkflowId()
         {
-            return _workflowId;
+            return _workflow!= null ? _workflow.getId() : 0;
         }
 
         public String getWorkflowName()
         {
-            return _workflowName;
+            return _workflow!= null ? _workflow.getName() : "NOT FOUND";
         }
 
-        public void setWorkflowName(String workflowName)
+        public void setWorkflow(Workflow workflow)
         {
-            _workflowName = workflowName;
+            _workflow = workflow;
         }
 
-        public void setWorkflowId(int workflowId)
+        public Workflow getWorkflow()
         {
-            _workflowId = workflowId;
+            return _workflow;
         }
 
-        public String getSkylineTemplateUrl()
+        public Integer getJobId()
         {
-            return _skylineTemplateUrl;
+            return _jobId;
         }
 
-        public void setSkylineTemplateUrl(String skylineTemplateUrl)
+        public void setJobId(Integer jobId)
         {
-            _skylineTemplateUrl = skylineTemplateUrl;
-        }
-
-        public String getRawFilesFolderUrl()
-        {
-            return _rawFilesFolderUrl;
-        }
-
-        public void setRawFilesFolderUrl(String rawFilesFolderUrl)
-        {
-            _rawFilesFolderUrl = rawFilesFolderUrl;
-        }
-
-        public String getTargetFolderUrl()
-        {
-            return _targetFolderUrl;
-        }
-
-        public void setTargetFolderUrl(String targetFolderUrl)
-        {
-            _targetFolderUrl = targetFolderUrl;
-        }
-
-        public String getRawFileExtention()
-        {
-            return _rawFileExtention;
-        }
-
-        public void setRawFileExtention(String rawFileExtention)
-        {
-            _rawFileExtention = rawFileExtention;
-        }
-
-        public String getApiKey()
-        {
-            return _apiKey;
-        }
-
-        public void setApiKey(String apiKey)
-        {
-            _apiKey = apiKey;
-        }
-
-        public String getInputsJSON()
-        {
-            return "testing_inputs: test";
-        }
-
-        public void setInputs(String inputsJSON)
-        {
-            List<CromwellInput> inputs = new ArrayList<>();
-            JSONObject json = new JSONObject(inputsJSON);
-            for (Iterator<String> it = json.keys(); it.hasNext(); )
-            {
-                String key = it.next();
-                String value = json.getString(key);
-                inputs.add(new CromwellInput(key, value));
-            }
-            _inputs = inputs;
-        }
-
-        public String getInputs()
-        {
-            JSONObject json = new JSONObject();
-            for(CromwellInput input: getInputsArray())
-            {
-                json.put(input.getName(), input.getValue());
-            }
-            return json.toString();
+            _jobId = jobId;
         }
 
         public List<CromwellInput> getInputsArray()
         {
             return _inputs != null ? _inputs : Collections.emptyList();
         }
+
+        public void setInputsArray(List<CromwellInput> inputs)
+        {
+            _inputs = inputs;
+        }
+    }
+
+    @RequiresPermission(AdminPermission.class)
+    public static class CopyCromwellJobAction extends SimpleRedirectAction<CromwellJobForm>
+    {
+
+        @Override
+        public URLHelper getRedirectURL(CromwellJobForm form)
+        {
+            return new ActionURL(SubmitCromwellJobAction.class, getContainer()).addParameter("jobId", form.getJobId());
+        }
+    }
+
+    @RequiresPermission(AdminPermission.class)
+    public class CromwellJobDetailsAction extends SimpleViewAction<CromwellJobForm>
+    {
+        @Override
+        public ModelAndView getView(CromwellJobForm form, BindException errors)
+        {
+            Integer cromwellJobId = form.getJobId();
+            CromwellJob job = CromwellManager.get().getCromwellJob(cromwellJobId);
+            if(job == null)
+            {
+                errors.addError(new LabKeyError("Could not find a Cromwell job for Id: " + cromwellJobId));
+                return new SimpleErrorView(errors);
+            }
+
+            VBox view = new VBox();
+            DataRegion dr = getCromwellJobDetailsDataRegion();
+
+            DetailsView detailsView = new DetailsView(dr, job.getId());
+            view.addView(detailsView);
+
+            if(job.getPipelineJobId() != null)
+            {
+                ActionURL pipelineJobUrl = PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), job.getPipelineJobId());
+                String pipelineJobStatus = PipelineService.get().getStatusFile(job.getPipelineJobId()).getStatus();
+                view.addView(new HtmlView(new Link.LinkBuilder("View Pipeline Job. Status: " + pipelineJobStatus).href(pipelineJobUrl).build()));
+            }
+
+            view.setTitle("Cromwell Job Details");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Cromwell Job Details");
+        }
+    }
+
+    @NotNull
+    private static DataRegion getCromwellJobDetailsDataRegion()
+    {
+        DataRegion dr = new DataRegion();
+        TableInfo tInfo = CromwellManager.get().getTableInfoJob();
+        dr.setColumns(tInfo.getColumns("Id", "Created", "CreatedBy", "Container", "WorkflowId", "CromwellJobId", "CromwellStatus", "PipelineJobId", "Inputs"));
+
+        dr.getDisplayColumn("Inputs").setVisible(false);
+        dr.getDisplayColumn("PipelineJobId").setVisible(false);
+
+        DataColumn pipelineJobCol = (DataColumn)dr.getDisplayColumn("PipelineJobId");
+
+        //errCol.setPreserveNewlines(true);
+
+        SimpleDisplayColumn inputsCol = new SimpleDisplayColumn(){
+
+            @Override
+            public void renderDetailsCellContents(RenderContext ctx, Writer out) throws IOException
+            {
+                String json = ctx.get(FieldKey.fromParts("Inputs"), String.class);
+                if(!StringUtils.isBlank(json))
+                {
+                    JSONObject jsonObj = new JSONObject(json);
+                    DOM.PRE(jsonObj.toString(2)).appendTo(out);
+                }
+                else
+                {
+                    super.renderDetailsCellContents(ctx, out);
+                }
+            }
+        };
+        inputsCol.setCaption("JSON Inputs:");
+
+        // List<DisplayColumn> columns = dr.getDisplayColumns();
+        dr.addDisplayColumn(inputsCol);
+        return dr;
+    }
+
+    @RequiresPermission(AdminPermission.class)
+    public class WorkflowDetailsAction extends SimpleViewAction<WorkflowForm>
+    {
+        @Override
+        public ModelAndView getView(WorkflowForm form, BindException errors)
+        {
+            int workflowId = form.getWorkflowId();
+            Workflow workflow = CromwellManager.get().getWorkflow(workflowId);
+            if(workflow == null)
+            {
+                errors.addError(new LabKeyError("Could not find a workflow for Id: " + workflowId));
+                return new SimpleErrorView(errors);
+            }
+
+            VBox view = new VBox();
+            DataRegion dr = getWorkflowDetailsDataRegion();
+
+            DetailsView detailsView = new DetailsView(dr, workflow.getId());
+            view.addView(detailsView);
+
+            view.setTitle("Cromwell Workflow Details");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Cromwell Workflow Details");
+        }
+    }
+
+    public static class WorkflowForm
+    {
+        private int _workflowId;
+
+        public void setWorkflowId(int workflowId)
+        {
+            _workflowId = workflowId;
+        }
+        public int getWorkflowId()
+        {
+            return _workflowId;
+        }
+    }
+
+    @NotNull
+    private static DataRegion getWorkflowDetailsDataRegion()
+    {
+        DataRegion dr = new DataRegion();
+        TableInfo tInfo = CromwellManager.get().getTableInfoWorkflow();
+        dr.setColumns(tInfo.getColumns("Id", "Created", "CreatedBy", "Name", "Version", "wdl"));
+
+        dr.getDisplayColumn("wdl").setVisible(false);
+
+        SimpleDisplayColumn wdlCol = new SimpleDisplayColumn(){
+
+            @Override
+            public void renderDetailsCellContents(RenderContext ctx, Writer out) throws IOException
+            {
+                String wdl = ctx.get(FieldKey.fromParts("wdl"), String.class);
+                if(!StringUtils.isBlank(wdl))
+                {
+                    DOM.PRE(wdl).appendTo(out);
+                }
+                else
+                {
+                    super.renderDetailsCellContents(ctx, out);
+                }
+            }
+        };
+        wdlCol.setCaption("WDL:");
+        dr.addDisplayColumn(wdlCol);
+        return dr;
     }
 
     public static class CromwellInput
@@ -479,6 +644,7 @@ public class CromwellController extends SpringActionController
         private String _name;
         private String _displayName;
         private String _value;
+        private String _workflowName;
 
         public CromwellInput() {}
 
@@ -524,9 +690,20 @@ public class CromwellController extends SpringActionController
             _value = value;
         }
 
-        public String getExtInputField()
+        public String getWorkflowName()
+        {
+            return _workflowName;
+        }
+
+        public void setWorkflowName(String workflowName)
+        {
+            _workflowName = workflowName;
+        }
+
+        public HtmlString getExtInputField()
         {
             /*
+            Example:
                 {
                     xtype: 'xtype',
                     fieldLabel: 'Skyline template URL',
@@ -537,9 +714,9 @@ public class CromwellController extends SpringActionController
                     afterBodyEl: '<span style="font-size: 0.9em;">WebDav URL of the Skyline template file (.sky)</span>',
                     msgTarget : 'under'
                 }
-                 */
+            */
             JSONObject inputJson = new JSONObject();
-            inputJson.put("xtype", "xtype");
+            inputJson.put("xtype", "textfield");
             inputJson.put("fieldLabel", getDisplayName());
             inputJson.put("name", getName());
             if(!StringUtils.isBlank(_value))
@@ -548,7 +725,7 @@ public class CromwellController extends SpringActionController
             }
             inputJson.put("allowBlank", false);
             inputJson.put("width", 650);
-            return inputJson.toString();
+            return inputJson.getHtmlString();
         }
     }
 }

@@ -20,9 +20,11 @@ import org.jetbrains.annotations.Nullable;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.DbSchema;
 import org.labkey.api.data.DbSchemaType;
+import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.data.Table;
 import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.TableSelector;
+import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
 
 import java.util.List;
@@ -81,5 +83,10 @@ public class CromwellManager
     public static TableInfo getTableInfoJob()
     {
         return getSchema().getTable(CromwellSchema.TABLE_JOB);
+    }
+
+    public void deleteJob(CromwellJob cromwellJob)
+    {
+        Table.delete(getTableInfoJob(), new SimpleFilter(FieldKey.fromParts("Id"), cromwellJob.getId()));
     }
 }

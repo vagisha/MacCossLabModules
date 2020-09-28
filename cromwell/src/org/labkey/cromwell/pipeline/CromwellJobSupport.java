@@ -6,5 +6,5 @@ import org.labkey.cromwell.Workflow;
 public interface CromwellJobSupport
 {
     Workflow getWorkflow();
-    CromwellJob getCromwellJob();
+    int getCromwellJobId();
 }

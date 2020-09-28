@@ -11,28 +11,27 @@ import org.labkey.api.pipeline.TaskPipeline;
 import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.URLHelper;
 import org.labkey.api.view.ViewBackgroundInfo;
-import org.labkey.cromwell.CromwellJob;
 import org.labkey.cromwell.CromwellModule;
 import org.labkey.cromwell.Workflow;
 
 public class CromwellPipelineJob extends PipelineJob implements CromwellJobSupport
 {
     private Workflow _workflow;
-    private CromwellJob _cromwellJob;
+    private int _cromwellJobId;
 
     @JsonCreator
-    protected CromwellPipelineJob(@JsonProperty("_workflow") Workflow workflow, @JsonProperty("_cromwellJob") CromwellJob cromwellJob)
+    protected CromwellPipelineJob(@JsonProperty("_workflow") Workflow workflow, @JsonProperty("_cromwellJobId") int cromwellJobId)
     {
         super();
         _workflow = workflow;
-        _cromwellJob = cromwellJob;
+        _cromwellJobId = cromwellJobId;
     }
 
-    public CromwellPipelineJob(ViewBackgroundInfo info, PipeRoot root, Workflow workflow, CromwellJob cromwellJob)
+    public CromwellPipelineJob(ViewBackgroundInfo info, PipeRoot root, Workflow workflow, int cromwellJobId)
     {
         super(CromwellPipelineProvider.NAME, info, root);
         _workflow = workflow;
-        _cromwellJob = cromwellJob;
+        _cromwellJobId = cromwellJobId;
 
         String baseLogFileName = FileUtil.makeFileNameWithTimestamp(workflow.getName().replace(" ", "_"));
         LocalDirectory localDirectory = LocalDirectory.create(root, CromwellModule.NAME, baseLogFileName, root.getRootPath().getAbsolutePath());
@@ -67,8 +66,8 @@ public class CromwellPipelineJob extends PipelineJob implements CromwellJobSuppo
     }
 
     @Override
-    public CromwellJob getCromwellJob()
+    public int getCromwellJobId()
     {
-        return _cromwellJob;
+        return _cromwellJobId;
     }
 }

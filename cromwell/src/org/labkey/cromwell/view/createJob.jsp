@@ -6,8 +6,6 @@
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
-<%@ page import="org.labkey.api.action.UrlProvider" %>
-<%@ page import="org.labkey.api.data.ContainerFilter" %>
 <%@ page extends="org.labkey.api.jsp.FormPage" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <labkey:errors/>
@@ -23,6 +21,11 @@
 %>
 
 <div style="margin-top:15px;" id="newJobForm"></div>
+<% if(form.getJobId() != null) { %>
+<div style="font-weight: bold; color: red;">
+    NOTE: Submitting a job with the same input parameters as a previous job will overwrite any output files that were created by the previous job.
+</div>
+<% } %>
 
 <script type="text/javascript">
 
@@ -50,59 +53,10 @@
                     name: 'workflowId',
                     value: <%=form.getWorkflowId()%>
                 },
-                {
-                    xtype:'hidden',
-                    name: 'workflowName',
-                    value: <%=q(form.getWorkflowName())%>
-                },
-                {
-                    xtype: 'textfield',
-                    fieldLabel: 'Skyline template URL',
-                    name: 'skylineTemplateUrl',
-                    allowBlank: false,
-                    width: 650,
-                    value: <%=q(form.getSkylineTemplateUrl())%>,
-                    afterBodyEl: '<span style="font-size: 0.9em;">WebDav URL of the Skyline template file (.sky)</span>',
-                    msgTarget : 'under'
-                },
-                {
-                    xtype: 'textfield',
-                    fieldLabel: 'Raw files directory URL',
-                    name: 'rawFilesFolderUrl',
-                    allowBlank: false,
-                    width: 650,
-                    value: <%=q(form.getRawFilesFolderUrl())%>,
-                    afterBodyEl: '<span style="font-size: 0.9em;">WebDav URL of the raw data directory</span>',
-                    msgTarget : 'under'
-                },
-                {
-                    xtype: 'textfield',
-                    fieldLabel: 'Raw files extension',
-                    name: 'rawFileExtention',
-                    allowBlank: false,
-                    width: 650,
-                    value: <%=q(form.getRawFileExtention())%>,
-                    afterBodyEl: '<span style="font-size: 0.9em;">e.g. RAW, mzML, mzXML etc.</span>',
-                    msgTarget : 'under'
-                },
-                {
-                    xtype: 'textfield',
-                    fieldLabel: 'Target folder',
-                    name: 'targetFolderUrl',
-                    allowBlank: false,
-                    width: 650,
-                    value: <%=q(form.getTargetFolderUrl())%>,
-                    afterBodyEl: '<span style="font-size: 0.9em;">Folder where the Skyline document should be uploaded</span>',
-                    msgTarget : 'under'
-                },
-                {
-                    xtype: 'textfield',
-                    fieldLabel: 'API Key',
-                    name: 'apiKey',
-                    allowBlank: false,
-                    width: 650,
-                    value: <%=q(form.getApiKey())%>
-                }
+                <%for (CromwellController.CromwellInput input: form.getInputsArray()) { %>
+                    <%=input.getExtInputField()%>,
+                 <% } %>
+
             ],
             buttonAlign: 'left',
             buttons: [{
@@ -111,7 +65,7 @@
                 handler: function() {
                     var values = form.getForm().getValues();
                     form.submit({
-                        url: <%=q(new ActionURL(CromwellController.SubmitCromwellJob.class, getContainer()).getLocalURIString())%>,
+                        url: <%=q(new ActionURL(CromwellController.SubmitCromwellJobAction.class, getContainer()).getLocalURIString())%>,
                         method: 'POST',
                         params: values
                     });

@@ -113,7 +113,7 @@ public class CromwellModule extends SpringModule
 
                         if (getContainer().hasPermission(getUser(), InsertPermission.class))
                         {
-                            ActionURL insertURL = new ActionURL(CromwellController.SubmitCromwellJob.class, getContainer());
+                            ActionURL insertURL = new ActionURL(CromwellController.SubmitCromwellJobAction.class, getContainer());
                             insertURL.addParameter(ActionURL.Param.returnUrl, getViewContext().getActionURL().getLocalURIString());
                             ActionButton insert = new ActionButton("Create New Job", insertURL);
                             insert.setActionType(ActionButton.Action.LINK);

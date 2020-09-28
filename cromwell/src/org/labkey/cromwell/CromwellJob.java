@@ -7,7 +7,7 @@ public class CromwellJob
     private int _id;
     private int _workflowId;
     private Container _container;
-    private int _pipelineJobId;
+    private Integer _pipelineJobId;
     private String _cromwellJobId;
     private String _cromwellJobStatus;
     private String _inputs;
@@ -59,12 +59,12 @@ public class CromwellJob
         _inputs = inputs;
     }
 
-    public int getPipelineJobId()
+    public Integer getPipelineJobId()
     {
         return _pipelineJobId;
     }
 
-    public void setPipelineJobId(int pipelineJobId)
+    public void setPipelineJobId(Integer pipelineJobId)
     {
         _pipelineJobId = pipelineJobId;
     }

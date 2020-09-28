@@ -1,6 +1,7 @@
 package org.labkey.cromwell.pipeline;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
 import org.apache.http.StatusLine;
@@ -8,17 +9,21 @@ import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.HttpMultipartMode;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.BasicResponseHandler;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
+import org.labkey.api.data.PropertyManager;
 import org.labkey.cromwell.CromwellJob;
+import org.labkey.cromwell.CromwellManager;
+import org.labkey.cromwell.Workflow;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,31 +32,45 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
+import static org.labkey.cromwell.CromwellController.PROPS_CROMWELL;
+import static org.labkey.cromwell.CromwellController.PROP_CROMWELL_SERVER_PORT;
+import static org.labkey.cromwell.CromwellController.PROP_CROMWELL_SERVER_URL;
+
 public class CromwellUtil
 {
-    public static CromwellJobStatus submitJob(CromwellJob cromwellJob, Logger logger) throws IOException
+    private static String CROMWELL_API_PATH = "/api/workflows/v1";
+    private static String CROMWELL_STATUS_ENDPOINT = "/status";
+
+    public static CromwellJobStatus submitJob(CromwellJob cromwellJob, Logger logger) throws CromwellException
     {
+        URI uri = buildCromwellServerUri();
+
         try (CloseableHttpClient client = HttpClientBuilder.create().build())
         {
-            String url = "http://127.0.0.1:8000/api/workflows/v1";
+            // String url = "http://127.0.0.1:8000/api/workflows/v1";
             // String url = "http://m002.grid.gs.washington.edu:8000/api/workflows/v1";
-            HttpPost post = new HttpPost(url);
-            File wdlFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\skyline_panorama.wdl");
-            File inputsFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\panorama_skyline_inputs.json");
-            FileBody wdlFileBody = new FileBody(wdlFile);
-            FileBody inputsFileBody = new FileBody(inputsFile, ContentType.APPLICATION_JSON);
+            HttpPost post = new HttpPost(uri);
+//            File wdlFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\skyline_panorama.wdl");
+//            File inputsFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\panorama_skyline_inputs.json");
+//            FileBody wdlFileBody = new FileBody(wdlFile);
+//            FileBody inputsFileBody = new FileBody(inputsFile, ContentType.APPLICATION_JSON);
 
             MultipartEntityBuilder builder = MultipartEntityBuilder.create();
             builder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
-            builder.addPart("workflowSource", wdlFileBody);
-            builder.addPart("workflowInputs", inputsFileBody);
+//            builder.addPart("workflowSource", wdlFileBody);
+//            builder.addPart("workflowInputs", inputsFileBody);
+            Workflow workflow = CromwellManager.get().getWorkflow(cromwellJob.getWorkflowId());
+            builder.addPart("workflowSource", new StringBody(workflow.getWdl(), ContentType.DEFAULT_BINARY));
+            builder.addPart("workflowInputs", new StringBody(cromwellJob.getInputs(), ContentType.APPLICATION_JSON));
             HttpEntity entity = builder.build();
             post.setEntity(entity);
-            logger.info("Submitting job to " + url);
+            logger.info("Submitting job to " + uri);
 
             try (CloseableHttpResponse response = client.execute(post))
             {
@@ -73,18 +92,55 @@ public class CromwellUtil
                 }
             }
         }
+        catch (IOException e)
+        {
+            throw new CromwellException("Error occurred submitting job.", e);
+        }
     }
 
-    public static CromwellJobStatus getJobStatus(CromwellJob cromwellJob, Logger logger) throws IOException
+    private static URI buildCromwellServerUri() throws CromwellException
     {
+        return buildCromwellServerUri(CROMWELL_API_PATH);
+    }
+
+    private static URI buildCromwellServerUri(String path) throws CromwellException
+    {
+        PropertyManager.PropertyMap map = PropertyManager.getEncryptedStore().getWritableProperties(PROPS_CROMWELL, false);
+        if(map == null)
+        {
+            throw new CromwellException("Could not find Cromwell settings.");
+        }
+        String cromwellServerUrl = map.get(PROP_CROMWELL_SERVER_URL);
+        String cromwellServerPort = map.get(PROP_CROMWELL_SERVER_PORT);
+        if(StringUtils.isBlank(cromwellServerUrl))
+        {
+            throw new CromwellException("Could not find Cromwell server URL");
+        }
+
+        try
+        {
+            URIBuilder builder = new URIBuilder(cromwellServerUrl);
+            if(!StringUtils.isBlank(cromwellServerPort))
+            {
+                builder = builder.setPort(Integer.valueOf(cromwellServerPort));
+            }
+            return builder.setPath(path).build();
+        }
+        catch (URISyntaxException e)
+        {
+            throw new CromwellException("Error building Cromwell server URI. Error was: " + e.getMessage(), e);
+        }
+    }
+
+    public static CromwellJobStatus getJobStatus(CromwellJob cromwellJob, Logger logger) throws CromwellException
+    {
+        String path = CROMWELL_API_PATH + '/' + cromwellJob.getCromwellJobId() + "/status";
+        URI uri = buildCromwellServerUri(path);
         try (CloseableHttpClient client = HttpClientBuilder.create().build())
         {
-            String url = "http://127.0.0.1:8000/api/workflows/v1";
-            url = url + '/' + cromwellJob.getCromwellJobId() + "/status";
-
             // String url = "http://m002.grid.gs.washington.edu:8000/api/workflows/v1";
-            HttpGet get = new HttpGet(url);
-            logger.info("Checking status of job " + cromwellJob.getCromwellJobId() + " at " + url);
+            HttpGet get = new HttpGet(uri);
+            logger.info("Checking status of job " + cromwellJob.getCromwellJobId() + " at " + uri);
 
             try (CloseableHttpResponse response = client.execute(get))
             {
@@ -105,6 +161,10 @@ public class CromwellUtil
                     return null;
                 }
             }
+        }
+        catch (IOException e)
+        {
+            throw new CromwellException("Error checking status of job.", e);
         }
     }
 

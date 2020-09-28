@@ -2,7 +2,7 @@
 <%@ page import="org.labkey.api.view.JspView" %>
 <%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page import="org.labkey.cromwell.CromwellController" %>
-<%@ page import="org.labkey.cromwell.CromwellController.CromwellJobForm" %>
+<%@ page import="org.labkey.cromwell.CromwellController.SkylinePanoramaWorkflowForm" %>
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
@@ -12,7 +12,7 @@
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <labkey:errors/>
 <%
-    CromwellJobForm form = ((JspView<CromwellJobForm>) HttpView.currentView()).getModelBean();
+    SkylinePanoramaWorkflowForm form = ((JspView<SkylinePanoramaWorkflowForm>) HttpView.currentView()).getModelBean();
 %>
 <%!
     @Override
@@ -111,7 +111,7 @@
                 handler: function() {
                     var values = form.getForm().getValues();
                     form.submit({
-                        url: <%=q(new ActionURL(CromwellController.SubmitCromwellJob.class, getContainer()).getLocalURIString())%>,
+                        url: <%=q(new ActionURL(CromwellController.SubmitCromwellJobAction.class, getContainer()).getLocalURIString())%>,
                         method: 'POST',
                         params: values
                     });

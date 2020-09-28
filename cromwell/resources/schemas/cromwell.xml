@@ -98,6 +98,9 @@
                     <fkDbSchema>maccossworkflows</fkDbSchema>
                     <fkTable>workflow</fkTable>
                 </fk>
+                <url>
+                    org.labkey.cromwell.CromwellController$WorkflowDetailsAction.class?workflowId=${WorkflowId}
+                </url>
             </column>
             <column columnName="PipelineJobId">
                 <fk>
@@ -105,6 +108,9 @@
                     <fkDbSchema>pipeline</fkDbSchema>
                     <fkTable>statusFiles</fkTable>
                 </fk>
+                <url>
+                    org.labkey.pipeline.status.StatusController$DetailsAction.class?rowId=${PipelineJobId}
+                </url>
             </column>
 
             <column columnName="CromwellJobId">

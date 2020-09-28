@@ -104,45 +104,11 @@ public class CromwellSchema extends UserSchema
     {
         if (TABLE_JOB.equalsIgnoreCase(name))
         {
-            FilteredTable<CromwellSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf)
-            {
-                @Override
-                public boolean hasPermission(@NotNull UserPrincipal user, @NotNull Class<? extends Permission> perm)
-                {
-                    return getContainer().hasPermission(user, perm);
-                }
-
-                @Override
-                public QueryUpdateService getUpdateService()
-                {
-                    return new DefaultQueryUpdateService(this, getRealTable());
-                }
-            };
-
-            result.wrapAllColumns(true);
-            var containerCol = result.getMutableColumn(FieldKey.fromParts("Container"));
-            ContainerForeignKey.initColumn(containerCol, this);
-            return result;
+            return new CromwellJobTable(this, cf);
         }
-        if (getTableNames().contains(name))
+        if (TABLE_WORKFLOW.equalsIgnoreCase(name))
         {
-            SimpleUserSchema.SimpleTable<CromwellSchema> result = new SimpleUserSchema.SimpleTable<>(this, getSchema().getTable(name), cf)
-            {
-                @Override
-                public boolean hasPermission(@NotNull UserPrincipal user, @NotNull Class<? extends Permission> perm)
-                {
-                    return getContainer().hasPermission(user, perm);
-                }
-
-                @Override
-                public QueryUpdateService getUpdateService()
-                {
-                    return new DefaultQueryUpdateService(this, getRealTable());
-                }
-            };
-            // result.setReadOnly(false);
-            result.wrapAllColumns(true);
-            return result;
+            return new WorkflowTable(this, cf);
         }
         return null;
     }
