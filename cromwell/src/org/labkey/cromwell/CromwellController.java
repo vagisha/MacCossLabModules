@@ -18,9 +18,11 @@ package org.labkey.cromwell;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.labkey.api.action.FormViewAction;
 import org.labkey.api.action.LabKeyError;
+import org.labkey.api.action.ReadOnlyApiAction;
 import org.labkey.api.action.ReturnUrlForm;
 import org.labkey.api.action.SimpleErrorView;
 import org.labkey.api.action.SimpleRedirectAction;
@@ -35,6 +37,7 @@ import org.labkey.api.data.PropertyManager;
 import org.labkey.api.data.RenderContext;
 import org.labkey.api.data.SimpleDisplayColumn;
 import org.labkey.api.data.TableInfo;
+import org.labkey.api.files.FileContentService;
 import org.labkey.api.module.ModuleLoader;
 import org.labkey.api.pipeline.PipeRoot;
 import org.labkey.api.pipeline.PipelineService;
@@ -67,11 +70,20 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.Errors;
 import org.springframework.web.servlet.ModelAndView;
 
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.file.FileSystem;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
@@ -356,7 +368,6 @@ public class CromwellController extends SpringActionController
                     form.setInputsArray(Workflow.getInputs(workflow)); // Set the input fields based on the WDL definition
                 }
             }
-
             return new JspView<>("/org/labkey/cromwell/view/createJob.jsp", form, errors);
         }
 
@@ -395,10 +406,6 @@ public class CromwellController extends SpringActionController
                 errors.reject(ERROR_MSG, e.getMessage());
                 return false;
             }
-
-            int jobId = PipelineService.get().getJobId(getUser(), container, job.getJobGUID());
-            cromwellJob.setPipelineJobId(jobId);
-            cromwellManager.updateJob(cromwellJob, getUser());
             return true;
         }
 
@@ -483,6 +490,55 @@ public class CromwellController extends SpringActionController
         public URLHelper getRedirectURL(CromwellJobForm form)
         {
             return new ActionURL(SubmitCromwellJobAction.class, getContainer()).addParameter("jobId", form.getJobId());
+        }
+    }
+
+    @RequiresPermission(AdminPermission.class)
+    public static class GetFileRootTreeAction extends ReadOnlyApiAction
+    {
+        @Override
+        public Object execute(Object o, BindException errors) throws Exception
+        {
+            Path fileRootPath = FileContentService.get().getFileRootPath(getContainer());
+            JSONObject root = getFolderTreeJSON(fileRootPath);
+            root.put("expanded", true);
+
+            HttpServletResponse resp = getViewContext().getResponse();
+            resp.setContentType("application/json");
+//            JSONObject ret = new JSONObject();
+//            ret.put("root", root);
+            resp.getWriter().write(root.toString());
+            return null;
+        }
+
+        private JSONObject getFolderTreeJSON(Path rootPath) throws IOException
+        {
+            JSONObject root = new JSONObject();
+            JSONArray rootChildren = new JSONArray();
+
+            for (Path path : Files.walk(rootPath, 1).filter(Files::isDirectory).sorted(Comparator.naturalOrder()).collect(Collectors.toList()))
+            {
+                if(path.equals(rootPath))
+                {
+                    continue;
+                }
+                JSONObject childTree = getFolderTreeJSON(path);
+                rootChildren.put(childTree);
+            }
+
+            root.put("text", rootPath.getFileName());
+            root.put("expanded", false);
+            root.put("iconCls", "x4-tree-icon-parent");
+            if(rootChildren.length() > 0)
+            {
+                root.put("children", rootChildren);
+            }
+            else
+            {
+                root.put("leaf", true);
+            }
+
+            return root;
         }
     }
 
@@ -698,6 +754,15 @@ public class CromwellController extends SpringActionController
         public void setWorkflowName(String workflowName)
         {
             _workflowName = workflowName;
+        }
+
+        public boolean isWebDavDirUrl()
+        {
+            return _name.startsWith("url_webdav_");
+        }
+        public boolean isWebdavFileUrl()
+        {
+            return _name.startsWith("url_webdav_file_");
         }
 
         public HtmlString getExtInputField()

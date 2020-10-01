@@ -28,7 +28,7 @@ public class WorkflowTable extends FilteredTable<CromwellSchema>
     {
         super(CromwellManager.getTableInfoWorkflow(), schema, cf);
         wrapAllColumns(true);
-        setDetailsURL(new DetailsURL(new ActionURL(CromwellController.WorkflowDetailsAction.class, getContainer()), Collections.singletonMap("id", "id")));
+        setDetailsURL(new DetailsURL(new ActionURL(CromwellController.WorkflowDetailsAction.class, getContainer()), Collections.singletonMap("workflowId", "id")));
 
         var createdByCol = getMutableColumn(FieldKey.fromParts("CreatedBy"));
         UserIdForeignKey.initColumn(createdByCol);

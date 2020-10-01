@@ -48,13 +48,19 @@ public class CromwellTask extends PipelineJob.Task<CromwellTask.Factory>
             throw new PipelineJobException("Could not find a CromwellJob for id: " + cromwellJobId);
         }
 
+        if(cromwellJob.getPipelineJobId() == null)
+        {
+            Integer pipelineJobId = (PipelineService.get().getJobId(getJob().getUser(), getJob().getContainer(), getJob().getJobGUID()));
+            cromwellJob.setPipelineJobId(pipelineJobId);
+        }
+
         try
         {
             CromwellUtil.CromwellJobStatus status = CromwellUtil.submitJob(cromwellJob, log);
             if(status != null)
             {
                 cromwellJob.setCromwellJobId(status.getJobId());
-                cromwellJob.setCromwellJobStatus(status.getJobStatus());
+                cromwellJob.setCromwellStatus(status.getJobStatus());
                 manager.updateJob(cromwellJob, user);
 
                 if(!status.submitted())
@@ -108,6 +114,8 @@ public class CromwellTask extends PipelineJob.Task<CromwellTask.Factory>
                 if(!lastStatus.equalsIgnoreCase(status.getJobStatus()))
                 {
                     log.info("Cromwell job status: " + status.getJobStatus());
+                    cromwellJob.setCromwellStatus(status.getJobStatus());
+                    manager.updateJob(cromwellJob, user);
                 }
 
                 if(status.success())

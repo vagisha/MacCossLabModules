@@ -5,12 +5,16 @@ import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.ContainerForeignKey;
 import org.labkey.api.data.DataColumn;
 import org.labkey.api.data.RenderContext;
+import org.labkey.api.query.DefaultQueryUpdateService;
 import org.labkey.api.query.DetailsURL;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
+import org.labkey.api.query.QueryUpdateService;
 import org.labkey.api.query.UserIdForeignKey;
 import org.labkey.api.security.UserPrincipal;
+import org.labkey.api.security.permissions.DeletePermission;
 import org.labkey.api.security.permissions.Permission;
+import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.util.Link;
 import org.labkey.api.view.ActionURL;
 
@@ -81,6 +85,14 @@ public class CromwellJobTable extends FilteredTable<CromwellSchema>
     @Override
     public boolean hasPermission(@NotNull UserPrincipal user, @NotNull Class<? extends Permission> perm)
     {
-        return getContainer().hasPermission(user, perm);
+        // return getContainer().hasPermission(user, perm);
+        return (ReadPermission.class.equals(perm) || DeletePermission.class.equals(perm))
+                && getContainer().hasPermission(user, perm);
+    }
+
+    @Override
+    public QueryUpdateService getUpdateService()
+    {
+        return new DefaultQueryUpdateService(this, getRealTable());
     }
 }

@@ -47,7 +47,7 @@ CREATE TABLE cromwell.cromwelljob
     Modified TIMESTAMP,
 
     workflowid INTEGER NOT NULL,
-    pipelinejobid INTEGER NOT NULL,
+    pipelinejobid INTEGER,
     cromwelljobid VARCHAR,
     cromwellstatus VARCHAR,
     inputs TEXT NOT NULL,

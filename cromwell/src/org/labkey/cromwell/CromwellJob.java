@@ -9,7 +9,7 @@ public class CromwellJob
     private Container _container;
     private Integer _pipelineJobId;
     private String _cromwellJobId;
-    private String _cromwellJobStatus;
+    private String _cromwellStatus;
     private String _inputs;
 
     public CromwellJob() {}
@@ -79,13 +79,13 @@ public class CromwellJob
         _cromwellJobId = cromwellJobId;
     }
 
-    public String getCromwellJobStatus()
+    public String getCromwellStatus()
     {
-        return _cromwellJobStatus;
+        return _cromwellStatus;
     }
 
-    public void setCromwellJobStatus(String cromwellJobStatus)
+    public void setCromwellStatus(String cromwellStatus)
     {
-        _cromwellJobStatus = cromwellJobStatus;
+        _cromwellStatus = cromwellStatus;
     }
 }
