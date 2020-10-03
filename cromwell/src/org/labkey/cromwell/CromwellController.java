@@ -45,14 +45,16 @@ import org.labkey.api.pipeline.PipelineStatusUrls;
 import org.labkey.api.pipeline.PipelineUrls;
 import org.labkey.api.pipeline.PipelineValidationException;
 import org.labkey.api.query.FieldKey;
-import org.labkey.api.security.Group;
-import org.labkey.api.security.GroupManager;
+import org.labkey.api.security.ApiKeyManager;
+import org.labkey.api.security.RequiresAllOf;
 import org.labkey.api.security.RequiresPermission;
 import org.labkey.api.security.User;
 import org.labkey.api.security.permissions.AdminOperationsPermission;
 import org.labkey.api.security.permissions.AdminPermission;
+import org.labkey.api.security.permissions.ReadPermission;
+import org.labkey.api.security.roles.Role;
+import org.labkey.api.security.roles.RoleManager;
 import org.labkey.api.util.DOM;
-import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.util.URLHelper;
@@ -64,8 +66,9 @@ import org.labkey.api.view.NavTree;
 import org.labkey.api.view.VBox;
 import org.labkey.api.view.ViewBackgroundInfo;
 import org.labkey.api.view.WebPartView;
+import org.labkey.api.webdav.WebdavResource;
+import org.labkey.api.webdav.WebdavService;
 import org.labkey.cromwell.pipeline.CromwellPipelineJob;
-import org.labkey.security.xml.GroupEnumType;
 import org.springframework.validation.BindException;
 import org.springframework.validation.Errors;
 import org.springframework.web.servlet.ModelAndView;
@@ -73,12 +76,8 @@ import org.springframework.web.servlet.ModelAndView;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
-import java.nio.file.FileSystem;
-import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -100,6 +99,8 @@ public class CromwellController extends SpringActionController
     public static final String PROP_SCP_KEY_FILE = "cromwell_scp_key_filepath";
     public static final String PROP_SCP_PORT = "cromwell_scp_port";
     public static final String PROP_ALLOWED_PROJECTS = "cromwell_allowed_projects";
+    public static final String PROPS_CROMWELL_USER = "cromwell_properties_user";
+    public static final String PROP_USER_APIKEY = "panorama_apikey";
 
     public CromwellController()
     {
@@ -137,6 +138,7 @@ public class CromwellController extends SpringActionController
             if(!reshow)
             {
                 PropertyManager.PropertyMap map = PropertyManager.getEncryptedStore().getWritableProperties(PROPS_CROMWELL, false);
+                PropertyManager.getEncryptedStore().getWritableProperties(getUser(), getContainer(), PROPS_CROMWELL, true);
                 if(map != null)
                 {
                     form.setCromwellServer(map.get(PROP_CROMWELL_SERVER_URL));
@@ -294,7 +296,7 @@ public class CromwellController extends SpringActionController
         }
     }
 
-    @RequiresPermission(AdminPermission.class)
+    @RequiresAllOf({AdminPermission.class, CromwellPermission.class})
     public static class SubmitCromwellJobAction extends FormViewAction<CromwellJobForm>
     {
         @Override
@@ -305,16 +307,17 @@ public class CromwellController extends SpringActionController
                 errors.reject(ERROR_MSG, "Cromwell module is not enabled in the container. Cannot submit Cromwell jobs.");
                 return;
             }
-            if(!hasCromwellRole(getUser(), getContainer()))
-            {
-                errors.reject(ERROR_MSG, "User does not have permission to submit Cromwell jobs.");
-                return;
-            }
+//            if(!hasCromwellRole(getUser(), getContainer()))
+//            {
+//                errors.reject(ERROR_MSG, "User does not have permission to submit Cromwell jobs.");
+//                return;
+//            }
 
             Workflow workflow = form.getWorkflow();
             if(workflow == null)
             {
                 errors.reject(ERROR_MSG, "Could not find a workflow in the request.");
+                return;
             }
         }
 
@@ -331,7 +334,7 @@ public class CromwellController extends SpringActionController
                     errors.reject(ERROR_MSG, "No workflow found in request");
                     return new SimpleErrorView(errors);
                 }
-                List<CromwellInput> formInputs = Workflow.getInputs(workflow);
+                List<CromwellInput> formInputs = Workflow.createInputs(workflow);
                 formInputs = Workflow.populateInputs(formInputs, getViewContext().getRequest().getParameterMap());
                 form.setInputsArray(formInputs);
             }
@@ -349,9 +352,7 @@ public class CromwellController extends SpringActionController
 
                     workflow = manager.getWorkflow(job.getWorkflowId());
                     form.setWorkflow(workflow);
-                    List<CromwellInput> formInputs = Workflow.getInputs(workflow);
-                    formInputs = Workflow.copyInputsFromJob(formInputs, job);
-                    form.setInputsArray(formInputs);
+                    form.setInputsArray(job.getInputList());
                 }
                 else
                 {
@@ -365,8 +366,10 @@ public class CromwellController extends SpringActionController
                         workflow = form.getWorkflow();
                     }
                     form.setWorkflow(workflow);
-                    form.setInputsArray(Workflow.getInputs(workflow)); // Set the input fields based on the WDL definition
+                    form.setInputsArray(Workflow.createInputs(workflow)); // Set the input fields based on the WDL definition
                 }
+
+                setApiKeyInInputs(form.getInputsArray(), getUser());
             }
             return new JspView<>("/org/labkey/cromwell/view/createJob.jsp", form, errors);
         }
@@ -374,12 +377,6 @@ public class CromwellController extends SpringActionController
         @Override
         public boolean handlePost(CromwellJobForm form, BindException errors) throws Exception
         {
-            Workflow workflow = form.getWorkflow();
-
-            // We do not have form fields for the workflow inputs.  Read them from the request parameter map.
-            List<CromwellInput> workflowInputs = Workflow.getInputs(workflow);
-            workflowInputs = Workflow.populateInputs(workflowInputs, getViewContext().getRequest().getParameterMap());
-
             Container container = getContainer();
             PipeRoot root = PipelineService.get().findPipelineRoot(container);
             if (root == null || !root.isValid())
@@ -388,14 +385,28 @@ public class CromwellController extends SpringActionController
                 return false;
             }
 
+            Workflow workflow = form.getWorkflow();
+
+            // We do not have form fields for the workflow inputs.  Read them from the request parameter map.
+            List<CromwellInput> workflowInputs = Workflow.createInputs(workflow);
+            workflowInputs = Workflow.populateInputs(workflowInputs, getViewContext().getRequest().getParameterMap());
+            if(!validateInputs(workflowInputs, getUser(), errors))
+            {
+                return false;
+            }
+
             CromwellManager cromwellManager = CromwellManager.get();
 
             ViewBackgroundInfo info = new ViewBackgroundInfo(container, getUser(), null);
             CromwellJob cromwellJob = new CromwellJob(workflow.getId(), container);
-            cromwellJob.setInputs(Workflow.getInputsJSON(workflowInputs));
+            cromwellJob.setInputList(workflowInputs);
             cromwellJob = cromwellManager.saveNewJob(cromwellJob, getUser());
 
-            CromwellPipelineJob job = new CromwellPipelineJob(info, root, workflow, cromwellJob.getId());
+            String panoramaApiKey;
+            CromwellInput input = CromwellJob.getApiKeyInput(workflowInputs);
+            panoramaApiKey = input != null ? input.getValue() : null;
+
+            CromwellPipelineJob job = new CromwellPipelineJob(info, root, workflow, cromwellJob.getId(), panoramaApiKey);
             try
             {
                 PipelineService.get().queueJob(job);
@@ -407,6 +418,47 @@ public class CromwellController extends SpringActionController
                 return false;
             }
             return true;
+        }
+
+        private boolean validateInputs(List<CromwellInput> workflowInputs, User user, BindException errors)
+        {
+            for(CromwellInput input: workflowInputs)
+            {
+                if(input.isApiKey())
+                {
+                    String inputApiKey = input.getValue();
+                    if(!CromwellInput.apiKeyPattern.matcher(input.getValue()).matches())
+                    {
+                        errors.reject(ERROR_MSG, "Invalid API Key");
+                    }
+                    else
+                    {
+                        // Make sure the key is valid
+                        User apiKeyUser = ApiKeyManager.get().authenticateFromApiKey(inputApiKey);
+                        if(apiKeyUser == null)
+                        {
+                            errors.reject(ERROR_MSG, "Cannot authenticate user with API Key.  The key may have expired");
+                        }
+                        else if(!apiKeyUser.equals(user))
+                        {
+                            errors.reject(ERROR_MSG, "API key not valid for current user " + user.getEmail());
+                        }
+                        else
+                        {
+                            PropertyManager.PropertyMap props = PropertyManager.getEncryptedStore().getWritableProperties(getUser(), ContainerManager.getRoot(), PROPS_CROMWELL_USER, true);
+                            String savedApiKey = props.get(PROP_USER_APIKEY);
+                            // Save the API Key if one was not saved before or is different from the one the user provided
+                            if (savedApiKey == null || !inputApiKey.equals(savedApiKey))
+                            {
+                                props.put(PROP_USER_APIKEY, inputApiKey);
+                                props.save();
+                            }
+                        }
+                    }
+                }
+                // TODO: Validate other inputs
+            }
+            return !errors.hasErrors();
         }
 
         @Override
@@ -422,19 +474,41 @@ public class CromwellController extends SpringActionController
         }
     }
 
-    private static boolean hasCromwellRole(@NotNull User user, @NotNull Container container)
+    private static void setApiKeyInInputs(List<CromwellInput> inputList, User user)
     {
-        Group cromwellGroup = GroupManager.getGroup(ContainerManager.getRoot(), "Cromwell", GroupEnumType.SITE);
-        return cromwellGroup == null || user.isInGroup(cromwellGroup.getUserId());
+        for(CromwellInput input: inputList)
+        {
+            if(input.isApiKey())
+            {
+                PropertyManager.PropertyMap props = PropertyManager.getEncryptedStore().getWritableProperties(user, ContainerManager.getRoot(), PROPS_CROMWELL_USER, false);
+                if (props != null && props.get(PROP_USER_APIKEY) != null)
+                {
+                    String apiKey = props.get(PROP_USER_APIKEY);
+                    User apiKeyUser = ApiKeyManager.get().authenticateFromApiKey(apiKey);
+                    if(apiKeyUser != null && apiKeyUser.equals(user))
+                    {
+                        input.setValue(apiKey);
+                    }
+                }
 
-        //Role cromwellRole = RoleManager.getRole(CromwellRole.class);
-        //return cromwellRole != null && container.getPolicy().getEffectiveRoles(user).contains(cromwellRole);
+                break;
+            }
+        }
     }
+
+//    private static boolean hasCromwellRole(@NotNull User user, @NotNull Container container)
+//    {
+////        Group cromwellGroup = GroupManager.getGroup(ContainerManager.getRoot(), "Cromwell", GroupEnumType.SITE);
+////        return cromwellGroup == null || user.isInGroup(cromwellGroup.getUserId());
+//
+//        Role cromwellRole = RoleManager.getRole(CromwellRole.class);
+//        return cromwellRole != null && container.getPolicy().getEffectiveRoles(user).contains(cromwellRole);
+//    }
 
     public static class CromwellJobForm extends ReturnUrlForm
     {
         private Workflow _workflow;
-        private List<CromwellInput> _inputs;
+        private List<CromwellInput> inputList;
         private Integer _jobId;
 
         public void setWorkflowId(int workflowId)
@@ -473,12 +547,12 @@ public class CromwellController extends SpringActionController
 
         public List<CromwellInput> getInputsArray()
         {
-            return _inputs != null ? _inputs : Collections.emptyList();
+            return inputList != null ? inputList : Collections.emptyList();
         }
 
         public void setInputsArray(List<CromwellInput> inputs)
         {
-            _inputs = inputs;
+            inputList = inputs;
         }
     }
 
@@ -493,25 +567,24 @@ public class CromwellController extends SpringActionController
         }
     }
 
-    @RequiresPermission(AdminPermission.class)
-    public static class GetFileRootTreeAction extends ReadOnlyApiAction
+    @RequiresPermission(ReadPermission.class)
+    public static class GetFileRootDirTreeAction extends ReadOnlyApiAction
     {
         @Override
         public Object execute(Object o, BindException errors) throws Exception
         {
-            Path fileRootPath = FileContentService.get().getFileRootPath(getContainer());
-            JSONObject root = getFolderTreeJSON(fileRootPath);
+            Path fileRootPath = FileContentService.get().getFileRootPath(getContainer(), FileContentService.ContentType.files);
+            org.labkey.api.util.Path labkeyPath = WebdavService.getPath().append(getContainer().getParsedPath()).append(FileContentService.FILES_LINK);
+            JSONObject root = getFolderTreeJSON(fileRootPath, labkeyPath);
             root.put("expanded", true);
 
             HttpServletResponse resp = getViewContext().getResponse();
             resp.setContentType("application/json");
-//            JSONObject ret = new JSONObject();
-//            ret.put("root", root);
             resp.getWriter().write(root.toString());
             return null;
         }
 
-        private JSONObject getFolderTreeJSON(Path rootPath) throws IOException
+        private JSONObject getFolderTreeJSON(Path rootPath, org.labkey.api.util.Path labkeyPath) throws IOException
         {
             JSONObject root = new JSONObject();
             JSONArray rootChildren = new JSONArray();
@@ -522,11 +595,14 @@ public class CromwellController extends SpringActionController
                 {
                     continue;
                 }
-                JSONObject childTree = getFolderTreeJSON(path);
+                JSONObject childTree = getFolderTreeJSON(path, labkeyPath.append(path.getFileName().toString()));
                 rootChildren.put(childTree);
             }
 
             root.put("text", rootPath.getFileName());
+
+            WebdavResource resource = WebdavService.get().lookup(labkeyPath);
+            root.put("path", resource.getHref(getViewContext()));
             root.put("expanded", false);
             root.put("iconCls", "x4-tree-icon-parent");
             if(rootChildren.length() > 0)
@@ -535,6 +611,69 @@ public class CromwellController extends SpringActionController
             }
             else
             {
+                root.put("leaf", true);
+            }
+
+            return root;
+        }
+    }
+
+    @RequiresPermission(ReadPermission.class)
+    public static class GetFileRootFilesTreeAction extends ReadOnlyApiAction
+    {
+        @Override
+        public Object execute(Object o, BindException errors) throws Exception
+        {
+            Path fileRootPath = FileContentService.get().getFileRootPath(getContainer(), FileContentService.ContentType.files);
+            org.labkey.api.util.Path labkeyPath = WebdavService.getPath().append(getContainer().getParsedPath()).append(FileContentService.FILES_LINK);
+            JSONObject root = getFilesTreeJSON(fileRootPath, labkeyPath);
+            root.put("expanded", true);
+
+            HttpServletResponse resp = getViewContext().getResponse();
+            resp.setContentType("application/json");
+            resp.getWriter().write(root.toString());
+            return null;
+        }
+
+        private JSONObject getFilesTreeJSON(Path rootPath, org.labkey.api.util.Path labkeyPath) throws IOException
+        {
+            JSONObject root = new JSONObject();
+            JSONArray rootChildren = new JSONArray();
+
+            for (Path path : Files.walk(rootPath, 1).sorted((p1, p2) -> {
+                if(Files.isDirectory(p1) && Files.isRegularFile(p2)) return -1;
+                else if(Files.isRegularFile(p1) && Files.isDirectory(p2)) return 1;
+                else return p1.compareTo(p2);
+            })
+            .collect(Collectors.toList()))
+            {
+                if(path.equals(rootPath))
+                {
+                    continue;
+                }
+                JSONObject childTree = getFilesTreeJSON(path, labkeyPath.append(path.getFileName().toString()));
+                rootChildren.put(childTree);
+            }
+
+            root.put("text", rootPath.getFileName());
+
+            WebdavResource resource = WebdavService.get().lookup(labkeyPath);
+            root.put("path", resource.getHref(getViewContext()));
+            root.put("expanded", false);
+            if(rootChildren.length() > 0)
+            {
+                root.put("children", rootChildren);
+            }
+            else
+            {
+                if(Files.isDirectory(rootPath))
+                {
+                    root.put("iconCls", "x4-tree-icon-parent");
+                }
+                else
+                {
+                    root.put("isFile", true);
+                }
                 root.put("leaf", true);
             }
 
@@ -693,104 +832,5 @@ public class CromwellController extends SpringActionController
         wdlCol.setCaption("WDL:");
         dr.addDisplayColumn(wdlCol);
         return dr;
-    }
-
-    public static class CromwellInput
-    {
-        private String _name;
-        private String _displayName;
-        private String _value;
-        private String _workflowName;
-
-        public CromwellInput() {}
-
-        public CromwellInput(String name, String displayName)
-        {
-            _name = name;
-            _displayName = displayName;
-        }
-
-        public CromwellInput(String name, String formFieldName, String value)
-        {
-            this(name, formFieldName);
-            _value = value;
-        }
-
-        public String getName()
-        {
-            return _name;
-        }
-
-        public void setName(String name)
-        {
-            _name = name;
-        }
-
-        public String getDisplayName()
-        {
-            return _displayName;
-        }
-
-        public void setDisplayName(String displayName)
-        {
-            _displayName = displayName;
-        }
-
-        public String getValue()
-        {
-            return _value;
-        }
-
-        public void setValue(String value)
-        {
-            _value = value;
-        }
-
-        public String getWorkflowName()
-        {
-            return _workflowName;
-        }
-
-        public void setWorkflowName(String workflowName)
-        {
-            _workflowName = workflowName;
-        }
-
-        public boolean isWebDavDirUrl()
-        {
-            return _name.startsWith("url_webdav_");
-        }
-        public boolean isWebdavFileUrl()
-        {
-            return _name.startsWith("url_webdav_file_");
-        }
-
-        public HtmlString getExtInputField()
-        {
-            /*
-            Example:
-                {
-                    xtype: 'xtype',
-                    fieldLabel: 'Skyline template URL',
-                    name: 'skylineTemplateUrl',
-                    allowBlank: false,
-                    width: 650,
-                    value: <%=q(form.getSkylineTemplateUrl())%>,
-                    afterBodyEl: '<span style="font-size: 0.9em;">WebDav URL of the Skyline template file (.sky)</span>',
-                    msgTarget : 'under'
-                }
-            */
-            JSONObject inputJson = new JSONObject();
-            inputJson.put("xtype", "textfield");
-            inputJson.put("fieldLabel", getDisplayName());
-            inputJson.put("name", getName());
-            if(!StringUtils.isBlank(_value))
-            {
-                inputJson.put("value", _value);
-            }
-            inputJson.put("allowBlank", false);
-            inputJson.put("width", 650);
-            return inputJson.getHtmlString();
-        }
     }
 }

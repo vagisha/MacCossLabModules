@@ -1,6 +1,5 @@
 package org.labkey.cromwell.pipeline;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
@@ -21,22 +20,14 @@ import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
 import org.labkey.api.data.PropertyManager;
+import org.labkey.cromwell.CromwellInput;
 import org.labkey.cromwell.CromwellJob;
-import org.labkey.cromwell.CromwellManager;
 import org.labkey.cromwell.Workflow;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.util.List;
 
 import static org.labkey.cromwell.CromwellController.PROPS_CROMWELL;
 import static org.labkey.cromwell.CromwellController.PROP_CROMWELL_SERVER_PORT;
@@ -47,7 +38,7 @@ public class CromwellUtil
     private static String CROMWELL_API_PATH = "/api/workflows/v1";
     private static String CROMWELL_STATUS_ENDPOINT = "/status";
 
-    public static CromwellJobStatus submitJob(CromwellJob cromwellJob, Logger logger) throws CromwellException
+    public static CromwellJobStatus submitJob(Workflow workflow, String inputsJson, Logger logger) throws CromwellException
     {
         URI uri = buildCromwellServerUri();
 
@@ -56,18 +47,11 @@ public class CromwellUtil
             // String url = "http://127.0.0.1:8000/api/workflows/v1";
             // String url = "http://m002.grid.gs.washington.edu:8000/api/workflows/v1";
             HttpPost post = new HttpPost(uri);
-//            File wdlFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\skyline_panorama.wdl");
-//            File inputsFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\panorama_skyline_inputs.json");
-//            FileBody wdlFileBody = new FileBody(wdlFile);
-//            FileBody inputsFileBody = new FileBody(inputsFile, ContentType.APPLICATION_JSON);
 
             MultipartEntityBuilder builder = MultipartEntityBuilder.create();
             builder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
-//            builder.addPart("workflowSource", wdlFileBody);
-//            builder.addPart("workflowInputs", inputsFileBody);
-            Workflow workflow = CromwellManager.get().getWorkflow(cromwellJob.getWorkflowId());
             builder.addPart("workflowSource", new StringBody(workflow.getWdl(), ContentType.DEFAULT_BINARY));
-            builder.addPart("workflowInputs", new StringBody(cromwellJob.getInputs(), ContentType.APPLICATION_JSON));
+            builder.addPart("workflowInputs", new StringBody(inputsJson, ContentType.APPLICATION_JSON));
             HttpEntity entity = builder.build();
             post.setEntity(entity);
             logger.info("Submitting job to " + uri);
@@ -134,7 +118,7 @@ public class CromwellUtil
 
     public static CromwellJobStatus getJobStatus(CromwellJob cromwellJob, Logger logger) throws CromwellException
     {
-        String path = CROMWELL_API_PATH + '/' + cromwellJob.getCromwellJobId() + "/status";
+        String path = CROMWELL_API_PATH + '/' + cromwellJob.getCromwellJobId() + CROMWELL_STATUS_ENDPOINT;
         URI uri = buildCromwellServerUri(path);
         try (CloseableHttpClient client = HttpClientBuilder.create().build())
         {
@@ -165,82 +149,6 @@ public class CromwellUtil
         catch (IOException e)
         {
             throw new CromwellException("Error checking status of job.", e);
-        }
-    }
-
-    public static void submitJob_doesnotwork(CromwellJob cromwellJob, Logger logger) throws IOException
-    {
-        // Make a POST request
-        // URL url = new URL("http://127.0.0.1:8000/api/workflows/v1");
-        URL url = new URL("http://m002.grid.gs.washington.edu:8000/api/workflows/v1");
-
-        HttpURLConnection conn = null;
-
-        try
-        {
-            String boundary = Long.toHexString(System.currentTimeMillis()); // Just generate some unique random value.
-            String CRLF = "\r\n"; // Line separator required by multipart/form-data.
-            String charset = "UTF-8";
-            File wdlFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\skyline_panorama.wdl");
-            File inputsFile = new File("C:\\Users\\vsharma\\WORK\\LabKey\\release20.7-SNAPSHOT\\files\\CromwellWorkflows\\@files\\Workflows\\panorama_skyline_inputs.json");
-
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setDoOutput(true);
-            conn.setInstanceFollowRedirects(false);
-            conn.setRequestMethod("POST");
-            // conn.setRequestProperty("Content-Type", "multipart/form-data");
-            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-
-
-
-            // conn.setRequestProperty("charset", "utf-8");
-            //conn.setRequestProperty("Content-Length", Integer.toString(postDataLength));
-            //conn.setUseCaches(false);
-            try (OutputStream output = conn.getOutputStream(); PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, charset), true))
-            {
-                writer.append("--" + boundary).append(CRLF);
-                writer.append("Content-Disposition: form-data; name=\"wdlFile\"; filename=\"" + wdlFile.getName() + "\"").append(CRLF);
-                writer.append("Content-Type: text/plain; charset=" + charset).append(CRLF); // Text file itself must be saved in this charset!
-                writer.append(CRLF).flush();
-                Files.copy(wdlFile.toPath(), output);
-                output.flush(); // Important before continuing with writer!
-                writer.append(CRLF).flush(); // CRLF is important! It indicates end of boundary.
-
-                writer.append("--" + boundary).append(CRLF);
-                writer.append("Content-Disposition: form-data; name=\"workflowInputs\"; filename=\"" + inputsFile.getName() + "\"").append(CRLF);
-                writer.append("Content-Type: text/plain; charset=" + charset).append(CRLF); // Text file itself must be saved in this charset!
-                writer.append(CRLF).flush();
-                Files.copy(inputsFile.toPath(), output);
-                output.flush(); // Important before continuing with writer!
-                writer.append(CRLF).flush(); // CRLF is important! It indicates end of boundary.
-
-                // End of multipart/form-data.
-                writer.append("--" + boundary + "--").append(CRLF).flush();
-            }
-
-            // log.info("Sending POST request to " + server.getUrl());
-            System.out.println("Sending POST request to " + url);
-            int responseCode = conn.getResponseCode();
-            // log.info("Response code - " + responseCode);
-            System.out.println("Response code: " + responseCode);
-            String response;
-            try (InputStream in = conn.getInputStream())
-            {
-                response = IOUtils.toString(in, StandardCharsets.UTF_8);
-                System.out.println(response);
-                // log.info("Response from server: " + response);
-            }
-
-            // String response = "{\"name\":\"LINCS_P100_DIA_Plate52y_annotated_minimized_2017-08-23_11-20-58\",\"assay\":\"P100\",\"status\":\"Waiting_To_Download\",\"id\":\"5c324f97b306063b135bf99c\",\"created\":\"2019-01-06T18:57:27.484Z\",\"last_modified\":\"2019-01-06T18:57:27.484Z\",\"level 2\":{\"panorama\":{\"method\":\"GET\",\"url\":\"https://panoramaweb-dr.gs.washington.edu/lincs/LINCS-DCIC/PSP/P100/runGCTReportApi.view?runId=32394&remote=true&reportName=GCT%20File%20P100\"}},\"level 3\":{\"panorama\":{\"method\":\"PUT\",\"url\":\"https://panoramaweb-dr.gs.washington.edu/_webdav/LINCS-DCIC/PSP/P100/%40files/GCT/LINCS_P100_DIA_Plate52y_annotated_minimized_2017-08-23_11-20-58_LVL3.gct\"}},\"level 4\":{\"panorama\":{\"method\":\"PUT\",\"url\":\"https://panoramaweb-dr.gs.washington.edu/_webdav/LINCS-DCIC/PSP/P100/%40files/GCT/LINCS_P100_DIA_Plate52y_annotated_minimized_2017-08-23_11-20-58_LVL4.gct\"}},\"config\":{\"panorama\":{\"method\":\"PUT\",\"url\":\"https://panoramaweb-dr.gs.washington.edu/_webdav/LINCS-DCIC/PSP/P100/%40files/GCT/LINCS_P100_DIA_Plate52y_annotated_minimized_2017-08-23_11-20-58.cfg\"}}}";
-            // org.json.simple.JSONObject jsonResponse = getJsonObject(response);
-            // parseResponseJson(jsonResponse, pspJob);
-        }
-        finally
-        {
-            if (conn != null)
-            {
-                conn.disconnect();
-            }
         }
     }
 

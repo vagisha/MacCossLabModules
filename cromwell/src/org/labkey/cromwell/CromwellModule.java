@@ -147,9 +147,11 @@ public class CromwellModule extends SpringModule
         ContainerManager.addContainerListener(new CromwellContainerListener());
 
         // Register the CromwellRole
+        RoleManager.registerPermission(new CromwellPermission(), false);
         RoleManager.registerRole(new CromwellRole());
 
-        // Add a link in the admin console to manage journals.
+
+        // Add a link in the admin console.
         ActionURL url = new ActionURL(CromwellController.CromwellSettingsAction.class, ContainerManager.getRoot());
         AdminConsole.addLink(AdminConsole.SettingsLinkType.Configuration, "cromwell settings", url, AdminOperationsPermission.class);
 

@@ -1,18 +1,22 @@
 package org.labkey.cromwell;
 
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.json.JSONObject;
+import org.jetbrains.annotations.NotNull;
+import org.labkey.api.data.ContainerManager;
+import org.labkey.api.data.PropertyManager;
+import org.labkey.api.security.User;
 import org.labkey.cromwell.pipeline.CromwellException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+
+import static org.labkey.cromwell.CromwellController.PROPS_CROMWELL_USER;
+import static org.labkey.cromwell.CromwellController.PROP_USER_APIKEY;
 
 public class Workflow
 {
@@ -61,12 +65,12 @@ public class Workflow
         _wdl = wdl;
     }
 
-    public static List<CromwellController.CromwellInput> getInputs(Workflow workflow) throws CromwellException
+    public static List<CromwellInput> createInputs(Workflow workflow) throws CromwellException
     {
         WdlParser parser = new WdlParser();
         parser.parse(workflow.getWdl());
 
-        if(parser.getWorkflowName() == null || parser.getParams() == null)
+        if(parser.getWorkflowName() == null)
         {
             throw new CromwellException("Workflow name could not be read from WDL.");
         }
@@ -74,32 +78,49 @@ public class Workflow
         {
             throw new CromwellException("Input param names could not be read from WDL.");
         }
-        List<CromwellController.CromwellInput> inputs = new ArrayList<>();
+        List<CromwellInput> inputs = new ArrayList<>();
         for(String param: parser.getParams())
         {
-            CromwellController.CromwellInput input = new CromwellController.CromwellInput();
+            CromwellInput input = new CromwellInput();
             input.setName(param);
-            input.setDisplayName(param.replaceAll("_", " "));
             input.setWorkflowName(parser.getWorkflowName());
             inputs.add(input);
         }
         return inputs;
     }
 
-    public static List<CromwellController.CromwellInput> populateInputs(List<CromwellController.CromwellInput> inputs, Map<String, String[]> inputValues) throws CromwellException
+//    public static List<CromwellInput> createInputsWithApiKey(@NotNull Workflow workflow, @NotNull User user) throws CromwellException
+//    {
+//        List<CromwellInput> inputList = createInputs(workflow);
+//        for(CromwellInput input: inputList)
+//        {
+//            if(input.isApiKey())
+//            {
+//                PropertyManager.PropertyMap props = PropertyManager.getEncryptedStore().getWritableProperties(user, ContainerManager.getRoot(), PROPS_CROMWELL_USER, false);
+//                if(props != null && props.get(PROP_USER_APIKEY) != null)
+//                {
+//                    input.setValue(props.get(PROP_USER_APIKEY));
+//                }
+//                break;
+//            }
+//        }
+//        return inputList;
+//
+//    }
+
+    public static List<CromwellInput> populateInputs(List<CromwellInput> inputs, Map<String, String[]> inputValues) throws CromwellException
     {
-        List<CromwellController.CromwellInput> returnList = new ArrayList<>(inputs.size());
-        for(CromwellController.CromwellInput input: inputs)
+        List<CromwellInput> returnList = new ArrayList<>(inputs.size());
+        for(CromwellInput input: inputs)
         {
             if(inputValues.containsKey(input.getName()))
             {
                 String[] values = inputValues.get(input.getName());
                 if(values != null && values.length > 0)
                 {
-                    CromwellController.CromwellInput retInput = new CromwellController.CromwellInput();
+                    CromwellInput retInput = new CromwellInput();
                     retInput.setName(input.getName());
                     retInput.setValue(values[0]);
-                    retInput.setDisplayName(input.getDisplayName());
                     retInput.setWorkflowName(input.getWorkflowName());
                     returnList.add(retInput);
                 }
@@ -116,38 +137,28 @@ public class Workflow
         return returnList;
     }
 
-    public static List<CromwellController.CromwellInput> copyInputsFromJob(List<CromwellController.CromwellInput> inputs, CromwellJob job) throws CromwellException
-    {
-        if(CollectionUtils.isEmpty(inputs))
-        {
-            return inputs;
-        }
-        String workflowName = inputs.get(0).getWorkflowName() + ".";
-        Map<String, String[]> inputsMap = new HashMap<>();
-        JSONObject json = new JSONObject(job.getInputs());
-        for (Iterator<String> it = json.keys(); it.hasNext(); )
-        {
-            String key = it.next();
-            String value = json.getString(key);
-            // Example: panorama_skyline_workflow.url_target_panorama_folder; where panorama_skyline_workflow is the workflow name
-            if(key.startsWith(workflowName))
-            {
-                key = key.replaceFirst(workflowName, "");
-            }
-            inputsMap.put(key, new String[]{value});
-        }
-        return populateInputs(inputs, inputsMap);
-    }
-
-    public static String getInputsJSON(List<CromwellController.CromwellInput> inputs)
-    {
-        JSONObject json = new JSONObject();
-        for (CromwellController.CromwellInput input: inputs)
-        {
-            json.put(input.getWorkflowName() + "." + input.getName(), input.getValue());
-        }
-        return json.toString();
-    }
+//    public static List<CromwellInput> copyInputsFromJob(List<CromwellInput> inputs, CromwellJob job) throws CromwellException
+//    {
+//        if(CollectionUtils.isEmpty(inputs))
+//        {
+//            return inputs;
+//        }
+//        String workflowName = inputs.get(0).getWorkflowName() + ".";
+//        Map<String, String[]> inputsMap = new HashMap<>();
+//        JSONObject json = new JSONObject(job.getInputs());
+//        for (Iterator<String> it = json.keys(); it.hasNext(); )
+//        {
+//            String key = it.next();
+//            String value = json.getString(key);
+//            // Example: panorama_skyline_workflow.url_target_panorama_folder; where panorama_skyline_workflow is the workflow name
+//            if(key.startsWith(workflowName))
+//            {
+//                key = key.replaceFirst(workflowName, "");
+//            }
+//            inputsMap.put(key, new String[]{value});
+//        }
+//        return populateInputs(inputs, inputsMap);
+//    }
 
     private static class WdlParser
     {
@@ -180,7 +191,7 @@ public class Workflow
                             {
                                 line = line.substring(0, line.length() - 1).trim();
                             }
-                            _workflowName = line.substring("workflow".length()).trim();;
+                            _workflowName = line.substring("workflow".length()).trim();
                         }
                         else if(line.startsWith("String"))
                         {

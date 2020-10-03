@@ -7,4 +7,5 @@ public interface CromwellJobSupport
 {
     Workflow getWorkflow();
     int getCromwellJobId();
+    String getPanoramaApiKey();
 }

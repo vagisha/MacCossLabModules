@@ -10,6 +10,7 @@
 <%@ page import="java.nio.file.Path" %>
 <%@ page import="org.labkey.api.security.permissions.AdminPermission" %>
 <%@ page import="org.labkey.api.security.roles.RoleManager" %>
+<%@ page import="org.labkey.cromwell.CromwellInput" %>
 <%@ page extends="org.labkey.api.jsp.FormPage" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -40,19 +41,44 @@
 
     Ext4.onReady(function(){
 
+        Ext4.define('TreeStoreModel', {
+            extend: 'Ext.data.Model',
+            fields: [
+                { name: 'text', type: 'string' },
+                { name: 'path', type: 'string' },
+                { name: 'expanded', defaultValue: false },
+                { name: 'children' },
+                { name: 'leaf' },
+                { name: 'iconCls', type: 'string' },
+                { name: 'isFile', type: 'boolean', defaultValue: false }
+            ]
+        });
+
         var folderTreeStore = Ext4.create('Ext.data.TreeStore', {
             proxy: {
                 type: 'ajax',
-                url: LABKEY.ActionURL.buildURL('cromwell', 'getFileRootTree.api'),
-                extraParams: {requiredPermission: <%=q(RoleManager.getPermission(AdminPermission.class).getUniqueName())%>},
-                reader: {
-                    type: 'json',
-                    root: 'children'
-                }
+                url: LABKEY.ActionURL.buildURL('cromwell', 'getFileRootDirTree.api'),
+                extraParams: {requiredPermission: <%=q(RoleManager.getPermission(AdminPermission.class).getUniqueName())%>}
             },
             root: {
-                expanded: true
+                expanded: true,
+                text: ""
             },
+            model: 'TreeStoreModel',
+            autoLoad: true
+        });
+
+        var filesTreeStore = Ext4.create('Ext.data.TreeStore', {
+            proxy: {
+                type: 'ajax',
+                url: LABKEY.ActionURL.buildURL('cromwell', 'getFileRootFilesTree.api'),
+                extraParams: {requiredPermission: <%=q(RoleManager.getPermission(AdminPermission.class).getUniqueName())%>}
+            },
+            root: {
+                expanded: true,
+                text: ""
+            },
+            model: 'TreeStoreModel',
             autoLoad: true
         });
 
@@ -80,7 +106,7 @@
                     name: 'workflowId',
                     value: <%=form.getWorkflowId()%>
                 }
-                <%for (CromwellController.CromwellInput input: form.getInputsArray()) {
+                <%for (CromwellInput input: form.getInputsArray()) {
                     var inputFieldId = input.getName() + "_input";
                     var hashInputFieldId = "#" + inputFieldId;
                 %>
@@ -101,7 +127,7 @@
                     xtype: 'treepanel',
                     fieldLabel: 'Choose directory',
                     store: folderTreeStore,
-                    rootVisible: false,
+                    rootVisible: true,
                     enableDrag: false,
                     useArrows : false,
                     autoScroll: true,
@@ -114,16 +140,50 @@
                     split      : true,
                     listeners: {
                         select: function(node, record, index, eOpts){
-                            //console.log("the record is...");
-                            //console.log(record.get('id'));
-                            //console.log(record.get('text'));
+                            console.log("the record is...");
+                            console.log(record.get('id'));
+                            console.log(record.get('text'));
 
                             var displayField = Ext4.ComponentQuery.query(<%=q(hashInputFieldId)%>)[0];
-                            displayField.setValue(record.get('text'));
+                            displayField.setValue(record.get('path'));
                         }
                     }
                 }
                 <% } %>
+
+                <%if(input.isWebdavFileUrl()) { %>
+                ,{
+                    xtype: 'treepanel',
+                    fieldLabel: 'Choose file',
+                    store: filesTreeStore,
+                    rootVisible: true,
+                    enableDrag: false,
+                    useArrows : false,
+                    autoScroll: true,
+                    title : '',
+                    border: true,
+                    width: 650,
+                    height:100,
+                    margin: '0 10 0 10',
+                    region     : 'east',
+                    split      : true,
+                    listeners: {
+                        select: function(node, record, index, eOpts){
+                            if(!record.data.isFile) return false;
+                            console.log("the record is...");
+                            console.log(record.get('id'));
+                            console.log(record.get('text'));
+
+                            var displayField = Ext4.ComponentQuery.query(<%=q(hashInputFieldId)%>)[0];
+                            displayField.setValue(record.get('path'));
+                        },
+                        beforeselect: function(node, record, index, eOpts){
+                            if(!record.data.isFile) return false;
+                        }
+                    }
+                }
+                <% } %>
+
                 <% } %>
 
             ],

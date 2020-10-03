@@ -10,11 +10,14 @@ import org.labkey.api.pipeline.PipelineService;
 import org.labkey.api.pipeline.RecordedActionSet;
 import org.labkey.api.security.User;
 import org.labkey.api.util.FileType;
+import org.labkey.cromwell.CromwellInput;
 import org.labkey.cromwell.CromwellJob;
 import org.labkey.cromwell.CromwellManager;
+import org.labkey.cromwell.Workflow;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 public class CromwellTask extends PipelineJob.Task<CromwellTask.Factory>
 {
@@ -52,11 +55,25 @@ public class CromwellTask extends PipelineJob.Task<CromwellTask.Factory>
         {
             Integer pipelineJobId = (PipelineService.get().getJobId(getJob().getUser(), getJob().getContainer(), getJob().getJobGUID()));
             cromwellJob.setPipelineJobId(pipelineJobId);
+            manager.updateJob(cromwellJob, user);
+        }
+
+        Workflow workflow = manager.getWorkflow(cromwellJob.getWorkflowId());
+        List<CromwellInput> inputList = cromwellJob.getInputList();
+        if (inputList.size() == 0)
+        {
+            throw new PipelineJobException("Job submission failed. Error getting input list from inputs");
+        }
+        // Set the API Key in the inputs
+        CromwellInput input = CromwellJob.getApiKeyInput(inputList);
+        if(input != null)
+        {
+            input.setValue(jobSupport.getPanoramaApiKey());
         }
 
         try
         {
-            CromwellUtil.CromwellJobStatus status = CromwellUtil.submitJob(cromwellJob, log);
+            CromwellUtil.CromwellJobStatus status = CromwellUtil.submitJob(workflow, CromwellJob.getInputsJSON(inputList, false), log);
             if(status != null)
             {
                 cromwellJob.setCromwellJobId(status.getJobId());
