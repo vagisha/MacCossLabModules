@@ -51,9 +51,9 @@ import org.labkey.api.security.RequiresPermission;
 import org.labkey.api.security.User;
 import org.labkey.api.security.permissions.AdminOperationsPermission;
 import org.labkey.api.security.permissions.AdminPermission;
+import org.labkey.api.security.permissions.InsertPermission;
 import org.labkey.api.security.permissions.ReadPermission;
-import org.labkey.api.security.roles.Role;
-import org.labkey.api.security.roles.RoleManager;
+import org.labkey.api.settings.AppProps;
 import org.labkey.api.util.DOM;
 import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
@@ -65,6 +65,7 @@ import org.labkey.api.view.JspView;
 import org.labkey.api.view.NavTree;
 import org.labkey.api.view.VBox;
 import org.labkey.api.view.ViewBackgroundInfo;
+import org.labkey.api.view.ViewContext;
 import org.labkey.api.view.WebPartView;
 import org.labkey.api.webdav.WebdavResource;
 import org.labkey.api.webdav.WebdavService;
@@ -76,6 +77,7 @@ import org.springframework.web.servlet.ModelAndView;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -307,17 +309,11 @@ public class CromwellController extends SpringActionController
                 errors.reject(ERROR_MSG, "Cromwell module is not enabled in the container. Cannot submit Cromwell jobs.");
                 return;
             }
-//            if(!hasCromwellRole(getUser(), getContainer()))
-//            {
-//                errors.reject(ERROR_MSG, "User does not have permission to submit Cromwell jobs.");
-//                return;
-//            }
 
             Workflow workflow = form.getWorkflow();
             if(workflow == null)
             {
                 errors.reject(ERROR_MSG, "Could not find a workflow in the request.");
-                return;
             }
         }
 
@@ -351,25 +347,45 @@ public class CromwellController extends SpringActionController
                     }
 
                     workflow = manager.getWorkflow(job.getWorkflowId());
+                    if(workflow == null)
+                    {
+                        errors.reject(ERROR_MSG, "Could not find a workflow with Id " + job.getWorkflowId());
+                        return new SimpleErrorView(errors);
+                    }
                     form.setWorkflow(workflow);
+                    List<CromwellInput> inputList = job.getInputList();
+                    for(CromwellInput input: inputList)
+                    {
+                        if(input.isWebdav())
+                        {
+                            // Webdav paths are converted to full URLs before saving in the jobs table
+                            // Convert back to path
+                            org.labkey.api.util.Path inputPath = getDecodedPath(input.getValue());
+                            org.labkey.api.util.Path fileRootPath = getFileRootPath(getContainer());
+                            if(inputPath != null && inputPath.startsWith(fileRootPath))
+                            {
+                                // If this is a path in the current container show the path under the file root.
+                                // Otherwise, show the original value
+                                org.labkey.api.util.Path folderPath = fileRootPath.relativize(inputPath);
+                                input.setValue(folderPath.toString());
+                            }
+                        }
+                    }
                     form.setInputsArray(job.getInputList());
                 }
                 else
                 {
-                    if(form.getWorkflow() == null)
+                    workflow = form.getWorkflow();
+                    if(workflow == null)
                     {
-                        List<Workflow> workflows = manager.getWorkflows();
-                        workflow = workflows.get(0); // TODO
-                    }
-                    else
-                    {
-                        workflow = form.getWorkflow();
+                        errors.reject(ERROR_MSG, "Could not find a workflow with Id " + form.getWorkflowId());
+                        return new SimpleErrorView(errors);
                     }
                     form.setWorkflow(workflow);
                     form.setInputsArray(Workflow.createInputs(workflow)); // Set the input fields based on the WDL definition
                 }
 
-                setApiKeyInInputs(form.getInputsArray(), getUser());
+                setInputApiKey(form.getInputsArray(), getUser());
             }
             return new JspView<>("/org/labkey/cromwell/view/createJob.jsp", form, errors);
         }
@@ -426,43 +442,152 @@ public class CromwellController extends SpringActionController
             {
                 if(input.isApiKey())
                 {
-                    String inputApiKey = input.getValue();
-                    if(!CromwellInput.apiKeyPattern.matcher(input.getValue()).matches())
-                    {
-                        errors.reject(ERROR_MSG, "Invalid API Key");
-                    }
-                    else
-                    {
-                        // Make sure the key is valid
-                        User apiKeyUser = ApiKeyManager.get().authenticateFromApiKey(inputApiKey);
-                        if(apiKeyUser == null)
-                        {
-                            errors.reject(ERROR_MSG, "Cannot authenticate user with API Key.  The key may have expired");
-                        }
-                        else if(!apiKeyUser.equals(user))
-                        {
-                            errors.reject(ERROR_MSG, "API key not valid for current user " + user.getEmail());
-                        }
-                        else
-                        {
-                            PropertyManager.PropertyMap props = PropertyManager.getEncryptedStore().getWritableProperties(getUser(), ContainerManager.getRoot(), PROPS_CROMWELL_USER, true);
-                            String savedApiKey = props.get(PROP_USER_APIKEY);
-                            // Save the API Key if one was not saved before or is different from the one the user provided
-                            if (savedApiKey == null || !inputApiKey.equals(savedApiKey))
-                            {
-                                props.put(PROP_USER_APIKEY, inputApiKey);
-                                props.save();
-                            }
-                        }
-                    }
+                    validateApiKey(user, errors, input);
                 }
-                // TODO: Validate other inputs
+                else if(input.isWebdav())
+                {
+                    validateWebdavPath(user, errors, input);
+                }
+                else if(input.isLabkeyUrl())
+                {
+                    validateLabkeyUrl(user, errors, input);
+                }
             }
             return !errors.hasErrors();
         }
 
+        private void validateLabkeyUrl(User user, BindException errors, CromwellInput input)
+        {
+            var inputUrl = input.getValue();
+            if (StringUtils.isBlank(inputUrl))
+            {
+                errors.reject(ERROR_MSG, input.getDisplayName() + ": URL cannot be blank");
+                return;
+            }
+            try
+            {
+                ViewContext context = getViewContext();
+                URLHelper urlHelper = new URLHelper(inputUrl);
+                if(!urlHelper.isLocalUri(context))
+                {
+                    errors.reject(ERROR_MSG, input.getDisplayName() + ": Not a URL on host " + context.getActionURL().getHost() + " - " + inputUrl);
+                    return;
+                }
+                ActionURL actionUrl = new ActionURL(PageFlowUtil.decode(inputUrl));
+                Container c = ContainerManager.getForPath(actionUrl.getParsedPath());
+                if(c == null)
+                {
+                    errors.reject(ERROR_MSG, input.getDisplayName() + ": Path '" + actionUrl.getParsedPath() + "' does not exist on the server");
+                    return;
+                }
+                if(!c.hasPermission(user, InsertPermission.class))
+                {
+                    errors.reject(ERROR_MSG, input.getDisplayName() + ": User does not have permissions in folder - " + c.getPath());
+                    return;
+                }
+            }
+            catch (URISyntaxException e)
+            {
+                errors.reject(ERROR_MSG, input.getDisplayName() + ": URL could not be parsed. Error was - " + e.getMessage());
+            }
+            catch(IllegalArgumentException e)
+            {
+                errors.reject(ERROR_MSG, input.getDisplayName() + ": Invalid URL. Error was - " + e.getMessage());
+            }
+        }
+
+        private void validateWebdavPath(User user, BindException errors, CromwellInput input)
+        {
+            var inputPath = input.getValue();
+            if (StringUtils.isBlank(inputPath))
+            {
+                errors.reject(ERROR_MSG, input.getDisplayName() + ": Path cannot be blank");
+            }
+            else
+            {
+                org.labkey.api.util.Path labkeyPath;
+
+                if(inputPath.startsWith("https:") || inputPath.startsWith("http:"))
+                {
+                    labkeyPath = getDecodedPath(inputPath);
+                }
+                else
+                {
+                    labkeyPath = getFileRootPath(getContainer()).append(org.labkey.api.util.Path.parse(inputPath));
+                }
+
+                if(labkeyPath == null)
+                {
+                    errors.reject(ERROR_MSG, input.getDisplayName() + ": Input path could not be resolved. Path should be on the same server.");
+                    return;
+                }
+
+                WebdavResource resource = WebdavService.get().lookup(labkeyPath);
+
+                if(resource == null)
+                {
+                    errors.reject(ERROR_MSG, input.getDisplayName() + ": Could not resolve to Webdav resource " + labkeyPath);
+                    return;
+                }
+
+                if(input.isWebdavDirNew())
+                {
+                    if(!resource.canCreate(user, false))
+                    {
+                        errors.reject(ERROR_MSG, input.getDisplayName() + ": User cannot create directory path: " + labkeyPath);
+                    }
+                }
+                else {
+
+                    Path nioPath = resource.getNioPath();
+                    if(nioPath == null || !Files.exists(nioPath))
+                    {
+                        errors.reject(ERROR_MSG, input.getDisplayName() + ": Path does not exists on server " + labkeyPath);
+                    }
+                    else
+                    {
+                        // Set the input value as the full URL of the webdav resources.  This will be submitted to the Cromwell server.
+                        input.setValue(resource.getHref(getViewContext()));
+                    }
+                }
+            }
+        }
+
+        private void validateApiKey(User user, BindException errors, CromwellInput input)
+        {
+            String inputApiKey = input.getValue();
+            if(!CromwellInput.apiKeyPattern.matcher(input.getValue()).matches())
+            {
+                errors.reject(ERROR_MSG, "Invalid API Key");
+            }
+            else
+            {
+                // Make sure the key is valid
+                User apiKeyUser = ApiKeyManager.get().authenticateFromApiKey(inputApiKey);
+                if(apiKeyUser == null)
+                {
+                    errors.reject(ERROR_MSG, "Cannot authenticate user with API Key.  The key may have expired");
+                }
+                else if(!apiKeyUser.equals(user))
+                {
+                    errors.reject(ERROR_MSG, "API key is not valid for current user " + user.getEmail());
+                }
+                else
+                {
+                    PropertyManager.PropertyMap props = PropertyManager.getEncryptedStore().getWritableProperties(getUser(), ContainerManager.getRoot(), PROPS_CROMWELL_USER, true);
+                    String savedApiKey = props.get(PROP_USER_APIKEY);
+                    // Save the API Key if one was not saved before or is different from the one the user provided
+                    if (savedApiKey == null || !inputApiKey.equals(savedApiKey))
+                    {
+                        props.put(PROP_USER_APIKEY, inputApiKey);
+                        props.save();
+                    }
+                }
+            }
+        }
+
         @Override
-        public URLHelper getSuccessURL(CromwellJobForm lincsPspJobForm)
+        public URLHelper getSuccessURL(CromwellJobForm cromwellJobForm)
         {
             return PageFlowUtil.urlProvider(PipelineUrls.class).urlBegin(getContainer());
         }
@@ -474,7 +599,7 @@ public class CromwellController extends SpringActionController
         }
     }
 
-    private static void setApiKeyInInputs(List<CromwellInput> inputList, User user)
+    private static void setInputApiKey(List<CromwellInput> inputList, User user)
     {
         for(CromwellInput input: inputList)
         {
@@ -495,15 +620,6 @@ public class CromwellController extends SpringActionController
             }
         }
     }
-
-//    private static boolean hasCromwellRole(@NotNull User user, @NotNull Container container)
-//    {
-////        Group cromwellGroup = GroupManager.getGroup(ContainerManager.getRoot(), "Cromwell", GroupEnumType.SITE);
-////        return cromwellGroup == null || user.isInGroup(cromwellGroup.getUserId());
-//
-//        Role cromwellRole = RoleManager.getRole(CromwellRole.class);
-//        return cromwellRole != null && container.getPolicy().getEffectiveRoles(user).contains(cromwellRole);
-//    }
 
     public static class CromwellJobForm extends ReturnUrlForm
     {
@@ -568,65 +684,14 @@ public class CromwellController extends SpringActionController
     }
 
     @RequiresPermission(ReadPermission.class)
-    public static class GetFileRootDirTreeAction extends ReadOnlyApiAction
+    public static class GetFileRootTreeAction extends ReadOnlyApiAction<GetFileRootTreeForm>
     {
         @Override
-        public Object execute(Object o, BindException errors) throws Exception
+        public Object execute(GetFileRootTreeForm form, BindException errors) throws Exception
         {
             Path fileRootPath = FileContentService.get().getFileRootPath(getContainer(), FileContentService.ContentType.files);
             org.labkey.api.util.Path labkeyPath = WebdavService.getPath().append(getContainer().getParsedPath()).append(FileContentService.FILES_LINK);
-            JSONObject root = getFolderTreeJSON(fileRootPath, labkeyPath);
-            root.put("expanded", true);
-
-            HttpServletResponse resp = getViewContext().getResponse();
-            resp.setContentType("application/json");
-            resp.getWriter().write(root.toString());
-            return null;
-        }
-
-        private JSONObject getFolderTreeJSON(Path rootPath, org.labkey.api.util.Path labkeyPath) throws IOException
-        {
-            JSONObject root = new JSONObject();
-            JSONArray rootChildren = new JSONArray();
-
-            for (Path path : Files.walk(rootPath, 1).filter(Files::isDirectory).sorted(Comparator.naturalOrder()).collect(Collectors.toList()))
-            {
-                if(path.equals(rootPath))
-                {
-                    continue;
-                }
-                JSONObject childTree = getFolderTreeJSON(path, labkeyPath.append(path.getFileName().toString()));
-                rootChildren.put(childTree);
-            }
-
-            root.put("text", rootPath.getFileName());
-
-            WebdavResource resource = WebdavService.get().lookup(labkeyPath);
-            root.put("path", resource.getHref(getViewContext()));
-            root.put("expanded", false);
-            root.put("iconCls", "x4-tree-icon-parent");
-            if(rootChildren.length() > 0)
-            {
-                root.put("children", rootChildren);
-            }
-            else
-            {
-                root.put("leaf", true);
-            }
-
-            return root;
-        }
-    }
-
-    @RequiresPermission(ReadPermission.class)
-    public static class GetFileRootFilesTreeAction extends ReadOnlyApiAction
-    {
-        @Override
-        public Object execute(Object o, BindException errors) throws Exception
-        {
-            Path fileRootPath = FileContentService.get().getFileRootPath(getContainer(), FileContentService.ContentType.files);
-            org.labkey.api.util.Path labkeyPath = WebdavService.getPath().append(getContainer().getParsedPath()).append(FileContentService.FILES_LINK);
-            JSONObject root = getFilesTreeJSON(fileRootPath, labkeyPath);
+            JSONObject root = form.isFiles() ? getFilesTreeJSON(fileRootPath, labkeyPath) : getFolderTreeJSON(fileRootPath, labkeyPath);
             root.put("expanded", true);
 
             HttpServletResponse resp = getViewContext().getResponse();
@@ -645,7 +710,7 @@ public class CromwellController extends SpringActionController
                 else if(Files.isRegularFile(p1) && Files.isDirectory(p2)) return 1;
                 else return p1.compareTo(p2);
             })
-            .collect(Collectors.toList()))
+                    .collect(Collectors.toList()))
             {
                 if(path.equals(rootPath))
                 {
@@ -656,9 +721,6 @@ public class CromwellController extends SpringActionController
             }
 
             root.put("text", rootPath.getFileName());
-
-            WebdavResource resource = WebdavService.get().lookup(labkeyPath);
-            root.put("path", resource.getHref(getViewContext()));
             root.put("expanded", false);
             if(rootChildren.length() > 0)
             {
@@ -678,6 +740,54 @@ public class CromwellController extends SpringActionController
             }
 
             return root;
+        }
+
+        private JSONObject getFolderTreeJSON(Path rootPath, org.labkey.api.util.Path labkeyPath) throws IOException
+        {
+            JSONObject root = new JSONObject();
+            JSONArray rootChildren = new JSONArray();
+
+            for (Path path : Files.walk(rootPath, 1).filter(Files::isDirectory).sorted(Comparator.naturalOrder()).collect(Collectors.toList()))
+            {
+                if(path.equals(rootPath))
+                {
+                    continue;
+                }
+                JSONObject childTree = getFolderTreeJSON(path, labkeyPath.append(path.getFileName().toString()));
+                rootChildren.put(childTree);
+            }
+
+            root.put("text", rootPath.getFileName());
+
+            // WebdavResource resource = WebdavService.get().lookup(labkeyPath);labkeyPath.toString()
+            // root.put("path", resource.getHref(getViewContext()));
+            root.put("expanded", false);
+            root.put("iconCls", "x4-tree-icon-parent");
+            if(rootChildren.length() > 0)
+            {
+                root.put("children", rootChildren);
+            }
+            else
+            {
+                root.put("leaf", true);
+            }
+
+            return root;
+        }
+    }
+
+    public static class GetFileRootTreeForm
+    {
+        private boolean _files;
+
+        public boolean isFiles()
+        {
+            return _files;
+        }
+
+        public void setFiles(boolean files)
+        {
+            _files = files;
         }
     }
 
@@ -832,5 +942,23 @@ public class CromwellController extends SpringActionController
         wdlCol.setCaption("WDL:");
         dr.addDisplayColumn(wdlCol);
         return dr;
+    }
+
+
+    @NotNull
+    private static org.labkey.api.util.Path getDecodedPath(String webdavUrl)
+    {
+        if(!webdavUrl.startsWith(AppProps.getInstance().getBaseServerUrl()))
+        {
+            return null;
+        }
+        // Remove the base server url and context path
+        webdavUrl = webdavUrl.replace(AppProps.getInstance().getBaseServerUrl() + AppProps.getInstance().getContextPath(), "");
+        return org.labkey.api.util.Path.decode(webdavUrl);
+    }
+
+    private static org.labkey.api.util.Path getFileRootPath(Container container)
+    {
+        return WebdavService.getPath().append(container.getParsedPath()).append(FileContentService.FILES_LINK);
     }
 }

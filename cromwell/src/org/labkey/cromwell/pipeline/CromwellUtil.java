@@ -20,14 +20,12 @@ import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
 import org.labkey.api.data.PropertyManager;
-import org.labkey.cromwell.CromwellInput;
 import org.labkey.cromwell.CromwellJob;
 import org.labkey.cromwell.Workflow;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
 
 import static org.labkey.cromwell.CromwellController.PROPS_CROMWELL;
 import static org.labkey.cromwell.CromwellController.PROP_CROMWELL_SERVER_PORT;

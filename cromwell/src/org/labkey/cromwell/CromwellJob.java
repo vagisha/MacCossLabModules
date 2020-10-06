@@ -132,24 +132,6 @@ public class CromwellJob
         return _inputList == null ? Collections.emptyList() : _inputList;
     }
 
-//    public List<CromwellInput> getInputListWithApiKey(User user)
-//    {
-//        var inputList = getInputList();
-//        for(CromwellInput input: inputList)
-//        {
-//            if(input.isApiKey())
-//            {
-//                PropertyManager.PropertyMap props = PropertyManager.getEncryptedStore().getWritableProperties(user, ContainerManager.getRoot(), PROPS_CROMWELL_USER, false);
-//                if(props != null && props.get(PROP_USER_APIKEY) != null)
-//                {
-//                    input.setValue(props.get(PROP_USER_APIKEY));
-//                }
-//                break;
-//            }
-//        }
-//        return inputList;
-//    }
-
     public void setInputList(List<CromwellInput> inputList)
     {
         _inputList = inputList;

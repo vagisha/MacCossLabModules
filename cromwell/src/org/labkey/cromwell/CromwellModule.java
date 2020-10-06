@@ -104,24 +104,7 @@ public class CromwellModule extends SpringModule
                 settings.setAllowCustomizeView(true);
                 settings.setAllowChooseQuery(false);
                 settings.setAllowChooseView(true);
-                QueryView view = new QueryView(schema, settings, null)
-                {
-                    @Override
-                    protected void populateButtonBar(DataView view, ButtonBar bar)
-                    {
-                        super.populateButtonBar(view, bar);
-
-                        if (getContainer().hasPermission(getUser(), InsertPermission.class))
-                        {
-                            ActionURL insertURL = new ActionURL(CromwellController.SubmitCromwellJobAction.class, getContainer());
-                            insertURL.addParameter(ActionURL.Param.returnUrl, getViewContext().getActionURL().getLocalURIString());
-                            ActionButton insert = new ActionButton("Create New Job", insertURL);
-                            insert.setActionType(ActionButton.Action.LINK);
-                            insert.setDisplayPermission(AdminPermission.class);
-                            bar.add(insert);
-                        }
-                    }
-                };
+                QueryView view = new QueryView(schema, settings, null);
                 view.setTitle("Cromwell Jobs");
                 return view;
             }

@@ -17,7 +17,6 @@ import org.labkey.cromwell.Workflow;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 public class CromwellTask extends PipelineJob.Task<CromwellTask.Factory>
 {
