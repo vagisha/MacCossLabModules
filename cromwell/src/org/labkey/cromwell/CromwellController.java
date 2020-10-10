@@ -44,6 +44,7 @@ import org.labkey.api.pipeline.PipelineService;
 import org.labkey.api.pipeline.PipelineStatusUrls;
 import org.labkey.api.pipeline.PipelineUrls;
 import org.labkey.api.pipeline.PipelineValidationException;
+import org.labkey.api.portal.ProjectUrls;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.ApiKeyManager;
 import org.labkey.api.security.RequiresAllOf;
@@ -452,6 +453,10 @@ public class CromwellController extends SpringActionController
                 {
                     validateLabkeyUrl(user, errors, input);
                 }
+                else if(StringUtils.isBlank(input.getValue()))
+                {
+                    errors.reject(ERROR_MSG, input.getDisplayName() + ": Value cannot be blank");
+                }
             }
             return !errors.hasErrors();
         }
@@ -461,8 +466,8 @@ public class CromwellController extends SpringActionController
             var inputUrl = input.getValue();
             if (StringUtils.isBlank(inputUrl))
             {
-                errors.reject(ERROR_MSG, input.getDisplayName() + ": URL cannot be blank");
-                return;
+                inputUrl = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(getContainer()).getURIString();
+                input.setValue(inputUrl);
             }
             try
             {
@@ -530,8 +535,10 @@ public class CromwellController extends SpringActionController
                     return;
                 }
 
-                if(input.isWebdavDirNew())
+                if(input.isWebdavOutputDir())
                 {
+                    // This directory path will be created as a result of running the Cromwell job.  Check if the user can create it.
+                    // TODO: Any other check here?
                     if(!resource.canCreate(user, false))
                     {
                         errors.reject(ERROR_MSG, input.getDisplayName() + ": User cannot create directory path: " + labkeyPath);

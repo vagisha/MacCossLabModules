@@ -112,7 +112,7 @@
                     fieldLabel: <%=qh(input.getDisplayName())%>,
                     name: <%=q(input.getName())%>,
                     value: <%=q(input.getValue())%>,
-                    allowBlank: false,
+                    allowBlank: true,
                     width: 650,
                     margin: '20 10 0 10',
                     id: <%=q(inputFieldId)%>

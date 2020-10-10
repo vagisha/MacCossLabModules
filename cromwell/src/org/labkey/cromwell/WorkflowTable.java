@@ -11,7 +11,10 @@ import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QueryUpdateService;
 import org.labkey.api.query.UserIdForeignKey;
 import org.labkey.api.security.UserPrincipal;
+import org.labkey.api.security.permissions.DeletePermission;
 import org.labkey.api.security.permissions.Permission;
+import org.labkey.api.security.permissions.ReadPermission;
+import org.labkey.api.security.permissions.SiteAdminPermission;
 import org.labkey.api.util.Link;
 import org.labkey.api.view.ActionURL;
 
@@ -77,7 +80,8 @@ public class WorkflowTable extends FilteredTable<CromwellSchema>
     @Override
     public boolean hasPermission(@NotNull UserPrincipal user, @NotNull Class<? extends Permission> perm)
     {
-        return getContainer().hasPermission(user, perm);
+        // Only site admins should be able to edit workflows
+        return getContainer().hasPermission(user, SiteAdminPermission.class);
     }
 
     @Override

@@ -1,0 +1,5 @@
+{table}
+Filename|Component|Version|Source|License|LabKey Dev|Purpose
+jsch-0.1.55.jar|Java implementation of SSH2|0.1.55|{link:JSch|http://www.jcraft.com/jsch/}|{link:BSD-style License|http://www.jcraft.com/jsch/LICENSE.txt}|vsharma|Java implementation of SSH2
+jsch-0.1.55.jar|SSHv2 library for Java|0.30.0|{link:SSHJ|https://github.com/hierynomus/sshj}|{link:Apache 2.0 License|https://github.com/hierynomus/sshj/blob/master/LICENSE}|vsharma|SSHv2 library for Java
+{table}

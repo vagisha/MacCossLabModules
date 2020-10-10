@@ -2,5 +2,7 @@ import org.labkey.gradle.util.BuildUtils;
 
 dependencies
 {
+    external 'com.jcraft:jsch:0.1.55'
+    external 'com.hierynomus:sshj:0.30.0'
     BuildUtils.addLabKeyDependency(project: project, config: "modules", depProjectPath: BuildUtils.getPlatformModuleProjectPath(project.gradle, "experiment"), depProjectConfig: "published", depExtension: "module")
 }
