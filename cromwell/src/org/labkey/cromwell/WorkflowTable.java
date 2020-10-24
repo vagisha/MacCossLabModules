@@ -1,14 +1,19 @@
 package org.labkey.cromwell;
 
 import org.jetbrains.annotations.NotNull;
+import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.DataColumn;
+import org.labkey.api.data.JdbcType;
 import org.labkey.api.data.RenderContext;
+import org.labkey.api.data.SQLFragment;
 import org.labkey.api.query.DefaultQueryUpdateService;
 import org.labkey.api.query.DetailsURL;
+import org.labkey.api.query.ExprColumn;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QueryUpdateService;
+import org.labkey.api.query.QueryUrls;
 import org.labkey.api.query.UserIdForeignKey;
 import org.labkey.api.security.UserPrincipal;
 import org.labkey.api.security.permissions.DeletePermission;
@@ -16,6 +21,9 @@ import org.labkey.api.security.permissions.Permission;
 import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.security.permissions.SiteAdminPermission;
 import org.labkey.api.util.Link;
+import org.labkey.api.util.PageFlowUtil;
+import org.labkey.api.util.StringExpression;
+import org.labkey.api.util.StringExpressionFactory;
 import org.labkey.api.view.ActionURL;
 
 import java.io.IOException;
@@ -67,14 +75,36 @@ public class WorkflowTable extends FilteredTable<CromwellSchema>
             }
         });
 
+        SQLFragment jobCountSql = new SQLFragment(" (SELECT COUNT(*) FROM ")
+                .append(CromwellSchema.getTableInfoJob(), "job")
+                .append(" WHERE workflowId = ").append(ExprColumn.STR_TABLE_ALIAS + ".id ");
+                // .append(" AND job.Container = ?").add(getContainer()).append(")");
+        if(cf != null)
+        {
+            jobCountSql.append(" AND ").append(cf.getSQLFragment(getSchema(), new SQLFragment("Container")));
+        }
+        else
+        {
+            jobCountSql.append(" AND ").append(ContainerFilter.current(getContainer()).getSQLFragment(getSchema(), new SQLFragment("Container")));
+        }
+        jobCountSql.append(" ) ");
+
+        var jobCountCol = new ExprColumn(this, "Jobs", jobCountSql, JdbcType.INTEGER);
+        ActionURL url = PageFlowUtil.urlProvider(QueryUrls.class).urlExecuteQuery(getContainer(), CromwellSchema.NAME, CromwellSchema.TABLE_JOB);
+        // url.addParameter("query.workflowId~eq", )
+        jobCountCol.setURL(StringExpressionFactory.createURL(url + "&query.workflowId~eq=${id}"));
+        addColumn(jobCountCol);
+
         List<FieldKey> visibleColumns = new ArrayList<>();
         visibleColumns.add(FieldKey.fromParts("Name"));
         visibleColumns.add(FieldKey.fromParts("Version"));
         visibleColumns.add(FieldKey.fromParts("CreatedBy"));
         visibleColumns.add(FieldKey.fromParts("Created"));
+        visibleColumns.add(FieldKey.fromParts("Jobs"));
         visibleColumns.add(FieldKey.fromParts("NewJob"));
 
         setDefaultVisibleColumns(visibleColumns);
+
     }
 
     @Override

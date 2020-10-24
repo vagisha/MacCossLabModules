@@ -16,6 +16,7 @@ import org.labkey.api.security.permissions.DeletePermission;
 import org.labkey.api.security.permissions.Permission;
 import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.util.Link;
+import org.labkey.api.util.StringExpressionFactory;
 import org.labkey.api.view.ActionURL;
 
 import java.io.IOException;
@@ -69,6 +70,9 @@ public class CromwellJobTable extends FilteredTable<CromwellSchema>
                 return false;
             }
         });
+        ActionURL cromwellMetadataUrl = new ActionURL(CromwellController.CromwellJobMetadataAction.class, getContainer());
+        cromwellMetadataUrl.addParameter("jobId", "${Id}");
+        getMutableColumn(FieldKey.fromParts("CromwellStatus")).setURL(StringExpressionFactory.createURL(cromwellMetadataUrl));
 
         List<FieldKey> visibleColumns = new ArrayList<>();
         visibleColumns.add(FieldKey.fromParts("WorkflowId"));

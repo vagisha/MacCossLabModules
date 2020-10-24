@@ -103,6 +103,7 @@
                 </url>
             </column>
             <column columnName="PipelineJobId">
+                <columnTitle>Pipeline Job</columnTitle>
                 <fk>
                     <fkColumnName>RowId</fkColumnName>
                     <fkDbSchema>pipeline</fkDbSchema>

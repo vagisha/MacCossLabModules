@@ -175,6 +175,65 @@ public class CromwellUtil
         return logFiles;
     }
 
+    public static CromwellMetadata getJobMetadata(URI metadataUri) throws CromwellException
+    {
+        List<String> logFiles = new ArrayList<>();
+
+        try (CloseableHttpClient client = HttpClientBuilder.create().build())
+        {
+            HttpGet get = new HttpGet(metadataUri);
+
+            try (CloseableHttpResponse response = client.execute(get))
+            {
+                ResponseHandler<String> handler = new BasicResponseHandler();
+                StatusLine status = response.getStatusLine();
+
+                if (status.getStatusCode() == HttpStatus.SC_OK)
+                {
+                    String resp = handler.handleResponse(response);
+                    JSONObject json = new JSONObject(resp);
+                    JSONObject calls = json.getJSONObject("calls");
+                    for (Iterator<String> it = calls.keys(); it.hasNext(); )
+                    {
+                        String key = it.next();
+                        JSONArray values = calls.getJSONArray(key);
+                        for(int i = 0; i < values.length(); i++)
+                        {
+                            JSONObject info = values.getJSONObject(i);
+                            String stdout = info.getString("stdout");
+                            String stderr = info.getString("stderr");
+
+                            JSONObject callCaching = info.getJSONObject("callCaching");
+                            if(callCaching != null && callCaching.containsKey("hit"))
+                            {
+                                if(callCaching.getBoolean("hit"))
+                                {
+                                    var callRoot = info.getString("callRoot");
+                                    stdout = callRoot + "/cacheCopy/execution/stdout";
+                                    stderr = callRoot + "/cacheCopy/execution/stderr";
+                                }
+                            }
+
+                            logFiles.add(stdout);
+                            logFiles.add(stderr);
+                        }
+                    }
+                }
+                else
+                {
+                    EntityUtils.consume(response.getEntity());
+                    throw new CromwellException("Error getting list of log files for job. Response code was " + status.getStatusCode() + " " +  status.getReasonPhrase());
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            throw new CromwellException("Error getting list of log files for job.", e);
+        }
+
+        return null; // TODO
+    }
+
     public static CromwellProperties readCromwellProperties() throws CromwellException
     {
         PropertyManager.PropertyMap map = PropertyManager.getEncryptedStore().getWritableProperties(PROPS_CROMWELL, false);
@@ -345,6 +404,15 @@ public class CromwellUtil
                     .addParameter("includeKey", "callCaching")
                     .addParameter("includeKey", "callRoot")
                     .build();
+
+            return uri;
+
+        }
+
+        public URI buildMetadataUrl(String cromwellJobId) throws URISyntaxException
+        {
+            String path = CROMWELL_API_PATH + '/' + cromwellJobId + "/metadata";
+            URI uri = new URIBuilder(buildCromwellServerUri(path)).build();
 
             return uri;
 

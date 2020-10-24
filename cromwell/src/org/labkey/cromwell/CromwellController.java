@@ -70,7 +70,10 @@ import org.labkey.api.view.ViewContext;
 import org.labkey.api.view.WebPartView;
 import org.labkey.api.webdav.WebdavResource;
 import org.labkey.api.webdav.WebdavService;
+import org.labkey.cromwell.pipeline.CromwellException;
+import org.labkey.cromwell.pipeline.CromwellMetadata;
 import org.labkey.cromwell.pipeline.CromwellPipelineJob;
+import org.labkey.cromwell.pipeline.CromwellUtil;
 import org.springframework.validation.BindException;
 import org.springframework.validation.Errors;
 import org.springframework.web.servlet.ModelAndView;
@@ -78,6 +81,7 @@ import org.springframework.web.servlet.ModelAndView;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -951,7 +955,6 @@ public class CromwellController extends SpringActionController
         return dr;
     }
 
-
     @NotNull
     private static org.labkey.api.util.Path getDecodedPath(String webdavUrl)
     {
@@ -967,5 +970,70 @@ public class CromwellController extends SpringActionController
     private static org.labkey.api.util.Path getFileRootPath(Container container)
     {
         return WebdavService.getPath().append(container.getParsedPath()).append(FileContentService.FILES_LINK);
+    }
+
+    @RequiresPermission(AdminPermission.class)
+    public class CromwellJobMetadataAction extends SimpleViewAction<CromwellJobForm>
+    {
+        @Override
+        public ModelAndView getView(CromwellJobForm form, BindException errors)
+        {
+            Integer cromwellJobId = form.getJobId();
+            CromwellJob job = CromwellManager.get().getCromwellJob(cromwellJobId);
+            if(job == null)
+            {
+                errors.addError(new LabKeyError("Could not find a Cromwell job for Id: " + cromwellJobId));
+                return new SimpleErrorView(errors);
+            }
+
+            if(job.getCromwellJobId() == null)
+            {
+                errors.addError(new LabKeyError("Could not find a Cromwell job Id"));
+                return new SimpleErrorView(errors);
+            }
+
+            CromwellUtil.CromwellProperties cromwellProperties;
+            try
+            {
+                cromwellProperties = CromwellUtil.readCromwellProperties();
+            }
+            catch (CromwellException e)
+            {
+                errors.addError(new LabKeyError("Error reading Cromwell server properties"));
+                return new SimpleErrorView(errors);
+            }
+            URI metadataUri;
+            try
+            {
+                metadataUri = cromwellProperties.buildMetadataUrl(job.getCromwellJobId());
+            }
+            catch (URISyntaxException e)
+            {
+                errors.addError(new LabKeyError("Error building Cromwell metadata URI"));
+                return new SimpleErrorView(errors);
+            }
+
+            try
+            {
+                CromwellMetadata metadata = CromwellUtil.getJobMetadata(metadataUri);
+
+                VBox view = new VBox();
+
+                view.setTitle("Cromwell Job Metadata");
+                view.setFrame(WebPartView.FrameType.PORTAL);
+                return view;
+            }
+            catch (CromwellException e)
+            {
+                errors.addError(new LabKeyError("Error getting metadata for Cromwell job " + job.getCromwellJobId() + ". The error was " + e.getMessage()));
+                return new SimpleErrorView(errors);
+            }
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Cromwell Job Details");
+        }
     }
 }
