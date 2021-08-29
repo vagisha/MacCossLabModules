@@ -33,9 +33,10 @@ import org.labkey.api.view.ShortURLRecord;
 import org.labkey.api.view.ShortURLService;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.Journal;
-import org.labkey.panoramapublic.model.JournalExperiment;
+import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
+import org.labkey.panoramapublic.query.SubmissionManager;
 
 import java.beans.PropertyChangeEvent;
 import java.util.ArrayList;
@@ -70,6 +71,8 @@ public class PanoramaPublicListener implements ExperimentListener, ContainerMana
     @Override
     public void containerDeleted(Container c, User user)
     {
+        // TODO: If this container is in a journal project make the admin delete the row in the ExperimentAnnotations first before they can delete the container.
+
         JournalManager.deleteProjectJournal(c, user);
     }
 
@@ -94,17 +97,17 @@ public class PanoramaPublicListener implements ExperimentListener, ContainerMana
     @Override
     public List<String> canDelete(ShortURLRecord shortUrl)
     {
-        List<JournalExperiment> journalExperiments = JournalManager.getRecordsForShortUrl(shortUrl);
+        List<JournalSubmission> journalExperiments = SubmissionManager.getSubmissionWithShortUrl(shortUrl);
         if(journalExperiments.size() > 0)
         {
             List<String> errors = new ArrayList<>();
             String url = shortUrl.getShortURL();
-            for(JournalExperiment je: journalExperiments)
+            for(JournalSubmission je: journalExperiments)
             {
                 ExperimentAnnotations experiment = ExperimentAnnotationsManager.get(je.getExperimentAnnotationsId());
                 Journal journal = JournalManager.getJournal(je.getJournalId());
-
-                errors.add("Short URL \"" + url + "\" is associated with the experiment \"" + experiment.getTitle() + "\" published to \"" + journal.getName() + "\"");
+                errors.add("Short URL \"" + url + "\" is associated with a request submitted to \"" + journal.getName() + "\""
+                        + (experiment == null ? "" : " for experiment \"" + experiment.getTitle() + "\""));
             }
             return errors;
         }

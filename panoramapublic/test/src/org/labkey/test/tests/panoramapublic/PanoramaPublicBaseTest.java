@@ -149,10 +149,15 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
 
     void copyExperimentAndVerify(String projectName, String folderName, String experimentTitle, boolean recopy, String destinationFolder)
     {
-        copyExperimentAndVerify(projectName, folderName, null, experimentTitle, recopy, destinationFolder);
+        copyExperimentAndVerify(projectName, folderName, null, experimentTitle, recopy, true, destinationFolder);
     }
 
     void copyExperimentAndVerify(String projectName, String folderName, @Nullable String subfolderName, String experimentTitle, boolean recopy, String destinationFolder)
+    {
+        copyExperimentAndVerify(projectName, folderName, subfolderName, experimentTitle, recopy, true, destinationFolder);
+    }
+
+    void copyExperimentAndVerify(String projectName, String folderName, @Nullable String subfolderName, String experimentTitle, boolean recopy, boolean deleteOldCopy, String destinationFolder)
     {
         if(isImpersonating())
         {
@@ -178,7 +183,10 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
             assertTextPresent("This experiment was last copied on");
             Locator.XPathLocator deletePreviousCopyCb = Ext4Helper.Locators.checkbox(this, "Delete Previous Copy:");
             assertNotNull("Expected to see \"Delete Previous Copy\" checkbox", deletePreviousCopyCb);
-            _ext4Helper.checkCheckbox(deletePreviousCopyCb);
+            if(deleteOldCopy)
+            {
+                _ext4Helper.checkCheckbox(deletePreviousCopyCb);
+            }
         }
         else
         {
@@ -232,6 +240,18 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
         clickAndWait(Locator.linkContainingText("/" + projectName + "/" + folderName));
         assertTextPresent((recopy ? "RECOPIED": "COPIED") + ": Experiment ID ");
         assertTextPresent("Email was not sent to submitter");
+    }
+
+    void deleteExperimentInFolder()
+    {
+//        goToDashboard();
+//        Locator.XPathLocator webpart = PortalHelper.Locators.webPart(TargetedMsExperimentWebPart.DEFAULT_TITLE);
+//        assertNotNull("Expected to see a " + TargetedMsExperimentWebPart.DEFAULT_TITLE + " webpart", webpart);
+//        webpart.
+//        TargetedMsExperimentWebPart expWebPart = new TargetedMsExperimentWebPart(this);
+//        TargetedMsExperimentInsertPage insertPage = expWebPart.startInsert();
+//        insertPage.insert(experimentTitle);
+
     }
 
     @Override
