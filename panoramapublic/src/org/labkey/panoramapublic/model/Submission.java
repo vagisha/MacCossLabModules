@@ -1,7 +1,6 @@
 package org.labkey.panoramapublic.model;
 
 import org.apache.commons.lang3.StringUtils;
-import org.labkey.api.view.ShortURLRecord;
 
 import java.util.Date;
 
@@ -194,8 +193,29 @@ public class Submission
         return _copiedExperimentId == null && _copied == null;
     }
 
-    public boolean wasCopied()
+    public boolean hasCopy()
     {
         return _copiedExperimentId != null;
+    }
+
+    /**
+     * Returns true if this submission has not yet been copied, or if it was copied (has a copied timestamp)
+     * but no longer has a reference to the copied experiment because the copy was deleted.
+     * @return
+     */
+    public boolean canBeDeleted()
+    {
+        return !hasCopy();
+    }
+
+    /**
+     * Returns true if this submission was copied (has a copied timestamp) but no longer has a reference to the
+     * copied experiment because the copy was deleted. The row in retained in the Submission table as a log of
+     * all the submissions.
+     * @return
+     */
+    public boolean isObsolete()
+    {
+        return _copied != null && !hasCopy();
     }
 }

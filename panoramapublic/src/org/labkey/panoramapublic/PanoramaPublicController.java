@@ -4299,19 +4299,7 @@ public class PanoramaPublicController extends SpringActionController
                 List<Submission> publishedVersions = journalSubmission.getCopiedSubmissions();
                 if (publishedVersions.size() > 0)
                 {
-                    Integer currentVersion = journalSubmission.getCurrentVersion();
-                    List<DOM.Renderable> rows = new ArrayList<>();
-                    rows.add(THEAD(TR(TH(cl("labkey-column-header"), "Version"), TH("Published"), TH("Link"))));
-                    final AtomicInteger cnt = new AtomicInteger();
-                    rows.add(TBODY(publishedVersions.stream().map(s ->
-                            TR(cl(cnt.getAndIncrement() % 2 == 0, "labkey-alternate-row", "labkey-row"),
-                                    TD(s.getVersion() == currentVersion ? "Current" : s.getVersion().toString()),
-                                    TD(DateUtil.formatDateTime(s.getCopied(), "MM/dd/yyyy")),
-                                    TD(getExperimentShortLink(s))
-                            ))));
-                    HtmlView versionsView = new HtmlView(TABLE(cl("labkey-data-region-legacy", "labkey-show-borders"), rows));
-                    versionsView.setTitle("Published Versions");
-                    result.addView(versionsView);
+                    result.addView(getPublishedVersionsView(journalSubmission, publishedVersions));
                 }
             }
 
@@ -4395,18 +4383,6 @@ public class PanoramaPublicController extends SpringActionController
             return result;
         }
 
-        @NotNull
-        private DOM.Renderable getExperimentShortLink(Submission s)
-        {
-            ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.get(s.getCopiedExperimentId());
-            if(expAnnotations != null && expAnnotations.getShortUrl() != null)
-            {
-                return new Link.LinkBuilder(expAnnotations.getShortUrl().renderShortURL())
-                        .href(expAnnotations.getShortUrl().renderShortURL()).clearClasses().build();
-            }
-            return HtmlString.NBSP;
-        }
-
         @Override
         public void addNavTrail(NavTree root)
         {
@@ -4479,6 +4455,82 @@ public class PanoramaPublicController extends SpringActionController
         {
             _lastPublishedRecord = lastPublishedRecord;
         }
+    }
+
+    @RequiresPermission(ReadPermission.class)
+    public class ShowPublishedVersions extends SimpleViewAction<IdForm>
+    {
+        @Override
+        public ModelAndView getView(final IdForm form, BindException errors)
+        {
+            ExperimentAnnotations exptAnnotations = ExperimentAnnotationsManager.get(form.getId());
+            if (exptAnnotations == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find experiment annotations with Id " + form.getId());
+                return new SimpleErrorView(errors, true);
+            }
+
+            // Check container
+            ensureCorrectContainer(getContainer(), exptAnnotations.getContainer(), getViewContext());
+
+            VBox result = new VBox();
+
+            JournalSubmission journalSubmission = exptAnnotations.isJournalCopy() ? SubmissionManager.getSubmissionForJournalCopy(exptAnnotations)
+                                                                                  : SubmissionManager.getNewestJournalSubmission(exptAnnotations);
+            if (exptAnnotations == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find a submission request related to the experiment Id " + form.getId());
+                return new SimpleErrorView(errors, true);
+            }
+
+            List<Submission> publishedVersions = journalSubmission.getCopiedSubmissions();
+            if (publishedVersions.size() > 0)
+            {
+                result.addView(getPublishedVersionsView(journalSubmission, publishedVersions));
+            }
+            else
+            {
+                result.addView(new HtmlView(DIV("Did not find any published versions related to experiment Id " + form.getId())));
+            }
+            result.addView(new HtmlView(PageFlowUtil.generateBackButton()));
+            return result;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Published Versions");
+        }
+    }
+
+    @NotNull
+    private HtmlView getPublishedVersionsView(JournalSubmission journalSubmission, List<Submission> publishedVersions)
+    {
+        Integer currentVersion = journalSubmission.getCurrentVersion();
+        List<DOM.Renderable> rows = new ArrayList<>();
+        rows.add(THEAD(TR(TH(cl("labkey-column-header"), "Version"), TH("Published"), TH("Link"))));
+        final AtomicInteger cnt = new AtomicInteger();
+        rows.add(TBODY(publishedVersions.stream().map(s ->
+                TR(cl(cnt.getAndIncrement() % 2 == 0, "labkey-alternate-row", "labkey-row"),
+                        TD(s.getVersion() == currentVersion ? "Current" : s.getVersion().toString()),
+                        TD(DateUtil.formatDateTime(s.getCopied(), "MM/dd/yyyy")),
+                        TD(getExperimentShortLink(s))
+                ))));
+        HtmlView versionsView = new HtmlView(TABLE(cl("labkey-data-region-legacy", "labkey-show-borders"), rows));
+        versionsView.setTitle("Published Versions");
+        return versionsView;
+    }
+
+    @NotNull
+    private DOM.Renderable getExperimentShortLink(Submission s)
+    {
+        ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.get(s.getCopiedExperimentId());
+        if(expAnnotations != null && expAnnotations.getShortUrl() != null)
+        {
+            return new Link.LinkBuilder(expAnnotations.getShortUrl().renderShortURL())
+                    .href(expAnnotations.getShortUrl().renderShortURL()).clearClasses().build();
+        }
+        return HtmlString.NBSP;
     }
 
     private static boolean isSupportedFolderType(TargetedMSService.FolderType folderType)

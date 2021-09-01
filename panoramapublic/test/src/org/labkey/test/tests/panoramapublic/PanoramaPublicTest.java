@@ -1,5 +1,6 @@
 package org.labkey.test.tests.panoramapublic;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.labkey.test.BaseWebDriverTest;
@@ -9,17 +10,25 @@ import org.labkey.test.TestTimeoutException;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
 import org.labkey.test.components.panoramapublic.TargetedMsExperimentWebPart;
+import org.labkey.test.util.APIContainerHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
+import org.labkey.test.util.DataRegionTable;
 import org.labkey.test.util.Ext4Helper;
 import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.PortalHelper;
 
 import java.io.File;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @Category({External.class, MacCossLabModules.class})
-@BaseWebDriverTest.ClassTimeout(minutes = 5)
+@BaseWebDriverTest.ClassTimeout(minutes = 7)
 public class PanoramaPublicTest extends PanoramaPublicBaseTest
 {
     private static final String SKY_FILE_1 = "Study9S_Site52_v1.sky.zip";
@@ -63,10 +72,16 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
 
         // Click Submit.  Expect to see the missing information page. Submit the experiment by clicking the
         // "Continue without a ProteomeXchange ID" link
-        testSubmitWithMissingRawFiles(portalHelper, expWebPart);
+        String shortAccessLink = testSubmitWithMissingRawFiles(portalHelper, expWebPart);
+
+        // Verify rows in Submission table
+        verifySubmissionTable(projectName, folderName, 1, 0, List.of(""), List.of(Boolean.FALSE), List.of(""), List.of(""));
 
         // Copy the experiment to the Panorama Public project
-        copyExperimentAndVerify(projectName, folderName, experimentTitle, false, targetFolder);
+        copyExperimentAndVerify(projectName, folderName, experimentTitle, targetFolder);
+
+        // Verify rows in Submission table
+        verifySubmissionTable(projectName, folderName, 1, 1, List.of(experimentTitle), List.of(Boolean.TRUE), List.of("1"), List.of(shortAccessLink));
 
         // Test re-submit experiment
         goToProjectFolder(projectName, folderName);
@@ -77,7 +92,79 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         goToDashboard();
         assertTextPresent("Copy Pending!");
 
-        copyExperimentAndVerify(projectName, folderName, experimentTitle, true, targetFolder);
+        // Verify rows in Submission table
+        verifySubmissionTable(projectName, folderName, 2, 2, List.of(experimentTitle, ""), List.of(Boolean.TRUE, Boolean.FALSE), List.of("1", ""), List.of(shortAccessLink, ""));
+
+        copyExperimentAndVerify(projectName, folderName, null, experimentTitle,
+                2, // We are not deleting the first copy so this is version 2
+                true,
+                false, // Do not delete old copy
+                targetFolder);
+
+        // Verify rows in Submission table. The short URL of the previous copy should have a '_v1' suffix.
+        String v1Link = shortAccessLink.replace(".url", "_v1.url");
+        verifySubmissionTable(projectName, folderName, 2, 2, List.of(experimentTitle, experimentTitle), List.of(Boolean.TRUE, Boolean.TRUE), List.of("1", "2"), List.of(v1Link, shortAccessLink));
+
+        // The folder containing the older copy should have a "V.1" suffix added to the name.
+        // Panorama Public admin should be able to delete the old folder
+        String v1Folder = targetFolder + " V.1";
+        assertTrue("Expected the container for the previous copy to have been renamed with a suffix 'V.1'",
+                _containerHelper.doesContainerExist(PANORAMA_PUBLIC + "/" + v1Folder));
+        APIContainerHelper apiContainerHelper = new APIContainerHelper(this);
+        apiContainerHelper.deleteFolder(PANORAMA_PUBLIC, v1Folder);
+        assertFalse("Expected the container for the previous copy to have been deleted",
+                _containerHelper.doesContainerExist(PANORAMA_PUBLIC + "/" + v1Folder));
+
+        // The rows in the JournalExperiment and Submission tables should still be there
+        verifySubmissionTable(projectName, folderName, 2, 2, List.of("", experimentTitle), List.of(Boolean.TRUE, Boolean.TRUE), List.of("", "2"), List.of("", shortAccessLink));
+
+        // Submitter should be able to delete their folder after it has been copied to Panorama Public
+        goToProjectFolder(projectName, folderName);
+        impersonate(SUBMITTER);
+        apiContainerHelper.deleteFolder(projectName, folderName);
+    }
+
+    private void verifySubmissionTable(String projectName, String folderName, int rowCount, int maxVersion,
+                                       List<String> experimentTitles, List<Boolean> copied, List<String> versions,
+                                       List<String> accessLinks)
+    {
+        if (isImpersonating())
+        {
+            stopImpersonating();
+        }
+        goToProjectFolder(projectName, folderName);
+        goToDashboard();
+        TargetedMsExperimentWebPart expWebPart = new TargetedMsExperimentWebPart(this);
+
+        expWebPart.clickMoreDetails();
+        DataRegionTable submissionTable = new DataRegionTable("Submission", getDriver());
+        assertEquals("Expected " + rowCount + " rows in the Submission table", rowCount, submissionTable.getDataRowCount());
+
+        String[] columns = new String[]{"ShortURL", "Version", "CopiedExperimentId", "Edit", "Delete"};
+        for (int row = 0; row < rowCount; row++)
+        {
+            Boolean wasCopied = copied.get(row);
+            String rowCopiedVal = submissionTable.getRowDataAsText(row, "Copied").get(0).trim();
+            if (wasCopied)
+            {
+                assertNotEquals("Expected a value in the 'Copied' column", "", rowCopiedVal);
+            }
+            else
+            {
+                assertEquals("Expected 'Copied' column to be blank", "", rowCopiedVal);
+            }
+            List<String> rowVals = submissionTable.getRowDataAsText(row, columns).stream().map(String::trim).collect(Collectors.toList());
+
+            String version = versions.get(row);
+            boolean isMaxVersion = !StringUtils.isBlank(version) && Integer.parseInt(version) == maxVersion;
+            assertEquals("Unexpected values in row " + row,
+                    List.of(accessLinks.get(row),
+                            version,
+                            experimentTitles.get(row),
+                            wasCopied ? (isMaxVersion ? "RESUBMIT" : "") : "EDIT",
+                            wasCopied ? "" : "DELETE"),
+                    rowVals);
+        }
     }
 
     @Test
@@ -106,7 +193,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         testSubmitWithSubfolders(expWebPart);
 
         // Copy the experiment to the Panorama Public project
-        copyExperimentAndVerify(projectName, sourceFolder, subfolder, experimentTitle, false, targetFolder);
+        copyExperimentAndVerify(projectName, sourceFolder, subfolder, experimentTitle, targetFolder);
 
         // Remove permissions for SUBMITTER_2 from the subfolder, and try to resubmit the experiment as SUBMITTER_2. This user
         // should not be able to resubmit because the experiment was configured by SUBMITTER to include subfolders, and read permissions
@@ -128,6 +215,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         assertElementPresent(Locator.linkWithText("Exclude Subfolders"));
     }
 
+    @Override
     protected void setupSourceFolder(String projectName, String folderName, String ... adminUsers)
     {
         setupSubfolder(projectName, folderName, FolderType.Experiment); // Create the subfolder
@@ -155,7 +243,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         assertTextPresent("There are no Skyline documents included in this experiment");
     }
 
-    private void testSubmitWithMissingRawFiles(PortalHelper portal, TargetedMsExperimentWebPart expWebPart)
+    private String testSubmitWithMissingRawFiles(PortalHelper portal, TargetedMsExperimentWebPart expWebPart)
     {
         goToDashboard();
         expWebPart.clickSubmit();
@@ -175,6 +263,10 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
 
         goToDashboard();
         assertTextPresent("Copy Pending!");
+
+        String accessLink = expWebPart.getAccessLink();
+        assertNotNull("Expected a short access URL", accessLink);
+        return accessLink;
     }
 
     private void testSubmitWithSubfolders(TargetedMsExperimentWebPart expWebPart)

@@ -61,7 +61,6 @@ import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.model.DataLicense;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.view.publish.ShortUrlDisplayColumnFactory;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -301,14 +300,6 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         });
         addColumn(licenseCol);
 
-        SQLFragment versionSql = new SQLFragment("(SELECT Version FROM ");
-        versionSql.append(PanoramaPublicManager.getTableInfoSubmission(), "s");
-        versionSql.append(" WHERE s.copiedexperimentid = ");
-        versionSql.append(ExprColumn.STR_TABLE_ALIAS);
-        versionSql.append(".Id)");
-        ExprColumn versionCol = new ExprColumn(this, "Version", versionSql, JdbcType.INTEGER);
-        addColumn(versionCol);
-
         SQLFragment sourceExptIdSql = new SQLFragment("(SELECT je.ExperimentAnnotationsId FROM ")
                 .append(PanoramaPublicManager.getTableInfoJournalExperiment(), "je")
                 .append(" INNER JOIN ").append(PanoramaPublicManager.getTableInfoSubmission(), "s")
@@ -320,6 +311,9 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         exptDetailsUrl.addParameter("id", "${SourceExperiment}");
         sourceExptCol.setURL(StringExpressionFactory.createURL(exptDetailsUrl));
         addColumn(sourceExptCol);
+
+        addColumn(getVersionCol());
+        // addColumn(getVersionCountCol());
 
         List<FieldKey> visibleColumns = new ArrayList<>();
         visibleColumns.add(FieldKey.fromParts("Share"));
@@ -335,6 +329,41 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         visibleColumns.add(FieldKey.fromParts("SourceExperiment"));
 
         setDefaultVisibleColumns(visibleColumns);
+    }
+
+    @NotNull
+    private ExprColumn getVersionCol()
+    {
+        /*
+        SELECT CASE
+        WHEN version =
+        (
+            SELECT MAX(s2.Version) FROM panoramapublic.submission s1
+            INNER JOIN panoramapublic.submission s2 ON s1.JournalExperimentId = s2.JournalExperimentId
+            WHERE s2.Version IS NOT NULL and s1.CopiedExperimentId = 37
+        )
+        THEN 'Current'
+        WHEN Version Is NULL THEN ''
+        ELSE CAST (Version AS VARCHAR)
+        END
+        FROM panoramapublic.submission  WHERE CopiedExperimentId=37
+         */
+        SQLFragment maxVersionSql = new SQLFragment(" SELECT MAX(s2.Version) FROM ")
+                .append(PanoramaPublicManager.getTableInfoSubmission(), "s1")
+                .append(" INNER JOIN ").append(PanoramaPublicManager.getTableInfoSubmission(), "s2")
+                .append(" ON s1.JournalExperimentId = s2.JournalExperimentId")
+                .append(" WHERE s2.Version IS NOT NULL and s1.CopiedExperimentId = ")
+                .append(ExprColumn.STR_TABLE_ALIAS).append(".Id");
+
+        SQLFragment versionSql = new SQLFragment("(SELECT CASE")
+                .append(" WHEN Version = (").append(maxVersionSql).append(") THEN 'Current' ")
+                .append(" WHEN Version Is NULL THEN '' ")
+                .append(" ELSE CAST (Version AS VARCHAR) END ")
+                .append(" FROM ").append(PanoramaPublicManager.getTableInfoSubmission(), "s")
+                .append(" WHERE s.copiedexperimentid = ").append(ExprColumn.STR_TABLE_ALIAS).append(".Id)");
+
+        ExprColumn versionCol = new ExprColumn(this, "Version", versionSql, JdbcType.VARCHAR);
+        return versionCol;
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.labkey.api.security.SecurityManager;
 import org.labkey.api.security.User;
 import org.labkey.api.security.UserManager;
 import org.labkey.api.security.permissions.ReadPermission;
+import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.view.ShortURLRecord;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
@@ -37,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.labkey.api.targetedms.TargetedMSService.FolderType.Experiment;
 
 /**
  * User: vsharma
@@ -516,9 +519,15 @@ public class ExperimentAnnotations
         return submission == null ? null : submission.getDataLicense();
     }
 
+    /**
+     * Returns true is the experiment is in an 'Experimental Data' folder that is public and the experiment is
+     * associated with a published paper.
+     * @return
+     */
     public boolean isFinal()
     {
-        return isPublic() && isPublished();
+        TargetedMSService.FolderType folderType = TargetedMSService.get().getFolderType(getContainer());
+        return Experiment.equals(folderType) && isPublic() && isPublished();
     }
 
     public String getDoi()

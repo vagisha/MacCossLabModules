@@ -94,6 +94,21 @@ public class JournalSubmission
         return _submissions;
     }
 
+    public @NotNull List<Submission> getCopiedSubmissions()
+    {
+        return submissions().stream().filter(Submission::hasCopy).collect(Collectors.toUnmodifiableList());
+    }
+
+    public @NotNull List<Submission> getObsoleteSubmissions()
+    {
+        return submissions().stream().filter(Submission::isObsolete).collect(Collectors.toUnmodifiableList());
+    }
+
+    public @NotNull List<Submission> getActiveSubmissions()
+    {
+        return submissions().stream().filter(s -> !s.isObsolete()).collect(Collectors.toUnmodifiableList());
+    }
+
     public @Nullable Submission getLatestSubmission()
     {
         return submissions().size() > 0 ? submissions().get(0) : null;
@@ -109,11 +124,6 @@ public class JournalSubmission
         return getPendingSubmission() != null;
     }
 
-    public @NotNull List<Submission> getCopiedSubmissions()
-    {
-        return submissions().stream().filter(Submission::wasCopied).collect(Collectors.toUnmodifiableList());
-    }
-
     public @Nullable Submission getLatestCopiedSubmission()
     {
         List<Submission> copiedSubmissions = getCopiedSubmissions();
@@ -122,7 +132,7 @@ public class JournalSubmission
 
     public @Nullable Submission getSubmissionForCopiedExperiment(int copiedExperimentId)
     {
-        return submissions().stream().filter(s -> s.wasCopied() && s.getCopiedExperimentId() == copiedExperimentId).findFirst().orElse(null);
+        return submissions().stream().filter(s -> s.hasCopy() && s.getCopiedExperimentId() == copiedExperimentId).findFirst().orElse(null);
     }
 
     public int getCurrentVersion()
@@ -146,5 +156,10 @@ public class JournalSubmission
     {
         Submission submission = getLatestSubmission();
         return submission != null && submission.getId() == submissionId;
+    }
+
+    public boolean canBeDeleted()
+    {
+        return getSubmissions().stream().allMatch(s -> s.canBeDeleted());
     }
 }

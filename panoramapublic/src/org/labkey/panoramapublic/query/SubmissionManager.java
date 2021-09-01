@@ -84,17 +84,37 @@ public class SubmissionManager
      */
     public static void deleteSubmission(@NotNull Submission submission, @NotNull User user)
     {
-        try(DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
+        deleteSubmission(submission, false, user);
+    }
+
+    private static void deleteSubmission(@NotNull Submission submission, boolean deleteObsoleteSubmissions, @NotNull User user)
+    {
+        try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
-            Table.delete(PanoramaPublicManager.getTableInfoSubmission(), submission.getId());
+            deleteSubmission(submission.getId());
 
             JournalSubmission js = getJournalSubmission(submission.getJournalExperimentId());
-            if (js != null && js.getCopiedSubmissions().size() == 0 && js.getPendingSubmission() == null)
+            if (js != null)
             {
-                deleteJournalExperiment(js.getJournalExperiment(), user);
+                List<Submission> allSubmissions = new ArrayList<>(js.getSubmissions());
+                if(deleteObsoleteSubmissions)
+                {
+                    allSubmissions.stream().filter(Submission::isObsolete).forEach(s -> deleteSubmission(s.getId()));
+                    allSubmissions.removeIf(Submission::isObsolete);
+                }
+
+                if(allSubmissions.size() == 0)
+                {
+                    deleteJournalExperiment(js.getJournalExperiment(), user);
+                }
             }
             transaction.commit();
         }
+    }
+
+    private static void deleteSubmission(int submissionId)
+    {
+        Table.delete(PanoramaPublicManager.getTableInfoSubmission(), submissionId);
     }
 
     private static void deleteJournalExperiment(@NotNull JournalExperiment je, @NotNull User user)
@@ -283,7 +303,7 @@ public class SubmissionManager
         SimpleFilter filter = new SimpleFilter();
         filter.addClause(or);
         List<JournalExperiment> jeList = new TableSelector(PanoramaPublicManager.getTableInfoJournalExperiment(), filter, null).getArrayList(JournalExperiment.class);
-        return jeList.stream().map(je -> new JournalSubmission(je)).collect(Collectors.toList());
+        return jeList.stream().map(JournalSubmission::new).collect(Collectors.toList());
     }
 
     /**
@@ -337,9 +357,11 @@ public class SubmissionManager
                     }
                     else
                     {
-                        // The source experiment no longer exists. We can delete the row in the JournalExperiment and Submission tables
-                        // This will also delete the short URLs associated with this submission request.
-                        deleteSubmission(submission, user);
+                        // The source experiment no longer exists. We can delete the row in the JournalExperiment and Submission tables.
+                        // This will also delete:
+                        // - obsolete submissions (submissions were copied but the journal copy no longer exists)
+                        // - short URLs associated with this submission request
+                        deleteSubmission(submission, true, user);
                     }
                 }
                 else

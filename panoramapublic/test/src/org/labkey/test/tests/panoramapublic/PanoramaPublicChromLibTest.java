@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Category({External.class, MacCossLabModules.class})
-@BaseWebDriverTest.ClassTimeout(minutes = 5)
+@BaseWebDriverTest.ClassTimeout(minutes = 7)
 public class PanoramaPublicChromLibTest extends PanoramaPublicBaseTest
 {
 
@@ -93,7 +93,7 @@ public class PanoramaPublicChromLibTest extends PanoramaPublicBaseTest
 
         // Copy the experiment to the Panorama Public project
         var targetFolder = "Copy of " + folderName;
-        copyExperimentAndVerify(projectName, folderName, null, experimentTitle, false, targetFolder);
+        copyExperimentAndVerify(projectName, folderName, null, experimentTitle, targetFolder);
         // Download link, library statistics and revision in the ChromatogramLibraryDownloadWebpart
         goToProjectFolder(PANORAMA_PUBLIC, targetFolder);
         verifyChromLibDownloadWebPart(folderType, proteinCount, peptideCount, moleculeCount, transitionCount, revision);
@@ -102,11 +102,6 @@ public class PanoramaPublicChromLibTest extends PanoramaPublicBaseTest
         ChromLibTestHelper.ChromLibState libStateTarget = libHelper.getLibState(PANORAMA_PUBLIC + "/" + targetFolder);
 
         ChromLibTestHelper.compareLibState(libStateSource, libStateTarget);
-
-        // The submitter should be able to delete the experiment in their folder
-//        goToProjectFolder(projectName, folderName);
-//        impersonate(SUBMITTER);
-//        deleteExperiment();
     }
 
     private boolean resolveConflicts()

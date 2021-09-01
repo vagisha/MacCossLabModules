@@ -217,7 +217,7 @@ public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
                         if(js.isLatestSubmission(s.getId()))
                         {
                             // Show the "Resubmit" or "Edit" links only if this is the most recent submission request for the experiment.
-                            if (s.getCopiedExperimentId() != null)
+                            if (s.hasCopy())
                             {
                                 // Show the resubmit link if the experiment has already been copied by a journal
                                 // but NOT if the journal copy is final.

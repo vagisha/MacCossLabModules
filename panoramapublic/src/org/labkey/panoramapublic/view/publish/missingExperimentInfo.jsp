@@ -57,7 +57,7 @@
     int journalId = js == null ? 0 : js.getJournalId();
 
     ActionURL submitUrl = lastSubmission == null ? new ActionURL(PanoramaPublicController.PublishExperimentAction.class, getContainer()) // Data has not yet been submitted.
-            : (lastSubmission.getCopied()) == null ?
+            : (!lastSubmission.hasCopy()) ?
             new ActionURL(PanoramaPublicController.UpdateSubmissionAction.class, getContainer()) // Data submitted but not copied yet.
             :
             new ActionURL(PanoramaPublicController.RepublishJournalExperimentAction.class, getContainer()); // Data has been copied to Panorama Public.  This is a re-submit.
