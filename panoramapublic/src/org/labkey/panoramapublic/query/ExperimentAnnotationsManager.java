@@ -23,6 +23,7 @@ import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.SimpleFilter;
+import org.labkey.api.data.Sort;
 import org.labkey.api.data.SqlExecutor;
 import org.labkey.api.data.SqlSelector;
 import org.labkey.api.data.Table;
@@ -476,5 +477,21 @@ public class ExperimentAnnotationsManager
             return js == null ? null : js.getShortAccessUrl().renderShortURL();
         }
         return null;
+    }
+
+    public static Integer getMaxVersionForExperiment(int experimentAnnotationsId)
+    {
+        SQLFragment sql = new SQLFragment("SELECT MAX(DataVersion) FROM ")
+                .append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "")
+                .append(" WHERE DataVersion IS NOT NULL AND SourceExperimentId = ? ").add(experimentAnnotationsId);
+        return new SqlSelector(PanoramaPublicManager.getSchema(), sql).getObject(Integer.class);
+    }
+
+    public static List<ExperimentAnnotations> getPublishedVersionsOfExperiment(int experimentAnnotationsId)
+    {
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("SourceExperimentId"), experimentAnnotationsId);
+        Sort sort = new Sort();
+        sort.appendSortColumn(FieldKey.fromParts("Created"), Sort.SortDirection.DESC, true);
+        return new TableSelector(PanoramaPublicManager.getTableInfoExperimentAnnotations(), filter, sort).getArrayList(ExperimentAnnotations.class);
     }
 }

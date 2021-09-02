@@ -22,6 +22,7 @@ import org.apache.commons.validator.routines.UrlValidator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import org.labkey.api.action.ApiResponse;
 import org.labkey.api.action.ApiSimpleResponse;
@@ -160,6 +161,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -1230,23 +1232,12 @@ public class PanoramaPublicController extends SpringActionController
                 Container prevContainer = previousCopy.getContainer();
                 try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
                 {
-                    int version = previousSubmission.getVersion();
-
-//                    previousSubmission.setVersion(version);
-//                    previousSubmission.setShortCopyUrl(null);
-
+                    int version = previousCopy.getDataVersion();
                     if(targetContainerName.equals(prevContainer.getName()))
                     {
                         // Rename the container where the old copy lives so that the same folder name can be used for the new copy.
                         ContainerManager.rename(prevContainer, getUser(), prevContainer.getName() + " V." + version);
-//                        previousCopy = ExperimentAnnotationsManager.get(previousSubmission.getCopiedExperimentId()); // query again to get the updated container name
-//                        // TODO: Do we really need to update the short access URL?
-//                        JournalManager.updateAccessUrl(previousCopy, previousSubmission, getUser());
                     }
-//                    else
-//                    {
-//                        JournalManager.updateJournalExperiment(previousSubmission, getUser());
-//                    }
                     transaction.commit();
                 }
             }
@@ -4283,23 +4274,13 @@ public class PanoramaPublicController extends SpringActionController
             experimentDetailsView.setTitle(TargetedMSExperimentWebPart.WEB_PART_NAME);
             VBox result = new VBox(experimentDetailsView);
 
-            JournalSubmission journalSubmission;
-
-            if(exptAnnotations.isJournalCopy())
+            Integer sourceExperimentId = exptAnnotations.isJournalCopy() ? exptAnnotations.getSourceExperimentId() : exptAnnotations.getId();
+            if (sourceExperimentId != null)
             {
-
-                journalSubmission = SubmissionManager.getSubmissionForJournalCopy(exptAnnotations);
-            }
-            else
-            {
-                journalSubmission = SubmissionManager.getNewestJournalSubmission(exptAnnotations);
-            }
-            if (journalSubmission != null)
-            {
-                List<Submission> publishedVersions = journalSubmission.getCopiedSubmissions();
-                if (publishedVersions.size() > 0)
+                HtmlView publishedVersionsView = getPublishedVersionsView(sourceExperimentId);
+                if (publishedVersionsView != null)
                 {
-                    result.addView(getPublishedVersionsView(journalSubmission, publishedVersions));
+                    result.addView(publishedVersionsView);
                 }
             }
 
@@ -4473,26 +4454,19 @@ public class PanoramaPublicController extends SpringActionController
             // Check container
             ensureCorrectContainer(getContainer(), exptAnnotations.getContainer(), getViewContext());
 
-            VBox result = new VBox();
-
-            JournalSubmission journalSubmission = exptAnnotations.isJournalCopy() ? SubmissionManager.getSubmissionForJournalCopy(exptAnnotations)
-                                                                                  : SubmissionManager.getNewestJournalSubmission(exptAnnotations);
-            if (exptAnnotations == null)
+            if (exptAnnotations.isJournalCopy() && exptAnnotations.getSourceExperimentId() == null)
             {
-                errors.reject(ERROR_MSG, "Could not find a submission request related to the experiment Id " + form.getId());
+                errors.reject(ERROR_MSG, "SourceExperimentId was not set on the experiment " + exptAnnotations.getId());
                 return new SimpleErrorView(errors, true);
             }
 
-            List<Submission> publishedVersions = journalSubmission.getCopiedSubmissions();
-            if (publishedVersions.size() > 0)
-            {
-                result.addView(getPublishedVersionsView(journalSubmission, publishedVersions));
-            }
-            else
-            {
-                result.addView(new HtmlView(DIV("Did not find any published versions related to experiment Id " + form.getId())));
-            }
+            VBox result = new VBox();
+            int sourceExperimentId = exptAnnotations.isJournalCopy() ? exptAnnotations.getSourceExperimentId() : exptAnnotations.getSourceExperimentId();
+            HtmlView publishedVersionsView = getPublishedVersionsView(sourceExperimentId);
+            result.addView(publishedVersionsView != null ? publishedVersionsView:
+                    new HtmlView(DIV("Did not find any published versions related to the experiment " + exptAnnotations.getId())));
             result.addView(new HtmlView(PageFlowUtil.generateBackButton()));
+            result.setFrame(WebPartView.FrameType.PORTAL);
             return result;
         }
 
@@ -4503,34 +4477,64 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
-    @NotNull
-    private HtmlView getPublishedVersionsView(JournalSubmission journalSubmission, List<Submission> publishedVersions)
+    private @Nullable HtmlView getPublishedVersionsView(int sourceExperimentId)
     {
-        Integer currentVersion = journalSubmission.getCurrentVersion();
-        List<DOM.Renderable> rows = new ArrayList<>();
-        rows.add(THEAD(TR(TH(cl("labkey-column-header"), "Version"), TH("Published"), TH("Link"))));
-        final AtomicInteger cnt = new AtomicInteger();
-        rows.add(TBODY(publishedVersions.stream().map(s ->
-                TR(cl(cnt.getAndIncrement() % 2 == 0, "labkey-alternate-row", "labkey-row"),
-                        TD(s.getVersion() == currentVersion ? "Current" : s.getVersion().toString()),
-                        TD(DateUtil.formatDateTime(s.getCopied(), "MM/dd/yyyy")),
-                        TD(getExperimentShortLink(s))
-                ))));
-        HtmlView versionsView = new HtmlView(TABLE(cl("labkey-data-region-legacy", "labkey-show-borders"), rows));
-        versionsView.setTitle("Published Versions");
-        return versionsView;
+        List<ExperimentAnnotations> publishedVersions = ExperimentAnnotationsManager.getPublishedVersionsOfExperiment(sourceExperimentId);
+        if(publishedVersions.size() > 0)
+        {
+            boolean hasPublication = publishedVersions.stream().anyMatch(ExperimentAnnotations::isPublished);
+            Integer maxVersion = ExperimentAnnotationsManager.getMaxVersionForExperiment(sourceExperimentId);
+            List<DOM.Renderable> headers = new ArrayList<>();
+            headers.add(TH(cl("labkey-column-header"), "Version"));
+            headers.add(TH("Published"));
+            headers.add(TH("Link"));
+            if (hasPublication)
+            {
+                headers.add(TH("Publication"));
+            }
+            List<DOM.Renderable> rows = new ArrayList<>();
+            rows.add(THEAD(TR(headers)));
+
+            int cnt = 0;
+            for (ExperimentAnnotations publishedVersion : publishedVersions)
+            {
+                List<DOM.Renderable> cells = new ArrayList<>();
+                cells.add(TD(publishedVersion.getStringVersion(maxVersion)));
+                cells.add(TD(DateUtil.formatDateTime(publishedVersion.getCreated(), "MM/dd/yyyy")));
+                cells.add(TD(getExperimentShortLink(publishedVersion)));
+                if (hasPublication)
+                {
+                    cells.add(TD(getPublicationLink(publishedVersion)));
+                }
+                rows.add(TR(cl(cnt++ % 2 == 0, "labkey-alternate-row", "labkey-row"), cells));
+            }
+            HtmlView versionsView = new HtmlView(TABLE(cl("labkey-data-region-legacy", "labkey-show-borders"), rows));
+            versionsView.setTitle("Published Versions");
+            return versionsView;
+        }
+        return null;
     }
 
     @NotNull
-    private DOM.Renderable getExperimentShortLink(Submission s)
+    private DOM.Renderable getExperimentShortLink(@NotNull ExperimentAnnotations expAnnotations)
     {
-        ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.get(s.getCopiedExperimentId());
-        if(expAnnotations != null && expAnnotations.getShortUrl() != null)
+        if(expAnnotations.getShortUrl() != null)
         {
             return new Link.LinkBuilder(expAnnotations.getShortUrl().renderShortURL())
                     .href(expAnnotations.getShortUrl().renderShortURL()).clearClasses().build();
         }
         return HtmlString.NBSP;
+    }
+
+    @NotNull
+    private DOM.Renderable getPublicationLink(@NotNull ExperimentAnnotations expAnnotations)
+    {
+        if(!expAnnotations.isPublished())
+        {
+            return HtmlString.NBSP;
+        }
+        String linkText = expAnnotations.hasCitation() ? expAnnotations.getCitation() : expAnnotations.getPublicationLink();
+        return new Link.LinkBuilder(linkText).href(expAnnotations.getPublicationLink()).clearClasses().build();
     }
 
     private static boolean isSupportedFolderType(TargetedMSService.FolderType folderType)

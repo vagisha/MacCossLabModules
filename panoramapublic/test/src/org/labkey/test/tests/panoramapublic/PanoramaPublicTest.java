@@ -140,7 +140,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         DataRegionTable submissionTable = new DataRegionTable("Submission", getDriver());
         assertEquals("Expected " + rowCount + " rows in the Submission table", rowCount, submissionTable.getDataRowCount());
 
-        String[] columns = new String[]{"ShortURL", "Version", "CopiedExperimentId", "Edit", "Delete"};
+        String[] columns = new String[]{"ShortURL", "CopiedExperimentId/DataVersion", "CopiedExperimentId", "Edit", "Delete"};
         for (int row = 0; row < rowCount; row++)
         {
             Boolean wasCopied = copied.get(row);

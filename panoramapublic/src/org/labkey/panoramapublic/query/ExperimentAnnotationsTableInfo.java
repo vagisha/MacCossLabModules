@@ -313,7 +313,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         addColumn(sourceExptCol);
 
         addColumn(getVersionCol());
-        // addColumn(getVersionCountCol());
+        addColumn(getVersionCountCol());
 
         List<FieldKey> visibleColumns = new ArrayList<>();
         visibleColumns.add(FieldKey.fromParts("Share"));
@@ -326,6 +326,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         visibleColumns.add(FieldKey.fromParts("Citation"));
         visibleColumns.add(FieldKey.fromParts("pxid"));
         visibleColumns.add(FieldKey.fromParts("Version"));
+        visibleColumns.add(FieldKey.fromParts("VersionCount"));
         visibleColumns.add(FieldKey.fromParts("SourceExperiment"));
 
         setDefaultVisibleColumns(visibleColumns);
@@ -334,36 +335,31 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
     @NotNull
     private ExprColumn getVersionCol()
     {
-        /*
-        SELECT CASE
-        WHEN version =
-        (
-            SELECT MAX(s2.Version) FROM panoramapublic.submission s1
-            INNER JOIN panoramapublic.submission s2 ON s1.JournalExperimentId = s2.JournalExperimentId
-            WHERE s2.Version IS NOT NULL and s1.CopiedExperimentId = 37
-        )
-        THEN 'Current'
-        WHEN Version Is NULL THEN ''
-        ELSE CAST (Version AS VARCHAR)
-        END
-        FROM panoramapublic.submission  WHERE CopiedExperimentId=37
-         */
-        SQLFragment maxVersionSql = new SQLFragment(" SELECT MAX(s2.Version) FROM ")
-                .append(PanoramaPublicManager.getTableInfoSubmission(), "s1")
-                .append(" INNER JOIN ").append(PanoramaPublicManager.getTableInfoSubmission(), "s2")
-                .append(" ON s1.JournalExperimentId = s2.JournalExperimentId")
-                .append(" WHERE s2.Version IS NOT NULL and s1.CopiedExperimentId = ")
-                .append(ExprColumn.STR_TABLE_ALIAS).append(".Id");
+        SQLFragment maxVersionSql = new SQLFragment(" SELECT MAX(DataVersion) FROM ")
+                .append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "ea")
+                .append(" WHERE ea.SourceExperimentId IS NOT NULL AND ea.SourceExperimentId = ")
+                .append(ExprColumn.STR_TABLE_ALIAS).append(".SourceExperimentId ");
 
-        SQLFragment versionSql = new SQLFragment("(SELECT CASE")
-                .append(" WHEN Version = (").append(maxVersionSql).append(") THEN 'Current' ")
-                .append(" WHEN Version Is NULL THEN '' ")
-                .append(" ELSE CAST (Version AS VARCHAR) END ")
-                .append(" FROM ").append(PanoramaPublicManager.getTableInfoSubmission(), "s")
-                .append(" WHERE s.copiedexperimentid = ").append(ExprColumn.STR_TABLE_ALIAS).append(".Id)");
+        SQLFragment versionSql = new SQLFragment(" (SELECT CASE")
+                .append(" WHEN DataVersion Is NULL THEN '' ")
+                .append(" WHEN DataVersion = (").append(maxVersionSql).append(") THEN 'Current' ")
+                .append(" ELSE CAST (DataVersion AS VARCHAR) END ")
+                .append(" FROM ").append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "e")
+                .append(" WHERE e.Id = ").append(ExprColumn.STR_TABLE_ALIAS).append(".Id) ");
 
         ExprColumn versionCol = new ExprColumn(this, "Version", versionSql, JdbcType.VARCHAR);
         return versionCol;
+    }
+
+    @NotNull
+    private ExprColumn getVersionCountCol()
+    {
+        SQLFragment versionCountSql = new SQLFragment(" (SELECT COUNT(*) FROM ")
+                .append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "e")
+                .append(" WHERE e.SourceExperimentId = ").append(ExprColumn.STR_TABLE_ALIAS).append(".SourceExperimentId)");
+
+        ExprColumn versionCountCol = new ExprColumn(this, "VersionCount", versionCountSql, JdbcType.VARCHAR);
+        return versionCountCol;
     }
 
     @Override

@@ -157,10 +157,10 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             {
                 throw new PipelineJobException("Could not find a submission request for experiment Id " + sourceExperiment.getId() +" and journal Id " + jobSupport.getJournal().getId());
             }
-            Submission lastCopiedSubmission = js.getLatestCopiedSubmission();
+            Submission latestCopiedSubmission = js.getLatestCopiedSubmission();
             // If there is a previous copy of this data on Panorama Public get it.  Remove the short url from the previous copy so that it
             // can be assigned to the new copy.
-            ExperimentAnnotations previousCopy = getPreviousCopyRemoveShortUrl(lastCopiedSubmission, user);
+            ExperimentAnnotations previousCopy = getPreviousCopyRemoveShortUrl(latestCopiedSubmission, user);
 
             // Create a new row in panoramapublic.ExperimentAnnotations and link it to the new experiment created during folder import.
             ExperimentAnnotations targetExperiment = createNewExperimentAnnotations(experiment, sourceExperiment, js, previousCopy, jobSupport, user, log);
@@ -184,7 +184,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             log.info("Hiding the Data Pipeline tab.");
             hideDataPipelineTab(targetExperiment.getContainer());
 
-            js = updateSubmissionAndDeletePreviousCopy(js, currentSubmission, lastCopiedSubmission, targetExperiment, previousCopy, jobSupport, user, log);
+            js = updateSubmissionAndDeletePreviousCopy(js, currentSubmission, latestCopiedSubmission, targetExperiment, previousCopy, jobSupport, user, log);
 
             // Create notifications. Do this at the end after everything else is done.
             PanoramaPublicNotification.notifyCopied(sourceExperiment, targetExperiment, jobSupport.getJournal(), js,
@@ -204,21 +204,18 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         {
             if (jobSupport.deletePreviousCopy())
             {
-                lastCopiedSubmission.setVersion(null);
                 lastCopiedSubmission.setCopiedExperimentId(null);
                 SubmissionManager.updateSubmission(lastCopiedSubmission, user);
             }
             else
             {
                 // Change the shortAccessUrl for the existing copy of the experiment
-                updateLastCopiedExperiment(previousCopy, lastCopiedSubmission, js, jobSupport.getJournal(), user, log);
+                updateLastCopiedExperiment(previousCopy, js, jobSupport.getJournal(), user, log);
             }
         }
 
-        // Update the row in the Submission table -- set the 'copied' timestamp, copiedExperimentId and version
-        int version = js.getNextVersion();
-        log.info("Updating Submission. Setting copiedExperimentId to " + targetExperiment.getId() +". Setting version to " + version);
-        currentSubmission.setVersion(version);
+        // Update the row in the Submission table -- set the 'copied' timestamp, copiedExperimentId
+        log.info("Updating Submission. Setting copiedExperimentId to " + targetExperiment.getId());
         currentSubmission.setCopied(new Date());
         currentSubmission.setCopiedExperimentId(targetExperiment.getId());
         SubmissionManager.updateSubmission(currentSubmission, user);
@@ -352,15 +349,15 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         }
     }
 
-    private ExperimentAnnotations getPreviousCopyRemoveShortUrl(Submission lastCopiedSubmission, User user) throws PipelineJobException
+    private ExperimentAnnotations getPreviousCopyRemoveShortUrl(Submission latestCopiedSubmission, User user) throws PipelineJobException
     {
-        if (lastCopiedSubmission != null)
+        if (latestCopiedSubmission != null)
         {
-            ExperimentAnnotations previousCopy = ExperimentAnnotationsManager.get(lastCopiedSubmission.getCopiedExperimentId());
+            ExperimentAnnotations previousCopy = ExperimentAnnotationsManager.get(latestCopiedSubmission.getCopiedExperimentId());
             if (previousCopy == null)
             {
-                throw new PipelineJobException("Could not find and entry for the previous copy of the experiment.  " +
-                        "Previous experiment ID " + lastCopiedSubmission.getCopiedExperimentId());
+                throw new PipelineJobException("Could not find an entry for the previous copy of the experiment.  " +
+                        "Previous experiment ID " + latestCopiedSubmission.getCopiedExperimentId());
             }
             previousCopy.setShortUrl(null); // Set the shortUrl to null so we don't get a unique constraint violation when assigning this url to the new copy
             return ExperimentAnnotationsManager.save(previousCopy, user);
@@ -374,13 +371,16 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
                                                                  User user, Logger log) throws PipelineJobException
     {
         log.info("Creating a new TargetedMS experiment entry in panoramapublic.ExperimentAnnotations.");
-        ExperimentAnnotations targetExperiment = new ExperimentAnnotations(sourceExperiment);
+        ExperimentAnnotations targetExperiment = createExperimentCopy(sourceExperiment);
         targetExperiment.setExperimentId(experiment.getRowId());
         targetExperiment.setContainer(experiment.getContainer());
         targetExperiment.setJournalCopy(true);
         targetExperiment.setSourceExperimentId(sourceExperiment.getId());
         targetExperiment.setSourceExperimentPath(sourceExperiment.getContainer().getPath());
         targetExperiment.setShortUrl(js.getShortAccessUrl());
+        int version = js.getNextVersion();
+        log.info("Setting version on new experiment to " + version);
+        targetExperiment.setDataVersion(version);
 
         assignPxId(jobSupport, log, targetExperiment, previousCopy);
         assignDoi(jobSupport, log, targetExperiment, previousCopy);
@@ -400,6 +400,28 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         }
 
         return targetExperiment;
+    }
+
+    private ExperimentAnnotations createExperimentCopy(ExperimentAnnotations source)
+    {
+        ExperimentAnnotations copy = new ExperimentAnnotations();
+        copy.setTitle(source.getTitle());
+        copy.setExperimentDescription(source.getExperimentDescription());
+        copy.setSampleDescription(source.getSampleDescription());
+        copy.setOrganism(source.getOrganism());
+        copy.setInstrument(source.getInstrument());
+        copy.setSpikeIn(source.getSpikeIn());
+        copy.setCitation(source.getCitation());
+        copy.setAbstract(source.getAbstract());
+        copy.setPublicationLink(source.getPublicationLink());
+        copy.setIncludeSubfolders(source.isIncludeSubfolders());
+        copy.setKeywords(source.getKeywords());
+        copy.setLabHead(source.getLabHead());
+        copy.setSubmitter(source.getSubmitter());
+        copy.setLabHeadAffiliation(source.getLabHeadAffiliation());
+        copy.setSubmitterAffiliation(source.getSubmitterAffiliation());
+        copy.setPubmedId(source.getPubmedId());
+        return copy;
     }
 
     private void updatePermissions(ExperimentAnnotations targetExperiment, ExperimentAnnotations sourceExperiment, ExperimentAnnotations previousCopy,
@@ -593,7 +615,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
                 {
                     logger.info("Updating dataFileUrl...");
                     logger.info("from: " + data.getDataFileURI().toString());
-                    logger.info("to: " + newDataPath.toUri().toString());
+                    logger.info("to: " + newDataPath.toUri());
                     data.setDataFileURI(newDataPath.toUri());
                     data.save(user);
                 }
@@ -737,15 +759,15 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         return intIds;
     }
 
-    private void updateLastCopiedExperiment(ExperimentAnnotations previousCopy, Submission lastCopiedSubmission, JournalSubmission js, Journal journal, User user, Logger log) throws PipelineJobException
+    private void updateLastCopiedExperiment(ExperimentAnnotations previousCopy, JournalSubmission js, Journal journal, User user, Logger log) throws PipelineJobException
     {
-        if(lastCopiedSubmission.getVersion() == null)
+        if(previousCopy.getDataVersion() == null)
         {
-            throw new PipelineJobException("Version is not set on the last copied submission; Id: " + lastCopiedSubmission.getId());
+            throw new PipelineJobException("Version is not set on the last copied experiment; Id: " + previousCopy.getId());
         }
 
         // Append a version to the original short URL
-        String versionedShortUrl = js.getShortAccessUrl().getShortURL() + "_v" + lastCopiedSubmission.getVersion();
+        String versionedShortUrl = js.getShortAccessUrl().getShortURL() + "_v" + previousCopy.getDataVersion();
         log.info("Creating a new versioned URL for the previous copy of the data: " + versionedShortUrl);
         ShortURLService shortUrlService = ShortURLService.get();
         ShortURLRecord shortURLRecord = shortUrlService.resolveShortURL(versionedShortUrl);

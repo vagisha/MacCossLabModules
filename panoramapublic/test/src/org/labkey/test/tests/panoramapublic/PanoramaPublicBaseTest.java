@@ -219,7 +219,8 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
         expListTable.setFilter("Title", "Equals", experimentTitle);
         if (version != null)
         {
-            expListTable.setFilter("Version", "Equals", String.valueOf(version));
+            expListTable.ensureColumnPresent("DataVersion");
+            expListTable.setFilter("DataVersion", "Equals", String.valueOf(version));
         }
         assertEquals(1, expListTable.getDataRowCount()); // The table should have one row for the copied experiment.
         expListTable.ensureColumnPresent("Runs");

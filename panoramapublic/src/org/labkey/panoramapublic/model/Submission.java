@@ -21,7 +21,6 @@ public class Submission
     private DataLicense _dataLicense;
     private Integer _copiedExperimentId;
     private Date _copied;
-    private Integer _version;
 
     public int getId()
     {
@@ -166,16 +165,6 @@ public class Submission
     public void setCopiedExperimentId(Integer copiedExperimentId)
     {
         _copiedExperimentId = copiedExperimentId;
-    }
-
-    public Integer getVersion()
-    {
-        return _version;
-    }
-
-    public void setVersion(Integer version)
-    {
-        _version = version;
     }
 
     public Date getCopied()

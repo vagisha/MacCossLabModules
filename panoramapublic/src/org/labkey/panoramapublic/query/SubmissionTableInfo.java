@@ -111,8 +111,8 @@ public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
         columns.add(FieldKey.fromParts("DataLicense"));
         columns.add(FieldKey.fromParts("PxidRequested"));
         columns.add(FieldKey.fromParts("ShortURL"));
+        columns.add(FieldKey.fromParts("CopiedExperimentId", "DataVersion"));
         columns.add(FieldKey.fromParts("Copied"));
-        columns.add(FieldKey.fromParts("Version"));
         columns.add(FieldKey.fromParts("Edit"));
         columns.add(FieldKey.fromParts("Delete"));
         columns.add(FieldKey.fromParts("CopiedExperimentId"));

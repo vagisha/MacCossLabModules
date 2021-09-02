@@ -222,16 +222,6 @@ public class SubmissionManager
         return Table.update(user, PanoramaPublicManager.getTableInfoJournalExperiment(), journalExperiment, journalExperiment.getId());
     }
 
-//    public static void updateSubmissionUrl(Submission submission, ExperimentAnnotations expAnnotations, Journal journal, String shortAccessUrl, User user) throws ValidationException
-//    {
-//        // Save the new short access URL
-//        ActionURL accessUrl = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(expAnnotations.getContainer());
-//        ShortURLRecord accessUrlRecord = JournalManager.saveShortURL(accessUrl, shortAccessUrl, journal, user);
-//        submission.setShortAccessUrl(accessUrlRecord);
-//
-//        updateSubmission(submission, user);
-//    }
-
     public static void updateAccessUrlTarget(ExperimentAnnotations targetExperiment, JournalExperiment journalExperiment, User user) throws ValidationException
     {
         ShortURLRecord shortAccessUrlRecord = journalExperiment.getShortAccessUrl();
@@ -337,7 +327,6 @@ public class SubmissionManager
                     {
                         // The source experiment still exists so we will have to reset everything to make it look like the the experiment was submitted but not copied.
                         submission.setCopiedExperimentId(null);
-                        submission.setVersion(null);
                         submission.setCopied(null);
                         updateSubmission(submission, user);
 
@@ -367,9 +356,8 @@ public class SubmissionManager
                 else
                 {
                     // The journal copy of this data is about to be deleted. We do not want to delete the corresponding row in the Submission table
-                    // Instead we will set the copiedExperimentId and version to null.
+                    // Instead we will set the copiedExperimentId to null.
                     submission.setCopiedExperimentId(null);
-                    submission.setVersion(null);
                     updateSubmission(submission, user);
                 }
             }

@@ -3,6 +3,7 @@ package org.labkey.panoramapublic.model;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.view.ShortURLRecord;
+import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
 
 import java.util.Collections;
@@ -14,6 +15,7 @@ public class JournalSubmission
 {
     private final JournalExperiment _journalExperiment;
     private List<Submission> _submissions;
+    private int _currentVersion;
 
     public JournalSubmission(@NotNull JournalExperiment journalExperiment)
     {
@@ -90,6 +92,8 @@ public class JournalSubmission
         if(_submissions == null)
         {
             _submissions = SubmissionManager.getSubmissionsNewestFirst(getJournalExperimentId());
+            Integer version = ExperimentAnnotationsManager.getMaxVersionForExperiment(getExperimentAnnotationsId());
+            _currentVersion = version == null ? 0 : version;
         }
         return _submissions;
     }
@@ -137,8 +141,7 @@ public class JournalSubmission
 
     public int getCurrentVersion()
     {
-        List<Submission> copiedSubmissions = getCopiedSubmissions();
-        return copiedSubmissions.size() == 0 ? 0 : copiedSubmissions.get(0).getVersion();
+        return _currentVersion;
     }
 
     public int getNextVersion()
@@ -161,5 +164,12 @@ public class JournalSubmission
     public boolean canBeDeleted()
     {
         return getSubmissions().stream().allMatch(s -> s.canBeDeleted());
+    }
+
+    private class ExperimentInfo
+    {
+        private int _id;
+        private Integer Version;
+        private ShortURLRecord _shortUrl;
     }
 }

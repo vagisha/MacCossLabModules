@@ -32,7 +32,6 @@ CREATE TABLE panoramapublic.Submission
     LabHeadEmail           VARCHAR(100),
     LabHeadAffiliation     VARCHAR(200),
     DataLicense            VARCHAR(10),
-    Version                INT,
 
     CONSTRAINT PK_Submission PRIMARY KEY (Id),
     CONSTRAINT FK_Submission_JournalExperiment FOREIGN KEY (JournalExperimentId) REFERENCES panoramapublic.JournalExperiment(Id),
@@ -48,12 +47,24 @@ SELECT _ts, CreatedBy, Created, ModifiedBy, Modified,
         LabHeadName, LabHeadEmail, LabHeadAffiliation,
         DataLicense FROM panoramapublic.JournalExperiment;
 
-UPDATE panoramapublic.Submission set Version = 1 WHERE CopiedExperimentId IS NOT NULL;
-
 ALTER TABLE panoramapublic.JournalExperiment DROP COLUMN CopiedExperimentId, DROP COLUMN Copied,
                                              DROP COLUMN PxIdRequested, DROP COLUMN IncompletePxSubmission,
                                              DROP COLUMN KeepPrivate, DROP COLUMN LabHeadName,
                                              DROP COLUMN LabHeadEmail, DROP COLUMN LabHeadAffiliation,
                                              DROP COLUMN DataLicense;
 
+-- Add a column to save the userid of the assigned reviewer
 ALTER TABLE panoramapublic.JournalExperiment ADD COLUMN Reviewer USERID;
+
+-- Add a 'DataVersion' column to ExperimentAnnotations and set the value to 1 for each experiment that was copied to Panorama Public
+ALTER TABLE panoramapublic.ExperimentAnnotations ADD COLUMN DataVersion INT;
+UPDATE panoramapublic.ExperimentAnnotations ea set DataVersion = 1 FROM panoramapublic.Submission s WHERE ea.Id = s.CopiedExperimentId;
+
+-- Add indexes
+CREATE INDEX IX_ExperimentAnnotations_Pxid ON panoramapublic.ExperimentAnnotations(pxid);
+CREATE INDEX IX_ExperimentAnnotations_ShortUrl ON panoramapublic.ExperimentAnnotations(ShortUrl);
+CREATE INDEX IX_JournalExperiment_Journal ON panoramapublic.JournalExperiment(JournalId);
+CREATE INDEX IX_JournalExperiment_ExperimentAnnotations ON panoramapublic.JournalExperiment(ExperimentAnnotationsId);
+CREATE INDEX IX_Submission_JournalExperiment ON panoramapublic.Submission(JournalExperimentId);
+CREATE INDEX IX_Submission_ExperimentAnnotations ON panoramapublic.Submission(CopiedExperimentId);
+

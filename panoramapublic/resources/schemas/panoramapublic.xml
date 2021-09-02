@@ -119,6 +119,7 @@
             </column>
             <column columnName="PubmedId"/>
             <column columnName="doi"/>
+            <column columnName="DataVersion"/>
         </columns>
     </table>
 
@@ -303,7 +304,6 @@
             <column columnName="DataLicense">
                 <columnTitle>License</columnTitle>
             </column>
-            <column columnName="Version"/>
         </columns>
     </table>
 

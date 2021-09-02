@@ -32,11 +32,11 @@
 <%@ page import="org.labkey.panoramapublic.query.JournalManager" %>
 <%@ page import="java.text.SimpleDateFormat" %>
 <%@ page import="org.labkey.panoramapublic.model.Submission" %>
-<%@ page import="org.labkey.panoramapublic.query.SubmissionManager" %>
 <%@ page import="org.labkey.panoramapublic.model.JournalSubmission" %>
 <%@ page import="org.labkey.panoramapublic.query.ExperimentAnnotationsManager" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
+<%@ page import="java.util.List" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 
 <%!
@@ -95,29 +95,29 @@
 
     String version = null;
     ActionURL versionsUrl = null;
-    if (annot.isJournalCopy())
+    String versionColor = "green";
+    String versionsLinkText = "[All Versions]";
+    if (annot.isJournalCopy() && annot.getDataVersion() != null && annot.getSourceExperimentId() != null)
     {
-        JournalSubmission js = SubmissionManager.getSubmissionForJournalCopy(annot);
-        if (js.getCopiedSubmissions().size() > 1)
+        Integer maxVersion = ExperimentAnnotationsManager.getMaxVersionForExperiment(annot.getSourceExperimentId());
+        List<ExperimentAnnotations> publishedVersions = ExperimentAnnotationsManager.getPublishedVersionsOfExperiment(annot.getSourceExperimentId());
+        if (publishedVersions.size() > 1)
         {
             // Display the version only if there is more than one version of this dataset on Panorama Public
-            Submission s = js.getSubmissionForCopiedExperiment(annot.getId());
-            int ver = s.getVersion();
-            int currentVersion = js.getCurrentVersion();
-            version = ver == currentVersion ? "Current" : String.valueOf(ver);
-            if (ver != currentVersion)
+            version = annot.getStringVersion(maxVersion);
+            if (annot.getDataVersion().equals(maxVersion))
             {
-                Submission lastCopied = js.getLatestCopiedSubmission();
-                ExperimentAnnotations lastCopy = ExperimentAnnotationsManager.get(lastCopied.getCopiedExperimentId());
-                if(lastCopy != null)
-                {
-                    versionsUrl = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(lastCopy.getContainer());
-                }
+                // This is the current version; Display a link to see all published versions
+                versionsUrl = new ActionURL(PanoramaPublicController.ShowPublishedVersions.class, getContainer());
+                versionsUrl.addParameter("id", annot.getId());
             }
             else
             {
-                versionsUrl = new ActionURL(PanoramaPublicController.ShowPublishedVersions.class, getContainer());
-                versionsUrl.addParameter("id", annot.getId());
+                // This is not the current version; Display a link to the current version
+                versionColor = "red";
+                versionsLinkText = "[Current Version]";
+                ExperimentAnnotations maxExpt = publishedVersions.stream().filter(e -> e.getDataVersion().equals(maxVersion)).findFirst().orElse(null);
+                versionsUrl = maxExpt != null ? PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(maxExpt.getContainer()) : null;
             }
         }
     }
@@ -233,9 +233,8 @@
        <a class="button-small button-small-green" style="margin:0px 5px 0px 2px;" href="" onclick="showShareLink(this, '<%=h(accessUrl)%>'); return false;">Share</a>
 
         <% if(version != null) {%>
-            <span class="link" style="margin-right:10px;"><strong>Version:
-                <% if ("Current".equals(version)) { %><span style="color:green;"><%=h(version)%></span> <span><a href="<%=h(versionsUrl)%>">[All Versions]</a></span>
-                <% } else { %><span style="color:red;"><%=h(version)%></span> <span><a href="<%=h(versionsUrl)%>">[Current Version]</a></span><% } %>
+            <span class="link" style="margin-left:10px;"><strong>Version:<span style="color:<%=h(versionColor)%>;"><%=h(version)%></span>
+                <% if(versionsUrl != null) { %><span><a href="<%=h(versionsUrl)%>"><%=h(versionsLinkText)%></a></span><% } %>
             </strong> </span>
         <% } %>
     </div>
