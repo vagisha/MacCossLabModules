@@ -58,7 +58,7 @@ ALTER TABLE panoramapublic.JournalExperiment ADD COLUMN Reviewer USERID;
 
 -- Add a 'DataVersion' column to ExperimentAnnotations and set the value to 1 for each experiment that was copied to Panorama Public
 ALTER TABLE panoramapublic.ExperimentAnnotations ADD COLUMN DataVersion INT;
-UPDATE panoramapublic.ExperimentAnnotations ea set DataVersion = 1 FROM panoramapublic.Submission s WHERE ea.Id = s.CopiedExperimentId;
+UPDATE panoramapublic.ExperimentAnnotations ea set DataVersion = 1 WHERE JournalCopy = TRUE;
 
 -- Add indexes
 CREATE INDEX IX_ExperimentAnnotations_Pxid ON panoramapublic.ExperimentAnnotations(pxid);

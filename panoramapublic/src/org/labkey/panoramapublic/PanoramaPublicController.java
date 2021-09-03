@@ -4461,7 +4461,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             VBox result = new VBox();
-            int sourceExperimentId = exptAnnotations.isJournalCopy() ? exptAnnotations.getSourceExperimentId() : exptAnnotations.getSourceExperimentId();
+            int sourceExperimentId = exptAnnotations.isJournalCopy() ? exptAnnotations.getSourceExperimentId() : exptAnnotations.getId();
             HtmlView publishedVersionsView = getPublishedVersionsView(sourceExperimentId);
             result.addView(publishedVersionsView != null ? publishedVersionsView:
                     new HtmlView(DIV("Did not find any published versions related to the experiment " + exptAnnotations.getId())));

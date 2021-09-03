@@ -300,13 +300,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         });
         addColumn(licenseCol);
 
-        SQLFragment sourceExptIdSql = new SQLFragment("(SELECT je.ExperimentAnnotationsId FROM ")
-                .append(PanoramaPublicManager.getTableInfoJournalExperiment(), "je")
-                .append(" INNER JOIN ").append(PanoramaPublicManager.getTableInfoSubmission(), "s")
-                .append(" ON (s.JournalExperimentId = je.Id) ")
-                .append(" WHERE s.copiedexperimentid = ")
-                .append(ExprColumn.STR_TABLE_ALIAS).append(".Id)");
-        ExprColumn sourceExptCol = new ExprColumn(this, "SourceExperiment", sourceExptIdSql, JdbcType.INTEGER);
+        var sourceExptCol = wrapColumn("SourceExperiment", getRealTable().getColumn("SourceExperimentId"));
         ActionURL exptDetailsUrl = new ActionURL(PanoramaPublicController.ShowExperimentAnnotationsAction.class, getContainer());
         exptDetailsUrl.addParameter("id", "${SourceExperiment}");
         sourceExptCol.setURL(StringExpressionFactory.createURL(exptDetailsUrl));
@@ -325,9 +319,6 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         visibleColumns.add(FieldKey.fromParts("Keywords"));
         visibleColumns.add(FieldKey.fromParts("Citation"));
         visibleColumns.add(FieldKey.fromParts("pxid"));
-        visibleColumns.add(FieldKey.fromParts("Version"));
-        visibleColumns.add(FieldKey.fromParts("VersionCount"));
-        visibleColumns.add(FieldKey.fromParts("SourceExperiment"));
 
         setDefaultVisibleColumns(visibleColumns);
     }
@@ -359,6 +350,9 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
                 .append(" WHERE e.SourceExperimentId = ").append(ExprColumn.STR_TABLE_ALIAS).append(".SourceExperimentId)");
 
         ExprColumn versionCountCol = new ExprColumn(this, "VersionCount", versionCountSql, JdbcType.VARCHAR);
+        ActionURL allVersionsLink = new ActionURL(PanoramaPublicController.ShowPublishedVersions.class, getContainer());
+        allVersionsLink.addParameter("id", "${Id}");
+        versionCountCol.setURL(StringExpressionFactory.createURL(allVersionsLink));
         return versionCountCol;
     }
 
