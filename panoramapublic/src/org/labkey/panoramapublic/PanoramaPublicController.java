@@ -161,11 +161,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.labkey.api.targetedms.TargetedMSService.FolderType.*;
@@ -179,14 +177,11 @@ import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
 import static org.labkey.api.util.DOM.INPUT;
 import static org.labkey.api.util.DOM.LABEL;
-import static org.labkey.api.util.DOM.LI;
-import static org.labkey.api.util.DOM.LINK;
 import static org.labkey.api.util.DOM.LK.CHECKBOX;
 import static org.labkey.api.util.DOM.LK.ERRORS;
 import static org.labkey.api.util.DOM.LK.FORM;
 import static org.labkey.api.util.DOM.SPAN;
 import static org.labkey.api.util.DOM.TABLE;
-import static org.labkey.api.util.DOM.TBODY;
 import static org.labkey.api.util.DOM.TD;
 import static org.labkey.api.util.DOM.TH;
 import static org.labkey.api.util.DOM.THEAD;
@@ -737,7 +732,7 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(AdminOperationsPermission.class)
-    public class ManageDataCiteCredentials extends FormViewAction<DataCiteCredentialsForm>
+    public static class ManageDataCiteCredentials extends FormViewAction<DataCiteCredentialsForm>
     {
         @Override
         public void validateCommand(DataCiteCredentialsForm form, Errors errors)
@@ -907,7 +902,7 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(AdminOperationsPermission.class)
-    public class ManageProteomeXchangeCredentials extends FormViewAction<PXCredentialsForm>
+    public static class ManageProteomeXchangeCredentials extends FormViewAction<PXCredentialsForm>
     {
         @Override
         public void validateCommand(PXCredentialsForm form, Errors errors)
@@ -1072,7 +1067,7 @@ public class PanoramaPublicController extends SpringActionController
             _journalSubmission = SubmissionManager.getJournalSubmission(_experiment.getId(), _journal.getId());
             if(_journalSubmission == null)
             {
-                errors.reject(ERROR_MSG,"Could not find a submission for experimentId " + _experiment.getId()
+                errors.reject(ERROR_MSG,"Could not find a submission request for experimentId " + _experiment.getId()
                 + " and journalId " + _journal.getId());
                 return false;
             }
@@ -1915,7 +1910,7 @@ public class PanoramaPublicController extends SpringActionController
 
                     JournalSubmission js = SubmissionManager.createNewSubmission(request, accessUrlRecord, copyUrlRecord, getUser());
                     // Create notifications
-                    PanoramaPublicNotification.notifyCreated(_experimentAnnotations, _journal, js, getUser());
+                    PanoramaPublicNotification.notifyCreated(_experimentAnnotations, _journal, js.getJournalExperiment(), js.getLatestSubmission(), getUser());
 
                     transaction.commit();
                 }
@@ -2498,7 +2493,7 @@ public class PanoramaPublicController extends SpringActionController
                 }
                 // Create notifications
                 _journalSubmission = SubmissionManager.getJournalSubmission(_journalSubmission.getJournalExperimentId()); // Query updated values
-                PanoramaPublicNotification.notifyUpdated(_experimentAnnotations, _journal, _journalSubmission, getUser());
+                PanoramaPublicNotification.notifyUpdated(_experimentAnnotations, _journal, _journalSubmission.getJournalExperiment(), _journalSubmission.getLatestSubmission(), getUser());
 
                 transaction.commit();
             }
@@ -2659,7 +2654,7 @@ public class PanoramaPublicController extends SpringActionController
                 JournalManager.removeJournalPermissions(_experimentAnnotations, _journal, getUser());
 
                 // Create notifications
-                PanoramaPublicNotification.notifyDeleted(_experimentAnnotations, _journal, _journalSubmission, getUser());
+                PanoramaPublicNotification.notifyDeleted(_experimentAnnotations, _journal, _journalSubmission.getJournalExperiment(), getUser());
 
                 transaction.commit();
             }
@@ -2780,20 +2775,8 @@ public class PanoramaPublicController extends SpringActionController
                 Group journalGroup = org.labkey.api.security.SecurityManager.getGroup(_journal.getLabkeyGroupId());
                 JournalManager.addJournalPermissions(_experimentAnnotations, journalGroup, getUser());
 
-                // Rename the container where the old journal copy lives so that the same folder name can be used for the new copy.
-                // The container may be deleted by an admin after the data has been re-copied.
-//                int version = getVersion(_journalExperiment);
                 ExperimentAnnotations copiedExpt = ExperimentAnnotationsManager.get(_lastCopiedSubmission.getCopiedExperimentId());
-//                renameOldContainer(copiedExpt.getContainer(), version);
-//                copiedExpt = ExperimentAnnotationsManager.get(_journalExperiment.getCopiedExperimentId()); // query again to get the updated container name
-//
-//                _journalExperiment.setVersion(version); // Set the version
-//                _journalExperiment.setShortCopyUrl(null); // Remove the short copy URL
-//                // Point the shortAccessUrl to the renamed container for the existing copy of the experiment in the journal's project
-//                JournalManager.updateAccessUrl(copiedExpt, _journalExperiment, getUser());
-
-                _journalSubmission = SubmissionManager.getJournalSubmission(_journalSubmission.getJournalExperimentId()); // Requery
-                PanoramaPublicNotification.notifyResubmitted(_experimentAnnotations, _journal, _journalSubmission, copiedExpt, getUser());
+                PanoramaPublicNotification.notifyResubmitted(_experimentAnnotations, _journal, _journalSubmission.getJournalExperiment(), submission, copiedExpt, getUser());
 
                 transaction.commit();
             }
@@ -3081,7 +3064,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             _journalSubmission = SubmissionManager.getSubmissionForJournalCopy(_expAnnot);
-            if(_journalSubmission == null)
+            if (_journalSubmission == null)
             {
                 errors.reject(ERROR_MSG, "Cannot find the submission request for copied experiment ID: " + _expAnnot.getId());
                 return;
@@ -3321,14 +3304,16 @@ public class PanoramaPublicController extends SpringActionController
     public static class PxExperimentAnnotations
     {
         private final ExperimentAnnotations _experimentAnnotations;
-        private final JournalSubmission _journalExperiment;
+        private final JournalExperiment _journalExperiment;
+        private final Submission _submission;
         private String _pxChangeLog;
         private int _version;
 
         public PxExperimentAnnotations(ExperimentAnnotations experimentAnnotations, JournalSubmission js)
         {
             _experimentAnnotations = experimentAnnotations;
-            _journalExperiment = js;
+            _journalExperiment = js.getJournalExperiment();
+            _submission = js.getLatestSubmission();
         }
 
         public ExperimentAnnotations getExperimentAnnotations()
@@ -3336,9 +3321,14 @@ public class PanoramaPublicController extends SpringActionController
             return _experimentAnnotations;
         }
 
-        public JournalSubmission getJournalExperiment()
+        public JournalExperiment getJournalExperiment()
         {
             return _journalExperiment;
+        }
+
+        public Submission getSubmission()
+        {
+            return _submission;
         }
 
         public String getPxChangeLog()
@@ -4274,10 +4264,11 @@ public class PanoramaPublicController extends SpringActionController
             experimentDetailsView.setTitle(TargetedMSExperimentWebPart.WEB_PART_NAME);
             VBox result = new VBox(experimentDetailsView);
 
+            // Published versions, if any
             Integer sourceExperimentId = exptAnnotations.isJournalCopy() ? exptAnnotations.getSourceExperimentId() : exptAnnotations.getId();
             if (sourceExperimentId != null)
             {
-                HtmlView publishedVersionsView = getPublishedVersionsView(sourceExperimentId);
+                var publishedVersionsView = getPublishedVersionsView(sourceExperimentId);
                 if (publishedVersionsView != null)
                 {
                     result.addView(publishedVersionsView);
@@ -4350,16 +4341,16 @@ public class PanoramaPublicController extends SpringActionController
                 submissionList.setShowExportButtons(false);
                 submissionList.setShowPagination(false);
                 submissionList.setPrintView(false);
-                VBox journalsBox = new VBox();
-                journalsBox.setTitle("Submission");
-                journalsBox.setFrame(WebPartView.FrameType.PORTAL);
-                journalsBox.addView(submissionList);
+                VBox vBox = new VBox();
+                vBox.setTitle("Submission");
+                vBox.setFrame(WebPartView.FrameType.PORTAL);
+                vBox.addView(submissionList);
 
                 ActionURL url = PanoramaPublicController.getPrePublishExperimentCheckURL(exptAnnotations.getId(), exptAnnotations.getContainer(), true);
                 url.addReturnURL(getViewExperimentDetailsURL(exptAnnotations.getId(), exptAnnotations.getContainer()));
-                journalsBox.addView(new HtmlView(DIV(new Link.LinkBuilder("Validate for ProteomeXchange").href(url).build())));
+                vBox.addView(new HtmlView(DIV(new Link.LinkBuilder("Validate for ProteomeXchange").href(url).build())));
 
-                result.addView(journalsBox);
+                result.addView(vBox);
             }
             return result;
         }
@@ -4377,6 +4368,9 @@ public class PanoramaPublicController extends SpringActionController
         JournalSubmission _lastPublishedRecord;
         private boolean _fullDetails = false;
         private boolean _canPublish = false;
+        private String _version;
+        private boolean _isCurrentVersion = false;
+        private ActionURL _showVersionsUrl;
 
         public ExperimentAnnotationsDetails(){}
         public ExperimentAnnotationsDetails(User user, ExperimentAnnotations exptAnnotations, boolean fullDetails)
@@ -4395,6 +4389,30 @@ public class PanoramaPublicController extends SpringActionController
                 // 2. AND this is a NOT journal copy (i.e. a folder in the Panorama Public project)
                 // 3. AND if this experiment has been copied to Panorama Public, the copy is not final (paper published and data public).
                 _canPublish = c.hasPermission(user, AdminPermission.class) && (ExperimentAnnotationsManager.canSubmitExperiment(_experimentAnnotations, _lastPublishedRecord));
+            }
+
+            if (_experimentAnnotations.isJournalCopy() && _experimentAnnotations.getSourceExperimentId() != null)
+            {
+                Integer maxVersion = ExperimentAnnotationsManager.getMaxVersionForExperiment(_experimentAnnotations.getSourceExperimentId());
+                List<ExperimentAnnotations> publishedVersions = ExperimentAnnotationsManager.getPublishedVersionsOfExperiment(_experimentAnnotations.getSourceExperimentId());
+                if (publishedVersions.size() > 1)
+                {
+                    // Display the version only if there is more than one version of this dataset on Panorama Public
+                    _version = _experimentAnnotations.getStringVersion(maxVersion);
+                    if (_experimentAnnotations.getDataVersion().equals(maxVersion))
+                    {
+                        // This is the current version; Display a link to see all published versions
+                        _showVersionsUrl = new ActionURL(PanoramaPublicController.ShowPublishedVersions.class, _experimentAnnotations.getContainer());
+                        _showVersionsUrl.addParameter("id", _experimentAnnotations.getId());
+                        _isCurrentVersion = true;
+                    }
+                    else
+                    {
+                        // This is not the current version; Display a link to the current version
+                        ExperimentAnnotations maxExpt = publishedVersions.stream().filter(e -> e.getDataVersion().equals(maxVersion)).findFirst().orElse(null);
+                        _showVersionsUrl = maxExpt != null ? PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(maxExpt.getContainer()) : null;
+                    }
+                }
             }
         }
         public ExperimentAnnotations getExperimentAnnotations()
@@ -4436,6 +4454,31 @@ public class PanoramaPublicController extends SpringActionController
         {
             _lastPublishedRecord = lastPublishedRecord;
         }
+
+        public boolean hasVersion()
+        {
+            return !StringUtils.isBlank(_version);
+        }
+
+        public String getVersion()
+        {
+            return _version;
+        }
+
+        public boolean hasVersionsLink()
+        {
+            return _showVersionsUrl != null;
+        }
+
+        public ActionURL getVersionsLink()
+        {
+            return _showVersionsUrl;
+        }
+
+        public boolean isCurrentVersion()
+        {
+            return _isCurrentVersion;
+        }
     }
 
     @RequiresPermission(ReadPermission.class)
@@ -4462,7 +4505,7 @@ public class PanoramaPublicController extends SpringActionController
 
             VBox result = new VBox();
             int sourceExperimentId = exptAnnotations.isJournalCopy() ? exptAnnotations.getSourceExperimentId() : exptAnnotations.getId();
-            HtmlView publishedVersionsView = getPublishedVersionsView(sourceExperimentId);
+            var publishedVersionsView = getPublishedVersionsView(sourceExperimentId);
             result.addView(publishedVersionsView != null ? publishedVersionsView:
                     new HtmlView(DIV("Did not find any published versions related to the experiment " + exptAnnotations.getId())));
             result.addView(new HtmlView(PageFlowUtil.generateBackButton()));
@@ -4477,64 +4520,40 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
-    private @Nullable HtmlView getPublishedVersionsView(int sourceExperimentId)
+    private @Nullable WebPartView getPublishedVersionsView(int sourceExperimentId)
     {
         List<ExperimentAnnotations> publishedVersions = ExperimentAnnotationsManager.getPublishedVersionsOfExperiment(sourceExperimentId);
         if(publishedVersions.size() > 0)
         {
-            boolean hasPublication = publishedVersions.stream().anyMatch(ExperimentAnnotations::isPublished);
-            Integer maxVersion = ExperimentAnnotationsManager.getMaxVersionForExperiment(sourceExperimentId);
-            List<DOM.Renderable> headers = new ArrayList<>();
-            headers.add(TH(cl("labkey-column-header"), "Version"));
-            headers.add(TH("Published"));
-            headers.add(TH("Link"));
-            if (hasPublication)
-            {
-                headers.add(TH("Publication"));
-            }
-            List<DOM.Renderable> rows = new ArrayList<>();
-            rows.add(THEAD(TR(headers)));
+            QuerySettings qSettings = new QuerySettings(getViewContext(), "PublishedVersions", "ExperimentAnnotations");
+            qSettings.setBaseFilter(new SimpleFilter(new SimpleFilter(FieldKey.fromParts("SourceExperimentId"), sourceExperimentId)));
 
-            int cnt = 0;
-            for (ExperimentAnnotations publishedVersion : publishedVersions)
+            List<FieldKey> columns = new ArrayList<>();
+            columns.addAll(List.of(FieldKey.fromParts("Version"), FieldKey.fromParts("Created"), FieldKey.fromParts("Link"), FieldKey.fromParts("Share")));
+            if(publishedVersions.stream().anyMatch(ExperimentAnnotations::isPublished))
             {
-                List<DOM.Renderable> cells = new ArrayList<>();
-                cells.add(TD(publishedVersion.getStringVersion(maxVersion)));
-                cells.add(TD(DateUtil.formatDateTime(publishedVersion.getCreated(), "MM/dd/yyyy")));
-                cells.add(TD(getExperimentShortLink(publishedVersion)));
-                if (hasPublication)
-                {
-                    cells.add(TD(getPublicationLink(publishedVersion)));
-                }
-                rows.add(TR(cl(cnt++ % 2 == 0, "labkey-alternate-row", "labkey-row"), cells));
+                columns.add(FieldKey.fromParts("Citation"));
             }
-            HtmlView versionsView = new HtmlView(TABLE(cl("labkey-data-region-legacy", "labkey-show-borders"), rows));
-            versionsView.setTitle("Published Versions");
-            return versionsView;
+            qSettings.setFieldKeys(columns);
+            // Set the container filter to All Folders since we want to be able to see rows from other other containers that contain
+            // copies of the source experiment. This should be OK since we are applying a filter on the SourceExperimentId
+            qSettings.setContainerFilterName(ContainerFilter.Type.AllFolders.name());
+            QueryView publishedList = new QueryView(new PanoramaPublicSchema(getUser(), getContainer()), qSettings, null);
+            publishedList.setShowRecordSelectors(false);
+            publishedList.setShowDetailsColumn(false);
+            publishedList.setButtonBarPosition(DataRegion.ButtonBarPosition.NONE);
+            publishedList.disableContainerFilterSelection();
+            publishedList.setShowExportButtons(false);
+            publishedList.setShowPagination(false);
+            publishedList.setPrintView(false);
+            VBox vBox = new VBox();
+            vBox.setTitle("Published Versions");
+            vBox.setFrame(WebPartView.FrameType.PORTAL);
+            vBox.addView(publishedList);
+            return vBox;
         }
+
         return null;
-    }
-
-    @NotNull
-    private DOM.Renderable getExperimentShortLink(@NotNull ExperimentAnnotations expAnnotations)
-    {
-        if(expAnnotations.getShortUrl() != null)
-        {
-            return new Link.LinkBuilder(expAnnotations.getShortUrl().renderShortURL())
-                    .href(expAnnotations.getShortUrl().renderShortURL()).clearClasses().build();
-        }
-        return HtmlString.NBSP;
-    }
-
-    @NotNull
-    private DOM.Renderable getPublicationLink(@NotNull ExperimentAnnotations expAnnotations)
-    {
-        if(!expAnnotations.isPublished())
-        {
-            return HtmlString.NBSP;
-        }
-        String linkText = expAnnotations.hasCitation() ? expAnnotations.getCitation() : expAnnotations.getPublicationLink();
-        return new Link.LinkBuilder(linkText).href(expAnnotations.getPublicationLink()).clearClasses().build();
     }
 
     private static boolean isSupportedFolderType(TargetedMSService.FolderType folderType)
@@ -5126,7 +5145,7 @@ public class PanoramaPublicController extends SpringActionController
         return result;
     }
 
-    public static ActionURL getUpdateJournalExperimentURL(int experimentAnnotationsId, int journalId, Container container, boolean keepPrivate, boolean getPxId)
+    public static ActionURL getUpdateSubmissionURL(int experimentAnnotationsId, int journalId, Container container, boolean keepPrivate, boolean getPxId)
     {
         ActionURL result = new ActionURL(UpdateSubmissionAction.class, container);
         result.addParameter("id", experimentAnnotationsId);

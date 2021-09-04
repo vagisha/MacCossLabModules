@@ -32,7 +32,6 @@
 <%@ page import="org.labkey.panoramapublic.model.ExperimentAnnotations" %>
 <%@ page import="org.labkey.panoramapublic.model.Journal" %>
 <%@ page import="org.labkey.panoramapublic.query.ExperimentAnnotationsManager" %>
-<%@ page import="org.labkey.panoramapublic.query.JournalManager" %>
 <%@ page import="org.labkey.panoramapublic.query.SubmissionManager" %>
 <%@ page import="org.labkey.panoramapublic.model.Submission" %>
 <%@ page import="org.labkey.panoramapublic.model.JournalSubmission" %>
@@ -55,8 +54,7 @@
     Journal journal = bean.lookupJournal();
     JournalSubmission js = SubmissionManager.getJournalSubmission(expAnnot.getId(), journal.getId());
     Submission currentSubmission = js.getLatestSubmission();
-    Submission previousSubmission = js.getLatestCopiedSubmission();
-    ExperimentAnnotations previousCopy = previousSubmission != null ? ExperimentAnnotationsManager.get(previousSubmission.getCopiedExperimentId()) : null;
+    ExperimentAnnotations previousCopy = ExperimentAnnotationsManager.getLatestCopyForSubmission(js);
     boolean isRecopy = previousCopy != null;
 
     String selectedFolder = "Please select a destination folder...";

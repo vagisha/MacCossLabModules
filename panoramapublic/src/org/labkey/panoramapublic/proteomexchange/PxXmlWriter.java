@@ -21,7 +21,6 @@ import org.jetbrains.annotations.Nullable;
 import org.labkey.api.security.User;
 import org.labkey.api.view.ShortURLRecord;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.Submission;
 
 import javax.xml.stream.XMLOutputFactory;
@@ -45,9 +44,9 @@ import java.util.Set;
  */
 public class PxXmlWriter extends PxWriter
 {
-    private static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-    private static CvParamElement peerReviewedEl = new CvParamElement("MS", "MS:1002854", "Peer-reviewed dataset");
-    private static CvParamElement nonPeerReviewedEl = new CvParamElement("MS", "MS:1002855", "Non peer-reviewed dataset");
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+    private static final CvParamElement peerReviewedEl = new CvParamElement("MS", "MS:1002854", "Peer-reviewed dataset");
+    private static final CvParamElement nonPeerReviewedEl = new CvParamElement("MS", "MS:1002855", "Non peer-reviewed dataset");
     private static final String INDENT = "  ";
 
     private final XMLStreamWriter _writer;
@@ -297,7 +296,7 @@ public class PxXmlWriter extends PxWriter
     }
 
     @Override
-    void writeContactList(ExperimentAnnotations expAnnotations, JournalSubmission js) throws PxException
+    void writeContactList(ExperimentAnnotations expAnnotations, Submission submission) throws PxException
     {
         /*
         <ContactList>
@@ -326,7 +325,6 @@ public class PxXmlWriter extends PxWriter
         }
         String labHeadName = labHead != null ? labHead.getFullName() : null;
         String labHeadEmail = labHead != null ? labHead.getEmail() : null;
-        Submission submission = js.getLatestSubmission();
         // Check if there is a form override
         if(submission.hasLabHeadDetails())
         {
@@ -608,7 +606,7 @@ public class PxXmlWriter extends PxWriter
     }
 
     @Override
-    void writeDatasetSummary(ExperimentAnnotations annotations, JournalSubmission js) throws PxException
+    void writeDatasetSummary(ExperimentAnnotations annotations, Submission submission) throws PxException
     {
         Element el = new Element("DatasetSummary");
         List<Attribute> attributes = new ArrayList<>(3);
@@ -631,7 +629,6 @@ public class PxXmlWriter extends PxWriter
         SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(annotations);
         final CvParamElement completeEl = new CvParamElement("MS", "MS:1002856", "Supported dataset by repository");
         final CvParamElement incompleteEl = new CvParamElement("MS", "MS:1003087", "supported by repository but incomplete data and/or metadata");
-        Submission submission = js.getLatestSubmission();
         if(status.isComplete())
         {
             repoSupport.addChild(completeEl);

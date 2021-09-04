@@ -64,6 +64,12 @@ public class TargetedMsExperimentWebPart extends BodyWebPart <TargetedMsExperime
         return element.getAttribute("href");
     }
 
+    public String getDataVersion()
+    {
+        WebElement element = elementCache().dataVersionTag;
+        return element != null ? element.getText() : null;
+    }
+
     @Override
     protected TargetedMsExperimentWebPart.ElementCache newElementCache()
     {
@@ -75,5 +81,6 @@ public class TargetedMsExperimentWebPart extends BodyWebPart <TargetedMsExperime
         private final WebElement resubmitLink = Locator.linkContainingText("Resubmit").findWhenNeeded(this);
         private final WebElement moreDetailsLink = Locator.linkContainingText("More Details").findWhenNeeded(this);
         private final WebElement accessUrlTag = Locator.tagWithAttribute("span", "id", "accessUrl").childTag("a").findWhenNeeded(this);
+        private final WebElement dataVersionTag = Locator.tagWithAttribute("span", "id", "publishedDataVersion").descendant("span").findOptionalElement(this).orElse(null);
     }
 }

@@ -177,31 +177,23 @@ public class Submission
         _copied = copied;
     }
 
-    public boolean isPending()
-    {
-        return _copiedExperimentId == null && _copied == null;
-    }
-
     public boolean hasCopy()
     {
         return _copiedExperimentId != null;
     }
 
     /**
-     * Returns true if this submission has not yet been copied, or if it was copied (has a copied timestamp)
-     * but no longer has a reference to the copied experiment because the copy was deleted.
-     * @return
+     * @return true if this submission request has not yet been copied.
      */
-    public boolean canBeDeleted()
+    public boolean isPending()
     {
-        return !hasCopy();
+        return _copiedExperimentId == null && _copied == null;
     }
 
     /**
-     * Returns true if this submission was copied (has a copied timestamp) but no longer has a reference to the
-     * copied experiment because the copy was deleted. The row in retained in the Submission table as a log of
+     * @return true if this submission was copied (has a copied timestamp) but no longer has a reference to the
+     * copied experiment because the copy was deleted. The row in kept in the Submission table as a log of
      * all the submissions.
-     * @return
      */
     public boolean isObsolete()
     {

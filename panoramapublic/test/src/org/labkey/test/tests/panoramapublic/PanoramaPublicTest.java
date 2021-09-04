@@ -75,13 +75,16 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         String shortAccessLink = testSubmitWithMissingRawFiles(portalHelper, expWebPart);
 
         // Verify rows in Submission table
-        verifySubmissionTable(projectName, folderName, 1, 0, List.of(""), List.of(Boolean.FALSE), List.of(""), List.of(""));
+        verifySubmissionsAndPublishedVersions(projectName, folderName, 1, 0, List.of(Boolean.FALSE), List.of("") , List.of(""), List.of(""));
 
         // Copy the experiment to the Panorama Public project
         copyExperimentAndVerify(projectName, folderName, experimentTitle, targetFolder);
 
+        // Verify that a version is not displayed in the Panorama Public copy since there is only one version.
+        verifyExperimentVersion(PANORAMA_PUBLIC, targetFolder, null);
+
         // Verify rows in Submission table
-        verifySubmissionTable(projectName, folderName, 1, 1, List.of(experimentTitle), List.of(Boolean.TRUE), List.of("1"), List.of(shortAccessLink));
+        verifySubmissionsAndPublishedVersions(projectName, folderName, 1, 1, List.of(Boolean.TRUE), List.of(experimentTitle), List.of("1"), List.of(shortAccessLink));
 
         // Test re-submit experiment
         goToProjectFolder(projectName, folderName);
@@ -93,7 +96,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         assertTextPresent("Copy Pending!");
 
         // Verify rows in Submission table
-        verifySubmissionTable(projectName, folderName, 2, 2, List.of(experimentTitle, ""), List.of(Boolean.TRUE, Boolean.FALSE), List.of("1", ""), List.of(shortAccessLink, ""));
+        verifySubmissionsAndPublishedVersions(projectName, folderName, 2, 1, List.of(Boolean.TRUE, Boolean.FALSE), List.of(experimentTitle, ""), List.of("1", ""), List.of(shortAccessLink, ""));
 
         copyExperimentAndVerify(projectName, folderName, null, experimentTitle,
                 2, // We are not deleting the first copy so this is version 2
@@ -103,30 +106,47 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
 
         // Verify rows in Submission table. The short URL of the previous copy should have a '_v1' suffix.
         String v1Link = shortAccessLink.replace(".url", "_v1.url");
-        verifySubmissionTable(projectName, folderName, 2, 2, List.of(experimentTitle, experimentTitle), List.of(Boolean.TRUE, Boolean.TRUE), List.of("1", "2"), List.of(v1Link, shortAccessLink));
+        verifySubmissionsAndPublishedVersions(projectName, folderName, 2, 2, List.of(Boolean.TRUE, Boolean.TRUE), List.of(experimentTitle, experimentTitle), List.of("1", "2"), List.of(v1Link, shortAccessLink));
 
         // The folder containing the older copy should have a "V.1" suffix added to the name.
-        // Panorama Public admin should be able to delete the old folder
         String v1Folder = targetFolder + " V.1";
         assertTrue("Expected the container for the previous copy to have been renamed with a suffix 'V.1'",
                 _containerHelper.doesContainerExist(PANORAMA_PUBLIC + "/" + v1Folder));
+
+        // Verify versions
+        verifyExperimentVersion(PANORAMA_PUBLIC, targetFolder, "Current");
+        verifyExperimentVersion(PANORAMA_PUBLIC, v1Folder, "1");
+
+        // Panorama Public admin should be able to delete the old folder
         APIContainerHelper apiContainerHelper = new APIContainerHelper(this);
         apiContainerHelper.deleteFolder(PANORAMA_PUBLIC, v1Folder);
         assertFalse("Expected the container for the previous copy to have been deleted",
                 _containerHelper.doesContainerExist(PANORAMA_PUBLIC + "/" + v1Folder));
 
-        // The rows in the JournalExperiment and Submission tables should still be there
-        verifySubmissionTable(projectName, folderName, 2, 2, List.of("", experimentTitle), List.of(Boolean.TRUE, Boolean.TRUE), List.of("", "2"), List.of("", shortAccessLink));
+        // There should still be two rows in the submission table
+        verifySubmissionsAndPublishedVersions(projectName, folderName, 2, 2, List.of(Boolean.TRUE, Boolean.TRUE), List.of("", experimentTitle), List.of("", "2"), List.of("", shortAccessLink));
 
         // Submitter should be able to delete their folder after it has been copied to Panorama Public
         goToProjectFolder(projectName, folderName);
         impersonate(SUBMITTER);
         apiContainerHelper.deleteFolder(projectName, folderName);
+        assertFalse("Expected the submitters's container to have been deleted",
+                _containerHelper.doesContainerExist(projectName + "/" + folderName));
     }
 
-    private void verifySubmissionTable(String projectName, String folderName, int rowCount, int maxVersion,
-                                       List<String> experimentTitles, List<Boolean> copied, List<String> versions,
-                                       List<String> accessLinks)
+    private void verifyExperimentVersion(String projectName, String folderName, String version)
+    {
+        goToProjectFolder(projectName, folderName);
+        goToDashboard();
+        TargetedMsExperimentWebPart expWebPart = new TargetedMsExperimentWebPart(this);
+        assertEquals("Unexpected experiment data version", version, expWebPart.getDataVersion());
+    }
+
+    private void verifySubmissionsAndPublishedVersions(String projectName, String folderName, int submissionCount, int maxVersion,
+                                                       List<Boolean> copied,
+                                                       List<String> experimentTitles,
+                                                       List<String> versions,
+                                                       List<String> accessLinks)
     {
         if (isImpersonating())
         {
@@ -137,11 +157,47 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         TargetedMsExperimentWebPart expWebPart = new TargetedMsExperimentWebPart(this);
 
         expWebPart.clickMoreDetails();
+
+        verifySubmissions(submissionCount, copied, experimentTitles, versions, accessLinks);
+        verifyPublishedVersions(maxVersion, versions, accessLinks);
+    }
+
+    private void verifyPublishedVersions(int maxVersion, List<String> versions, List<String> accessLinks)
+    {
+        int copiedCount = (int) accessLinks.stream().filter(l -> !"".equals(l)).count();
+        if (copiedCount > 0)
+        {
+            DataRegionTable publishedVersionsTable = new DataRegionTable("PublishedVersions", getDriver());
+            assertEquals("Expected " + copiedCount + " rows in the Published Versions table", copiedCount, publishedVersionsTable.getDataRowCount());
+            int row = 0;
+            String[] columns = new String[]{"Version", "Link"};
+            for (int i = 0; i < accessLinks.size(); i++)
+            {
+                /// 2, 2, List.of(Boolean.TRUE, Boolean.TRUE), List.of("", experimentTitle), List.of("", "2"), List.of("", shortAccessLink));
+                if (!"".equals(accessLinks.get(i)))
+                {
+                    List<String> rowVals = publishedVersionsTable.getRowDataAsText(row, columns).stream().map(String::trim).collect(Collectors.toList());
+                    String version = versions.get(i);
+                    if (!StringUtils.isBlank(version) && Integer.parseInt(version) == maxVersion)
+                    {
+                        version = "Current";
+                    }
+                    assertEquals("Unexpected values in Published Versions table row " + row,
+                            List.of(version, accessLinks.get(i)),
+                            rowVals);
+                    row++;
+                }
+            }
+        }
+    }
+
+    private void verifySubmissions(int submissionCount, List<Boolean> copied, List<String> experimentTitles, List<String> versions, List<String> accessLinks)
+    {
         DataRegionTable submissionTable = new DataRegionTable("Submission", getDriver());
-        assertEquals("Expected " + rowCount + " rows in the Submission table", rowCount, submissionTable.getDataRowCount());
+        assertEquals("Expected " + submissionCount + " rows in the Submission table", submissionCount, submissionTable.getDataRowCount());
 
         String[] columns = new String[]{"ShortURL", "CopiedExperimentId/DataVersion", "CopiedExperimentId", "Edit", "Delete"};
-        for (int row = 0; row < rowCount; row++)
+        for (int row = 0; row < submissionCount; row++)
         {
             Boolean wasCopied = copied.get(row);
             String rowCopiedVal = submissionTable.getRowDataAsText(row, "Copied").get(0).trim();
@@ -155,13 +211,11 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
             }
             List<String> rowVals = submissionTable.getRowDataAsText(row, columns).stream().map(String::trim).collect(Collectors.toList());
 
-            String version = versions.get(row);
-            boolean isMaxVersion = !StringUtils.isBlank(version) && Integer.parseInt(version) == maxVersion;
-            assertEquals("Unexpected values in row " + row,
+            assertEquals("Unexpected values in Submission table row " + row,
                     List.of(accessLinks.get(row),
-                            version,
+                            versions.get(row),
                             experimentTitles.get(row),
-                            wasCopied ? (isMaxVersion ? "RESUBMIT" : "") : "EDIT",
+                            wasCopied ? ((row == submissionCount - 1) ? "RESUBMIT" : "") : "EDIT",
                             wasCopied ? "" : "DELETE"),
                     rowVals);
         }

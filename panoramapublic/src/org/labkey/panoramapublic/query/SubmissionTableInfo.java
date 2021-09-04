@@ -1,18 +1,3 @@
-/*
- * Copyright (c) 2014-2019 LabKey Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.labkey.panoramapublic.query;
 
 import org.jetbrains.annotations.NotNull;
@@ -42,11 +27,6 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * User: vsharma
- * Date: 9/12/2014
- * Time: 4:07 PM
- */
 public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
 {
     public SubmissionTableInfo(final PanoramaPublicSchema schema, ContainerFilter cf)
@@ -141,12 +121,12 @@ public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
             joinSql.append(" INNER JOIN ");
             joinSql.append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp");
             joinSql.append(" ON ( ");
-            // JournalExperiment table contains the experiment id (table ExperimentAnnotations) column of the source column.
+            // JournalExperiment table contains the experiment id (table ExperimentAnnotations) column of the source experiment.
             // Submission table contains the experiment id of the Panorama Public copy of the experiment.
             // We are filtering on the Container columns of both experiments so that in the folder containing the source experiment
             // we can see all the rows from the Submission table that correspond to the source experiment.
             // In the folder containing the Panorama Public copy we will see the row corresponding to the Panorama Public
-            // experiment copy.
+            // copy of the experiment.
             joinSql.append("exp.id = ").append("je.ExperimentAnnotationsId");
             joinSql.append(" OR exp.id = ").append("X.CopiedExperimentId");
             joinSql.append(" ) ");
@@ -214,7 +194,7 @@ public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
                     if(s != null)
                     {
                         JournalSubmission js = SubmissionManager.getJournalSubmission(s.getJournalExperimentId());
-                        if(js.isLatestSubmission(s.getId()))
+                        if(js != null && js.isLatestSubmission(s.getId()))
                         {
                             // Show the "Resubmit" or "Edit" links only if this is the most recent submission request for the experiment.
                             if (s.hasCopy())
@@ -230,7 +210,7 @@ public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
                             }
                             else
                             {
-                                ActionURL ediUrl = PanoramaPublicController.getUpdateJournalExperimentURL(js.getExperimentAnnotationsId(), js.getJournalId(), _container, s.isKeepPrivate(), true);
+                                ActionURL ediUrl = PanoramaPublicController.getUpdateSubmissionURL(js.getExperimentAnnotationsId(), js.getJournalId(), _container, s.isKeepPrivate(), true);
                                 out.write(PageFlowUtil.link("Edit").href(ediUrl).toString());
                             }
                         }

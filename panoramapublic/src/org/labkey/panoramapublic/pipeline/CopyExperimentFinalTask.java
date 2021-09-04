@@ -174,7 +174,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             Submission currentSubmission = js.getLatestSubmission();
             if (currentSubmission == null)
             {
-                throw new PipelineJobException("Could not fina a current submission request");
+                throw new PipelineJobException("Could not find a current submission request");
             }
 
             // Assign a reviewer account if one was requested
@@ -187,7 +187,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             js = updateSubmissionAndDeletePreviousCopy(js, currentSubmission, latestCopiedSubmission, targetExperiment, previousCopy, jobSupport, user, log);
 
             // Create notifications. Do this at the end after everything else is done.
-            PanoramaPublicNotification.notifyCopied(sourceExperiment, targetExperiment, jobSupport.getJournal(), js,
+            PanoramaPublicNotification.notifyCopied(sourceExperiment, targetExperiment, jobSupport.getJournal(), js.getJournalExperiment(), js.getLatestSubmission(),
                     reviewer.first, reviewer.second, user, previousCopy != null /*This is a re-copy if previousCopy exists*/);
 
             postEmailNotification(jobSupport, user, log, sourceExperiment, js, targetExperiment, reviewer.first, reviewer.second, previousCopy != null);
@@ -391,7 +391,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         log.info("Updating access URL to point to the new copy of the data.");
         try
         {
-            SubmissionManager.updateAccessUrlTarget(targetExperiment, js.getJournalExperiment(), user);
+            SubmissionManager.updateAccessUrlTarget(js.getShortAccessUrl(), targetExperiment, user);
         }
         catch (ValidationException e)
         {
@@ -543,7 +543,8 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         toAddresses.addAll(jobSupport.toEmailAddresses());
 
         String subject = String.format("Submission to %s: %s", jobSupport.getJournal().getName(), targetExperiment.getShortUrl().renderShortURL());
-        String emailBody = PanoramaPublicNotification.getExperimentCopiedEmailBody(sourceExperiment, targetExperiment, js, jobSupport.getJournal(),
+        String emailBody = PanoramaPublicNotification.getExperimentCopiedEmailBody(sourceExperiment, targetExperiment,
+                    js.getJournalExperiment(), js.getLatestSubmission(), jobSupport.getJournal(),
                     reviewer, reviewerPassword,
                     formSubmitter,
                     pipelineJobUser,
@@ -555,18 +556,18 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             try
             {
                 PanoramaPublicNotification.sendEmailNotification(subject, emailBody, targetExperiment.getContainer(), pipelineJobUser, toAddresses, jobSupport.replyToAddress());
-                PanoramaPublicNotification.postEmailContents(subject, emailBody, toAddresses, pipelineJobUser, sourceExperiment, js, jobSupport.getJournal(), true);
+                PanoramaPublicNotification.postEmailContents(subject, emailBody, toAddresses, pipelineJobUser, sourceExperiment, js.getJournalExperiment(), jobSupport.getJournal(), true);
             }
             catch (Exception e)
             {
                 log.info("Could not send email to submitter. Error was: " + e.getMessage(), e);
-                PanoramaPublicNotification.postEmailContentsWithError(subject, emailBody, toAddresses, pipelineJobUser, sourceExperiment, js, jobSupport.getJournal(), e.getMessage());
+                PanoramaPublicNotification.postEmailContentsWithError(subject, emailBody, toAddresses, pipelineJobUser, sourceExperiment, js.getJournalExperiment(), jobSupport.getJournal(), e.getMessage());
             }
         }
         else
         {
             // Post the email contents to the message board.
-            PanoramaPublicNotification.postEmailContents(subject, emailBody, toAddresses, pipelineJobUser, sourceExperiment, js, jobSupport.getJournal(), false);
+            PanoramaPublicNotification.postEmailContents(subject, emailBody, toAddresses, pipelineJobUser, sourceExperiment, js.getJournalExperiment(), jobSupport.getJournal(), false);
         }
     }
 

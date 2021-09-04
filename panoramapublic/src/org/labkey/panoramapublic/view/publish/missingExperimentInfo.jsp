@@ -48,16 +48,16 @@
 
     ExperimentAnnotations expAnnotations = status.getExperimentAnnotations();
     JournalSubmission js = SubmissionManager.getNewestJournalSubmission(expAnnotations);
-    Submission lastSubmission = js != null ? js.getLatestSubmission() : null;
+    Submission latestSubmission = js != null ? js.getLatestSubmission() : null;
     boolean requestPxId = status.canSubmitToPx(); // Request a PX ID if the data validates for a PX submission.
     boolean doIncompletePxSubmission = status.isIncomplete();
 
     ActionURL rawFilesUrl = PanoramaPublicManager.getRawDataTabUrl(getContainer());
-    boolean keepPrivate = lastSubmission == null ? true : lastSubmission.isKeepPrivate();
+    boolean keepPrivate = latestSubmission == null ? true : latestSubmission.isKeepPrivate();
     int journalId = js == null ? 0 : js.getJournalId();
 
-    ActionURL submitUrl = lastSubmission == null ? new ActionURL(PanoramaPublicController.PublishExperimentAction.class, getContainer()) // Data has not yet been submitted.
-            : (!lastSubmission.hasCopy()) ?
+    ActionURL submitUrl = latestSubmission == null ? new ActionURL(PanoramaPublicController.PublishExperimentAction.class, getContainer()) // Data has not yet been submitted.
+            : (!latestSubmission.hasCopy()) ?
             new ActionURL(PanoramaPublicController.UpdateSubmissionAction.class, getContainer()) // Data submitted but not copied yet.
             :
             new ActionURL(PanoramaPublicController.RepublishJournalExperimentAction.class, getContainer()); // Data has been copied to Panorama Public.  This is a re-submit.

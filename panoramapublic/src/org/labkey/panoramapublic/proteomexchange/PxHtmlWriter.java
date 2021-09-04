@@ -23,7 +23,6 @@ import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.view.ShortURLRecord;
 import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.Submission;
 
 import java.util.ArrayList;
@@ -80,7 +79,7 @@ public class PxHtmlWriter extends PxWriter
     }
 
     @Override
-    void writeDatasetSummary(ExperimentAnnotations expAnnotations, JournalSubmission js)
+    void writeDatasetSummary(ExperimentAnnotations expAnnotations, Submission submission)
     {
         tr("Description", expAnnotations.getAbstract());
         tr("Review Level", (expAnnotations.isPeerReviewed()) ? "Peer Reviewed" : "Not Peer Reviewed");
@@ -116,7 +115,6 @@ public class PxHtmlWriter extends PxWriter
             }
             list.end();
             String submissionTypeTxt;
-            Submission submission = js.getLatestSubmission();
             if (status.isIncomplete())
             {
                 submissionTypeTxt = submission.isIncompletePxSubmission() ? incomplete
@@ -256,11 +254,10 @@ public class PxHtmlWriter extends PxWriter
     }
 
     @Override
-    void writeContactList(ExperimentAnnotations experimentAnnotations, JournalSubmission js)
+    void writeContactList(ExperimentAnnotations experimentAnnotations, Submission submission)
     {
         HtmlList contactList = new HtmlList();
 
-        Submission submission = js.getLatestSubmission();
         User labHead = experimentAnnotations.getLabHeadUser();
         String labHeadName = labHead != null ? labHead.getFullName() : submission.getLabHeadName();
         String labHeadEmail = labHead != null ? labHead.getEmail() : submission.getLabHeadEmail();

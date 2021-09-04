@@ -71,15 +71,8 @@ public class ShortUrlDisplayColumnFactory implements DisplayColumnFactory
 
         private String getShortUrlDisplayValue(RenderContext ctx)
         {
-            Object shortUrl = ctx.get(FieldKey.fromString(getParentFieldKey(), "ShortUrl"));
-            if(shortUrl != null)
-            {
-                return ShortURLRecord.renderShortURL((String) shortUrl);
-            }
-            else
-            {
-                return null;
-            }
+            String shortUrl = ctx.get(FieldKey.fromString(getParentFieldKey(), "ShortUrl"), String.class);
+            return shortUrl != null ? ShortURLRecord.renderShortURL(shortUrl) : null;
         }
 
         private FieldKey getParentFieldKey()

@@ -61,6 +61,7 @@ import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.model.DataLicense;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.view.publish.ShortUrlDisplayColumnFactory;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -305,6 +306,10 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         exptDetailsUrl.addParameter("id", "${SourceExperiment}");
         sourceExptCol.setURL(StringExpressionFactory.createURL(exptDetailsUrl));
         addColumn(sourceExptCol);
+
+        var accessUrlCol = wrapColumn("Link", getRealTable().getColumn("ShortUrl"));
+        accessUrlCol.setDisplayColumnFactory(new ShortUrlDisplayColumnFactory());
+        addColumn(accessUrlCol);
 
         addColumn(getVersionCol());
         addColumn(getVersionCountCol());

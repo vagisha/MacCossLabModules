@@ -65,10 +65,9 @@ public class ExperimentAnnotations
     private ExpExperiment _experiment;
 
     private boolean _journalCopy; // true if this experiment was copied by a journal (e.g. "Panorama Public" on panoramaweb.org)
-    // The following fields (_sourceExperimentId, _sourceExperimentPath, _shortUrl, _version) will be populated only if _journalCopy is true.
-    // We can get sourceExperimentId by looking up Submission -> JournalExperiment table but it is convenient to have it here too.
+    // The following fields (_sourceExperimentId, _sourceExperimentPath, _shortUrl, _dataVersion) will be populated only if _journalCopy is true.
     private Integer _sourceExperimentId;
-    private String _sourceExperimentPath; // Source experiment can be deleted
+    private String _sourceExperimentPath; // Store this in case the original source experiment and/or container is deleted by user.
     private ShortURLRecord _shortUrl;
     private Integer _dataVersion;
 
@@ -361,14 +360,14 @@ public class ExperimentAnnotations
         return _dataVersion;
     }
 
-    public String getStringVersion(Integer currentVersion)
-    {
-        return _dataVersion == null ? "" : (_dataVersion.equals(currentVersion) ? "Current" : String.valueOf(_dataVersion));
-    }
-
     public void setDataVersion(Integer dataVersion)
     {
         _dataVersion = dataVersion;
+    }
+
+    public String getStringVersion(Integer currentVersion)
+    {
+        return _dataVersion == null ? "" : (_dataVersion.equals(currentVersion) ? "Current" : String.valueOf(_dataVersion));
     }
 
     public String getKeywords()
@@ -509,7 +508,7 @@ public class ExperimentAnnotations
             return null;
         }
         Submission submission = SubmissionManager.getSubmissionForCopiedExperiment(_id);
-        return submission == null ? null : submission.getDataLicense();
+        return submission != null ? submission.getDataLicense() : null;
     }
 
     /**

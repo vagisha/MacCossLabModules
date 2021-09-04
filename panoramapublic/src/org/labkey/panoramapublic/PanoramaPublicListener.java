@@ -33,7 +33,7 @@ import org.labkey.api.view.ShortURLRecord;
 import org.labkey.api.view.ShortURLService;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.Journal;
-import org.labkey.panoramapublic.model.JournalSubmission;
+import org.labkey.panoramapublic.model.JournalExperiment;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
@@ -71,8 +71,6 @@ public class PanoramaPublicListener implements ExperimentListener, ContainerMana
     @Override
     public void containerDeleted(Container c, User user)
     {
-        // TODO: If this container is in a journal project make the admin delete the row in the ExperimentAnnotations first before they can delete the container.
-
         JournalManager.deleteProjectJournal(c, user);
     }
 
@@ -97,33 +95,29 @@ public class PanoramaPublicListener implements ExperimentListener, ContainerMana
     @Override
     public List<String> canDelete(ShortURLRecord shortUrl)
     {
-        List<JournalSubmission> journalExperiments = SubmissionManager.getSubmissionWithShortUrl(shortUrl);
-        if(journalExperiments.size() > 0)
+        List<String> errors = new ArrayList<>();
+
+        // Check if this short URL is associated with a published experiment in a journal (e.g. Panorama Public) folder.
+        ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getExperimentForShortUrl(shortUrl);
+        if (expAnnotations != null)
         {
-            List<String> errors = new ArrayList<>();
+            errors.add("Short URL \"" + shortUrl.getShortURL() + "\" is associated with the experiment \"" + expAnnotations.getTitle()
+                    + "\" in the folder \"" + expAnnotations.getContainer().getPath() + "\"");
+        }
+
+        List<JournalExperiment> journalExperiments = SubmissionManager.getJournalExperimentsWithShortUrl(shortUrl);
+        if (journalExperiments.size() > 0)
+        {
             String url = shortUrl.getShortURL();
-            for(JournalSubmission je: journalExperiments)
+            for (JournalExperiment je: journalExperiments)
             {
-                ExperimentAnnotations experiment = ExperimentAnnotationsManager.get(je.getExperimentAnnotationsId());
                 Journal journal = JournalManager.getJournal(je.getJournalId());
                 errors.add("Short URL \"" + url + "\" is associated with a request submitted to \"" + journal.getName() + "\""
-                        + (experiment == null ? "" : " for experiment \"" + experiment.getTitle() + "\""));
-            }
-            return errors;
-        }
-        else
-        {
-            // Check if this short URL is associated with a published experiment in a journal (e.g. Panorama Public) folder.
-            ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getExperimentForShortUrl(shortUrl);
-            if(expAnnotations != null)
-            {
-                List<String> errors = new ArrayList<>();
-                errors.add("Short URL \"" + shortUrl.getShortURL() + "\" is associated with the experiment \"" + expAnnotations.getTitle()
-                        + "\" in the folder \"" + expAnnotations.getContainer().getPath() + "\"");
-                return errors;
+                        + " for experiment Id " + je.getExperimentAnnotationsId());
             }
         }
-        return Collections.emptyList();
+
+        return errors;
     }
 
     // SkylineDocumentImportListener

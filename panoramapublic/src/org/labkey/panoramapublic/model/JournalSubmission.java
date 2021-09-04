@@ -6,15 +6,19 @@ import org.labkey.api.view.ShortURLRecord;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JournalSubmission
 {
     private final JournalExperiment _journalExperiment;
     private List<Submission> _submissions;
+    private List<Submission> _obsoleteSubmissions; // Submissions that are no longer associated with an experiment copy
+                                                   // in the journal project because the journal copy was deleted.
+                                                   // The rows are kept in the Submission table as a log of all submissions.
     private int _currentVersion;
 
     public JournalSubmission(@NotNull JournalExperiment journalExperiment)
@@ -82,18 +86,21 @@ public class JournalSubmission
         return _journalExperiment.getReviewer();
     }
 
-    public @NotNull List<Submission> getSubmissions()
+    public @NotNull List<Submission> getAllSubmissions()
     {
-        return Collections.unmodifiableList(submissions());
+        return Stream.of(_submissions, _obsoleteSubmissions).flatMap(Collection::stream).collect(Collectors.toUnmodifiableList());
     }
 
     private List<Submission> submissions()
     {
-        if(_submissions == null)
+        if (_submissions == null)
         {
-            _submissions = SubmissionManager.getSubmissionsNewestFirst(getJournalExperimentId());
-            Integer version = ExperimentAnnotationsManager.getMaxVersionForExperiment(getExperimentAnnotationsId());
-            _currentVersion = version == null ? 0 : version;
+            List<Submission> allSubmissions = SubmissionManager.getSubmissionsNewestFirst(getJournalExperimentId());
+            _submissions = allSubmissions.stream().filter(s -> !s.isObsolete()).collect(Collectors.toList());
+            _obsoleteSubmissions = allSubmissions.stream().filter(Submission::isObsolete).collect(Collectors.toList());
+
+            Integer maxDataVersion = ExperimentAnnotationsManager.getMaxVersionForExperiment(getExperimentAnnotationsId());
+            _currentVersion = maxDataVersion == null ? 0 : maxDataVersion;
         }
         return _submissions;
     }
@@ -101,16 +108,6 @@ public class JournalSubmission
     public @NotNull List<Submission> getCopiedSubmissions()
     {
         return submissions().stream().filter(Submission::hasCopy).collect(Collectors.toUnmodifiableList());
-    }
-
-    public @NotNull List<Submission> getObsoleteSubmissions()
-    {
-        return submissions().stream().filter(Submission::isObsolete).collect(Collectors.toUnmodifiableList());
-    }
-
-    public @NotNull List<Submission> getActiveSubmissions()
-    {
-        return submissions().stream().filter(s -> !s.isObsolete()).collect(Collectors.toUnmodifiableList());
     }
 
     public @Nullable Submission getLatestSubmission()
@@ -131,7 +128,7 @@ public class JournalSubmission
     public @Nullable Submission getLatestCopiedSubmission()
     {
         List<Submission> copiedSubmissions = getCopiedSubmissions();
-        return copiedSubmissions.size() == 0 ? null : copiedSubmissions.get(0);
+        return copiedSubmissions.size() > 0 ? copiedSubmissions.get(0) : null;
     }
 
     public @Nullable Submission getSubmissionForCopiedExperiment(int copiedExperimentId)
@@ -159,17 +156,5 @@ public class JournalSubmission
     {
         Submission submission = getLatestSubmission();
         return submission != null && submission.getId() == submissionId;
-    }
-
-    public boolean canBeDeleted()
-    {
-        return getSubmissions().stream().allMatch(s -> s.canBeDeleted());
-    }
-
-    private class ExperimentInfo
-    {
-        private int _id;
-        private Integer Version;
-        private ShortURLRecord _shortUrl;
     }
 }

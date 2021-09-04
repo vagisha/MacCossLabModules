@@ -39,11 +39,13 @@ CREATE TABLE panoramapublic.Submission
 );
 
 INSERT INTO panoramapublic.Submission (_ts, CreatedBy, Created, ModifiedBy, Modified,
-                                       JournalExperimentId, CopiedExperimentId, Copied, PxIdRequested, KeepPrivate, IncompletePxSubmission,
+                                       JournalExperimentId, CopiedExperimentId, Copied,
+                                       PxIdRequested, KeepPrivate, IncompletePxSubmission,
                                        LabHeadName, LabHeadEmail, LabHeadAffiliation,
                                        DataLicense)
 SELECT _ts, CreatedBy, Created, ModifiedBy, Modified,
-        Id, CopiedExperimentId, Copied, PxIdRequested, KeepPrivate, IncompletePxSubmission,
+        Id, CopiedExperimentId, Copied,
+        PxIdRequested, KeepPrivate, IncompletePxSubmission,
         LabHeadName, LabHeadEmail, LabHeadAffiliation,
         DataLicense FROM panoramapublic.JournalExperiment;
 
@@ -53,12 +55,13 @@ ALTER TABLE panoramapublic.JournalExperiment DROP COLUMN CopiedExperimentId, DRO
                                              DROP COLUMN LabHeadEmail, DROP COLUMN LabHeadAffiliation,
                                              DROP COLUMN DataLicense;
 
--- Add a column to save the userid of the assigned reviewer
-ALTER TABLE panoramapublic.JournalExperiment ADD COLUMN Reviewer USERID;
 
 -- Add a 'DataVersion' column to ExperimentAnnotations and set the value to 1 for each experiment that was copied to Panorama Public
 ALTER TABLE panoramapublic.ExperimentAnnotations ADD COLUMN DataVersion INT;
-UPDATE panoramapublic.ExperimentAnnotations ea set DataVersion = 1 WHERE JournalCopy = TRUE;
+UPDATE panoramapublic.ExperimentAnnotations set DataVersion = 1 WHERE JournalCopy = TRUE;
+
+-- Add a column to save the userid of the assigned reviewer
+ALTER TABLE panoramapublic.JournalExperiment ADD COLUMN Reviewer USERID;
 
 -- Add indexes
 CREATE INDEX IX_ExperimentAnnotations_Pxid ON panoramapublic.ExperimentAnnotations(pxid);

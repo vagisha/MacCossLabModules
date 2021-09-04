@@ -78,36 +78,30 @@ public class SubmissionManager
     }
 
     /**
-     * Deletes a row in the Submission table.  If this is the only row for the submission's journalExperimentId
+     * Deletes a row in the Submission table.  If this is the only non-obsolete submission for the journalExperimentId
      * then the row in the JournalExperiment table is also deleted along with the short URLs associated with the
      * submission request.
      */
     public static void deleteSubmission(@NotNull Submission submission, @NotNull User user)
     {
-        deleteSubmission(submission, false, user);
-    }
-
-    private static void deleteSubmission(@NotNull Submission submission, boolean deleteObsoleteSubmissions, @NotNull User user)
-    {
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
             deleteSubmission(submission.getId());
 
-            JournalSubmission js = getJournalSubmission(submission.getJournalExperimentId());
-            if (js != null)
-            {
-                List<Submission> allSubmissions = new ArrayList<>(js.getSubmissions());
-                if(deleteObsoleteSubmissions)
-                {
-                    allSubmissions.stream().filter(Submission::isObsolete).forEach(s -> deleteSubmission(s.getId()));
-                    allSubmissions.removeIf(Submission::isObsolete);
-                }
+            List<Submission> allSubmissions = getSubmissionsNewestFirst(submission.getJournalExperimentId());
+            allSubmissions.removeIf(Submission::isObsolete);
 
-                if(allSubmissions.size() == 0)
+            if(allSubmissions.size() == 0)
+            {
+                // Delete the JournalExperiment if there are no submissions left after removing any obsolete ones
+                JournalExperiment je = getJournalExperiment(submission.getJournalExperimentId());
+                if(je != null)
                 {
-                    deleteJournalExperiment(js.getJournalExperiment(), user);
+                    deleteSubmissionsForJournalExperiment(je.getId());
+                    deleteJournalExperiment(je, user);
                 }
             }
+
             transaction.commit();
         }
     }
@@ -133,8 +127,12 @@ public class SubmissionManager
 
     public static @Nullable JournalSubmission getJournalSubmission(int id)
     {
-        JournalExperiment je = new TableSelector(PanoramaPublicManager.getTableInfoJournalExperiment(), null, null).getObject(id, JournalExperiment.class);
-        return getJournalSubmission(je);
+        return getJournalSubmission(getJournalExperiment(id));
+    }
+
+    private static JournalExperiment getJournalExperiment(int id)
+    {
+        return new TableSelector(PanoramaPublicManager.getTableInfoJournalExperiment(), null, null).getObject(id, JournalExperiment.class);
     }
 
     public static @Nullable JournalSubmission getJournalSubmission(int expeAnnotationsId, int journalId)
@@ -178,7 +176,8 @@ public class SubmissionManager
     }
 
     /**
-     * Returns a JournalSubmission object where the copiedExperimentId of one of the rows in the Submission is the same as the id of the given experiment.
+     * Returns a JournalSubmission object where the copiedExperimentId of one of the rows in the Submission table is the
+     * same as the id of the given experiment.
      */
     public static @Nullable JournalSubmission getSubmissionForJournalCopy(@NotNull ExperimentAnnotations journalCopy)
     {
@@ -222,9 +221,8 @@ public class SubmissionManager
         return Table.update(user, PanoramaPublicManager.getTableInfoJournalExperiment(), journalExperiment, journalExperiment.getId());
     }
 
-    public static void updateAccessUrlTarget(ExperimentAnnotations targetExperiment, JournalExperiment journalExperiment, User user) throws ValidationException
+    public static void updateAccessUrlTarget(ShortURLRecord shortAccessUrlRecord, ExperimentAnnotations targetExperiment, User user) throws ValidationException
     {
-        ShortURLRecord shortAccessUrlRecord = journalExperiment.getShortAccessUrl();
         ActionURL targetUrl = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(targetExperiment.getContainer());
 
         if(shortAccessUrlRecord != null)
@@ -284,7 +282,7 @@ public class SubmissionManager
         }
     }
 
-    public static List<JournalSubmission> getSubmissionWithShortUrl(ShortURLRecord shortUrl)
+    public static List<JournalExperiment> getJournalExperimentsWithShortUrl(ShortURLRecord shortUrl)
     {
         SimpleFilter.OrClause or = new SimpleFilter.OrClause();
         or.addClause(new CompareType.EqualsCompareClause(FieldKey.fromParts("shortAccessUrl"), CompareType.EQUAL, shortUrl));
@@ -292,8 +290,7 @@ public class SubmissionManager
 
         SimpleFilter filter = new SimpleFilter();
         filter.addClause(or);
-        List<JournalExperiment> jeList = new TableSelector(PanoramaPublicManager.getTableInfoJournalExperiment(), filter, null).getArrayList(JournalExperiment.class);
-        return jeList.stream().map(JournalSubmission::new).collect(Collectors.toList());
+        return new TableSelector(PanoramaPublicManager.getTableInfoJournalExperiment(), filter, null).getArrayList(JournalExperiment.class);
     }
 
     /**
@@ -311,64 +308,62 @@ public class SubmissionManager
      */
     public static void beforeCopiedExperimentDeleted(@NotNull ExperimentAnnotations expAnnotations, User user)
     {
-        JournalSubmission js = SubmissionManager.getSubmissionForJournalCopy(expAnnotations);
-        if (js != null)
+        Submission submission = getSubmissionForCopiedExperiment(expAnnotations.getId());
+        if (submission != null)
         {
-            Submission submission = js.getSubmissionForCopiedExperiment(expAnnotations.getId());
-            if (submission != null)
+            JournalSubmission js = getJournalSubmission(submission.getJournalExperimentId());
+            List<Submission> copiedSubmissions = js.getCopiedSubmissions();
+            if (copiedSubmissions.size() == 1 && copiedSubmissions.get(0).getId() == submission.getId())
             {
-                List<Submission> copiedSubmissions = js.getCopiedSubmissions();
-                if (copiedSubmissions.size() == 1 && copiedSubmissions.get(0).getId() == submission.getId())
+                // This is the only row in the Submission table copied to Panorama Public.  The Panorama Public admin must have a really good reason
+                // for deleting this experiment.
+                ExperimentAnnotations sourceExperiment = ExperimentAnnotationsManager.get(js.getExperimentAnnotationsId());
+                if(sourceExperiment != null)
                 {
-                    // This is the only row in the Submission table copied to Panorama Public.  The Panorama Public admin must have a REALLY good reason
-                    // for deleting this experiment.
-                    ExperimentAnnotations sourceExperiment = ExperimentAnnotationsManager.get(js.getExperimentAnnotationsId());
-                    if(sourceExperiment != null)
+                    // The source experiment still exists so we will have to reset everything to make it look like the the experiment was submitted but not copied.
+                    submission.setCopiedExperimentId(null);
+                    submission.setCopied(null);
+                    updateSubmission(submission, user);
+
+                    expAnnotations.setShortUrl(null);
+
+                    try
                     {
-                        // The source experiment still exists so we will have to reset everything to make it look like the the experiment was submitted but not copied.
-                        submission.setCopiedExperimentId(null);
-                        submission.setCopied(null);
-                        updateSubmission(submission, user);
-
-                        expAnnotations.setShortUrl(null);
-
-                        try
-                        {
-                            updateAccessUrlTarget(sourceExperiment, js.getJournalExperiment(), user);
-                        }
-                        catch (ValidationException e)
-                        {
-                            // ValidationException can be thrown by ShortURLService.saveShortURL() if the URL is invalid (contains slashes, etc)
-                            // We are updating an existing short URL so it should be valid and we don't expect to see this exception. Log an error to the server log if it happens.
-                            LOG.error("There was an error updating the target of the short access URL: " + js.getShortAccessUrl().getShortURL()
-                                    + "to: '" + sourceExperiment.getContainer().getPath() + "'", e);
-                        }
+                        updateAccessUrlTarget(js.getShortAccessUrl(), sourceExperiment, user);
                     }
-                    else
+                    catch (ValidationException e)
                     {
-                        // The source experiment no longer exists. We can delete the row in the JournalExperiment and Submission tables.
-                        // This will also delete:
-                        // - obsolete submissions (submissions were copied but the journal copy no longer exists)
-                        // - short URLs associated with this submission request
-                        deleteSubmission(submission, true, user);
+                        // ValidationException can be thrown by ShortURLService.saveShortURL() if the URL is invalid (contains slashes, etc)
+                        // We are updating an existing short URL so it should be valid and we don't expect to see this exception. Log an error to the server log if it happens.
+                        LOG.error("There was an error updating the target of the short access URL: " + js.getShortAccessUrl().getShortURL()
+                                + "to: '" + sourceExperiment.getContainer().getPath() + "'", e);
                     }
                 }
                 else
                 {
-                    // The journal copy of this data is about to be deleted. We do not want to delete the corresponding row in the Submission table
-                    // Instead we will set the copiedExperimentId to null.
-                    submission.setCopiedExperimentId(null);
-                    updateSubmission(submission, user);
+                    // The source experiment no longer exists and this is the only submission copied to Panorama Public.
+                    // We can delete the row in the JournalExperiment and corresponding Submission tables.
+                    // This will also delete:
+                    // - obsolete submissions (submissions were copied but the journal copy no longer exists)
+                    // - short URLs associated with this submission request
+                    deleteSubmission(submission, user);
                 }
+            }
+            else
+            {
+                // The journal copy of this data is about to be deleted. We do not want to delete the corresponding row in the Submission table
+                // Instead we will set the copiedExperimentId to null so that we don't get a FK violation.
+                submission.setCopiedExperimentId(null);
+                updateSubmission(submission, user);
             }
         }
     }
 
     /**
      * This method should be called before an experiment is deleted.  If the experiment was submitted to the given journal, but
-     * not copied to the journal project, the row in the JournalExperiment table and matching rows in the Submission table will be deleted.
+     * not copied to the journal project, the row in the JournalExperiment table and all corresponding rows in the Submission table will be deleted.
      */
-    public static void beforeExperimentDeleted(@NotNull ExperimentAnnotations expAnnotations, @NotNull Journal journal, @NotNull User user)
+    public static void beforeSubmittedExperimentDeleted(@NotNull ExperimentAnnotations expAnnotations, @NotNull Journal journal, @NotNull User user)
     {
         JournalSubmission js = getJournalSubmission(expAnnotations.getId(), journal.getId());
         if(js != null)
@@ -378,15 +373,19 @@ public class SubmissionManager
                 // Experiment was submitted but not yet copied so we can delete the rows in the Submission and JournalExperiment tables.
                 try(DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
                 {
-                    for (Submission s : js.getSubmissions())
-                    {
-                        Table.delete(PanoramaPublicManager.getTableInfoSubmission(), s.getId());
-                    }
+                    deleteSubmissionsForJournalExperiment(js.getJournalExperimentId());
                     deleteJournalExperiment(js.getJournalExperiment(), user);
                     transaction.commit();
                 }
             }
         }
+    }
+
+    private static void deleteSubmissionsForJournalExperiment(int journalExperimentId)
+    {
+        SimpleFilter filter = new SimpleFilter();
+        filter.addCondition(FieldKey.fromParts("JournalExperimentId"), journalExperimentId);
+        Table.delete(PanoramaPublicManager.getTableInfoSubmission(), filter);
     }
 
     public static void deleteAllSubmissionsForJournal(Integer journalId)

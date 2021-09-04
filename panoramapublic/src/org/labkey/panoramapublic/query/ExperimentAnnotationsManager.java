@@ -250,7 +250,7 @@ public class ExperimentAnnotationsManager
 
     private static void deleteExperiment(ExperimentAnnotations expAnnotations, User user)
     {
-        if(expAnnotations.isJournalCopy())
+        if (expAnnotations.isJournalCopy())
         {
             // This experiment is a journal copy (i.e. in the Panorama Public project on PanoramaWeb)
             SubmissionManager.beforeCopiedExperimentDeleted(expAnnotations, user);
@@ -258,9 +258,9 @@ public class ExperimentAnnotationsManager
         else
         {
             List<Journal> journals = JournalManager.getJournalsForExperiment(expAnnotations.getId());
-            for(Journal journal: journals)
+            for (Journal journal: journals)
             {
-                SubmissionManager.beforeExperimentDeleted(expAnnotations, journal, user);
+                SubmissionManager.beforeSubmittedExperimentDeleted(expAnnotations, journal, user);
                 JournalManager.removeJournalPermissions(expAnnotations, journal, user);
             }
         }
@@ -479,7 +479,26 @@ public class ExperimentAnnotationsManager
         return null;
     }
 
-    public static Integer getMaxVersionForExperiment(int experimentAnnotationsId)
+    /**
+     * @param journalSubmission
+     * @return the latest ExperimentAnnotations copied to the journal project for the given submission request.
+     */
+    public static @Nullable ExperimentAnnotations getLatestCopyForSubmission(JournalSubmission journalSubmission)
+    {
+        if(journalSubmission != null)
+        {
+            Submission previousSubmission = journalSubmission.getLatestCopiedSubmission();
+            return previousSubmission != null ? ExperimentAnnotationsManager.get(previousSubmission.getCopiedExperimentId()) : null;
+        }
+        return null;
+    }
+
+    /**
+     * @param experimentAnnotationsId
+     * @return the maximum value of DataVersion associated with ExperimentAnnotation copies of the
+     * given source experimentAnnotationsId, or null if there are no copies of the experiment.
+     */
+    public static @Nullable Integer getMaxVersionForExperiment(int experimentAnnotationsId)
     {
         SQLFragment sql = new SQLFragment("SELECT MAX(DataVersion) FROM ")
                 .append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "")
