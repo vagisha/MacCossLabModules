@@ -203,7 +203,7 @@
        <a class="button-small button-small-green" style="margin:0px 5px 0px 2px;" href="" onclick="showShareLink(this, '<%=h(accessUrl)%>'); return false;">Share</a>
 
         <% if (annotDetails.hasVersion()) {%>
-        <span class="link" id="publishedDataVersion" style="margin-left:10px;"><strong>Version:<span style="color:<%=h(annotDetails.isCurrentVersion() ? "green" : "red")%>;"><%=h(annotDetails.getVersion())%></span>
+        <span class="link" id="publishedDataVersion" style="margin-left:10px;"><strong>Version: <span style="color:<%=h(annotDetails.isCurrentVersion() ? "green" : "red")%>;"><%=h(annotDetails.getVersion())%></span>
                 <% if (annotDetails.hasVersionsLink()) { %>
                    <span><%=link(annotDetails.isCurrentVersion() ? "[All Versions]" : "[Current Version]", annotDetails.getVersionsLink())%></span>
                 <% } %>

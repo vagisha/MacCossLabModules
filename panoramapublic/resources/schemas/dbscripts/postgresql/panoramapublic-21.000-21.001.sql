@@ -58,7 +58,9 @@ ALTER TABLE panoramapublic.JournalExperiment DROP COLUMN CopiedExperimentId, DRO
 
 -- Add a 'DataVersion' column to ExperimentAnnotations and set the value to 1 for each experiment that was copied to Panorama Public
 ALTER TABLE panoramapublic.ExperimentAnnotations ADD COLUMN DataVersion INT;
-UPDATE panoramapublic.ExperimentAnnotations set DataVersion = 1 WHERE JournalCopy = TRUE;
+UPDATE panoramapublic.ExperimentAnnotations set DataVersion = 1 WHERE SourceExperimentId IS NOT NULL;
+-- Remove the 'JournalCopy' column since we can use the 'SourceExperimentId' column to determine if an experiment is a journal copy
+ALTER TABLE panoramapublic.ExperimentAnnotations DROP COLUMN JournalCopy;
 
 -- Add a column to save the userid of the assigned reviewer
 ALTER TABLE panoramapublic.JournalExperiment ADD COLUMN Reviewer USERID;

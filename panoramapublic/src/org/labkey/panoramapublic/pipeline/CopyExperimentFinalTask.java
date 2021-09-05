@@ -374,7 +374,6 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         ExperimentAnnotations targetExperiment = createExperimentCopy(sourceExperiment);
         targetExperiment.setExperimentId(experiment.getRowId());
         targetExperiment.setContainer(experiment.getContainer());
-        targetExperiment.setJournalCopy(true);
         targetExperiment.setSourceExperimentId(sourceExperiment.getId());
         targetExperiment.setSourceExperimentPath(sourceExperiment.getContainer().getPath());
         targetExperiment.setShortUrl(js.getShortAccessUrl());

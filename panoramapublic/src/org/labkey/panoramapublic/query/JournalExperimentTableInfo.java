@@ -20,6 +20,7 @@ import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
+import org.labkey.api.query.UserIdForeignKey;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.view.publish.ShortUrlDisplayColumnFactory;
@@ -50,6 +51,7 @@ public class JournalExperimentTableInfo extends FilteredTable<PanoramaPublicSche
         {
             copyUrlCol.setDisplayColumnFactory(new ShortUrlDisplayColumnFactory());
         }
+        UserIdForeignKey.initColumn(getMutableColumn(FieldKey.fromParts("Reviewer")));
 
         List<FieldKey> columns = new ArrayList<>();
         columns.add(FieldKey.fromParts("Id"));
@@ -57,7 +59,6 @@ public class JournalExperimentTableInfo extends FilteredTable<PanoramaPublicSche
         columns.add(FieldKey.fromParts("Created"));
         columns.add(FieldKey.fromParts("JournalId"));
         columns.add(FieldKey.fromParts("ShortAccessURL"));
-        columns.add(FieldKey.fromParts("Reviewer"));
         setDefaultVisibleColumns(columns);
     }
 

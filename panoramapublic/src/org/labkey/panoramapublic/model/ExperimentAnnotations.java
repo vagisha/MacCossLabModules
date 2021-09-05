@@ -64,10 +64,9 @@ public class ExperimentAnnotations
     private boolean _includeSubfolders;
     private ExpExperiment _experiment;
 
-    private boolean _journalCopy; // true if this experiment was copied by a journal (e.g. "Panorama Public" on panoramaweb.org)
-    // The following fields (_sourceExperimentId, _sourceExperimentPath, _shortUrl, _dataVersion) will be populated only if _journalCopy is true.
+    // The following fields (_sourceExperimentId, _sourceExperimentPath, _shortUrl, _dataVersion) will be populated only if this is a journal copy
     private Integer _sourceExperimentId;
-    private String _sourceExperimentPath; // Store this in case the original source experiment and/or container is deleted by user.
+    private String _sourceExperimentPath; // Store this in case the original source experiment and/or container is deleted
     private ShortURLRecord _shortUrl;
     private Integer _dataVersion;
 
@@ -317,12 +316,7 @@ public class ExperimentAnnotations
 
     public boolean isJournalCopy()
     {
-        return _journalCopy;
-    }
-
-    public void setJournalCopy(boolean journalCopy)
-    {
-        _journalCopy = journalCopy;
+        return _sourceExperimentId != null ;
     }
 
     public boolean isIncludeSubfolders()

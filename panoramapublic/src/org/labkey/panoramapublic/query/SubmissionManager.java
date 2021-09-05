@@ -337,7 +337,7 @@ public class SubmissionManager
                     catch (ValidationException e)
                     {
                         // ValidationException can be thrown by ShortURLService.saveShortURL() if the URL is invalid (contains slashes, etc)
-                        // We are updating an existing short URL so it should be valid and we don't expect to see this exception. Log an error to the server log if it happens.
+                        // We are updating an existing short URL that must be valid so we don't expect to see this exception. Log an error to the server log if it happens.
                         LOG.error("There was an error updating the target of the short access URL: " + js.getShortAccessUrl().getShortURL()
                                 + "to: '" + sourceExperiment.getContainer().getPath() + "'", e);
                     }
