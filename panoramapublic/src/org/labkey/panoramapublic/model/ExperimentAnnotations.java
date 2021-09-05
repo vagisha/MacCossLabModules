@@ -512,7 +512,7 @@ public class ExperimentAnnotations
     }
 
     /**
-     * Returns true is the experiment is in an 'Experimental Data' folder that is public and the experiment is
+     * Returns true if the experiment is in an 'Experimental Data' folder that is public and the experiment is
      * associated with a published paper.
      */
     public boolean isFinal()

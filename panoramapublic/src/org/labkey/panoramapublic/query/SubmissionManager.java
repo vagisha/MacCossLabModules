@@ -29,15 +29,14 @@ import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.DataLicense;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.Journal;
 import org.labkey.panoramapublic.model.JournalExperiment;
+import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.Submission;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class SubmissionManager
 {
@@ -48,6 +47,10 @@ public class SubmissionManager
         return new TableSelector(PanoramaPublicManager.getTableInfoSubmission(), null, null).getObject(id, Submission.class);
     }
 
+    /**
+     * @param copiedExperimentId Id of an experiment copied to a journal project
+     * @return the Submission associated with the given copiedExperimentId
+     */
     public static Submission getSubmissionForCopiedExperiment(int copiedExperimentId)
     {
         SimpleFilter filter = new SimpleFilter();
@@ -244,12 +247,12 @@ public class SubmissionManager
      * Sets new short access and short copy URLs for the submission request. Deletes the old short URLs.
      * @throws ValidationException if one of the URLs is invalid (contains slashes, etc.)
      */
-    public static void updateShortUrls(ExperimentAnnotations expAnnotations, Journal journal, JournalSubmission js,
+    public static void updateShortUrls(ExperimentAnnotations expAnnotations, Journal journal, JournalExperiment je,
                                                    String newShortAccessUrl, @Nullable String newShortCopyUrl,
                                                    User user) throws ValidationException
     {
-        ShortURLRecord oldAccessUrl = js.getShortAccessUrl();
-        ShortURLRecord oldCopyUrl = js.getShortCopyUrl();
+        ShortURLRecord oldAccessUrl = je.getShortAccessUrl();
+        ShortURLRecord oldCopyUrl = je.getShortCopyUrl();
 
         ShortURLService shortURLService = ShortURLService.get();
         try(DbScope.Transaction transaction = CoreSchema.getInstance().getSchema().getScope().ensureTransaction())
@@ -259,7 +262,7 @@ public class SubmissionManager
                 // Save the new short access URL
                 ActionURL fullAccessUrl = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(expAnnotations.getContainer());
                 ShortURLRecord accessUrlRecord = JournalManager.saveShortURL(fullAccessUrl, newShortAccessUrl, journal, user);
-                js.getJournalExperiment().setShortAccessUrl(accessUrlRecord);
+                je.setShortAccessUrl(accessUrlRecord);
 
                 // Delete the old one
                 shortURLService.deleteShortURL(oldAccessUrl, user);
@@ -270,13 +273,13 @@ public class SubmissionManager
                 // Save the new short copy URL.
                 ActionURL fullCopyUrl = PanoramaPublicController.getCopyExperimentURL(expAnnotations.getId(), journal.getId(), expAnnotations.getContainer());
                 ShortURLRecord copyUrlRecord = JournalManager.saveShortURL(fullCopyUrl, newShortCopyUrl, null, user);
-                js.getJournalExperiment().setShortCopyUrl(copyUrlRecord);
+                je.setShortCopyUrl(copyUrlRecord);
 
                 // Delete the old one
                 shortURLService.deleteShortURL(oldCopyUrl, user);
             }
 
-            updateJournalExperiment(js.getJournalExperiment(), user);
+            updateJournalExperiment(je, user);
 
             transaction.commit();
         }

@@ -6,19 +6,14 @@ import org.labkey.api.view.ShortURLRecord;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
 
-import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class JournalSubmission
 {
     private final JournalExperiment _journalExperiment;
     private List<Submission> _submissions;
-    private List<Submission> _obsoleteSubmissions; // Submissions that are no longer associated with an experiment copy
-                                                   // in the journal project because the journal copy was deleted.
-                                                   // The rows are kept in the Submission table as a log of all submissions.
     private int _currentVersion;
 
     public JournalSubmission(@NotNull JournalExperiment journalExperiment)
@@ -86,18 +81,14 @@ public class JournalSubmission
         return _journalExperiment.getReviewer();
     }
 
-    public @NotNull List<Submission> getAllSubmissions()
-    {
-        return Stream.of(_submissions, _obsoleteSubmissions).flatMap(Collection::stream).collect(Collectors.toUnmodifiableList());
-    }
-
     private List<Submission> submissions()
     {
         if (_submissions == null)
         {
             List<Submission> allSubmissions = SubmissionManager.getSubmissionsNewestFirst(getJournalExperimentId());
+            // Keep the non-obsolete submissions only. Obsolete submissions are the ones that are no longer associated
+            // with an experiment copy in the journal project because the journal copy was deleted.
             _submissions = allSubmissions.stream().filter(s -> !s.isObsolete()).collect(Collectors.toList());
-            _obsoleteSubmissions = allSubmissions.stream().filter(Submission::isObsolete).collect(Collectors.toList());
 
             Integer maxDataVersion = ExperimentAnnotationsManager.getMaxVersionForExperiment(getExperimentAnnotationsId());
             _currentVersion = maxDataVersion == null ? 0 : maxDataVersion;
@@ -117,7 +108,8 @@ public class JournalSubmission
 
     public @Nullable Submission getPendingSubmission()
     {
-        return submissions().stream().filter(Submission::isPending).findFirst().orElse(null);
+        Submission submission = getLatestSubmission();
+        return submission != null && submission.isPending() ? submission : null;
     }
 
     public boolean hasPendingSubmission()

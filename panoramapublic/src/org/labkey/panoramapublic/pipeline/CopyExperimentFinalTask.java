@@ -790,6 +790,11 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
 
         log.info("Setting the short access URL on the previous copy to " + newShortUrl.getShortURL());
         previousCopy.setShortUrl(newShortUrl);
+        if (previousCopy.getDoi() != null)
+        {
+            log.info("Removing DOI from the previous copy");
+            previousCopy.setDoi(null);
+        }
 
         ExperimentAnnotationsManager.save(previousCopy, user);
     }
