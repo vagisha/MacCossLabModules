@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Category({External.class, MacCossLabModules.class})
-@BaseWebDriverTest.ClassTimeout(minutes = 7)
+@BaseWebDriverTest.ClassTimeout(minutes = 5)
 public class PanoramaPublicChromLibTest extends PanoramaPublicBaseTest
 {
 

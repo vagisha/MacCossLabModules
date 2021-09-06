@@ -72,11 +72,11 @@
     ShortURLRecord accessUrlRecord = annot.getShortUrl(); // Will have a value if this is a journal copy of an experiment.
     JournalSubmission js = me.getModelBean().getLastPublishedRecord(); // Will be non-null if this experiment is in a user (not journal) project.
     String publishButtonText = "Submit";
-    if(js != null)
+    if (js != null)
     {
         journal = JournalManager.getJournal(js.getJournalId());
         Submission submission = js.getLatestSubmission();
-        if(submission != null)
+        if (submission != null)
         {
             journalCopyPending = !submission.hasCopy();
             accessUrlRecord = js.getShortAccessUrl();

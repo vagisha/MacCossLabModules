@@ -1091,15 +1091,15 @@ public class PanoramaPublicController extends SpringActionController
 
             Submission submission = _journalSubmission.getPendingSubmission();
             // Validate the data if a ProteomeXchange ID was requested.
-            if(submission.isPxidRequested())
+            if (submission.isPxidRequested())
             {
                 SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(_experiment);
-                if(submission.isIncompletePxSubmission() && !status.canSubmitToPx())
+                if (submission.isIncompletePxSubmission() && !status.canSubmitToPx())
                 {
                     errors.reject(ERROR_MSG, "A ProteomeXchange ID was requested for an \"incomplete\" submission.  But the data is not valid for a ProteomeXchange submission");
                     return false;
                 }
-                if(!submission.isIncompletePxSubmission() && !status.isComplete())
+                if (!submission.isIncompletePxSubmission() && !status.isComplete())
                 {
                     errors.reject(ERROR_MSG, "Data is not valid for a \"complete\" ProteomeXchange submission.");
                     return false;
@@ -1287,7 +1287,7 @@ public class PanoramaPublicController extends SpringActionController
         static void setDefaults(CopyExperimentForm form, ExperimentAnnotations sourceExperiment, JournalSubmission js)
         {
             Submission currentSubmission = js.getPendingSubmission();
-            if(currentSubmission.isKeepPrivate())
+            if (currentSubmission.isKeepPrivate())
             {
                 form.setReviewerEmailPrefix(PANORAMA_REVIEWER_PREFIX);
             }
@@ -3334,7 +3334,7 @@ public class PanoramaPublicController extends SpringActionController
 
             JournalSubmission js = expAnnot.isJournalCopy() ? SubmissionManager.getSubmissionForJournalCopy(expAnnot)
                     : SubmissionManager.getNewestJournalSubmission(expAnnot);
-            if(js == null)
+            if (js == null)
             {
                 out.write("Cannot find the submission request for " + (expAnnot.isJournalCopy() ? "copied " : "") + "experiment ID " + experimentId);
             }
@@ -3657,7 +3657,7 @@ public class PanoramaPublicController extends SpringActionController
                 return;
             }
 
-            if(actionAllowedInLatestCopy())
+            if (actionAllowedInLatestCopy())
             {
                 JournalSubmission js = SubmissionManager.getSubmissionForJournalCopy(_expAnnot);
                 if (js == null)
@@ -4289,7 +4289,7 @@ public class PanoramaPublicController extends SpringActionController
 
             // If this experiment has been submitted show the submission requests
             List<JournalSubmission> jsList = SubmissionManager.getAllJournalSubmissions(exptAnnotations);
-            if(jsList.size() > 0)
+            if (jsList.size() > 0)
             {
                 QuerySettings qSettings = new QuerySettings(getViewContext(), "Submission", "Submission");
                 qSettings.setBaseFilter(new SimpleFilter(new SimpleFilter.InClause(FieldKey.fromParts("JournalExperimentId"),
@@ -4490,7 +4490,7 @@ public class PanoramaPublicController extends SpringActionController
 
             List<FieldKey> columns = new ArrayList<>();
             columns.addAll(List.of(FieldKey.fromParts("Version"), FieldKey.fromParts("Created"), FieldKey.fromParts("Link"), FieldKey.fromParts("Share")));
-            if(publishedVersions.stream().anyMatch(ExperimentAnnotations::isPublished))
+            if (publishedVersions.stream().anyMatch(ExperimentAnnotations::isPublished))
             {
                 columns.add(FieldKey.fromParts("Citation"));
             }
@@ -4638,7 +4638,7 @@ public class PanoramaPublicController extends SpringActionController
             // User is updating the experiment metadata. If this data has already been submitted, and a PX ID was requested,
             // check that the new details entered are consistent with PX requirements.
             JournalSubmission je = SubmissionManager.getNewestJournalSubmission(exptAnnotations);
-            if(je != null && je.getLatestSubmission().isPxidRequested())
+            if (je != null && je.getLatestSubmission().isPxidRequested())
             {
                 List<String> missingFields = SubmissionDataValidator.getMissingExperimentMetadataFields(form.getBean());
                 if(missingFields.size() > 0)

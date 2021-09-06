@@ -277,7 +277,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
     private void updateDataPathsAndRawDataTab(ExperimentAnnotations targetExperiment, User user, Logger log) throws BatchValidationException, PipelineJobException
     {
         FileContentService service = FileContentService.get();
-        if(service != null)
+        if (service != null)
         {
             // If there is a "Raw Data" tab in the folder and/or one of its subfolders, fix the configuration of the
             // Files webpart in the tab.
@@ -289,7 +289,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             // DataFileUrl in exp.data and FilePathRoot in exp.experimentRun point to locations in the 'export' directory.
             // We are now copying all files from the source container to the target container file root. Update the paths
             // to point to locations in the target container file root, and delete the 'export' directory
-            if(!updateDataPaths(targetExperiment.getContainer(), service, user, log))
+            if (!updateDataPaths(targetExperiment.getContainer(), service, user, log))
             {
                 throw new PipelineJobException("Unable to update all data file paths.");
             }
@@ -761,7 +761,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
 
     private void updateLastCopiedExperiment(ExperimentAnnotations previousCopy, JournalSubmission js, Journal journal, User user, Logger log) throws PipelineJobException
     {
-        if(previousCopy.getDataVersion() == null)
+        if (previousCopy.getDataVersion() == null)
         {
             throw new PipelineJobException("Version is not set on the last copied experiment; Id: " + previousCopy.getId());
         }

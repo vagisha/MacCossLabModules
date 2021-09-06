@@ -92,7 +92,7 @@ public class JournalManager
 
     public static List<Journal> getJournalsForExperiment(int expAnnotationsId)
     {
-        SQLFragment sql = new SQLFragment("SELECT DISTINCT (j.*) FROM ");
+        SQLFragment sql = new SQLFragment("SELECT DISTINCT j.* FROM ");
         sql.append(PanoramaPublicManager.getTableInfoJournal(), "j");
         sql.append(" , ");
         sql.append(PanoramaPublicManager.getTableInfoJournalExperiment(), "je");
@@ -128,7 +128,7 @@ public class JournalManager
         {
             return false;
         }
-        if(SubmissionManager.getAllJournalSubmissions(experimentAnnotations).size() == 0)
+        if (SubmissionManager.getJournalSubmission(experimentAnnotations.getId(), journal.getId()) == null)
         {
             return false;
         }
@@ -218,17 +218,13 @@ public class JournalManager
         if(!hasFolderAdmin)
         {
             // If no folder admin role was found (as can be the case for folders with permissions inherited from a parent folder)
-            // assign folder admin role to the prnewPolicy = {MutableSecurityPolicy@88355} oject administrator(s)
+            // assign folder admin role to the project administrator(s)
             Role projectAdminRole = RoleManager.getRole(ProjectAdminRole.class);
             for(RoleAssignment role: roles)
             {
                 if(role.getRole().equals(projectAdminRole))
                 {
-                    User user = UserManager.getUser(role.getUserId());
-                    if(user != null)
-                    {
-                        newPolicy.addRoleAssignment(user, FolderAdminRole.class);
-                    }
+                    newPolicy.addRoleAssignment(UserManager.getUser(role.getUserId()), FolderAdminRole.class);
                 }
             }
         }
@@ -304,7 +300,7 @@ public class JournalManager
 
     static void tryDeleteShortUrl(ShortURLRecord shortUrl, User user)
     {
-        if(shortUrl == null)
+        if (shortUrl == null)
         {
             return;
         }

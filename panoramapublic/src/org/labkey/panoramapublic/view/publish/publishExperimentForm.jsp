@@ -79,7 +79,7 @@
     boolean getLabHeadUserInfo = form.isGetPxid() && expAnnotations.getLabHeadUser() == null;
 
     JournalSubmission js = SubmissionManager.getJournalSubmission(expAnnotations.getId(), journalId);
-    boolean allowEditAccessUrl = js == null ? true : js.getCopiedSubmissions().size() == 0;
+    boolean canEditAccessUrl = js == null ? true : js.getCopiedSubmissions().size() == 0;
 %>
 
 <div id="publishExperimentForm"></div>
@@ -223,7 +223,7 @@
                     },
                 <%}%>
                 // If the user is resubmitting the experiment we will not change the short access url
-                <%if(!allowEditAccessUrl) { %>
+                <%if (!canEditAccessUrl) { %>
                 {
                     xtype: 'displayfield',
                     fieldLabel: "Short Access URL",

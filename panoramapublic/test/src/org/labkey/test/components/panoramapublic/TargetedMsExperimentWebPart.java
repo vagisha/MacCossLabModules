@@ -45,9 +45,9 @@ public class TargetedMsExperimentWebPart extends BodyWebPart <TargetedMsExperime
 
     public void clickResubmit()
     {
-         WebElement resubmitLink = elementCache().resubmitLink; // Locator.linkContainingText("Resubmit");
-         assertNotNull("Expected to see a \"Resubmit\" button", resubmitLink);
-         getWrapper().clickAndWait(resubmitLink);
+        WebElement resubmitLink = elementCache().resubmitLink; // Locator.linkContainingText("Resubmit");
+        assertNotNull("Expected to see a \"Resubmit\" button", resubmitLink);
+        getWrapper().clickAndWait(resubmitLink);
     }
 
     public void clickMoreDetails()

@@ -326,7 +326,7 @@ public class PxXmlWriter extends PxWriter
         String labHeadName = labHead != null ? labHead.getFullName() : null;
         String labHeadEmail = labHead != null ? labHead.getEmail() : null;
         // Check if there is a form override
-        if(submission.hasLabHeadDetails())
+        if (submission.hasLabHeadDetails())
         {
             labHeadName = submission.getLabHeadName();
             labHeadEmail = submission.getLabHeadEmail();

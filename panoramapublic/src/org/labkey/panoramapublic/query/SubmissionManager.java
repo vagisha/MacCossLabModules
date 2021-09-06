@@ -94,11 +94,11 @@ public class SubmissionManager
             List<Submission> allSubmissions = getSubmissionsNewestFirst(submission.getJournalExperimentId());
             allSubmissions.removeIf(Submission::isObsolete);
 
-            if(allSubmissions.size() == 0)
+            if (allSubmissions.size() == 0)
             {
                 // Delete the JournalExperiment if there are no submissions left after removing any obsolete ones
                 JournalExperiment je = getJournalExperiment(submission.getJournalExperimentId());
-                if(je != null)
+                if (je != null)
                 {
                     deleteSubmissionsForJournalExperiment(je.getId());
                     deleteJournalExperiment(je, user);
@@ -185,7 +185,7 @@ public class SubmissionManager
     public static @Nullable JournalSubmission getSubmissionForJournalCopy(@NotNull ExperimentAnnotations journalCopy)
     {
         Submission submission = getSubmissionForCopiedExperiment(journalCopy.getId());
-        if(submission != null)
+        if (submission != null)
         {
             JournalExperiment je = new TableSelector(PanoramaPublicManager.getTableInfoJournalExperiment()).getObject(submission.getJournalExperimentId(), JournalExperiment.class);
             return getJournalSubmission(je);
@@ -228,7 +228,7 @@ public class SubmissionManager
     {
         ActionURL targetUrl = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(targetExperiment.getContainer());
 
-        if(shortAccessUrlRecord != null)
+        if (shortAccessUrlRecord != null)
         {
             // If the user is not the one that created this shortUrl then we need to add this user as an editor to the record's SecurityPolicy.
             MutableSecurityPolicy policy = new MutableSecurityPolicy(SecurityPolicyManager.getPolicy(shortAccessUrlRecord));
@@ -255,7 +255,7 @@ public class SubmissionManager
         ShortURLRecord oldCopyUrl = je.getShortCopyUrl();
 
         ShortURLService shortURLService = ShortURLService.get();
-        try(DbScope.Transaction transaction = CoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+        try (DbScope.Transaction transaction = CoreSchema.getInstance().getSchema().getScope().ensureTransaction())
         {
             if (!newShortAccessUrl.equals(oldAccessUrl.getShortURL()))
             {
@@ -321,7 +321,7 @@ public class SubmissionManager
                 // This is the only row in the Submission table copied to Panorama Public.  The Panorama Public admin must have a really good reason
                 // for deleting this experiment.
                 ExperimentAnnotations sourceExperiment = ExperimentAnnotationsManager.get(js.getExperimentAnnotationsId());
-                if(sourceExperiment != null)
+                if (sourceExperiment != null)
                 {
                     // The source experiment still exists so we will have to reset everything to make it look like the the experiment was submitted but not copied.
                     submission.setCopiedExperimentId(null);
@@ -369,12 +369,12 @@ public class SubmissionManager
     public static void beforeSubmittedExperimentDeleted(@NotNull ExperimentAnnotations expAnnotations, @NotNull Journal journal, @NotNull User user)
     {
         JournalSubmission js = getJournalSubmission(expAnnotations.getId(), journal.getId());
-        if(js != null)
+        if (js != null)
         {
-            if(js.getCopiedSubmissions().size() == 0)
+            if (js.getCopiedSubmissions().size() == 0)
             {
                 // Experiment was submitted but not yet copied so we can delete the rows in the Submission and JournalExperiment tables.
-                try(DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
+                try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
                 {
                     deleteSubmissionsForJournalExperiment(js.getJournalExperimentId());
                     deleteJournalExperiment(js.getJournalExperiment(), user);

@@ -161,7 +161,7 @@ public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
                 {
                     Integer id = ctx.get(colInfo.getFieldKey(), Integer.class);
                     Submission s = SubmissionManager.getSubmission(id);
-                    if(s != null && s.isPending())
+                    if (s != null && s.isPending())
                     {
                         // Show the delete link only if the experiment has not yet been copied
                         _url.replaceParameter("id", id);
@@ -191,10 +191,10 @@ public class SubmissionTableInfo extends FilteredTable<PanoramaPublicSchema>
                 {
                     Integer id = ctx.get(colInfo.getFieldKey(), Integer.class);
                     Submission s = SubmissionManager.getSubmission(id);
-                    if(s != null)
+                    if (s != null)
                     {
                         JournalSubmission js = SubmissionManager.getJournalSubmission(s.getJournalExperimentId());
-                        if(js != null && js.isLatestSubmission(s.getId()))
+                        if (js != null && js.isLatestSubmission(s.getId()))
                         {
                             // Show the "Resubmit" or "Edit" links only if this is the most recent submission request for the experiment.
                             if (s.hasCopy())

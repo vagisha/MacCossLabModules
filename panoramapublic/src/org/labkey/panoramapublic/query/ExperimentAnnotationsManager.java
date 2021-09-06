@@ -250,19 +250,20 @@ public class ExperimentAnnotationsManager
 
     private static void deleteExperiment(ExperimentAnnotations expAnnotations, User user)
     {
-        if (expAnnotations.isJournalCopy())
+        if (!expAnnotations.isJournalCopy())
         {
-            // This experiment is a journal copy (i.e. in the Panorama Public project on PanoramaWeb)
-            SubmissionManager.beforeCopiedExperimentDeleted(expAnnotations, user);
-        }
-        else
-        {
+            // If any journal were given access to this experiment, remove the access and delete entries from the JournalExperiment table.
             List<Journal> journals = JournalManager.getJournalsForExperiment(expAnnotations.getId());
             for (Journal journal: journals)
             {
                 SubmissionManager.beforeSubmittedExperimentDeleted(expAnnotations, journal, user);
                 JournalManager.removeJournalPermissions(expAnnotations, journal, user);
             }
+        }
+        else
+        {
+            // This experiment is a journal copy (i.e. in the Panorama Public project on PanoramaWeb)
+            SubmissionManager.beforeCopiedExperimentDeleted(expAnnotations, user);
         }
 
         Table.delete(PanoramaPublicManager.getTableInfoExperimentAnnotations(), expAnnotations.getId());
@@ -418,7 +419,7 @@ public class ExperimentAnnotationsManager
             return false;
         }
 
-        if(journalSubmission != null)
+        if (journalSubmission != null)
         {
             if (journalSubmission.hasPendingSubmission())
             {

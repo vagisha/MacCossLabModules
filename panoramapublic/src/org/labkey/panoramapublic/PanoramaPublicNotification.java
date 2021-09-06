@@ -96,7 +96,7 @@ public class PanoramaPublicNotification
         }
         else
         {
-            if(isRecopy && submission.isKeepPrivate())
+            if (isRecopy && submission.isKeepPrivate())
             {
                 messageBody.append(NL2).append(bolditalics("Reviewer account is the same as the previous copy of this data."));
             }
@@ -188,7 +188,7 @@ public class PanoramaPublicNotification
         text.append(NL).append("* Experiment ID: ").append(exptAnnotations.getId());
         text.append(NL).append("* Reviewer Account Requested: ").append(bold(submission.isKeepPrivate() ? "Yes" : "No"));
         text.append(NL).append("* PX ID Requested: ").append(bold(submission.isPxidRequested() ? "Yes" : "No"));
-        if(submission.isIncompletePxSubmission())
+        if (submission.isIncompletePxSubmission())
         {
             text.append(" (Incomplete Submission)");
         }
@@ -317,7 +317,7 @@ public class PanoramaPublicNotification
         }
         else
         {
-            if(submission.isKeepPrivate() && recopy)
+            if (submission.isKeepPrivate() && recopy)
             {
                 emailMsg.append(NL2).append("As requested, your data on ").append(journalName).append(" is private.  The reviewer account details remain unchanged.");
             }
@@ -334,7 +334,7 @@ public class PanoramaPublicNotification
                     .append(NL).append(targetExperiment.getPxid())
                     .append(" (http://proteomecentral.proteomexchange.org/cgi/GetDataset?ID=").append(targetExperiment.getPxid()).append(")");
 
-            if(submission.isIncompletePxSubmission())
+            if (submission.isIncompletePxSubmission())
             {
                 emailMsg.append(NL).append("The data will be submitted as \"supported by repository but incomplete data and/or metadata\" when it is made public on ProteomeXchange.");
             }
@@ -347,7 +347,7 @@ public class PanoramaPublicNotification
                 .append(StringUtils.isBlank(targetExperiment.getPxid()) ? "" : " and the ProteomeXchange ID ")
                 .append(" in your manuscript. ");
 
-        if(submission.isKeepPrivate())
+        if (submission.isKeepPrivate())
         {
             emailMsg.append(NL2)
                     .append("Please respond to this email when you are ready to make your data public.");
