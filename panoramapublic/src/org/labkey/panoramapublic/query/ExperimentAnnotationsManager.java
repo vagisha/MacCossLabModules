@@ -463,7 +463,11 @@ public class ExperimentAnnotationsManager
         return new SqlSelector(targetedmsSchema.getDbSchema(), sql).exists();
     }
 
-    public static String getExperimentShortUrl(ExperimentAnnotations expAnnotations)
+    /**
+     * @return the short URL associated with an experiment rendered as a string. If the experiment is not a journal
+     * copy, the short URL associated with the latest journal copy of this experiment is returned.
+     */
+    public static @Nullable String getExperimentShortUrl(ExperimentAnnotations expAnnotations)
     {
         if(expAnnotations.isJournalCopy())
         {
@@ -481,7 +485,6 @@ public class ExperimentAnnotationsManager
     }
 
     /**
-     * @param journalSubmission
      * @return the latest ExperimentAnnotations copied to the journal project for the given submission request.
      */
     public static @Nullable ExperimentAnnotations getLatestCopyForSubmission(JournalSubmission journalSubmission)
@@ -495,7 +498,6 @@ public class ExperimentAnnotationsManager
     }
 
     /**
-     * @param experimentAnnotationsId
      * @return the maximum value of DataVersion associated with ExperimentAnnotation copies of the
      * given source experimentAnnotationsId, or null if there are no copies of the experiment.
      */
@@ -507,9 +509,12 @@ public class ExperimentAnnotationsManager
         return new SqlSelector(PanoramaPublicManager.getSchema(), sql).getObject(Integer.class);
     }
 
-    public static List<ExperimentAnnotations> getPublishedVersionsOfExperiment(int experimentAnnotationsId)
+    /**
+     * @return a list of ExperimentAnnotation copies for the given sourceExperimentId.
+     */
+    public static List<ExperimentAnnotations> getPublishedVersionsOfExperiment(int sourceExperimentId)
     {
-        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("SourceExperimentId"), experimentAnnotationsId);
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("SourceExperimentId"), sourceExperimentId);
         Sort sort = new Sort();
         sort.appendSortColumn(FieldKey.fromParts("Created"), Sort.SortDirection.DESC, true);
         return new TableSelector(PanoramaPublicManager.getTableInfoExperimentAnnotations(), filter, sort).getArrayList(ExperimentAnnotations.class);

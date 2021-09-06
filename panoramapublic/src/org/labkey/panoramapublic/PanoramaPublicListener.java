@@ -105,6 +105,7 @@ public class PanoramaPublicListener implements ExperimentListener, ContainerMana
                     + "\" in the folder \"" + expAnnotations.getContainer().getPath() + "\"");
         }
 
+        // Check if the short URL is associated with a JournalExperiment, either as the shortAccessUrl or the shortCopyUrl.
         List<JournalExperiment> journalExperiments = SubmissionManager.getJournalExperimentsWithShortUrl(shortUrl);
         if (journalExperiments.size() > 0)
         {

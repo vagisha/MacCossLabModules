@@ -1237,10 +1237,8 @@ public class PanoramaPublicController extends SpringActionController
                         transaction.commit();
                     }
                 }
-                return true;
             }
-            errors.reject(ERROR_MSG, "Previous experiment copy (Id: " + previousCopy.getId() + ") does not exist. Cannot rename previous folder.");
-            return false;
+            return true;
         }
 
         private ValidEmail getValidEmail(String email, String errMsg, BindException errors)

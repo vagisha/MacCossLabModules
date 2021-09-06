@@ -377,7 +377,8 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         targetExperiment.setSourceExperimentId(sourceExperiment.getId());
         targetExperiment.setSourceExperimentPath(sourceExperiment.getContainer().getPath());
         targetExperiment.setShortUrl(js.getShortAccessUrl());
-        int version = js.getNextVersion();
+        Integer currentVersion = ExperimentAnnotationsManager.getMaxVersionForExperiment(sourceExperiment.getId());
+        int version =  currentVersion == null ? 1 : currentVersion + 1;
         log.info("Setting version on new experiment to " + version);
         targetExperiment.setDataVersion(version);
 
