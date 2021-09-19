@@ -105,6 +105,11 @@ public class SubmissionDataValidator
 
     public static List<String> getMissingExperimentMetadataFields(ExperimentAnnotations expAnnot)
     {
+        return getMissingExperimentMetadataFields(expAnnot, true);
+    }
+
+    public static List<String> getMissingExperimentMetadataFields(ExperimentAnnotations expAnnot, boolean validateForPx)
+    {
         List<String> errors = new ArrayList<>();
         if(StringUtils.isBlank(expAnnot.getTitle()))
         {
@@ -117,7 +122,7 @@ public class SubmissionDataValidator
 
         if (StringUtils.isBlank(expAnnot.getOrganism()))
         {
-            errors.add("Organism is required.");
+            if (validateForPx) errors.add("Organism is required.");
         }
         else
         {
@@ -126,7 +131,7 @@ public class SubmissionDataValidator
 
         if(StringUtils.isBlank(expAnnot.getInstrument()))
         {
-            errors.add("Instrument is required.");
+            if (validateForPx) errors.add("Instrument is required.");
         }
         else
         {
@@ -141,11 +146,11 @@ public class SubmissionDataValidator
         {
             errors.add("Submitter is required.");
         }
-        if(expAnnot.getSubmitterAffiliation() == null)
+        if (expAnnot.getSubmitterAffiliation() == null && validateForPx)
         {
             errors.add("Submitter affiliation is required.");
         }
-        if(expAnnot.getLabHead() != null && StringUtils.isBlank(expAnnot.getLabHeadAffiliation()))
+        if (expAnnot.getLabHead() != null && StringUtils.isBlank(expAnnot.getLabHeadAffiliation()) && validateForPx)
         {
             errors.add("Lab Head affiliation is required.");
         }

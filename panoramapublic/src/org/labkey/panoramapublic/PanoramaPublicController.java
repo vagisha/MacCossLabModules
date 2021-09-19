@@ -1528,6 +1528,363 @@ public class PanoramaPublicController extends SpringActionController
     // END Action for copying an experiment.
     // ------------------------------------------------------------------------
 
+    @RequiresPermission(AdminPermission.class)
+    public static class SubmitExperimentAction extends SimpleViewAction<SubmitExperimentForm>
+    {
+        ExperimentAnnotations _experimentAnnotations;
+
+        private boolean validateExperiment(SubmitExperimentForm form, BindException errors)
+        {
+            _experimentAnnotations = form.lookupExperiment();
+            if (_experimentAnnotations == null)
+            {
+                errors.reject(ERROR_MSG, "No experiment found for Id " + form.getId());
+                return false;
+            }
+
+            ensureCorrectContainer(getContainer(), _experimentAnnotations.getContainer(), getViewContext());
+
+            return true;
+        }
+
+        @Override
+        public ModelAndView getView(SubmitExperimentForm form, BindException errors)
+        {
+            if(!validateExperiment(form, errors))
+            {
+                return new SimpleErrorView(errors);
+            }
+
+            if(form.doSubfolderCheck())
+            {
+                List<Container> allSubfolders = getAllSubfolders(_experimentAnnotations.getContainer());
+                List<Container> hiddenFolders = getHiddenFolders(allSubfolders, getUser());
+                if(!_experimentAnnotations.isIncludeSubfolders() && allSubfolders.size() > 0)
+                {
+                    // Experiment is not configured to include subfolders but there are subfolders.
+                    ActionURL skipSubfolderCheckUrl = getViewContext().getActionURL().clone();
+                    skipSubfolderCheckUrl.addParameter("doSubfolderCheck", "false");
+                    if(hiddenFolders.size() == 0)
+                    {
+                        // Return a view to make the user confirm their intention to include / exclude subfolders from the experiment.
+                        return getConfirmIncludeSubfoldersView(_experimentAnnotations, allSubfolders, skipSubfolderCheckUrl);
+                    }
+                    else
+                    {
+                        // There are subfolders where the user does not have read permissions. Subfolders can only be included if the
+                        // user has read permissions in all of them. Return a view that lets them with go back to the folder home page
+                        // or continue with the submission without including subfolders.
+                        return getNoPermsInSubfoldersView(_experimentAnnotations, hiddenFolders, skipSubfolderCheckUrl);
+                    }
+                }
+                else if(_experimentAnnotations.isIncludeSubfolders() && hiddenFolders.size() > 0)
+                {
+                    // Experiment is already configured to include subfolders but there are subfolders where this user does
+                    // not have read permissions.
+                    return getExperimentIncludesHiddenFoldersView(_experimentAnnotations, hiddenFolders);
+                }
+            }
+
+            // Cannot submit if this is not a supported folder type
+            TargetedMSService.FolderType folderType = TargetedMSService.get().getFolderType(_experimentAnnotations.getContainer());
+            if (!isSupportedFolderType(folderType))
+            {
+                errors.reject(ERROR_MSG, "Targeted MS folders of type \"" + folderType + "\" cannot be submitted.");
+                return new SimpleErrorView(errors);
+            }
+
+            // Do not allow submitting a library folder with conflicts.  This check is also done on any library sub-folders
+            // if the experiment is configured to include subfolders.
+            Container libraryFolderWithConflicts = getLibraryFolderWithConflicts(getUser(), _experimentAnnotations);
+            if(libraryFolderWithConflicts != null)
+            {
+                errors.reject(ERROR_MSG, String.format("The chromatogram library folder '%s' has conflicts. Please resolve the conflicts before submitting.",
+                        libraryFolderWithConflicts.getName()));
+                return new SimpleErrorView(errors);
+            }
+
+            // Ensure that there is at least one Skyline document in submission.
+            if (!hasSkylineDocs(_experimentAnnotations))
+            {
+                errors.reject(ERROR_MSG, "There are no Skyline documents included in this experiment.  " +
+                        "Please upload one or more Skyline documents to proceed with the submission request.");
+                return new SimpleErrorView(errors);
+            }
+
+            // Require that the users selected as the submitter and lab head have first and last names in their account details
+            if(userInfoIncomplete(_experimentAnnotations, errors))
+            {
+                return getAccountInfoIncompleteView(errors);
+            }
+
+            // PX validation is not required for small molecule data since ProteomeXchange accepts only proteomic data
+            boolean validateForPx = ExperimentAnnotationsManager.hasProteomicData(_experimentAnnotations, getUser());
+            List<String> missingMetadata = SubmissionDataValidator.getMissingExperimentMetadataFields(_experimentAnnotations, validateForPx);
+            if(missingMetadata.size() > 0 && !form.isSkipPxCheck())
+            {
+                return getMissingMetadataView(_experimentAnnotations, missingMetadata, validateForPx, errors);
+            }
+
+            if(validateForPx && !form.isSkipPxCheck())
+            {
+                // Kick off a pipeline job
+                errors.reject(ERROR_MSG, "Now we will kick off a pipeline job to validate the data for a ProteomeXchange submission.");
+                return new SimpleErrorView(errors);
+            }
+            else
+            {
+                return getPublishFormView(_experimentAnnotations, errors);
+            }
+        }
+
+        private Container getLibraryFolderWithConflicts(User user, ExperimentAnnotations exptAnnotations)
+        {
+            List<Container> containers = exptAnnotations.isIncludeSubfolders() ?
+                    ContainerManager.getAllChildren(exptAnnotations.getContainer(), user)
+                    : Collections.singletonList(exptAnnotations.getContainer());
+
+            for(Container container: containers)
+            {
+                TargetedMSService.FolderType folderType = TargetedMSService.get().getFolderType(container);
+                if(isLibraryFolder(folderType) && ChromLibStateManager.getConflictCount(user, container, folderType) > 0)
+                {
+                    return container;
+                }
+            }
+            return null;
+        }
+
+        private HtmlView getConfirmIncludeSubfoldersView(ExperimentAnnotations expAnnotations, List<Container> allSubfolders, ActionURL skipSubfolderCheckUrl)
+        {
+            ActionURL includeSubfoldersUrl = new ActionURL(IncludeSubFoldersInExperimentAction.class, _experimentAnnotations.getContainer())
+                    .addParameter("id", expAnnotations.getId())
+                    .addReturnURL(skipSubfolderCheckUrl);
+            HtmlView confirmView = new HtmlView(DIV("Would you like to include data from the following subfolders in the experiment?",
+                    getSubfolderListHtml(expAnnotations.getContainer(), allSubfolders),
+                    new Button.ButtonBuilder("Include Subfolders and Continue").href(includeSubfoldersUrl).usePost().build(),
+                    HtmlString.NBSP,
+                    getSkipSubfoldersAndContinueButton(skipSubfolderCheckUrl)));
+
+            confirmView.setTitle("Confirm Include Subfolders");
+            confirmView.setFrame(WebPartView.FrameType.PORTAL);
+            return confirmView;
+        }
+
+        private HtmlView getNoPermsInSubfoldersView(ExperimentAnnotations expAnnotations, List<Container> hiddenSubfolders,  ActionURL skipSubfolderCheckUrl)
+        {
+            return new HtmlView(DIV("This folder has the following subfolders in which you do not have read permissions: ",
+                    getSubfolderListHtml(expAnnotations.getContainer(), hiddenSubfolders),
+                    "If you want to include data from subfolders in this experiment " +
+                            "please contact the folder or project administrator to give you the required permissions. " +
+                            "Otherwise, click the \"Skip Subfolders And Continue\" button below.",
+                    BR(),
+                    DIV(at(style, "margin-top:10px;"),
+                            getBackToFolderButton(expAnnotations.getContainer()),
+                            HtmlString.NBSP,
+                            getSkipSubfoldersAndContinueButton(skipSubfolderCheckUrl))));
+        }
+
+        private ModelAndView getExperimentIncludesHiddenFoldersView(ExperimentAnnotations expAnnotations, List<Container> hiddenSubfolders)
+        {
+            return new HtmlView(DIV("This experiment is configured to include subfolders but you do not have read permissions in the following folders:",
+                    getSubfolderListHtml(expAnnotations.getContainer(), hiddenSubfolders),
+                    "Read permissions are required in all subfolders to include data from subfolders in a submission request. " +
+                            "Please contact the folder or project administrator to give you the required permissions " +
+                            " or exclude subfolders from the experiment before submitting.",
+                    BR(),
+                    DIV(at(style, "margin-top:10px;"), getBackToFolderButton(expAnnotations.getContainer()),
+                            HtmlString.NBSP,
+                            getExcludeSubfoldersButton(expAnnotations).build())));
+        }
+
+        @NotNull
+        private Button getBackToFolderButton(Container container)
+        {
+            return new Button.ButtonBuilder("Back to Folder").href(PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(container)).build();
+        }
+
+        @NotNull
+        private Button getSkipSubfoldersAndContinueButton(ActionURL skipSubfolderCheckUrl)
+        {
+            return new Button.ButtonBuilder("Skip Subfolders and Continue").href(skipSubfolderCheckUrl).build();
+        }
+
+        private HtmlView getAccountInfoIncompleteView(BindException errors)
+        {
+            return new HtmlView("Incomplete Account Information",
+                    DIV(ERRORS(errors),
+                            DIV(at(style, "margin-top:10px; margin-bottom:10px;"),
+                                    "Users can update their account information by clicking the user icon (",
+                                    SPAN(at(style, "padding:5px;"), LK.FA("user")),
+                                    ") in the top right corner of the page and selecting \"My Account\" from the menu."),
+                            BR(),
+                            PageFlowUtil.generateBackButton()));
+        }
+
+        private boolean userInfoIncomplete(ExperimentAnnotations experimentAnnotations, BindException errors)
+        {
+            checkAccountInfo(experimentAnnotations.getSubmitterUser(), "data submitter", errors);
+            checkAccountInfo(experimentAnnotations.getLabHeadUser(), "lab head", errors);
+            return errors.getErrorCount() > 0;
+        }
+
+        private void checkAccountInfo(User user, String userType, BindException errors)
+        {
+            if(user != null)
+            {
+                boolean noFirst = StringUtils.isBlank(user.getFirstName());
+                boolean noLast = StringUtils.isBlank(user.getLastName());
+                if (noFirst || noLast)
+                {
+                    String message = (noFirst && noLast) ? "First and last names " : (noFirst ? "First name " : "Last name ");
+                    message += "missing for " + userType + ": " + user.getEmail();
+                    errors.reject(ERROR_MSG, message);
+                }
+            }
+        }
+
+        @NotNull
+        private static ModelAndView getMissingMetadataView(ExperimentAnnotations expAnnotations, List<String> missingMedata, boolean pxSubmission, BindException errors)
+        {
+            JspView view = new JspView("/org/labkey/panoramapublic/view/publish/missingMetadata.jsp", new MissingMetadataBean(expAnnotations, pxSubmission, missingMedata), errors);
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            view.setTitle("Missing Metadata in Submission Request");
+            return view;
+        }
+
+        void populateForm(PublishExperimentForm form, ExperimentAnnotations exptAnnotations)
+        {
+            form.setId(exptAnnotations.getId());
+            form.setShortAccessUrl(generateRandomUrl(RANDOM_URL_SIZE));
+            List<Journal> journals = JournalManager.getJournals();
+            if (journals.size() == 0)
+            {
+                throw new NotFoundException("Could not find any journals.");
+            }
+            form.setJournalId(journals.get(0).getId()); // This is "Panorama Public" on panoramaweb.org
+
+            form.setDataLicense(DataLicense.defaultLicense().name()); // CC BY 4.0 is default license
+            form.setKeepPrivate(true);
+        }
+
+        private JspView getPublishFormView(ExperimentAnnotations exptAnnotations, BindException errors)
+        {
+            PublishExperimentForm form = new PublishExperimentForm();
+            populateForm(form, exptAnnotations);
+            PublishExperimentFormBean bean = new PublishExperimentFormBean(form, JournalManager.getJournals(), Arrays.asList(DataLicense.values()), exptAnnotations);
+            JspView<PublishExperimentFormBean> view = new JspView<>("/org/labkey/panoramapublic/view/publish/publishExperimentForm.jsp", bean, errors);
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            view.setTitle(getFormViewTitle(form.lookupJournal().getName()));
+            return view;
+        }
+
+        private static String generateRandomUrl(int length)
+        {
+            ShortURLService shortUrlService = ShortURLService.get();
+            while(true)
+            {
+                String random = RandomStringUtils.randomAlphanumeric(length);
+                ShortURLRecord shortURLRecord = shortUrlService.resolveShortURL(random);
+                if(shortURLRecord == null)
+                {
+                    return random;
+                }
+            }
+        }
+
+        String getFormViewTitle(String journalName)
+        {
+            return "Submission Request to " + journalName;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Submit Experiment");
+        }
+    }
+
+    public static class SubmitExperimentForm extends IdForm
+    {
+        private boolean _doSubfolderCheck = true;
+        private boolean _skipPxCheck = false;
+        private boolean _update;
+        private boolean _resubmit;
+
+        public ExperimentAnnotations lookupExperiment()
+        {
+            return ExperimentAnnotationsManager.get(getId());
+        }
+
+        public boolean isUpdate()
+        {
+            return _update;
+        }
+
+        public void setUpdate(boolean update)
+        {
+            _update = update;
+        }
+
+        public boolean isResubmit()
+        {
+            return _resubmit;
+        }
+
+        public void setResubmit(boolean resubmit)
+        {
+            _resubmit = resubmit;
+        }
+
+        public boolean doSubfolderCheck()
+        {
+            return _doSubfolderCheck;
+        }
+
+        public void setDoSubfolderCheck(boolean doSubfolderCheck)
+        {
+            _doSubfolderCheck = doSubfolderCheck;
+        }
+
+        public boolean isSkipPxCheck()
+        {
+            return _skipPxCheck;
+        }
+
+        public void setSkipPxCheck(boolean skipPxCheck)
+        {
+            _skipPxCheck = skipPxCheck;
+        }
+    }
+
+    public static class MissingMetadataBean
+    {
+        private final ExperimentAnnotations _expAnnotations;
+        private final List<String> _missingMetadata;
+        private final boolean _pxSubmission;
+        public MissingMetadataBean(ExperimentAnnotations expAnnotations, boolean pxSubmission, List<String> missingMetadata)
+        {
+            _expAnnotations = expAnnotations;
+            _pxSubmission = pxSubmission;
+            _missingMetadata = missingMetadata;
+        }
+
+        public ExperimentAnnotations getExpAnnotations()
+        {
+            return _expAnnotations;
+        }
+
+        public List<String> getMissingMetadata()
+        {
+            return _missingMetadata;
+        }
+
+        public boolean isPxSubmission()
+        {
+            return _pxSubmission;
+        }
+    }
+
     // ------------------------------------------------------------------------
     // BEGIN Action for publishing an experiment (provide copy access to a journal)
     // ------------------------------------------------------------------------
@@ -2470,23 +2827,23 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         boolean doUpdates(PublishExperimentForm form, BindException errors) throws ValidationException
         {
-            JournalExperiment _journalExperiment = _journalSubmission.getJournalExperiment();
-            _journalExperiment.setJournalId(form.getJournalId());
+            JournalExperiment journalExperiment = _journalSubmission.getJournalExperiment();
+            journalExperiment.setJournalId(form.getJournalId());
             setValuesInSubmission(form, _submission);
 
             try(DbScope.Transaction transaction = CoreSchema.getInstance().getSchema().getScope().ensureTransaction())
             {
-                if(!_journalExperiment.getShortAccessUrl().getShortURL().equalsIgnoreCase(form.getShortAccessUrl()))
+                if(!journalExperiment.getShortAccessUrl().getShortURL().equalsIgnoreCase(form.getShortAccessUrl()))
                 {
                     // Change the short copy URL to match the access URL.
                     assignShortCopyUrl(form);
-                    SubmissionManager.updateShortUrls(_experimentAnnotations, _journal, _journalExperiment, form.getShortAccessUrl(), form.getShortCopyUrl(), getUser());
+                    SubmissionManager.updateShortUrls(_experimentAnnotations, _journal, journalExperiment, form.getShortAccessUrl(), form.getShortCopyUrl(), getUser());
                 }
-                SubmissionManager.updateJournalExperiment(_journalExperiment, getUser());
+                SubmissionManager.updateJournalExperiment(journalExperiment, getUser());
                 SubmissionManager.updateSubmission(_submission, getUser());
 
                 // Create notifications
-                PanoramaPublicNotification.notifyUpdated(_experimentAnnotations, _journal, _journalExperiment, _submission, getUser());
+                PanoramaPublicNotification.notifyUpdated(_experimentAnnotations, _journal, journalExperiment, _submission, getUser());
 
                 transaction.commit();
             }
@@ -2561,7 +2918,7 @@ public class PanoramaPublicController extends SpringActionController
         void validateJournal(Errors errors, ExperimentAnnotations experiment, Journal journal)
         {
             Journal oldJournal = JournalManager.getJournal(_journalSubmission.getJournalId());
-            if(oldJournal != null && (!oldJournal.getId().equals(journal.getId())))
+            if(oldJournal != null && (oldJournal.getId() != journal.getId()))
             {
                 super.validateJournal(errors, experiment, journal);
             }
@@ -4535,6 +4892,12 @@ public class PanoramaPublicController extends SpringActionController
         return null;
     }
 
+    private static boolean isSupportedSubFolderType(Container container)
+    {
+        TargetedMSService.FolderType folderType = TargetedMSService.get().getFolderType(container);
+        return folderType == null || isSupportedFolderType(folderType);
+    }
+
     private static boolean isSupportedFolderType(TargetedMSService.FolderType folderType)
     {
         return folderType == Experiment || isLibraryFolder(folderType);
@@ -4862,13 +5225,22 @@ public class PanoramaPublicController extends SpringActionController
             if (hiddenSubfolders.size() > 0)
             {
                 errors.reject(ERROR_MSG, "User needs read permissions in all the subfolders to be able to include them in the experiment.");
+                return;
+            }
+
+            List<Container> unsupportedFolderTypes = allSubfolders.stream().filter(container -> !isSupportedSubFolderType(container)).collect(Collectors.toList());
+            if (unsupportedFolderTypes.size() > 0)
+            {
+                // TODO
+                errors.reject(ERROR_MSG, "The folder type of the following subfolders is not supported");
+                return;
             }
 
             ActionURL returnUrl = form.getReturnActionURL();
             if (returnUrl != null)
             {
                 String action = returnUrl.getAction();
-                if(SpringActionController.getActionName(PublishExperimentAction.class).equals(action) ||
+                if(SpringActionController.getActionName(SubmitExperimentAction.class).equals(action) ||
                         SpringActionController.getActionName(RepublishJournalExperimentAction.class).equals(action) ||
                         SpringActionController.getActionName(UpdateSubmissionAction.class).equals(action))
                 _returnPublishExptUrl = returnUrl;
@@ -5121,6 +5493,13 @@ public class PanoramaPublicController extends SpringActionController
         result.addParameter("id", experimentAnnotationsId);
         result.addParameter("keepPrivate", keepPrivate);
         result.addParameter("getPxid", getPxId);
+        return result;
+    }
+
+    public static ActionURL getSubmitExperimentURL(int experimentAnnotationsId, Container container)
+    {
+        ActionURL result = new ActionURL(SubmitExperimentAction.class, container);
+        result.addParameter("id", experimentAnnotationsId);
         return result;
     }
 

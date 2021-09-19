@@ -57,7 +57,7 @@
             PanoramaPublicController.getViewExperimentDetailsURL(annot.getId(), getContainer()));
     ActionURL deleteUrl = PanoramaPublicController.getDeleteExperimentURL(getContainer(), annot.getId(), getContainer().getStartURL(getUser()));
 
-    ActionURL publishUrl = PanoramaPublicController.getPublishExperimentURL(annot.getId(), getContainer(), true, true);
+    ActionURL publishUrl = PanoramaPublicController.getSubmitExperimentURL(annot.getId(), getContainer());
     Container experimentContainer = annot.getContainer();
     final boolean canEdit = (!annot.isJournalCopy() || getUser().hasSiteAdminPermission()) && experimentContainer.hasPermission(getUser(), InsertPermission.class);
     // User needs to be the folder admin to publish an experiment.

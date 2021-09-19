@@ -34,8 +34,6 @@
 <%@ page import="org.labkey.panoramapublic.model.Journal" %>
 <%@ page import="org.labkey.panoramapublic.query.ExperimentAnnotationsManager" %>
 <%@ page import="java.util.Set" %>
-<%@ page import="org.labkey.panoramapublic.query.SubmissionManager" %>
-<%@ page import="org.labkey.panoramapublic.model.JournalSubmission" %>
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController.UpdateSubmissionAction" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
@@ -76,7 +74,7 @@
 
     ActionURL cancelUrl = PanoramaPublicController.getViewExperimentDetailsURL(bean.getForm().getId(), getContainer());
 
-    boolean getLabHeadUserInfo = form.isGetPxid() && expAnnotations.getLabHeadUser() == null;
+    boolean getLabHeadUserInfo = expAnnotations.getLabHeadUser() == null;
 %>
 
 <div id="publishExperimentForm"></div>
