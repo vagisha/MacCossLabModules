@@ -185,7 +185,9 @@
 <div id="title"><%=h(annot.getTitle())%></div>
 <div>
     <%if(canPublish && !journalCopyPending){%>
-        <a class="button-small button-small-red" style="float:left; margin:0px 5px 0px 2px;" href="<%=h(publishUrl)%>"><%=h(publishButtonText)%></a>
+        <span style="float:left; margin:0px 5px 0px 2px;">
+            <%=link(publishButtonText, publishUrl).usePost().clearClasses().addClass("button-small").addClass("button-small-red")%>
+        </span>
     <%}%>
     <%if(canEdit){%>
     <a style="margin-top:2px; margin-left:2px;" href="<%=h(editUrl)%>">[Edit]</a>

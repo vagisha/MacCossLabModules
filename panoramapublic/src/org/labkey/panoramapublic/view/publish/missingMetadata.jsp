@@ -61,7 +61,7 @@
         </ul>
         <%=button("Update Experiment Metadata").href(editUrl).build()%>
         </br> </br>
-        <%=link("Continue without a ProteomeXchange ID", noPxSubmissionUrl)%></span>
+        <%=link("Continue without a ProteomeXchange ID", noPxSubmissionUrl).usePost()%></span>
     </div>
     <%}%>
 </div>
