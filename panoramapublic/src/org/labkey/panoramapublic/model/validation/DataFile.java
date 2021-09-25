@@ -1,4 +1,4 @@
-package org.labkey.panoramapublic.model;
+package org.labkey.panoramapublic.model.validation;
 
 public abstract class DataFile
 {
@@ -36,13 +36,20 @@ public abstract class DataFile
         _path = path;
     }
 
-    public boolean found()
-    {
-        return _path != null && !"NOT_FOUND".equals(_path);
-    }
-
     public boolean isPending()
     {
         return _path == null;
+    }
+
+    public boolean found()
+    {
+        // Require sample file names to be unique. Users have been know to import files that have the same name
+        // but are in different directories.
+        return _path != null && !"NOT_FOUND".equals(_path) && !isAmbiguous();
+    }
+
+    public boolean isAmbiguous()
+    {
+        return "AMBIGUOUS".equals(getPath());
     }
 }

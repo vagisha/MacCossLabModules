@@ -54,7 +54,7 @@
             }
 
             // If task is not complete then schedule another status update in one second.
-            if (!json["complete"])
+            if (!json["complete"] && !json["error"])
             {
                 setTimeout(makeRequest, 1000);
             }

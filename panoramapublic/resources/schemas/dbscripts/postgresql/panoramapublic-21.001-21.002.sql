@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-CREATE TABLE panoramapublic.PxDataValidation
+CREATE TABLE panoramapublic.DataValidation
 (
     _ts TIMESTAMP,
     CreatedBy              USERID,
@@ -27,15 +27,15 @@ CREATE TABLE panoramapublic.PxDataValidation
     JobId                      INTEGER NOT NULL,
     Status                     INT,
 
-    CONSTRAINT PK_PxDataValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_PxDataValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId),
-    CONSTRAINT FK_PxDataValidation_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id),
-    CONSTRAINT FK_PxDataValidation_JobId FOREIGN KEY (JobId) REFERENCES pipeline.statusfiles (RowId)
+    CONSTRAINT PK_DataValidation PRIMARY KEY (Id),
+    CONSTRAINT FK_DataValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId),
+    CONSTRAINT FK_DataValidation_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id),
+    CONSTRAINT FK_DataValidation_JobId FOREIGN KEY (JobId) REFERENCES pipeline.statusfiles (RowId)
 );
 
-CREATE INDEX IX_PxDataValidation_Container ON panoramapublic.PxDataValidation(Container);
-CREATE INDEX IX_PxDataValidation_ExperimentAnnotations ON panoramapublic.PxDataValidation(ExperimentAnnotationsId);
-CREATE INDEX IX_PxDataValidation_JobId ON panoramapublic.PxDataValidation(JobId);
+CREATE INDEX IX_DataValidation_Container ON panoramapublic.DataValidation(Container);
+CREATE INDEX IX_DataValidation_ExperimentAnnotations ON panoramapublic.DataValidation(ExperimentAnnotationsId);
+CREATE INDEX IX_DataValidation_JobId ON panoramapublic.DataValidation(JobId);
 
 CREATE TABLE panoramapublic.SkylineDocValidation
 (
@@ -46,7 +46,7 @@ CREATE TABLE panoramapublic.SkylineDocValidation
     Name                       VARCHAR(300),
 
     CONSTRAINT PK_SkylineDocValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_SkylineDocValidation_PxDataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.PxDataValidation(Id),
+    CONSTRAINT FK_SkylineDocValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id),
     CONSTRAINT FK_SkylineDocValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId)
 );
 CREATE INDEX IX_SkylineDocValidation_ValidationId ON panoramapublic.SkylineDocValidation(ValidationId);
@@ -108,12 +108,12 @@ CREATE TABLE panoramapublic.ModificationValidation
     Id                         SERIAL NOT NULL,
     ValidationId               INT NOT NULL,
     SkylineModName             VARCHAR(100) NOT NULL,
-    UnimodId                   INT,
+    UnimodId                   VARCHAR(),
     UnimodName                 VARCHAR(100), -- LibInfo.libLSID from the .blib file
-    ModType                    INT NOT NULL, -- Structural, Isotopic
+    ModType                    VARCHAR(10) NOT NULL, -- Structural, Isotopic
 
     CONSTRAINT PK_ModificationValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_ModificationValidation_PxDataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.PxDataValidation(Id)
+    CONSTRAINT FK_ModificationValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
 );
 
 CREATE TABLE panoramapublic.SkylineDocModification
@@ -126,10 +126,6 @@ CREATE TABLE panoramapublic.SkylineDocModification
     CONSTRAINT FK_SkylineDocModification_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
     CONSTRAINT FK_SkylineDocModification_SpecLibValidation FOREIGN KEY (ModificationValidationId) REFERENCES panoramapublic.ModificationValidation(Id)
 );
-
-
-
-
 
 
 

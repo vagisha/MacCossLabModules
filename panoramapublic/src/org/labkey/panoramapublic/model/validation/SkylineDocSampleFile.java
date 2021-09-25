@@ -1,9 +1,20 @@
-package org.labkey.panoramapublic.model;
+package org.labkey.panoramapublic.model.validation;
 
-public class SkyDocSampleFile extends DataFile
+import org.labkey.api.targetedms.ISampleFile;
+
+public class SkylineDocSampleFile extends DataFile
 {
     private int _skylineDocValidationId;
     private int _sampleFileId; // Refers to targetedms.samplefile.id
+    private ISampleFile _sampleFile;
+
+    public SkylineDocSampleFile() {}
+
+    public SkylineDocSampleFile(ISampleFile sampleFile)
+    {
+        setName(sampleFile.getFileName());
+        _sampleFile = sampleFile;
+    }
 
     public int getSkylineDocValidationId()
     {
@@ -23,5 +34,10 @@ public class SkyDocSampleFile extends DataFile
     public void setSampleFileId(int sampleFileId)
     {
         _sampleFileId = sampleFileId;
+    }
+
+    public ISampleFile getSampleFile()
+    {
+        return _sampleFile;
     }
 }

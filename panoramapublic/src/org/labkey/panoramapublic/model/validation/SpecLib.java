@@ -1,14 +1,17 @@
-package org.labkey.panoramapublic.model;
+package org.labkey.panoramapublic.model.validation;
 
+import org.labkey.panoramapublic.model.DbEntity;
+import org.labkey.panoramapublic.model.validation.DataFile;
+import org.labkey.panoramapublic.model.validation.DataValidation;
+import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
 import org.labkey.panoramapublic.query.DataValidationManager;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class SpecLibValidation extends DbEntity
+public class SpecLib extends DbEntity
 {
     private int _validationId;
-    private long _specLibId; // Refers to targetedms.spectrumlibrary.id
     private String _name;
     private long _diskSize;
     private String _libLsid;
@@ -25,16 +28,6 @@ public class SpecLibValidation extends DbEntity
     public void setValidationId(int validationId)
     {
         _validationId = validationId;
-    }
-
-    public long getSpecLibId()
-    {
-        return _specLibId;
-    }
-
-    public void setSpecLibId(long specLibId)
-    {
-        _specLibId = specLibId;
     }
 
     public String getName()
@@ -127,9 +120,9 @@ public class SpecLibValidation extends DbEntity
 
     private void init()
     {
-        DataValidation dv = new DataValidation(); // TODO
-        List<SpecLibSourceFile> allSourceFiles = DataValidationManager.getSpecLibSourceFiles(getId(), dv.getContainer());
-        _spectrumFiles = allSourceFiles.stream().filter(f -> f.isSpectrumFile()).collect(Collectors.toList());
-        _idFiles = allSourceFiles.stream().filter(f -> f.isIdFile()).collect(Collectors.toList());
+//        DataValidation dv = new DataValidation(); // TODO
+//        List<SpecLibSourceFile> allSourceFiles = DataValidationManager.getSpecLibSourceFiles(getId(), dv.getContainer());
+//        _spectrumFiles = allSourceFiles.stream().filter(f -> f.isSpectrumFile()).collect(Collectors.toList());
+//        _idFiles = allSourceFiles.stream().filter(f -> f.isIdFile()).collect(Collectors.toList());
     }
 }

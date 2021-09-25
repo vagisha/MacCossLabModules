@@ -1,6 +1,7 @@
-package org.labkey.panoramapublic.model;
+package org.labkey.panoramapublic.model.validation;
 
 import org.labkey.api.data.Container;
+import org.labkey.panoramapublic.model.DbEntity;
 
 public class DataValidation extends DbEntity
 {
@@ -8,6 +9,15 @@ public class DataValidation extends DbEntity
     private int _experimentAnnotationsId;
     private int _jobId;
     private Boolean _valid;
+
+    public DataValidation() {}
+
+    public DataValidation (int experimentAnnotationsId, Container container, int jobId)
+    {
+        _experimentAnnotationsId = experimentAnnotationsId;
+        _container = container;
+        _jobId = jobId;
+    }
 
     public Container getContainer()
     {

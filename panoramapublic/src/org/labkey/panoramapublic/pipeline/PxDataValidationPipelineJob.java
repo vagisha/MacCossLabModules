@@ -38,7 +38,7 @@ public class PxDataValidationPipelineJob extends PipelineJob implements PxDataVa
         String baseLogFileName = FileUtil.makeFileNameWithTimestamp("Experiment_Validation_" + experiment.getExperimentId(), "log");
         setLogFile(new File(root.getLogDirectory(), baseLogFileName));
 
-        header("Validating data in experiment '" + experiment.getTitle() + "' for a ProteomeXchange submission.");
+        header("Validating data for a ProteomeXchange submission.");
     }
 
     @Override

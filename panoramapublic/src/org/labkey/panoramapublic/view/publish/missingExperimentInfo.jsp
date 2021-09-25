@@ -200,8 +200,8 @@
                     <%=h(missingFiles.getKey())%>
                 </td>
                 <td>
-                    <%for(String skyDoc: missingFiles.getValue().getSkyDocs()){%>
-                    <%=h(skyDoc)%><br/>
+                    <%for(String skylineDoc: missingFiles.getValue().getSkyDocs()){%>
+                    <%=h(skylineDoc)%><br/>
                     <%}%>
                 </td>
                 <td>

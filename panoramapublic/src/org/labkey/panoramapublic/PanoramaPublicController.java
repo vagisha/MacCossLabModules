@@ -2009,6 +2009,10 @@ public class PanoramaPublicController extends SpringActionController
             {
                 response.put("complete", "complete");
             }
+            else if (PipelineJob.TaskStatus.error.matches(status.getStatus()))
+            {
+                response.put("error", "error");
+            }
             return response;
         }
     }

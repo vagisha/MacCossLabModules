@@ -31,6 +31,7 @@ import org.labkey.api.query.DefaultSchema;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QuerySchema;
+import org.labkey.api.query.UserIdQueryForeignKey;
 import org.labkey.api.query.UserSchema;
 import org.labkey.api.security.User;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
@@ -49,6 +50,12 @@ public class PanoramaPublicSchema extends UserSchema
     public static final String TABLE_SUBMISSION = "Submission";
     public static final String TABLE_EXPERIMENT_ANNOTATIONS = "ExperimentAnnotations";
     public static final String TABLE_PX_XML = "PxXml";
+    public static final String TABLE_DATA_VALIDATION = "DataValidation";
+    public static final String TABLE_SKYLINE_DOC_VALIDATION = "SkylineDocValidation";
+    public static final String TABLE_SKYLINE_DOC_SAMPLE_FILE = "SkylineDocSampleFile";
+    public static final String TABLE_MODIFICATION_VALIDATION = "ModificationValidation";
+    public static final String TABLE_SKYLINE_DOC_MODIFICATION = "SkylineDocModification";
+
 
     public PanoramaPublicSchema(User user, Container container)
     {
@@ -108,6 +115,30 @@ public class PanoramaPublicSchema extends UserSchema
         {
             return getFilteredPxXmlTable(name, cf);
         }
+
+        if (TABLE_DATA_VALIDATION.equalsIgnoreCase(name))
+        {
+            FilteredTable<PanoramaPublicSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf);
+            result.wrapAllColumns(true);
+            result.getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(this));
+            result.getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(this));
+            result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
+            return result;
+        }
+
+        if (TABLE_SKYLINE_DOC_VALIDATION.equalsIgnoreCase(name))
+        {
+            FilteredTable<PanoramaPublicSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf);
+            result.wrapAllColumns(true);
+            result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
+            return result;
+        }
+
+        if (TABLE_SKYLINE_DOC_SAMPLE_FILE.equalsIgnoreCase(name))
+        {
+            return new FilteredTable<>(getSchema().getTable(name), this, cf);
+        }
+
         return null;
     }
 

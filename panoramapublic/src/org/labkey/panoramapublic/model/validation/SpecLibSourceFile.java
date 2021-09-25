@@ -1,4 +1,6 @@
-package org.labkey.panoramapublic.model;
+package org.labkey.panoramapublic.model.validation;
+
+import org.labkey.panoramapublic.model.validation.DataFile;
 
 public class SpecLibSourceFile extends DataFile
 {
