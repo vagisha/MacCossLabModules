@@ -7,21 +7,27 @@ import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.DataValidationStatus;
+import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
+import org.labkey.panoramapublic.model.validation.GenericValidationStatus;
 import org.labkey.panoramapublic.model.validation.Modification;
-import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
+import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
+import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
+import org.labkey.panoramapublic.model.validation.SpecLib;
+import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
+import org.labkey.panoramapublic.model.validation.StatusValidating;
 
+import java.util.Collections;
 import java.util.List;
 
 public class DataValidationManager
 {
-    public static DataValidationStatus saveStatus(DataValidationStatus status, User user)
+    public static void saveStatus(StatusValidating status, User user)
     {
         DataValidation validation = status.getValidation();
         validation = Table.insert(user, PanoramaPublicManager.getTableInfoDataValidation(), validation);
-        for (SkylineDoc doc : status.getSkylineDocs())
+        for (SkylineDocValidating doc : status.getSkylineDocs())
         {
             doc.setValidationId(validation.getId());
             doc = Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocValidation(), doc);
@@ -32,7 +38,6 @@ public class DataValidationManager
                Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), sampleFile);
             }
         }
-        return status;
     }
 
     public static List<SkylineDocSampleFile> getSkyDocSampleFiles(int skyDocValidationId)
@@ -41,15 +46,15 @@ public class DataValidationManager
                 null).getArrayList(SkylineDocSampleFile.class);
     }
 
-    public static void updateSampleFileStatus(SkylineDoc skyDoc, User user)
+    public static <S extends SkylineDocSampleFile, L extends SkylineDocSpecLib> void updateSampleFileStatus(GenericSkylineDoc<S, L> skyDoc, User user)
     {
-        for (SkylineDocSampleFile sampleFile: skyDoc.getSampleFiles())
+        for (S sampleFile: skyDoc.getSampleFiles())
         {
             Table.update(user, PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), sampleFile, sampleFile.getId());
         }
     }
 
-    public static void addModifications(DataValidationStatus status, User user)
+    public static <S extends GenericSkylineDoc, L extends SpecLib> void saveModifications(GenericValidationStatus<S, L> status, User user)
     {
         for (Modification mod : status.getModifications())
         {
@@ -58,15 +63,30 @@ public class DataValidationManager
         }
     }
 
-    public static void addSkylineDocModifications(List<SkylineDoc> skylineDocs, User user)
+    public static void saveSkylineDocModifications(List<SkylineDocValidating> skylineDocs, User user)
     {
-        for (SkylineDoc doc: skylineDocs)
+        for (SkylineDocValidating doc: skylineDocs)
         {
             for (SkylineDocModification mod: doc.getModifications())
             {
                 Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocModification(), mod);
             }
         }
+    }
+
+    public static List<SpecLibSourceFile> getSpectrumSourceFiles(int id)
+    {
+        return Collections.emptyList();
+    }
+
+    public static List<SpecLibSourceFile> getIdSourceFiles(int id)
+    {
+        return Collections.emptyList();
+    }
+
+    public static List<SkylineDocSpecLib> getSkylineDocSpecLibs(int skylineDocValidationId)
+    {
+        return Collections.emptyList();
     }
 
 //    public static List<SkylineDocSpecLib> getSkylineDocSpecLibs(int skyDocValidationId)

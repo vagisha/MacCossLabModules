@@ -28,8 +28,9 @@ import org.labkey.api.data.TableSelector;
 import org.labkey.api.exp.api.ExperimentService;
 import org.labkey.api.files.FileContentService;
 import org.labkey.api.query.FieldKey;
-import org.labkey.api.targetedms.BlibSourceFile;
+import org.labkey.api.targetedms.LibSourceFile;
 import org.labkey.api.targetedms.ITargetedMSRun;
+import org.labkey.api.targetedms.LibrarySourceFiles;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.FileUtil;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
@@ -252,7 +253,7 @@ public class SubmissionDataValidator
 
             // Get missing blib source files
             java.nio.file.Path rawFilesDir = getRawFilesDirPath(run.getContainer());
-            for(Map.Entry<String, List<BlibSourceFile>> entry : targetedMsSvc.getBlibSourceFiles(run).entrySet())
+            for(LibrarySourceFiles entry : targetedMsSvc.getBlibSourceFiles(run))
             {
                 if(isPrositLibrary(entry, run))
                 {
@@ -262,7 +263,7 @@ public class SubmissionDataValidator
                 Set<String> checkedFiles = new HashSet<>();
                 Set<String> ssfMissing = new HashSet<>();
                 Set<String> idFilesMissing = new HashSet<>();
-                for(BlibSourceFile file: entry.getValue())
+                for(LibSourceFile file: entry.getSourceFiles())
                 {
                     String ssf = file.getSpectrumSourceFile();
                     if (file.hasSpectrumSourceFile() && !checkedFiles.contains(ssf))
@@ -286,14 +287,14 @@ public class SubmissionDataValidator
                 for(String file: idFilesMissing)
                     ssfMissing.remove(file);
 
-                submissionStatus.addMissingLibFile(entry.getKey(), run.getFileName(), ssfMissing, idFilesMissing);
+                submissionStatus.addMissingLibFile(entry.getLibrary().getFileNameHint(), run.getFileName(), ssfMissing, idFilesMissing);
             }
         }
     }
 
-    private static boolean isPrositLibrary(Map.Entry<String, List<BlibSourceFile>> entry, ITargetedMSRun run)
+    private static boolean isPrositLibrary(LibrarySourceFiles entry, ITargetedMSRun run)
     {
-        List<BlibSourceFile> sourceFiles = entry.getValue();
+        List<LibSourceFile> sourceFiles = entry.getSourceFiles();
         // For a library based on Prosit we only expect one row in the SpectrumSourceFiles table,
         // We expect idFileName to be blank amd the value in the fileName column to be "Prositintensity_prosit_publication_v1".
         // The value in the fileName column may be different in Skyline 21.1. This code will be have to be updated then.

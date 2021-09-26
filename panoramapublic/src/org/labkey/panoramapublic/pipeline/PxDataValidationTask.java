@@ -10,12 +10,12 @@ import org.labkey.api.pipeline.PipelineService;
 import org.labkey.api.pipeline.RecordedActionSet;
 import org.labkey.api.util.FileType;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.model.validation.DataValidationStatus;
+import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
+import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.SkylineDoc;
+import org.labkey.panoramapublic.model.validation.StatusValidating;
 import org.labkey.panoramapublic.proteomexchange.DataValidator;
-import org.labkey.panoramapublic.proteomexchange.SubmissionDataStatus;
-import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
 
 import java.util.Collections;
 import java.util.List;
@@ -49,9 +49,9 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
             // SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(exptAnnotations);
             Integer pipelineJobId = (PipelineService.get().getJobId(job.getUser(), job.getContainer(), job.getJobGUID()));
             DataValidator validator = new DataValidator(exptAnnotations, pipelineJobId, job.getLogger());
-            DataValidationStatus status = validator.validateExperiment(job.getUser());
+            StatusValidating status = validator.validateExperiment(job.getUser());
             log.info("Skyline Document validation: ");
-            for (SkylineDoc doc: status.getSkylineDocs())
+            for (SkylineDocValidating doc: status.getSkylineDocs())
             {
                 log.info(doc.getId() + ": " + doc.getName() +": VALID: " + doc.isValid());
                 if (!doc.isValid())

@@ -1,24 +1,32 @@
 package org.labkey.panoramapublic.model.validation;
 
-import org.labkey.panoramapublic.model.DbEntity;
-import org.labkey.panoramapublic.model.validation.DataFile;
-import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
 import org.labkey.panoramapublic.query.DataValidationManager;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class SpecLib extends DbEntity
+public class SpecLib
 {
+    private int _id;
     private int _validationId;
-    private String _name;
-    private long _diskSize;
-    private String _libLsid;
+    private String _libName;
+    private String _fileName;
+    private Long _diskSize;
     private String _libType; // BLIB, BLIB_PROSIT, BLIB_ASSAY_LIB, BLIB_NO_ID_FILES, ELIB, OTHER
 
-    private List<SpecLibSourceFile> _spectrumFiles;
-    private List<SpecLibSourceFile> _idFiles;
+    List<SpecLibSourceFile> _spectrumFiles;
+    List<SpecLibSourceFile> _idFiles;
+
+    public int getId()
+    {
+        return _id;
+    }
+
+    public void setId(int id)
+    {
+        _id = id;
+    }
 
     public int getValidationId()
     {
@@ -30,34 +38,34 @@ public class SpecLib extends DbEntity
         _validationId = validationId;
     }
 
-    public String getName()
+    public String getLibName()
     {
-        return _name;
+        return _libName;
     }
 
-    public void setName(String name)
+    public void setLibName(String libName)
     {
-        _name = name;
+        _libName = libName;
     }
 
-    public long getDiskSize()
+    public String getFileName()
+    {
+        return _fileName;
+    }
+
+    public void setFileName(String fileName)
+    {
+        _fileName = fileName;
+    }
+
+    public Long getDiskSize()
     {
         return _diskSize;
     }
 
-    public void setDiskSize(long diskSize)
+    public void setDiskSize(Long diskSize)
     {
         _diskSize = diskSize;
-    }
-
-    public String getLibLsid()
-    {
-        return _libLsid;
-    }
-
-    public void setLibLsid(String libLsid)
-    {
-        _libLsid = libLsid;
     }
 
     public String getLibType()
@@ -77,52 +85,74 @@ public class SpecLib extends DbEntity
 
     private boolean spectrumFilesValid()
     {
-        return spectrumFiles().stream().allMatch(f -> !f.isPending() && f.found());
+        return getSpectrumFiles().stream().allMatch(f -> !f.isPending() && f.found());
     }
     private boolean idFilesValid()
     {
-        return idFiles().stream().allMatch(f -> !f.isPending() && f.found());
+        return getIdFiles().stream().allMatch(f -> !f.isPending() && f.found());
     }
 
     public boolean isPending()
     {
-        return spectrumFiles().stream().anyMatch(DataFile::isPending) ||
-                idFiles().stream().anyMatch(DataFile::isPending);
+        return getSpectrumFiles().stream().anyMatch(DataFile::isPending) ||
+                getIdFiles().stream().anyMatch(DataFile::isPending);
     }
 
     public List<String> getMissingSpectrumFileNames()
     {
-        return spectrumFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
+        return getSpectrumFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
     }
 
     public List<String> getMissingIdFileNames()
     {
-        return idFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
+        return getIdFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
     }
 
-    private List<SpecLibSourceFile> spectrumFiles()
+    public List<SpecLibSourceFile> getSpectrumFiles()
     {
         if (_spectrumFiles == null)
         {
-            init();
+            _spectrumFiles = DataValidationManager.getSpectrumSourceFiles(getId());
         }
         return _spectrumFiles;
     }
 
-    private List<SpecLibSourceFile> idFiles()
+    public List<SpecLibSourceFile> getIdFiles()
     {
         if (_idFiles == null)
         {
-            init();
+            _idFiles = DataValidationManager.getIdSourceFiles(getId());
         }
         return _idFiles;
     }
 
-    private void init()
+    public void setSpectrumFiles(List<SpecLibSourceFile> spectrumFiles)
     {
-//        DataValidation dv = new DataValidation(); // TODO
-//        List<SpecLibSourceFile> allSourceFiles = DataValidationManager.getSpecLibSourceFiles(getId(), dv.getContainer());
-//        _spectrumFiles = allSourceFiles.stream().filter(f -> f.isSpectrumFile()).collect(Collectors.toList());
-//        _idFiles = allSourceFiles.stream().filter(f -> f.isIdFile()).collect(Collectors.toList());
+        _spectrumFiles = spectrumFiles;
+    }
+
+    public void setIdFiles(List<SpecLibSourceFile> idFiles)
+    {
+        _idFiles = idFiles;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SpecLib specLib = (SpecLib) o;
+        return getLibName().equals(specLib.getLibName())
+                && getFileName().equals(specLib.getFileName())
+                && Objects.equals(getDiskSize(), specLib.getDiskSize())
+                && Objects.equals(getLibType(), specLib.getLibType())
+                && Objects.equals(getSpectrumFiles(), specLib.getSpectrumFiles())
+                && Objects.equals(getIdFiles(), specLib.getIdFiles());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(getLibName(), getFileName(), getDiskSize(), getLibType(), getSpectrumFiles(), getIdFiles());
     }
 }

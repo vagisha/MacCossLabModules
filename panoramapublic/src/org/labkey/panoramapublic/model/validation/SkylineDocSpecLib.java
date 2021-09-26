@@ -5,11 +5,10 @@ public class SkylineDocSpecLib
     private int _id;
     private int _skylineDocValidationId; // One doc can have multiple libraries
     private Integer _speclibValidationId;  // Null if the.sky.zip does not contain the lib file
-    private long _specLibId; // Refers to targetedms.spectrumlibrary.id
-    private String _name;
-    private long _diskSize;
-    private String _libLsid; // If this a .blib file
-    private boolean _included;
+    private String _libName;
+    private String _fileName;
+    private Long _diskSize;
+    private String _libType; // BLIB, BLIB_PROSIT, BLIB_ASSAY_LIB, BLIB_NO_ID_FILES, ELIB, OTHER
 
     public int getId()
     {
@@ -41,53 +40,48 @@ public class SkylineDocSpecLib
         _speclibValidationId = speclibValidationId;
     }
 
-    public long getSpecLibId()
+    public String getLibName()
     {
-        return _specLibId;
+        return _libName;
     }
 
-    public void setSpecLibId(long specLibId)
+    public void setLibName(String libName)
     {
-        _specLibId = specLibId;
+        _libName = libName;
     }
 
-    public String getName()
+    public String getFileName()
     {
-        return _name;
+        return _fileName;
     }
 
-    public void setName(String name)
+    public void setFileName(String fileName)
     {
-        _name = name;
+        _fileName = fileName;
     }
 
-    public long getDiskSize()
+    public Long getDiskSize()
     {
         return _diskSize;
     }
 
-    public void setDiskSize(long diskSize)
+    public void setDiskSize(Long diskSize)
     {
         _diskSize = diskSize;
     }
 
-    public String getLibLsid()
+    public String getLibType()
     {
-        return _libLsid;
+        return _libType;
     }
 
-    public void setLibLsid(String libLsid)
+    public void setLibType(String libType)
     {
-        _libLsid = libLsid;
+        _libType = libType;
     }
 
     public boolean isIncluded()
     {
-        return _included;
-    }
-
-    public void setIncluded(boolean included)
-    {
-        _included = included;
+        return _diskSize != null;
     }
 }
