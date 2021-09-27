@@ -94,6 +94,21 @@ public class PanoramaPublicManager
         return getSchema().getTable(PanoramaPublicSchema.TABLE_SKYLINE_DOC_MODIFICATION);
     }
 
+    public static TableInfo getTableInfoSpecLibValidation()
+    {
+        return getSchema().getTable(PanoramaPublicSchema.TABLE_SPEC_LIB_VALIDATION);
+    }
+
+    public static TableInfo getTableInfoSkylineDocSpecLib()
+    {
+        return getSchema().getTable(PanoramaPublicSchema.TABLE_SKYLINE_DOC_SPEC_LIB);
+    }
+
+    public static TableInfo getTableInfoSpecLibSourceFile()
+    {
+        return getSchema().getTable(PanoramaPublicSchema.TABLE_SPEC_LIB_SOURCE_FILE);
+    }
+
     public static ITargetedMSRun getRunByLsid(String lsid, Container container)
     {
         return TargetedMSService.get().getRunByLsid(lsid, container);

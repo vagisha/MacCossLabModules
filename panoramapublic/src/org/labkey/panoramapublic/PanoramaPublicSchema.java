@@ -55,6 +55,9 @@ public class PanoramaPublicSchema extends UserSchema
     public static final String TABLE_SKYLINE_DOC_SAMPLE_FILE = "SkylineDocSampleFile";
     public static final String TABLE_MODIFICATION_VALIDATION = "ModificationValidation";
     public static final String TABLE_SKYLINE_DOC_MODIFICATION = "SkylineDocModification";
+    public static final String TABLE_SPEC_LIB_VALIDATION = "SpecLibValidation";
+    public static final String TABLE_SKYLINE_DOC_SPEC_LIB = "SkylineDocSpecLib";
+    public static final String TABLE_SPEC_LIB_SOURCE_FILE = "SpecLibSourceFile";
 
 
     public PanoramaPublicSchema(User user, Container container)

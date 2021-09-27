@@ -2,8 +2,18 @@ package org.labkey.panoramapublic.model.validation;
 
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 
-public class StatusValidating extends GenericValidationStatus <SkylineDocValidating>
+import java.util.ArrayList;
+import java.util.List;
+
+public class StatusValidating extends GenericValidationStatus <SkylineDocValidating, SpecLibValidating>
 {
+    private List<SpecLibValidating> _spectrumLibraries;
+
+    public StatusValidating()
+    {
+        _spectrumLibraries = new ArrayList<>();
+    }
+
     public StatusValidating(ExperimentAnnotations expAnnotations, int jobId)
     {
         super(expAnnotations, jobId);
@@ -19,8 +29,13 @@ public class StatusValidating extends GenericValidationStatus <SkylineDocValidat
         _modifications.add(modification);
     }
 
-    public void addLibrary(SpecLib specLib)
+    public void addLibrary(SpecLibValidating specLib)
     {
-        _specLibs.add(specLib);
+        _spectrumLibraries.add(specLib);
+    }
+
+    public List<SpecLibValidating> getSpectrumLibraries()
+    {
+        return _spectrumLibraries;
     }
 }

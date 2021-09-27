@@ -5,17 +5,22 @@ import org.labkey.api.data.Table;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
+import org.labkey.api.targetedms.ISpectrumLibrary;
+import org.labkey.api.util.Pair;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
 import org.labkey.panoramapublic.model.validation.GenericValidationStatus;
 import org.labkey.panoramapublic.model.validation.Modification;
+import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
+import org.labkey.panoramapublic.model.validation.SkylineDocSpecLibValidating;
 import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
 import org.labkey.panoramapublic.model.validation.SpecLib;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
+import org.labkey.panoramapublic.model.validation.SpecLibValidating;
 import org.labkey.panoramapublic.model.validation.StatusValidating;
 
 import java.util.Collections;
@@ -89,6 +94,21 @@ public class DataValidationManager
         return Collections.emptyList();
     }
 
+    public static void saveSpectrumLibrary(SpecLibValidating specLib, User user)
+    {
+        Table.insert(user, PanoramaPublicManager.getTableInfoSpecLibValidation(), specLib);
+    }
+
+    public static void saveDocSpectrumLibrary(SkylineDocSpecLib docSpecLib, User user)
+    {
+        Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), docSpecLib);
+    }
+
+    public static void saveSpecLibSourceFile(SpecLibSourceFile sourceFile, User user)
+    {
+        Table.insert(user, PanoramaPublicManager.getTableInfoSpecLibSourceFile(), sourceFile);
+    }
+
 //    public static List<SkylineDocSpecLib> getSkylineDocSpecLibs(int skyDocValidationId)
 //    {
 //        return new TableSelector(PanoramaPublicManager.gettable(), new SimpleFilter(FieldKey.fromParts("SkylineDocValidationId"), skyDocValidationId),
@@ -100,6 +120,4 @@ public class DataValidationManager
 //        return new TableSelector(PanoramaPublicManager.getTabl(), new SimpleFilter(FieldKey.fromParts("SkylineDocValidationId"), skyDocValidationId),
 //                null).getArrayList(SpecLibSourceFile.class);
 //    }
-
-
 }

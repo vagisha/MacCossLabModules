@@ -6,6 +6,9 @@ public abstract class DataFile
     private String _name;
     private String _path;
 
+    public static final String NOT_FOUND = "NOT_FOUND";
+    public static final String AMBIGUOUS = "AMBIGUOUS";
+
     public int getId()
     {
         return _id;
@@ -45,11 +48,11 @@ public abstract class DataFile
     {
         // Require sample file names to be unique. Users have been know to import files that have the same name
         // but are in different directories.
-        return _path != null && !"NOT_FOUND".equals(_path) && !isAmbiguous();
+        return _path != null && !NOT_FOUND.equals(_path) && !isAmbiguous();
     }
 
     public boolean isAmbiguous()
     {
-        return "AMBIGUOUS".equals(getPath());
+        return AMBIGUOUS.equals(getPath());
     }
 }

@@ -68,6 +68,11 @@ public class SpecLib
         _diskSize = diskSize;
     }
 
+    public boolean isMissingInSkyDoc()
+    {
+        return _diskSize == null;
+    }
+
     public String getLibType()
     {
         return _libType;
@@ -134,25 +139,5 @@ public class SpecLib
     public void setIdFiles(List<SpecLibSourceFile> idFiles)
     {
         _idFiles = idFiles;
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SpecLib specLib = (SpecLib) o;
-        return getLibName().equals(specLib.getLibName())
-                && getFileName().equals(specLib.getFileName())
-                && Objects.equals(getDiskSize(), specLib.getDiskSize())
-                && Objects.equals(getLibType(), specLib.getLibType())
-                && Objects.equals(getSpectrumFiles(), specLib.getSpectrumFiles())
-                && Objects.equals(getIdFiles(), specLib.getIdFiles());
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(getLibName(), getFileName(), getDiskSize(), getLibType(), getSpectrumFiles(), getIdFiles());
     }
 }

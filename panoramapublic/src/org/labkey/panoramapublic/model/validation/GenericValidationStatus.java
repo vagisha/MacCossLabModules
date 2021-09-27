@@ -6,11 +6,10 @@ import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GenericValidationStatus <D extends GenericSkylineDoc> extends DbEntity
+public abstract class GenericValidationStatus <D extends GenericSkylineDoc, L extends SpecLib> extends DbEntity
 {
     private DataValidation _validation;
     List<D> _skylineDocs;
-    List<SpecLib> _specLibs;
     List<Modification> _modifications;
 
     public GenericValidationStatus() {}
@@ -41,4 +40,6 @@ public class GenericValidationStatus <D extends GenericSkylineDoc> extends DbEnt
     {
         return _modifications;
     }
+
+    public abstract List<L> getSpectrumLibraries();
 }
