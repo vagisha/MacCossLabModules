@@ -57,50 +57,12 @@ CREATE TABLE panoramapublic.SkylineDocSampleFile
 (
     Id                         SERIAL NOT NULL,
     SkylineDocValidationId     INT NOT NULL,
-    SampleFileId               INT NOT NULL, -- targetedms.samplefile.id
-    Name                       VARCHAR(300),
-    Path                       TEXT,
+    Name                       VARCHAR(300) NOT NULL,
+    SkylineName                VARCHAR(300) NOT NULL,
+    Status                     TEXT,
 
     CONSTRAINT PK_SkylineDocSampleFile PRIMARY KEY (Id),
     CONSTRAINT FK_SkylineDocSampleFile_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id)
-);
-
-CREATE TABLE panoramapublic.SpecLibValidation
-(
-    Id                         SERIAL NOT NULL,
-    ValidationId               INT NOT NULL,
-    Name                       VARCHAR(300),
-    Size                       INT NOT NULL,
-    LibLsid                    VARCHAR(100), -- LibInfo.libLSID from the .blib file
-    LibType                    INT NOT NULL, -- BLIB, BLIB_PROSIT, BLIB_ASSAY, ELIB, OTHER
-
-    CONSTRAINT PK_SpecLibValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_SpecLibValidation_PxDataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.PxDataValidation(Id)
-);
-
-CREATE TABLE panoramapublic.SpecLibSourceFile
-(
-    Id                         SERIAL NOT NULL,
-    SpecLibValidationId        INT NOT NULL,
-    Name                       VARCHAR(300),
-    SourceType                 INT NOT NULL, -- Spectrum, Id File, Prosit, CSV/TSV
-    Path                       TEXT,
-
-    CONSTRAINT PK_SpecLibSourceFile PRIMARY KEY (Id),
-    CONSTRAINT FK_SpecLibSourceFile_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
-);
-
-CREATE TABLE panoramapublic.SkyDocSpecLib
-(
-    Id                         SERIAL NOT NULL,
-    SkylineDocValidationId     INT NOT NULL,
-    SpecLibValidationId        INT NOT NULL,
-    SpectrumLibraryId          INT NOT NULL, -- targetedms.spectrumlibrary.id
-    Included                   BOOLEAN NOT NULL,
-
-    CONSTRAINT PK_SkyDocSpecLib PRIMARY KEY (Id),
-    CONSTRAINT FK_SkyDocSpecLib_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
-    CONSTRAINT FK_SkyDocSpecLib_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
 );
 
 CREATE TABLE panoramapublic.ModificationValidation
@@ -108,8 +70,8 @@ CREATE TABLE panoramapublic.ModificationValidation
     Id                         SERIAL NOT NULL,
     ValidationId               INT NOT NULL,
     SkylineModName             VARCHAR(100) NOT NULL,
-    UnimodId                   VARCHAR(),
-    UnimodName                 VARCHAR(100), -- LibInfo.libLSID from the .blib file
+    UnimodId                   INT,
+    UnimodName                 VARCHAR(100),
     ModType                    VARCHAR(10) NOT NULL, -- Structural, Isotopic
 
     CONSTRAINT PK_ModificationValidation PRIMARY KEY (Id),
@@ -126,6 +88,45 @@ CREATE TABLE panoramapublic.SkylineDocModification
     CONSTRAINT FK_SkylineDocModification_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
     CONSTRAINT FK_SkylineDocModification_SpecLibValidation FOREIGN KEY (ModificationValidationId) REFERENCES panoramapublic.ModificationValidation(Id)
 );
+
+CREATE TABLE panoramapublic.SpecLibValidation
+(
+    Id                         SERIAL NOT NULL,
+    ValidationId               INT NOT NULL,
+    LibName                    VARCHAR(300) NOT NULL,
+    FileName                   VARCHAR(300) NOT NULL,
+    Size                       BIGINT,
+    LibType                    VARCHAR(30) NOT NULL,
+
+    CONSTRAINT PK_SpecLibValidation PRIMARY KEY (Id),
+    CONSTRAINT FK_SpecLibValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
+);
+
+CREATE TABLE panoramapublic.SpecLibSourceFile
+(
+    Id                         SERIAL NOT NULL,
+    SpecLibValidationId        INT NOT NULL,
+    Name                       VARCHAR(300) NOT NULL,
+    Status                     TEXT,
+    SourceType                 VARCHAR(20) NOT NULL,
+
+    CONSTRAINT PK_SpecLibSourceFile PRIMARY KEY (Id),
+    CONSTRAINT FK_SpecLibSourceFile_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
+);
+
+CREATE TABLE panoramapublic.SkylineDocSpecLib
+(
+    Id                         SERIAL NOT NULL,
+    SkylineDocValidationId     INT NOT NULL,
+    SpecLibValidationId        INT NOT NULL,
+    Included                   BOOLEAN NOT NULL,
+
+    CONSTRAINT PK_SkyDocSpecLib PRIMARY KEY (Id),
+    CONSTRAINT FK_SkyDocSpecLib_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
+    CONSTRAINT FK_SkyDocSpecLib_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
+);
+
+
 
 
 

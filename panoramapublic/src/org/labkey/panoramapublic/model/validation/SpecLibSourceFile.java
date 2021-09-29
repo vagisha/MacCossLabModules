@@ -1,5 +1,8 @@
 package org.labkey.panoramapublic.model.validation;
 
+import org.jetbrains.annotations.NotNull;
+import org.json.JSONObject;
+
 import java.util.Objects;
 
 public class SpecLibSourceFile extends DataFile

@@ -1,9 +1,11 @@
 package org.labkey.panoramapublic.model.validation;
 
-import org.labkey.panoramapublic.query.DataValidationManager;
+import org.jetbrains.annotations.NotNull;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class SpecLib
@@ -12,11 +14,13 @@ public class SpecLib
     private int _validationId;
     private String _libName;
     private String _fileName;
-    private Long _diskSize;
-    private String _libType; // BLIB, BLIB_PROSIT, BLIB_ASSAY_LIB, BLIB_NO_ID_FILES, ELIB, OTHER
+    private Long _size;
+    private String _libType; // bibliospec, bibliospec_lite, elib, hunter, midas, nist, spectrast, chromatogram
 
-    List<SpecLibSourceFile> _spectrumFiles;
-    List<SpecLibSourceFile> _idFiles;
+    private List<SpecLibSourceFile> _spectrumFiles;
+    private List<SpecLibSourceFile> _idFiles;
+
+    public SpecLib() {}
 
     public int getId()
     {
@@ -58,19 +62,14 @@ public class SpecLib
         _fileName = fileName;
     }
 
-    public Long getDiskSize()
+    public Long getSize()
     {
-        return _diskSize;
+        return _size;
     }
 
-    public void setDiskSize(Long diskSize)
+    public void setSize(Long size)
     {
-        _diskSize = diskSize;
-    }
-
-    public boolean isMissingInSkyDoc()
-    {
-        return _diskSize == null;
+        _size = size;
     }
 
     public String getLibType()
@@ -83,18 +82,123 @@ public class SpecLib
         _libType = libType;
     }
 
-    public boolean isValid()
+    public boolean isMissingInSkyZip()
     {
-        return spectrumFilesValid() && idFilesValid();
+        return _size == null;
     }
 
-    private boolean spectrumFilesValid()
+    public boolean isValid()
+    {
+        if (isMissingInSkyZip() || isAssayLibrary() || isUnsupportedLibrary())
+        {
+            return false;
+        }
+        if (isPrositLibrary())
+        {
+            return true; // No source files for a library based on Prosit predictions
+        }
+        // No peptide search files needed for EncyclopeDIA libraries so we only check for spectrum source files
+        if (isEncyclopeDiaLibrary() && foundSpectrumFiles())
+        {
+            return true;
+        }
+
+        return foundSpectrumFiles() && (_idFiles.size() > 0 && foundIdFiles());
+    }
+
+    public String getStatusString()
+    {
+        if (isMissingInSkyZip())
+        {
+            return "MISSING IN SKYLINE ZIP";
+        }
+        if (isAssayLibrary())
+        {
+            return "BLIB BUILT WITH ASSAY LIBRARY";
+        }
+        if (isUnsupportedLibrary())
+        {
+            return "UNSUPPORTED LIBRARY " + getLibType();
+        }
+        if (isPrositLibrary())
+        {
+            return "VALID";
+        }
+        boolean missingIdFilesInBlib = _idFiles.size() == 0;
+        boolean missingSpectrumFiles = !foundSpectrumFiles();
+        boolean missingIdFiles = !foundIdFiles();
+        if (!(missingSpectrumFiles || missingIdFilesInBlib || missingIdFiles))
+        {
+            return "VALID";
+        }
+        else
+        {
+            String status = null;
+            if (missingSpectrumFiles || missingIdFiles)
+            {
+                status = String.format("MISSING %s%s%s FILES", missingSpectrumFiles ? "SPECTRUM " : "",
+                        missingSpectrumFiles && missingIdFiles ? "AND " : "",
+                        missingIdFiles ? "ID " : "");
+            }
+            if (missingIdFilesInBlib)
+            {
+                status = String.format("%s%s", status == null ? "" : status + "; ", "ID FILES NOT FOUND IN BLIB");
+            }
+            return status;
+        }
+    }
+
+    public boolean hasMissingSpectrumFiles()
+    {
+        return !foundSpectrumFiles();
+    }
+
+    public boolean hasMissingIdFiles()
+    {
+        return !foundIdFiles();
+    }
+
+    public boolean foundSpectrumFiles()
     {
         return getSpectrumFiles().stream().allMatch(f -> !f.isPending() && f.found());
     }
-    private boolean idFilesValid()
+
+    public boolean foundIdFiles()
     {
         return getIdFiles().stream().allMatch(f -> !f.isPending() && f.found());
+    }
+
+    public boolean isPrositLibrary()
+    {
+        // For a library based on Prosit we expect only one row in the SpectrumSourceFiles table,
+        // We expect idFileName to be blank and the value in the fileName column to be "Prositintensity_prosit_publication_v1".
+        // The value in the fileName column may be different in Skyline 21.1. This code will be have to be updated then.
+        if(isBibliospecLibrary() && getSpectrumFiles().size() == 1 && getIdFiles().size() == 0)
+        {
+            return "Prositintensity_prosit_publication_v1".equals(getSpectrumFiles().get(0).getName());
+        }
+        return false;
+    }
+
+    private boolean isBibliospecLibrary()
+    {
+        return "bibliospec".equals(_libType) || "bibliospec_lite".equals(_libType);
+    }
+
+    public boolean isEncyclopeDiaLibrary()
+    {
+        return "elib".equals(_libType);
+    }
+
+    public boolean isUnsupportedLibrary()
+    {
+        return !(isBibliospecLibrary() || isEncyclopeDiaLibrary());
+    }
+
+    public boolean isAssayLibrary()
+    {
+        // https://skyline.ms/wiki/home/software/Skyline/page.view?name=building_spectral_libraries
+        return isBibliospecLibrary() && getSpectrumFiles().stream().allMatch(f -> getFileName().toLowerCase().endsWith(".csv"));
     }
 
     public boolean isPending()
@@ -115,20 +219,7 @@ public class SpecLib
 
     public List<SpecLibSourceFile> getSpectrumFiles()
     {
-        if (_spectrumFiles == null)
-        {
-            _spectrumFiles = DataValidationManager.getSpectrumSourceFiles(getId());
-        }
-        return _spectrumFiles;
-    }
-
-    public List<SpecLibSourceFile> getIdFiles()
-    {
-        if (_idFiles == null)
-        {
-            _idFiles = DataValidationManager.getIdSourceFiles(getId());
-        }
-        return _idFiles;
+        return _spectrumFiles != null ? Collections.unmodifiableList(_spectrumFiles) : Collections.emptyList();
     }
 
     public void setSpectrumFiles(List<SpecLibSourceFile> spectrumFiles)
@@ -136,8 +227,48 @@ public class SpecLib
         _spectrumFiles = spectrumFiles;
     }
 
+    public void addSpectrumFile(SpecLibSourceFile spectrumFile)
+    {
+        _spectrumFiles.add(spectrumFile);
+    }
+
+    public List<SpecLibSourceFile> getIdFiles()
+    {
+        return _idFiles != null ? Collections.unmodifiableList(_idFiles) : Collections.emptyList();
+    }
+
     public void setIdFiles(List<SpecLibSourceFile> idFiles)
     {
         _idFiles = idFiles;
+    }
+
+    public void addIdFile(SpecLibSourceFile idFile)
+    {
+        _idFiles.add(idFile);
+    }
+
+    @NotNull
+    public JSONObject toJSON()
+    {
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("id", getId());
+        jsonObject.put("libName", getLibName());
+        jsonObject.put("fileName", getFileName());
+        jsonObject.put("libType", getLibType());
+        jsonObject.put("size", getSize());
+        jsonObject.put("spectrumFiles", getSourceFilesJSON(getSpectrumFiles()));
+        jsonObject.put("idFiles", getSourceFilesJSON(getIdFiles()));
+        return jsonObject;
+    }
+
+    @NotNull
+    private JSONArray getSourceFilesJSON(List<SpecLibSourceFile> sourceFiles)
+    {
+        JSONArray result = new JSONArray();
+        for (SpecLibSourceFile sourceFile: sourceFiles)
+        {
+            result.put(sourceFile.toJSON());
+        }
+        return result;
     }
 }

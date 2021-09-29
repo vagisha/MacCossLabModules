@@ -4,7 +4,9 @@ import org.labkey.api.targetedms.ISpectrumLibrary;
 
 public class SkylineDocSpecLibValidating extends SkylineDocSpecLib
 {
-    private final ISpectrumLibrary _library;
+    private ISpectrumLibrary _library;
+
+    public SkylineDocSpecLibValidating() {}
 
     public SkylineDocSpecLibValidating(ISpectrumLibrary library)
     {

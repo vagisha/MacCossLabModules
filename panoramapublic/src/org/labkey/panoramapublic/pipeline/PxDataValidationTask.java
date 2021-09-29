@@ -10,15 +10,17 @@ import org.labkey.api.pipeline.PipelineService;
 import org.labkey.api.pipeline.RecordedActionSet;
 import org.labkey.api.util.FileType;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
-import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.validation.Modification;
-import org.labkey.panoramapublic.model.validation.SkylineDoc;
+import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
+import org.labkey.panoramapublic.model.validation.SpecLibValidating;
 import org.labkey.panoramapublic.model.validation.StatusValidating;
 import org.labkey.panoramapublic.proteomexchange.DataValidator;
+import org.labkey.panoramapublic.proteomexchange.DataValidatorListener;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.Factory>
 {
@@ -48,31 +50,10 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
             log.info("Validating data for experiment '" + exptAnnotations.getTitle() + "'.");
             // SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(exptAnnotations);
             Integer pipelineJobId = (PipelineService.get().getJobId(job.getUser(), job.getContainer(), job.getJobGUID()));
-            DataValidator validator = new DataValidator(exptAnnotations, pipelineJobId, job.getLogger());
+            ValidatorListener listener = new ValidatorListener(job);
+            DataValidator validator = new DataValidator(exptAnnotations, pipelineJobId, listener);
             StatusValidating status = validator.validateExperiment(job.getUser());
-            log.info("Skyline Document validation: ");
-            for (SkylineDocValidating doc: status.getSkylineDocs())
-            {
-                log.info(doc.getId() + ": " + doc.getName() +": VALID: " + doc.isValid());
-                if (!doc.isValid())
-                {
-                    log.info("  MISSING SAMPLE FILES:");
-                    doc.getMissingSampleFileNames().stream().forEach(name -> log.info("    " + name));
-                }
-            }
-            log.info("Modification validation:");
-            if (status.getModifications().size() == 0)
-            {
-                log.info("No modifications were found in the submitted Skyline documents.");
-            }
-            else
-            {
-                for (Modification mod: status.getModifications())
-                {
-                    log.info(mod.getId() + ": " + mod);
-                    status.getSkylineDocs().stream().filter(doc -> doc.hasModification(mod)).forEach(doc -> log.info("    " + doc.getName()));
-                }
-            }
+
             log.info("");
             log.info("Data validation complete.");
         }
@@ -120,6 +101,114 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
         public boolean isJobComplete(PipelineJob job)
         {
             return false;
+        }
+    }
+
+    public static class ValidatorListener implements DataValidatorListener
+    {
+        private final Logger _log;
+        private final PipelineJob _job;
+
+        public ValidatorListener(PipelineJob job)
+        {
+            _log = job.getLogger();
+            _job = job;
+        }
+
+        @Override
+        public void started(StatusValidating status)
+        {
+            _job.setStatus("Starting data validation");
+            _log.info("Validating data for %d Skyline documents in %d folders", status.getSkylineDocs().size(),
+                    status.getSkylineDocs().stream().map(doc -> doc.getContainer()).distinct().count());
+        }
+
+        @Override
+        public void validatingDocument(SkylineDocValidating document)
+        {
+            _job.setStatus("Validating document " + document.getName());
+        }
+
+        @Override
+        public void sampleFilesValidated(SkylineDocValidating document, StatusValidating status)
+        {
+            _log.info("Sample file validation for Skyline document: " + document.getName());
+            if (document.foundAllSampleFiles())
+            {
+                _log.info("  Found all sample files.");
+            }
+            else
+            {
+                _log.info("  MISSING SAMPLE FILES:");
+                document.getMissingSampleFileNames().stream().forEach(name -> _log.info("    " + name));
+            }
+        }
+
+        @Override
+        public void validatingModifications()
+        {
+            _job.setStatus("Validating modifications");
+        }
+
+        @Override
+        public void modificationsValidated(StatusValidating status)
+        {
+            _log.info("Modifications validation:");
+            if (status.getModifications().size() == 0)
+            {
+                _log.info("No modifications were found in the submitted Skyline documents.");
+            }
+            else
+            {
+                Map<Boolean, List<Modification>> modGroups = status.getModifications().stream().collect(Collectors.partitioningBy(mod -> mod.isValid()));
+                _log.info("VALID MODIFICATIONS:");
+                for (Modification mod: modGroups.get(Boolean.TRUE))
+                {
+                    _log.info(mod.getId() + ": " + mod);
+                    status.getSkylineDocs().stream().filter(doc -> doc.hasModification(mod)).forEach(doc -> _log.info("    " + doc.getName()));
+                }
+                _log.info("INVALID MODIFICATIONS (No Unimod ID):");
+                for (Modification mod: modGroups.get(Boolean.FALSE))
+                {
+                    _log.info(mod.getId() + ": " + mod);
+                    status.getSkylineDocs().stream().filter(doc -> doc.hasModification(mod)).forEach(doc -> _log.info("    " + doc.getName()));
+                }
+            }
+        }
+
+        @Override
+        public void validatingSpectralLibraries()
+        {
+            _job.setStatus("Validating spectral libraries");
+        }
+
+        @Override
+        public void spectralLibrariesValidated(StatusValidating status)
+        {
+            _log.info("Spectral library validation:");
+            if (status.getSpectralLibraries().size() == 0)
+            {
+                _log.info("No spectral libraries were found in the submitted Skyline documents.");
+            }
+            else
+            {
+                for (SpecLibValidating specLib: status.getSpectralLibraries())
+                {
+                    _log.info(specLib.toString());
+                    if (specLib.hasMissingSpectrumFiles() || specLib.hasMissingIdFiles())
+                    {
+                        _log.info("  MISSING FILES:");
+                        for (String name: specLib.getMissingSpectrumFileNames())
+                        {
+                            _log.info("    Spectrum File: " + name);
+                        }
+                        for (String name: specLib.getMissingIdFileNames())
+                        {
+                            _log.info("    Peptide Id File: " + name);
+                        }
+                    }
+                }
+            }
         }
     }
 }

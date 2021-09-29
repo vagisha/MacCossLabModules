@@ -2,7 +2,7 @@ package org.labkey.panoramapublic.model.validation;
 
 import org.labkey.api.data.Container;
 
-import java.util.Collections;
+import javax.validation.constraints.NotNull;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -14,10 +14,9 @@ public abstract class GenericSkylineDoc <S extends SkylineDocSampleFile, L exten
     private Container _container; // Container in which the Skyline document was imported
     private String _name; // Name of the .sky.zip file
 
-    List<SkylineDocModification> _modifications;
-
-    public abstract List<S> getSampleFiles();
-    public abstract List<L> getSpecLibraries();
+    public abstract @NotNull List<S> getSampleFiles();
+    public abstract @NotNull List<L> getSpecLibraries();
+    public abstract @NotNull List<SkylineDocModification> getModifications();
 
     public int getId()
     {
@@ -74,12 +73,12 @@ public abstract class GenericSkylineDoc <S extends SkylineDocSampleFile, L exten
         return foundAllSampleFiles() && specLibrariesIncluded();
     }
 
-    private boolean foundAllSampleFiles()
+    public boolean foundAllSampleFiles()
     {
         return getSampleFiles().stream().allMatch(f -> !f.isPending() && f.found());
     }
 
-    private boolean specLibrariesIncluded()
+    public boolean specLibrariesIncluded()
     {
         return getSpecLibraries().stream().allMatch(SkylineDocSpecLib::isIncluded);
     }
@@ -94,13 +93,13 @@ public abstract class GenericSkylineDoc <S extends SkylineDocSampleFile, L exten
         return getSampleFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
     }
 
-    public List<SkylineDocModification> getModifications()
-    {
-        return _modifications == null ? Collections.emptyList() : _modifications;
-    }
-
     public boolean hasModification(Modification modification)
     {
         return getModifications().stream().anyMatch(mod -> mod.getModificationValidationId() == modification.getId());
+    }
+
+    public boolean hasLibrary(SpecLib library)
+    {
+        return getSpecLibraries().stream().anyMatch(lib -> lib.getSpeclibValidationId() == library.getId());
     }
 }

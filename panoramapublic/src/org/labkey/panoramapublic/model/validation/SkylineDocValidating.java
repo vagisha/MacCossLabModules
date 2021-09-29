@@ -4,19 +4,27 @@ import org.jetbrains.annotations.NotNull;
 import org.labkey.api.targetedms.ITargetedMSRun;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class SkylineDocValidating extends GenericSkylineDoc<SampleFileValidating, SkylineDocSpecLibValidating>
 {
     private List<SampleFileValidating> _sampleFiles;
     private List<SkylineDocSpecLibValidating> _specLibraries;
-    private final ITargetedMSRun _run;
+    private List<SkylineDocModification> _modifications;
+    private ITargetedMSRun _run;
+
+    public SkylineDocValidating()
+    {
+        _sampleFiles = new ArrayList<>();
+        _specLibraries = new ArrayList<>();
+        _modifications = new ArrayList<>();
+    }
 
     public SkylineDocValidating(@NotNull ITargetedMSRun run)
     {
+        this();
         _run = run;
-        _sampleFiles = new ArrayList<>();
-        _specLibraries = new ArrayList<>();
     }
 
     public void addSampleFile(SampleFileValidating sampleFile)
@@ -31,10 +39,6 @@ public class SkylineDocValidating extends GenericSkylineDoc<SampleFileValidating
 
     public void addModification(Modification mod)
     {
-        if (_modifications == null)
-        {
-            _modifications = new ArrayList<>();
-        }
         _modifications.add(new SkylineDocModification(getId(), mod.getId()));
     }
 
@@ -46,12 +50,18 @@ public class SkylineDocValidating extends GenericSkylineDoc<SampleFileValidating
     @Override
     public List<SampleFileValidating> getSampleFiles()
     {
-        return _sampleFiles;
+        return Collections.unmodifiableList(_sampleFiles);
     }
 
     @Override
     public List<SkylineDocSpecLibValidating> getSpecLibraries()
     {
-        return _specLibraries;
+        return Collections.unmodifiableList(_specLibraries);
+    }
+
+    @Override
+    public List<SkylineDocModification> getModifications()
+    {
+        return Collections.unmodifiableList(_modifications);
     }
 }

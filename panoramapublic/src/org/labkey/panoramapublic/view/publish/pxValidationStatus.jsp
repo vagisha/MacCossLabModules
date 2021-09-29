@@ -4,6 +4,8 @@
 <%@ page import="org.labkey.panoramapublic.model.ExperimentAnnotations" %>
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
 <%@ page import="org.labkey.api.view.ViewContext" %>
+<%@ page import="org.labkey.api.util.PageFlowUtil" %>
+<%@ page import="org.labkey.api.pipeline.PipelineStatusUrls" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%!
@@ -18,13 +20,20 @@
 
 <%
     ViewContext context = getViewContext();
+    String jobIdStr = context.getActionURL().getParameter("jobId");
+    Integer jobId = jobIdStr != null ? Integer.valueOf(jobIdStr) : null;
 %>
-
-<div id="statusDiv"></div>
+<div>
+    <span style="font-weight:bold;text-decoration:underline;margin-right:5px;">JOB STATUS</span>
+    <% if (jobId != null ) { %><span><%=link("[Job Details]", PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), jobId))%></span> <% } %>
+    <div id="jobStatusDiv"></div>
+</div>
+<div id="validationStatusDiv"></div>
 
 <script type="text/javascript">
 
-    var div = document.getElementById("statusDiv");
+    var jobStatusDiv = document.getElementById("jobStatusDiv");
+    var validationStatusDiv = document.getElementById("validationStatusDiv");
     var parameters = LABKEY.ActionURL.getParameters();
 
     Ext4.onReady(makeRequest);
@@ -39,24 +48,33 @@
         });
     }
 
+    var lastJobStatus;
     function appendStatus(json)
     {
-        console.log("in appendStatus");
+        // console.log("in appendStatus");
         if (json)
         {
-            console.log("appending status");
-            var status = json["status"];
-
-            console.log(status);
-            if (status.length > 0)
+            var validationStatus = json["validationStatus"];
+            var jobStatus = json["jobStatus"];
+            if (jobStatus && (lastJobStatus && lastJobStatus !== jobStatus))
             {
-                div.innerHTML = div.innerHTML + status + "<br>\n";
+                console.log(jobStatus);
+                jobStatusDiv.innerHTML = jobStatusDiv.innerHTML + "</br>" + jobStatus;
+            }
+            if (validationStatus)
+            {
+                console.log(validationStatus);
+                validationStatusDiv.innerHTML = "Validation Status: </br>" + validationStatus;
             }
 
-            // If task is not complete then schedule another status update in one second.
-            if (!json["complete"] && !json["error"])
+            if (jobStatus)
             {
-                setTimeout(makeRequest, 1000);
+                const jobStatusLc = jobStatus.toLowerCase();
+                if (!(jobStatusLc === "complete" || jobStatusLc === "error" || jobStatusLc === "cancelled" || jobStatusLc === "cancelling"))
+                {
+                    // If task is not complete then schedule another status update in one second.
+                    setTimeout(makeRequest, 1000);
+                }
             }
         }
         else

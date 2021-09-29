@@ -127,6 +127,8 @@ import org.labkey.panoramapublic.model.JournalExperiment;
 import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
 import org.labkey.panoramapublic.model.Submission;
+import org.labkey.panoramapublic.model.validation.DataValidation;
+import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxDataValidationPipelineJob;
@@ -139,6 +141,7 @@ import org.labkey.panoramapublic.proteomexchange.PxHtmlWriter;
 import org.labkey.panoramapublic.proteomexchange.PxXmlWriter;
 import org.labkey.panoramapublic.proteomexchange.SubmissionDataStatus;
 import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
+import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
@@ -2004,14 +2007,27 @@ public class PanoramaPublicController extends SpringActionController
         {
             PipelineStatusFile status = PipelineService.get().getStatusFile(form.getJobId());
             ApiSimpleResponse response = new ApiSimpleResponse();
-            response.put("status", status != null ? status.getStatus() : "NO status found");
-            if (PipelineJob.TaskStatus.complete.matches(status.getStatus()))
+            if (status != null)
             {
-                response.put("complete", "complete");
+                response.put("jobStatus", status.getStatus());
+                if (!(PipelineJob.TaskStatus.error.matches(status.getStatus())
+                        || PipelineJob.TaskStatus.cancelling.matches(status.getStatus())
+                        || PipelineJob.TaskStatus.cancelled.matches(status.getStatus())))
+                {
+                    Status validationStatus = DataValidationManager.getStatusForJobId(form.getJobId(), getContainer());
+                    if (validationStatus != null)
+                    {
+                        response.put("validationStatus", validationStatus.toJSON());
+                    }
+                    else
+                    {
+                        response.put("error", "Validation status not found for jobId " + form.getJobId() + " in folder " + getContainer().getName());
+                    }
+                }
             }
-            else if (PipelineJob.TaskStatus.error.matches(status.getStatus()))
+            else
             {
-                response.put("error", "error");
+                response.put("status", "No status found");
             }
             return response;
         }

@@ -1,5 +1,7 @@
 package org.labkey.panoramapublic.model.validation;
 
+import org.jetbrains.annotations.NotNull;
+import org.json.JSONObject;
 import org.labkey.api.data.Container;
 import org.labkey.panoramapublic.model.DbEntity;
 
@@ -57,5 +59,16 @@ public class DataValidation extends DbEntity
     public void setValid(Boolean valid)
     {
         _valid = valid;
+    }
+
+    @NotNull
+    public JSONObject toJSON()
+    {
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("id", getId());
+        jsonObject.put("folder", getContainer().getName());
+        jsonObject.put("experimentAnnotationsId", getExperimentAnnotationsId());
+        jsonObject.put("status", getValid() == null ? "IN PROGRESS" : (getValid()) ? "VALID" : "INVALID");
+        return jsonObject;
     }
 }

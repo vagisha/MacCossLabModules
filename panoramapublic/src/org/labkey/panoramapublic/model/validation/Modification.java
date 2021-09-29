@@ -2,6 +2,7 @@ package org.labkey.panoramapublic.model.validation;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.json.JSONObject;
 
 public class Modification
 {
@@ -12,7 +13,7 @@ public class Modification
     private String _unimodName;
     private String _modType;
 
-    public static enum ModType {STRUCTURAL, ISOTOPIC};
+    public enum ModType {STRUCTURAL, ISOTOPIC};
 
     public Modification() {}
 
@@ -96,6 +97,24 @@ public class Modification
 
     public String toString()
     {
-        return _skylineModName + ": " +  (isValid() ? ("UNIMOD:" + _unimodId + ", " + _unimodName) : "No UNIMOD ID");
+        if (isValid())
+        {
+            return "UNIMOD:" + _unimodId + ", " + _unimodName + "(" + _skylineModName + ")";
+        }
+        else
+        {
+            return _skylineModName + ": No UNIMOD ID";
+        }
+    }
+
+    @NotNull
+    public JSONObject toJSON()
+    {
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("id", getId());
+        jsonObject.put("valid", isValid());
+        jsonObject.put("modType", getModType());
+        jsonObject.put("name", toString());
+        return jsonObject;
     }
 }

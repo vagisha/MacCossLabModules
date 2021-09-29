@@ -1,30 +1,14 @@
 package org.labkey.panoramapublic.model.validation;
 
-import org.labkey.panoramapublic.model.DbEntity;
-import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.List;
 
-public abstract class GenericValidationStatus <D extends GenericSkylineDoc, L extends SpecLib> extends DbEntity
+public abstract class GenericValidationStatus <D extends GenericSkylineDoc, L extends SpecLib>
 {
     private DataValidation _validation;
-    List<D> _skylineDocs;
-    List<Modification> _modifications;
 
     public GenericValidationStatus() {}
-
-    public GenericValidationStatus(ExperimentAnnotations expAnnotations, int jobId)
-    {
-        _validation = new DataValidation(expAnnotations.getId(), expAnnotations.getContainer(), jobId);
-        _skylineDocs = new ArrayList<>();
-        _modifications = new ArrayList<>();
-    }
-
-    public List<D> getSkylineDocs()
-    {
-        return _skylineDocs;
-    }
 
     public DataValidation getValidation()
     {
@@ -36,10 +20,7 @@ public abstract class GenericValidationStatus <D extends GenericSkylineDoc, L ex
         _validation = validation;
     }
 
-    public List<Modification> getModifications()
-    {
-        return _modifications;
-    }
-
-    public abstract List<L> getSpectrumLibraries();
+    public abstract @NotNull List<L> getSpectralLibraries();
+    public abstract @NotNull List<D> getSkylineDocs();
+    public abstract @NotNull List<Modification> getModifications();
 }

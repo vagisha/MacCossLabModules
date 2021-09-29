@@ -1,22 +1,24 @@
 package org.labkey.panoramapublic.model.validation;
 
+import org.jetbrains.annotations.NotNull;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class StatusValidating extends GenericValidationStatus <SkylineDocValidating, SpecLibValidating>
 {
-    private List<SpecLibValidating> _spectrumLibraries;
-
-    public StatusValidating()
-    {
-        _spectrumLibraries = new ArrayList<>();
-    }
+    private final List<SkylineDocValidating> _skylineDocs;
+    private final List<Modification> _modifications;
+    private final List<SpecLibValidating> _spectrumLibraries;
 
     public StatusValidating(ExperimentAnnotations expAnnotations, int jobId)
     {
-        super(expAnnotations, jobId);
+        setValidation(new DataValidation(expAnnotations.getId(), expAnnotations.getContainer(), jobId));
+        _skylineDocs = new ArrayList<>();
+        _modifications = new ArrayList<>();
+        _spectrumLibraries = new ArrayList<>();
     }
 
     public void addSkylineDoc(SkylineDocValidating skylineDocValidation)
@@ -34,8 +36,21 @@ public class StatusValidating extends GenericValidationStatus <SkylineDocValidat
         _spectrumLibraries.add(specLib);
     }
 
-    public List<SpecLibValidating> getSpectrumLibraries()
+    @Override
+    public @NotNull List<SpecLibValidating> getSpectralLibraries()
     {
-        return _spectrumLibraries;
+        return Collections.unmodifiableList(_spectrumLibraries);
+    }
+
+    @Override
+    public @NotNull List<SkylineDocValidating> getSkylineDocs()
+    {
+        return Collections.unmodifiableList(_skylineDocs);
+    }
+
+    @Override
+    public @NotNull List<Modification> getModifications()
+    {
+        return Collections.unmodifiableList(_modifications);
     }
 }

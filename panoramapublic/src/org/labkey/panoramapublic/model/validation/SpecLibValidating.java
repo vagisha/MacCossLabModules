@@ -8,18 +8,18 @@ import java.util.List;
 
 public class SpecLibValidating extends SpecLib
 {
-    private List<Pair<SkylineDocValidating, ISpectrumLibrary>> _documentLibraries;
+    private final List<Pair<SkylineDocValidating, ISpectrumLibrary>> _documentLibraries;
 
     public SpecLibValidating()
     {
         _documentLibraries = new ArrayList<>();
-        _spectrumFiles = new ArrayList<>();
-        _idFiles = new ArrayList<>();
+        setSpectrumFiles(new ArrayList<>());
+        setIdFiles(new ArrayList<>());
     }
 
     public void addDocumentLibrary(SkylineDocValidating doc, ISpectrumLibrary specLib)
     {
-        _documentLibraries.add(new Pair(doc, specLib));
+        _documentLibraries.add(new Pair<>(doc, specLib));
     }
 
     public List<Pair<SkylineDocValidating, ISpectrumLibrary>> getDocumentLibraries()
@@ -27,33 +27,20 @@ public class SpecLibValidating extends SpecLib
         return _documentLibraries;
     }
 
-    public void addSpectrumFile(SpecLibSourceFile spectrumFile)
+    public void removeSkylineDoc(SkylineDocValidating doc)
     {
-        _spectrumFiles.add(spectrumFile);
-    }
-
-    public void addIdFile(SpecLibSourceFile idFile)
-    {
-        _idFiles.add(idFile);
-    }
-
-    public List<SpecLibSourceFile> getSpectrumFiles()
-    {
-        return _spectrumFiles;
-    }
-
-    public List<SpecLibSourceFile> getIdFiles()
-    {
-        return _idFiles;
+        _documentLibraries.removeIf(pair -> pair.first.getRunId() == doc.getRunId());
     }
 
     public String getKey()
     {
-        return String.format("%s;%s;%s;%s", getLibName(), getFileName(), getLibType(), getDiskSize() == null ? "NOT_FOUND" : getDiskSize().toString());
+        return String.format("%s;%s;%s;%s", getLibName(), getFileName(), getLibType(), getSize() == null ? "NOT_FOUND" : getSize().toString());
     }
 
-    public void removeSkylineDoc(SkylineDocValidating doc)
+    @Override
+    public String toString()
     {
-        _documentLibraries.removeIf(pair -> pair.first.getRunId() == doc.getRunId());
+        return String.format("'%s' (%s) library in %d Skyline documents was built with %d raw files; %d peptide Id files. Status: %s",
+                getLibName(), getFileName(), _documentLibraries.size(), getSpectrumFiles().size(), getIdFiles().size(), getStatusString());
     }
 }

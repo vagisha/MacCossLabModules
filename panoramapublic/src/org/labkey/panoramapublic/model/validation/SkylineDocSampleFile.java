@@ -3,7 +3,9 @@ package org.labkey.panoramapublic.model.validation;
 public class SkylineDocSampleFile extends DataFile
 {
     private int _skylineDocValidationId;
-    private int _sampleFileId; // Refers to targetedms.samplefile.id
+    // Example: 2017_July_10_bivalves_292.raw?centroid_ms2=true.
+    // Example: D:\Data\CPTAC_Study9s\Site52_041009_Study9S_Phase-I.wiff|Site52_STUDY9S_PHASEI_6ProtMix_QC_07|6
+    private String _skylineName;
 
     public SkylineDocSampleFile() {}
 
@@ -17,13 +19,13 @@ public class SkylineDocSampleFile extends DataFile
         _skylineDocValidationId = skylineDocValidationId;
     }
 
-    public int getSampleFileId()
+    public String getSkylineName()
     {
-        return _sampleFileId;
+        return _skylineName;
     }
 
-    public void setSampleFileId(int sampleFileId)
+    public void setSkylineName(String skylineName)
     {
-        _sampleFileId = sampleFileId;
+        _skylineName = skylineName;
     }
 }
