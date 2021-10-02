@@ -311,7 +311,7 @@ public class DataValidator
         List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations);
         for (ExperimentModificationGetter.PxModification pxMod: mods)
         {
-            Modification mod = new Modification(pxMod.getSkylineName(),
+            Modification mod = new Modification(pxMod.getSkylineName(), pxMod.getDbModId(),
                     pxMod.getUnimodIdInt(),
                     pxMod.getName(),
                     pxMod.isIsotopicMod() ? ModType.ISOTOPIC : ModType.STRUCTURAL);

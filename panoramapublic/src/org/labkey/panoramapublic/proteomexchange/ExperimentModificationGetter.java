@@ -110,7 +110,8 @@ public class ExperimentModificationGetter
             }
         }
 
-        return uMod == null ? new PxStructuralMod(null, mod.getName(), mod.getName()) : new PxStructuralMod(uMod.getId(), uMod.getName(), mod.getName());
+        return uMod == null ? new PxStructuralMod(null, mod.getName(), mod.getName(), mod.getId())
+                : new PxStructuralMod(uMod.getId(), uMod.getName(), mod.getName(), mod.getId());
     }
 
     private static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods, Container container)
@@ -143,7 +144,8 @@ public class ExperimentModificationGetter
             }
         }
 
-        return uMod == null ? new PxIsotopicMod(null, mod.getName(), mod.getName()) : new PxIsotopicMod(uMod.getId(), uMod.getName(), mod.getName());
+        return uMod == null ? new PxIsotopicMod(null, mod.getName(), mod.getName(), mod.getId())
+                : new PxIsotopicMod(uMod.getId(), uMod.getName(), mod.getName(), mod.getId());
     }
 
     private static String buildIsotopeModFormula(IModification.IIsotopeModification mod, UnimodModifications uMods) throws PxException
@@ -195,9 +197,10 @@ public class ExperimentModificationGetter
         private final String _skylineName;
         private final Integer _unimodId;
         private Set<String> _skylineDocs;
+        private final long _dbModId; // database id from the IsotopeModification table if _isotopicMod is true, StructuralModification otherwise
         private final boolean _isotopicMod;
 
-        PxModification(Integer id, String name, String skylineName, boolean isIsotopic)
+        PxModification(Integer id, String name, String skylineName, boolean isIsotopic, long dbModId)
         {
             _name = name;
             _unimodId = id;
@@ -205,6 +208,7 @@ public class ExperimentModificationGetter
 
             _skylineDocs = new HashSet<>();
             _isotopicMod = isIsotopic;
+            _dbModId = dbModId;
         }
 
         public void addSkylineDoc(String skyDocName)
@@ -230,6 +234,11 @@ public class ExperimentModificationGetter
             return _skylineName;
         }
 
+        public long getDbModId()
+        {
+            return _dbModId;
+        }
+
         public String getUnimodId()
         {
             return _unimodId == null ? null : "UNIMOD:" + _unimodId;
@@ -253,17 +262,17 @@ public class ExperimentModificationGetter
 
     public static class PxStructuralMod extends PxModification
     {
-        public PxStructuralMod(Integer id, String name, String skylineName)
+        public PxStructuralMod(Integer unimodId, String name, String skylineName, long dbModId)
         {
-            super(id, name, skylineName, false);
+            super(unimodId, name, skylineName, false, dbModId);
         }
     }
 
     public static class PxIsotopicMod extends PxModification
     {
-        public PxIsotopicMod(Integer id, String name, String skylineName)
+        public PxIsotopicMod(Integer unimodId, String name, String skylineName, long dbModId)
         {
-            super(id, name, skylineName, true);
+            super(unimodId, name, skylineName, true, dbModId);
         }
     }
 

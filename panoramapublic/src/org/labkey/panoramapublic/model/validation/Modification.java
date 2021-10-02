@@ -1,5 +1,6 @@
 package org.labkey.panoramapublic.model.validation;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
@@ -9,6 +10,7 @@ public class Modification
     private int _id;
     private int _validationId;
     private String _skylineModName;
+    private long _dbModId;
     private Integer _unimodId;
     private String _unimodName;
     private String _modType;
@@ -17,9 +19,10 @@ public class Modification
 
     public Modification() {}
 
-    public Modification(@NotNull String skylineModName, @Nullable Integer unimodId, @Nullable String unimodName, @NotNull ModType modType)
+    public Modification(@NotNull String skylineModName, long dbModId, @Nullable Integer unimodId, @Nullable String unimodName, @NotNull ModType modType)
     {
         _skylineModName = skylineModName;
+        _dbModId = dbModId;
         _unimodId = unimodId;
         _unimodName = unimodName;
         _modType = modType.name();
@@ -53,6 +56,16 @@ public class Modification
     public void setSkylineModName(String skylineModName)
     {
         _skylineModName = skylineModName;
+    }
+
+    public long getDbModId()
+    {
+        return _dbModId;
+    }
+
+    public void setDbModId(long dbModId)
+    {
+        _dbModId = dbModId;
     }
 
     public Integer getUnimodId()
@@ -97,14 +110,17 @@ public class Modification
 
     public String toString()
     {
-        if (isValid())
-        {
-            return "UNIMOD:" + _unimodId + ", " + _unimodName + "(" + _skylineModName + ")";
-        }
-        else
-        {
-            return _skylineModName + ": No UNIMOD ID";
-        }
+        return getNameStr() + ": " + getUnimodIdStr();
+    }
+
+    public String getUnimodIdStr()
+    {
+        return isValid() ? "UNIMOD: " + _unimodId : "No UNIMOD Id";
+    }
+
+    public String getNameStr()
+    {
+        return !StringUtils.isBlank(_unimodName) ? _unimodName + (!_unimodName.equals(_skylineModName) ? " (" + _skylineModName + ")" : "") : _skylineModName;
     }
 
     @NotNull
@@ -114,7 +130,8 @@ public class Modification
         jsonObject.put("id", getId());
         jsonObject.put("valid", isValid());
         jsonObject.put("modType", getModType());
-        jsonObject.put("name", toString());
+        jsonObject.put("name", getNameStr());
+        jsonObject.put("unimod", getUnimodIdStr());
         return jsonObject;
     }
 }
