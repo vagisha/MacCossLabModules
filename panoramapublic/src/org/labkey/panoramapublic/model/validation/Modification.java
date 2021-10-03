@@ -110,7 +110,7 @@ public class Modification
 
     public String toString()
     {
-        return getNameStr() + ": " + getUnimodIdStr();
+        return getNameString() + ": " + getUnimodIdStr();
     }
 
     public String getUnimodIdStr()
@@ -118,7 +118,7 @@ public class Modification
         return isValid() ? "UNIMOD: " + _unimodId : "No UNIMOD Id";
     }
 
-    public String getNameStr()
+    public String getNameString()
     {
         return !StringUtils.isBlank(_unimodName) ? _unimodName + (!_unimodName.equals(_skylineModName) ? " (" + _skylineModName + ")" : "") : _skylineModName;
     }
@@ -128,10 +128,12 @@ public class Modification
     {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("id", getId());
+        jsonObject.put("unimodId", getUnimodId());
+        jsonObject.put("name", getNameString());
         jsonObject.put("valid", isValid());
         jsonObject.put("modType", getModType());
-        jsonObject.put("name", getNameStr());
-        jsonObject.put("unimod", getUnimodIdStr());
+        jsonObject.put("dbModId", getDbModId());
+
         return jsonObject;
     }
 }
