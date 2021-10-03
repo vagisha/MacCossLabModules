@@ -52,7 +52,7 @@ public class SkylineDoc extends GenericSkylineDoc<SkylineDocSampleFile, SkylineD
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("id", getId());
         jsonObject.put("runId", getRunId());
-        jsonObject.put("container", getContainer().getRowId());
+        jsonObject.put("container", getContainer().getPath());
         jsonObject.put("name", getName());
         jsonObject.put("valid", foundAllSampleFiles());
         jsonObject.put("sampleFiles", getSampleFilesJSON());

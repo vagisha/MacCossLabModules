@@ -110,15 +110,15 @@ public class SpecLib
     {
         if (isMissingInSkyZip())
         {
-            return "MISSING IN SKYLINE ZIP";
+            return "Missing in Skyline ZIP";
         }
         if (isAssayLibrary())
         {
-            return "BLIB BUILT WITH ASSAY LIBRARY";
+            return "BiblioSpec library built with Assay Library (.csv file)";
         }
         if (isUnsupportedLibrary())
         {
-            return "UNSUPPORTED LIBRARY " + getLibType();
+            return "Unsupported library: " + getLibType();
         }
         if (isPrositLibrary())
         {
@@ -136,13 +136,13 @@ public class SpecLib
             String status = null;
             if (missingSpectrumFiles || missingIdFiles)
             {
-                status = String.format("MISSING %s%s%s FILES", missingSpectrumFiles ? "SPECTRUM " : "",
-                        missingSpectrumFiles && missingIdFiles ? "AND " : "",
-                        missingIdFiles ? "ID " : "");
+                status = String.format("Missing %s%s%s files", missingSpectrumFiles ? "spectrum " : "",
+                        missingSpectrumFiles && missingIdFiles ? "and " : "",
+                        missingIdFiles ? "peptide Id " : "");
             }
             if (missingIdFilesInBlib)
             {
-                status = String.format("%s%s", status == null ? "" : status + "; ", "ID FILES NOT FOUND IN BLIB");
+                status = String.format("%s%s", status == null ? "" : status + "; ", "Peptide Id files not found in the .blib library");
             }
             return status;
         }
@@ -256,6 +256,8 @@ public class SpecLib
         jsonObject.put("fileName", getFileName());
         jsonObject.put("libType", getLibType());
         jsonObject.put("size", getSize());
+        jsonObject.put("valid", isValid());
+        jsonObject.put("status", getStatusString());
         jsonObject.put("spectrumFiles", getSourceFilesJSON(getSpectrumFiles()));
         jsonObject.put("idFiles", getSourceFilesJSON(getIdFiles()));
         return jsonObject;

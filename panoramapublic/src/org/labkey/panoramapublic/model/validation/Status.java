@@ -101,7 +101,7 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
                 {
                     JSONObject docLib = new JSONObject();
                     docLib.put("runId", doc.getRunId());
-                    docLib.put("container", doc.getContainer().getRowId());
+                    docLib.put("container", doc.getContainer().getPath());
                     docLib.put("name", doc.getName());
                     docsJson.put(docLib);
                 }
