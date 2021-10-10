@@ -3,7 +3,16 @@ package org.labkey.panoramapublic.model.validation;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.json.JSONArray;
 import org.json.JSONObject;
+import org.labkey.panoramapublic.proteomexchange.UnimodModification;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class Modification
 {
@@ -14,6 +23,7 @@ public class Modification
     private Integer _unimodId;
     private String _unimodName;
     private String _modType;
+    private String _unimodMatches;
 
     public enum ModType {STRUCTURAL, ISOTOPIC};
 
@@ -120,7 +130,42 @@ public class Modification
 
     public String getNameString()
     {
-        return !StringUtils.isBlank(_unimodName) ? _unimodName + (!_unimodName.equals(_skylineModName) ? " (" + _skylineModName + ")" : "") : _skylineModName;
+        return !StringUtils.isBlank(_unimodName) ? _unimodName + (!_unimodName.equals(_skylineModName) ? " [ " + _skylineModName + " ]" : "") : _skylineModName;
+    }
+
+    public String getUnimodMatches()
+    {
+        return _unimodMatches;
+    }
+
+    public void setUnimodMatches(String unimodMatches)
+    {
+        _unimodMatches = unimodMatches;
+    }
+
+    public void setPossibleUnimodMatches(List<UnimodModification> uModsList)
+    {
+        _unimodMatches = StringUtils.join(uModsList.stream().map(m -> m.getId() + ":::" + m.getName() + ":::" + m.getNormalizedFormula() + ":::" + m.getModSites())
+                .collect(Collectors.toList()), "&&");
+    }
+
+    private List<List<String>> getPossibleUnimodMatches()
+    {
+        if (_unimodMatches == null)
+        {
+            return Collections.emptyList();
+        }
+        String[] matches = StringUtils.splitByWholeSeparator(_unimodMatches, "&&");
+        List<List<String>> matchList = new ArrayList<>();
+        for (String match: matches)
+        {
+            String[] parts = StringUtils.splitByWholeSeparator(match, ":::");
+            if (parts.length == 4)
+            {
+                matchList.add(List.of(parts));
+            }
+        }
+        return matchList;
     }
 
     @NotNull
@@ -133,7 +178,29 @@ public class Modification
         jsonObject.put("valid", isValid());
         jsonObject.put("modType", getModType());
         jsonObject.put("dbModId", getDbModId());
-
+        if (getUnimodId() == null)
+        {
+            List<List<String>> unimodMatches = getPossibleUnimodMatches();
+            if (unimodMatches.size() > 0)
+            {
+                jsonObject.put("possibleUnimodMatches", getPossibleUnimodMatchesJSON(unimodMatches));
+            }
+        }
         return jsonObject;
+    }
+
+    private JSONArray getPossibleUnimodMatchesJSON(List<List<String>> unimodMatches)
+    {
+        JSONArray possibleUnimods = new JSONArray();
+        for (List<String> match: unimodMatches)
+        {
+            JSONObject possibleUnimod = new JSONObject();
+            possibleUnimod.put("unimodId", match.get(0));
+            possibleUnimod.put("name", match.get(1));
+            possibleUnimod.put("formula", match.get(2));
+            possibleUnimod.put("sites", match.get(3));
+            possibleUnimods.put(possibleUnimod);
+        }
+        return possibleUnimods;
     }
 }

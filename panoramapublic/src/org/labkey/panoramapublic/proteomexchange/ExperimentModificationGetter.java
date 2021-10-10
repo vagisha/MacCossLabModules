@@ -18,6 +18,7 @@ package org.labkey.panoramapublic.proteomexchange;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
 import org.labkey.api.data.Container;
@@ -25,12 +26,14 @@ import org.labkey.api.targetedms.IModification;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.JunitUtil;
+import org.labkey.api.util.logging.LogHelper;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -39,7 +42,7 @@ import java.util.Set;
 
 public class ExperimentModificationGetter
 {
-    private static final Logger LOG = LogManager.getLogger(ExperimentModificationGetter.class);
+    private static final Logger LOG = LogHelper.getLogger(ExperimentModificationGetter.class, "Looks up the structural and isotopic modifications for documents associated with an experiment");
 
     public static List<PxModification> getModifications(ExperimentAnnotations expAnnot)
     {
@@ -82,7 +85,7 @@ public class ExperimentModificationGetter
         return allMods;
     }
 
-    private static String[] modSites(IModification mod)
+    private static @NotNull String[] modSites(IModification mod)
     {
         if(mod.getAminoAcid() == null)
         {
@@ -94,32 +97,41 @@ public class ExperimentModificationGetter
 
     public static PxModification getStructuralUnimodMod(IModification mod, UnimodModifications uMods)
     {
-        UnimodModification uMod = null;
         if(mod.getUnimodId() != null)
         {
-            uMod = uMods.getById(mod.getUnimodId());
+            UnimodModification uMod = uMods.getById(mod.getUnimodId());
+            return uMod != null ? new PxStructuralMod(mod.getName(), mod.getId(), uMod) : new PxStructuralMod(mod.getName(), mod.getId());
         }
         else
         {
+            PxStructuralMod pxMod = new PxStructuralMod(mod.getName(), mod.getId());
             String normFormula = UnimodModification.normalizeFormula(mod.getFormula());
             if(normFormula != null)
             {
                 String[] sites = modSites(mod);
-                // Find a match based on formula and modification sites (aa or term)
-                uMod = uMods.getMatch(normFormula, sites, true);
+                // Find possible matches based on formula and modification sites (aa or term)
+                List<UnimodModification> uModList = uMods.getMatches(normFormula, sites, true);
+                if (sites.length > 0 && uModList.size() == 1)
+                {
+                    // If there was only one match for the modification formula and modification sites then assume
+                    // that this is the right match.
+                    pxMod.setUnimodMatch(uModList.get(0));
+                }
+                else
+                {
+                    uModList.forEach(pxMod::addPossibleUnimod);
+                }
             }
+            return pxMod;
         }
-
-        return uMod == null ? new PxStructuralMod(null, mod.getName(), mod.getName(), mod.getId())
-                : new PxStructuralMod(uMod.getId(), uMod.getName(), mod.getName(), mod.getId());
     }
 
     private static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods, Container container)
     {
-        UnimodModification uMod = null;
         if(mod.getUnimodId() != null)
         {
-            uMod = uMods.getById(mod.getUnimodId());
+            UnimodModification uMod = uMods.getById(mod.getUnimodId());
+            return uMod != null ? new PxIsotopicMod(mod.getName(), mod.getId(), uMod) : new PxIsotopicMod(mod.getName(), mod.getId());
         }
         else
         {
@@ -135,17 +147,26 @@ public class ExperimentModificationGetter
                     LOG.error("Error building formula for isotopic mod (" + mod.getName() + ") in container " + container, e);
                 }
             }
+            PxIsotopicMod pxMod = new PxIsotopicMod(mod.getName(), mod.getId());
             String normFormula = UnimodModification.normalizeFormula(formula);
             if(normFormula != null)
             {
                 String[] sites = modSites(mod);
-                // Find a match based on formula and modification sites (aa or term)
-                uMod = uMods.getMatch(normFormula, sites, false);
+                // Find possible matches based on formula and modification sites (aa or term)
+                List<UnimodModification> uModList = uMods.getMatches(normFormula, sites, false);
+                if (sites.length > 0 && uModList.size() == 1)
+                {
+                    // If there was only one match for the modification formula and modification sites then assume
+                    // that this is the right match.
+                    pxMod.setUnimodMatch(uModList.get(0));
+                }
+                else
+                {
+                    uModList.forEach(pxMod::addPossibleUnimod);
+                }
             }
+            return pxMod;
         }
-
-        return uMod == null ? new PxIsotopicMod(null, mod.getName(), mod.getName(), mod.getId())
-                : new PxIsotopicMod(uMod.getId(), uMod.getName(), mod.getName(), mod.getId());
     }
 
     private static String buildIsotopeModFormula(IModification.IIsotopeModification mod, UnimodModifications uMods) throws PxException
@@ -156,7 +177,7 @@ public class ExperimentModificationGetter
             return null;
         }
 
-        // On PanoramaWeb we do not have any isotopic modifications with multiple amino amods as targets.  But Skyline allows it
+        // On PanoramaWeb we do not have any isotopic modifications with multiple amino acids as targets.  But Skyline allows it
         String[] sites = modSites(mod);
         String formula = null;
         for(String site: sites)
@@ -193,22 +214,22 @@ public class ExperimentModificationGetter
 
     public static abstract class PxModification
     {
-        private final String _name;
         private final String _skylineName;
-        private final Integer _unimodId;
-        private Set<String> _skylineDocs;
+        private final Set<String> _skylineDocs;
         private final long _dbModId; // database id from the IsotopeModification table if _isotopicMod is true, StructuralModification otherwise
         private final boolean _isotopicMod;
+        private UnimodModification _match;
+        private final List<UnimodModification> _unimodModifications; // List of possible Unimod modifications
 
-        PxModification(Integer id, String name, String skylineName, boolean isIsotopic, long dbModId)
+        PxModification(String skylineName, boolean isIsotopic, long dbModId)
         {
-            _name = name;
-            _unimodId = id;
             _skylineName = skylineName;
 
             _skylineDocs = new HashSet<>();
             _isotopicMod = isIsotopic;
             _dbModId = dbModId;
+
+            _unimodModifications = new ArrayList<>();
         }
 
         public void addSkylineDoc(String skyDocName)
@@ -226,7 +247,7 @@ public class ExperimentModificationGetter
 
         public String getName()
         {
-            return _name;
+            return _match != null ? _match.getName() : null;
         }
 
         public String getSkylineName()
@@ -241,38 +262,70 @@ public class ExperimentModificationGetter
 
         public String getUnimodId()
         {
-            return _unimodId == null ? null : "UNIMOD:" + _unimodId;
+            return _match == null ? null : "UNIMOD:" + _match.getId();
         }
 
         public Integer getUnimodIdInt()
         {
-            return _unimodId;
+            return _match == null ? null : _match.getId();
         }
 
         public boolean hasUnimodId()
         {
-            return _unimodId != null;
+            return _match != null;
         }
 
         public boolean isIsotopicMod()
         {
             return _isotopicMod;
         }
+
+        public void setUnimodMatch(UnimodModification uMod)
+        {
+            _match = uMod;
+        }
+
+        public void addPossibleUnimod(UnimodModification uMod)
+        {
+            _unimodModifications.add(uMod);
+        }
+
+        public boolean hasPossibleUnimods()
+        {
+            return _unimodModifications.size() > 0;
+        }
+
+        public @NotNull List<UnimodModification> getPossibleUnimodMatches()
+        {
+            return Collections.unmodifiableList(_unimodModifications);
+        }
     }
 
     public static class PxStructuralMod extends PxModification
     {
-        public PxStructuralMod(Integer unimodId, String name, String skylineName, long dbModId)
+        public PxStructuralMod(String skylineName, long dbModId)
         {
-            super(unimodId, name, skylineName, false, dbModId);
+            super(skylineName, false, dbModId);
+        }
+
+        public PxStructuralMod(String skylineName, long dbModId, UnimodModification uMod)
+        {
+            super(skylineName, false, dbModId);
+            addPossibleUnimod(uMod);
         }
     }
 
     public static class PxIsotopicMod extends PxModification
     {
-        public PxIsotopicMod(Integer unimodId, String name, String skylineName, long dbModId)
+        public PxIsotopicMod(String skylineName, long dbModId)
         {
-            super(unimodId, name, skylineName, true, dbModId);
+            super(skylineName, true, dbModId);
+        }
+
+        public PxIsotopicMod(String skylineName, long dbModId, UnimodModification uMod)
+        {
+            super(skylineName, true, dbModId);
+            addPossibleUnimod(uMod);
         }
     }
 
@@ -363,7 +416,7 @@ public class ExperimentModificationGetter
             mods.add(createMod("mono-oxidation", "O", "M, W, H, C, F, Y", null));
 
             // These modifications do not match with a modification in unimod.xml
-            Set<String> unknown = new HashSet();
+            Set<String> unknown = new HashSet<>();
             unknown.add("GlcNAc-Fuc");
             unknown.add("Lipoyl NEM (K)");
             unknown.add("ICAT-C (C)");
@@ -400,7 +453,7 @@ public class ExperimentModificationGetter
                 fail("Failed to parse UNIMOD modifications. " + e.getMessage());
             }
 
-            assertTrue(uMods != null);
+            assertNotNull(uMods);
 
             int notFound = 0;
             int total = 0;
@@ -491,7 +544,7 @@ public class ExperimentModificationGetter
                 fail("Failed to parse UNIMOD modifications. " + e.getMessage());
             }
 
-            assertTrue(uMods != null);
+            assertNotNull(uMods);
 
             // These modifications do not match with a modification in unimod.xml
             Set<String> unknown = new HashSet<>();

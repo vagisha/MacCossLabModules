@@ -30,9 +30,19 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         return _modifications != null ? Collections.unmodifiableList(_modifications) : Collections.emptyList();
     }
 
+    private boolean foundAllSampleFiles()
+    {
+        return getSkylineDocs().stream().allMatch(GenericSkylineDoc::foundAllSampleFiles);
+    }
+
     public void setModifications(List<Modification> modifications)
     {
         _modifications = modifications;
+    }
+
+    private boolean allModificationsValid()
+    {
+        return getModifications().stream().allMatch(Modification::isValid);
     }
 
     @Override
@@ -46,11 +56,22 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         _specLibs = specLibs;
     }
 
+    private boolean specLibsComplete()
+    {
+        return getSpectralLibraries().stream().allMatch(SpecLib::isValid);
+    }
+
     @NotNull
     public JSONObject toJSON()
     {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("validation", getValidation().toJSON());
+
+        JSONObject validationJson = getValidation().toJSON();
+        validationJson.put("modificationsValid", allModificationsValid());
+        validationJson.put("sampleFilesValid", foundAllSampleFiles());
+        validationJson.put("specLibsComplete", specLibsComplete());
+
+        jsonObject.put("validation", validationJson);
         jsonObject.put("skylineDocuments", getSkylineDocsJSON());
         jsonObject.put("modifications", getModificationsJSON());
         jsonObject.put("spectrumLibraries", getSpectralLibrariesJSON());
@@ -110,5 +131,32 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
             result.put(json);
         }
         return result;
+    }
+
+    public JSONArray toProgressSummaryJSON()
+    {
+        JSONArray json = new JSONArray();
+        int documentCount = getSkylineDocs().size();
+        long validatedCount = getSkylineDocs().stream().filter(doc -> !doc.isPending()).count();
+        if (validatedCount > 0)
+        {
+            boolean missingFilesFound = getSkylineDocs().stream().anyMatch(doc -> !doc.isPending() && !doc.isValid());
+            json.put("Validating sample files for Skyline documents: " + validatedCount + "/" + documentCount + " completed."
+            + (missingFilesFound ? " Found missing sample files." : ""));
+        }
+        if (getModifications().size() > 0)
+        {
+            boolean invalidModsFound = getModifications().stream().anyMatch(mod -> !mod.isValid());
+            json.put("Modifications validation complete." + (invalidModsFound ? " Found invalid modifications." : ""));
+        }
+        int specLibCount = getSpectralLibraries().size();
+        validatedCount = getSpectralLibraries().stream().filter(lib -> !lib.isPending()).count();
+        if (validatedCount > 0)
+        {
+            boolean missingFilesFound = getSpectralLibraries().stream().anyMatch(lib -> !lib.isPending() && !lib.isValid());
+            json.put("Validating spectral libraries: " + validatedCount + "/" + specLibCount + " completed."
+                    + (missingFilesFound ? " Found invalid libraries." : ""));
+        }
+        return json;
     }
 }

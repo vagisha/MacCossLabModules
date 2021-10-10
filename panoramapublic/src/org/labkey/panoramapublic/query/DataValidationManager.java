@@ -156,4 +156,9 @@ public class DataValidationManager
     {
         Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), docSpecLib);
     }
+
+    public static void updateValidationStatus(DataValidation validation, User user)
+    {
+        Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
+    }
 }

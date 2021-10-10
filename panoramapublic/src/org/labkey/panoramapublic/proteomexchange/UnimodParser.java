@@ -136,9 +136,10 @@ public class UnimodParser
         String title = modEl.getAttribute("title");
         Integer id = Integer.parseInt(modEl.getAttribute("record_id"));
 
-        String formula = getFormula(modEl.getElementsByTagName("delta"));
+        NodeList deltaEl = modEl.getElementsByTagName("delta");
+        UnimodModification uMod = new UnimodModification(id, title, getFormula(deltaEl));
 
-        UnimodModification uMod = new UnimodModification(id, title, formula);
+        boolean isIsotopic = false;
 
         NodeList nl = modEl.getElementsByTagName("specificity");
         for(int i = 0; i < nl.getLength(); i++)
@@ -158,9 +159,51 @@ public class UnimodParser
             {
                 uMod.addSite(site, cls);
             }
+            if ("Isotopic label".equals(cls))
+            {
+                isIsotopic = true;
+            }
         }
+        isIsotopic = isIsotopic && checkTrueIsotopeMod(deltaEl);
+        uMod.setIsotopic(isIsotopic);
 
         return uMod;
+    }
+
+    // From Skyline/Executables/UnimodCompiler
+    private boolean checkTrueIsotopeMod(NodeList nl)
+    {
+        int label15N = 0;
+        int label13C = 0;
+        int label18O = 0;
+        int label2H = 0;
+        boolean has15N = false;
+        boolean has13C = false;
+        boolean has18O = false;
+        boolean has2H = false;
+
+        if(nl.getLength() > 0)
+        {
+            nl = ((Element)nl.item(0)).getElementsByTagName("element");
+            for(int i = 0; i < nl.getLength(); i++)
+            {
+                Element el = (Element)nl.item(i);
+                String symbol = el.getAttribute("symbol");
+                int number = Integer.parseInt(el.getAttribute("number"));
+                has15N = has15N || "15N".equals(symbol);
+                has13C = has13C || "13C".equals(symbol);
+                has18O = has18O || "18O".equals(symbol);
+                has2H = has2H || "2H".equals(symbol);
+                label15N += "15N".equals(symbol) || "N".equals(symbol) ? 0 : number;
+                label13C += "13C".equals(symbol) || "C".equals(symbol) ? 0 : number;
+                label18O += "18O".equals(symbol) || "O".equals(symbol) ? 0 : number;
+                label2H += "2H".equals(symbol) || "H".equals(symbol) ? 0 : number;
+            }
+        }
+
+        return (has15N || has13C || has18O || has2H) &&
+                (!has15N || label15N == 0) && (!has13C || label13C == 0)
+                && (!has18O || label18O == 0) && (!has2H || label2H == 0);
     }
 
     private String getFormula(NodeList nl)

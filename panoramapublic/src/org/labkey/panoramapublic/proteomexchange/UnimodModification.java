@@ -31,18 +31,17 @@ public class UnimodModification
     private final int _id;
     private final String _name;
     private String _normFormula;
-    private Set<String> _strModSites;
-    private Set<String> _isotopeModSites;
+    private Set<String> _modSites;
     private boolean _isNterm;
     private boolean _isCterm;
+    private boolean _isIsotopic;
 
     public UnimodModification(int id, String name, String normalizedFormula)
     {
         _id = id;
         _name = name;
         _normFormula = normalizedFormula;
-        _strModSites = new HashSet<>();
-        _isotopeModSites = new HashSet<>();
+        _modSites = new HashSet<>();
     }
 
     public int getId()
@@ -72,37 +71,40 @@ public class UnimodModification
 
     public void addSite(String site, String classification)
     {
-        if(("Isotopic label").equalsIgnoreCase(classification))
-        {
-            _isotopeModSites.add(site);
-        }
-        else
-        {
-            _strModSites.add(site);
-        }
+        _modSites.add(site);
     }
 
     public boolean isStructural()
     {
-        return _strModSites.size() > 0;
+        return !_isIsotopic;
     }
 
     public boolean isIsotopic()
     {
-        return _isotopeModSites.size() > 0;
+        return _isIsotopic;
     }
 
-    public boolean matches(String normFormula, String[] sites, boolean structural)
+    public void setIsotopic(boolean isotopic)
     {
-        if(!_normFormula.equals(normFormula))
+        _isIsotopic = isotopic;
+    }
+
+    public boolean matches(String normFormula, String[] sites)
+    {
+        if(!formulaMatches(normFormula))
         {
             return false;
         }
-        if(!containsSites(sites, structural ? _strModSites : _isotopeModSites))
+        if(!containsSites(sites, _modSites))
         {
             return false;
         }
         return true;
+    }
+
+    public boolean formulaMatches(String normFormula)
+    {
+        return _normFormula.equals(normFormula);
     }
 
     private boolean containsSites(String[] sites, Set<String> modSites)
@@ -234,13 +236,9 @@ public class UnimodModification
         sb.append("UNIMOD:").append(getId());
         sb.append(", ").append(getName());
         sb.append(", ").append(getNormalizedFormula());
-        if(_strModSites.size() > 0)
+        if(_modSites.size() > 0)
         {
-            sb.append(", Str sites: ").append(StringUtils.join(_strModSites, ":"));
-        }
-        if(_isotopeModSites.size() > 0)
-        {
-            sb.append(", Isotopic sites: ").append(StringUtils.join(_isotopeModSites, ":"));
+            sb.append(", Sites: ").append(StringUtils.join(_modSites, ":"));
         }
         if(_isCterm)
         {
@@ -250,6 +248,16 @@ public class UnimodModification
         {
             sb.append(", N-term");
         }
+        sb.append(", Isotopic: " + _isIsotopic);
         return sb.toString();
+    }
+
+    public String getModSites()
+    {
+        if(_modSites.size() > 0)
+        {
+            return StringUtils.join(_modSites, ":");
+        }
+        return "";
     }
 }

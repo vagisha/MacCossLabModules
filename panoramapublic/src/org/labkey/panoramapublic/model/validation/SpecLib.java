@@ -1,5 +1,6 @@
 package org.labkey.panoramapublic.model.validation;
 
+import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -89,7 +90,12 @@ public class SpecLib
 
     public boolean isValid()
     {
-        if (isMissingInSkyZip() || isAssayLibrary() || isUnsupportedLibrary())
+        if (isPending())
+        {
+            return false;
+        }
+
+        if (isMissingInSkyZip() || isAssayLibrary() || isUnsupportedLibrary() || isIncompleteBlib())
         {
             return false;
         }
@@ -114,7 +120,7 @@ public class SpecLib
         }
         if (isAssayLibrary())
         {
-            return "BiblioSpec library built with Assay Library (.csv file)";
+            return "BiblioSpec library not built with mass spec results";
         }
         if (isUnsupportedLibrary())
         {
@@ -125,9 +131,10 @@ public class SpecLib
             return "VALID";
         }
         boolean missingIdFilesInBlib = _idFiles.size() == 0;
+        boolean missingSpectrumFilesInBlib = _spectrumFiles.size() == 0;
         boolean missingSpectrumFiles = !foundSpectrumFiles();
         boolean missingIdFiles = !foundIdFiles();
-        if (!(missingSpectrumFiles || missingIdFilesInBlib || missingIdFiles))
+        if (!(missingSpectrumFilesInBlib || missingSpectrumFiles || missingIdFilesInBlib || missingIdFiles))
         {
             return "VALID";
         }
@@ -140,9 +147,14 @@ public class SpecLib
                         missingSpectrumFiles && missingIdFiles ? "and " : "",
                         missingIdFiles ? "peptide Id " : "");
             }
-            if (missingIdFilesInBlib)
+            if (missingSpectrumFilesInBlib || missingIdFilesInBlib)
             {
-                status = String.format("%s%s", status == null ? "" : status + "; ", "Peptide Id files not found in the .blib library");
+                status = String.format("%s%s%s%s%s",
+                        status == null ? "" : status + "; ",
+                        missingSpectrumFilesInBlib ? "Spectrum file " : "",
+                        (missingSpectrumFilesInBlib && missingIdFilesInBlib) ? "and " : "",
+                        missingIdFilesInBlib ? "Peptide ID file " : "",
+                        "names not found in the .blib library");
             }
             return status;
         }
@@ -166,6 +178,11 @@ public class SpecLib
     public boolean foundIdFiles()
     {
         return getIdFiles().stream().allMatch(f -> !f.isPending() && f.found());
+    }
+
+    public boolean foundSourceFiles()
+    {
+        return foundSpectrumFiles() && foundIdFiles();
     }
 
     public boolean isPrositLibrary()
@@ -199,6 +216,11 @@ public class SpecLib
     {
         // https://skyline.ms/wiki/home/software/Skyline/page.view?name=building_spectral_libraries
         return isBibliospecLibrary() && getSpectrumFiles().stream().allMatch(f -> getFileName().toLowerCase().endsWith(".csv"));
+    }
+
+    public boolean isIncompleteBlib()
+    {
+        return !isPrositLibrary() && _spectrumFiles.size() == 0 || _idFiles.size() == 0;
     }
 
     public boolean isPending()
@@ -255,7 +277,7 @@ public class SpecLib
         jsonObject.put("libName", getLibName());
         jsonObject.put("fileName", getFileName());
         jsonObject.put("libType", getLibType());
-        jsonObject.put("size", getSize());
+        jsonObject.put("size", getSize() != null ? FileUtils.byteCountToDisplaySize(getSize()) : "0");
         jsonObject.put("valid", isValid());
         jsonObject.put("status", getStatusString());
         jsonObject.put("spectrumFiles", getSourceFilesJSON(getSpectrumFiles()));

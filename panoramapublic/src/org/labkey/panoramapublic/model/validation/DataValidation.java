@@ -10,7 +10,7 @@ public class DataValidation extends DbEntity
     private Container _container;
     private int _experimentAnnotationsId;
     private int _jobId;
-    private Boolean _valid;
+    private PxStatus _status;
 
     public DataValidation() {}
 
@@ -51,14 +51,14 @@ public class DataValidation extends DbEntity
         _jobId = jobId;
     }
 
-    public Boolean getValid()
+    public PxStatus getStatus()
     {
-        return _valid;
+        return _status;
     }
 
-    public void setValid(Boolean valid)
+    public void setStatus(PxStatus status)
     {
-        _valid = valid;
+        _status = status;
     }
 
     @NotNull
@@ -68,7 +68,8 @@ public class DataValidation extends DbEntity
         jsonObject.put("id", getId());
         jsonObject.put("folder", getContainer().getName());
         jsonObject.put("experimentAnnotationsId", getExperimentAnnotationsId());
-        jsonObject.put("status", getValid() == null ? "IN PROGRESS" : (getValid()) ? "VALID" : "INVALID");
+        jsonObject.put("status", _status != null ? _status.getLabel() : "In Progress");
+        jsonObject.put("statusId", _status != null ? _status.ordinal() : -1);
         return jsonObject;
     }
 }

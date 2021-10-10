@@ -127,7 +127,6 @@ import org.labkey.panoramapublic.model.JournalExperiment;
 import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
 import org.labkey.panoramapublic.model.Submission;
-import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
@@ -1549,7 +1548,7 @@ public class PanoramaPublicController extends SpringActionController
                 return new SimpleErrorView(errors);
             }
 
-            if(form.doSubfolderCheck())
+            if(form.isDoSubfolderCheck())
             {
                 List<Container> allSubfolders = getAllSubfolders(_experimentAnnotations.getContainer());
                 List<Container> hiddenFolders = getHiddenFolders(allSubfolders, getUser());
@@ -1635,12 +1634,15 @@ public class PanoramaPublicController extends SpringActionController
                 ActionURL validateDataUrl = new ActionURL(SubmitPxValidationJobAction.class, getContainer()).addParameter("id", _experimentAnnotations.getId());
                 ActionURL noPxSubmissionUrl = getViewContext().getActionURL().clone().replaceParameter("skipPxCheck", "true");
                 HtmlView view = new HtmlView(DIV(
-                        BR(), BR(),
+                        BR(),
+                        "Click the button below to validate the data for a ProteomeXchange submission and get a ProteomeXchange ID. " +
+                                "If you do not want a ProteomeXchange ID click the link to 'Continue without a ProteomeXchange ID'.",
+                        BR(),BR(),
                         new Button.ButtonBuilder("Validate Data for ProteomeXchange").href(validateDataUrl).usePost(),
                         BR(), BR(),
                         new Link.LinkBuilder("Continue without a ProteomeXchange ID").href(noPxSubmissionUrl)
                 ));
-                view.setTitle("Start Data Validation For ProteomeXchange");
+                view.setTitle("Data Validation For ProteomeXchange");
                 view.setFrame(WebPartView.FrameType.PORTAL);
                 return view;
             }
@@ -1858,10 +1860,21 @@ public class PanoramaPublicController extends SpringActionController
 
     public static class SubmitExperimentForm extends ExperimentIdForm
     {
+        private Integer _validationId;
         private boolean _doSubfolderCheck = true;
         private boolean _skipPxCheck = false;
         private boolean _update;
         private boolean _resubmit;
+
+        public Integer getValidationId()
+        {
+            return _validationId;
+        }
+
+        public void setValidationId(Integer validationId)
+        {
+            _validationId = validationId;
+        }
 
         public boolean isUpdate()
         {
@@ -1883,7 +1896,7 @@ public class PanoramaPublicController extends SpringActionController
             _resubmit = resubmit;
         }
 
-        public boolean doSubfolderCheck()
+        public boolean isDoSubfolderCheck()
         {
             return _doSubfolderCheck;
         }
@@ -2010,18 +2023,19 @@ public class PanoramaPublicController extends SpringActionController
             if (status != null)
             {
                 response.put("jobStatus", status.getStatus());
+
                 if (!(PipelineJob.TaskStatus.error.matches(status.getStatus())
                         || PipelineJob.TaskStatus.cancelling.matches(status.getStatus())
                         || PipelineJob.TaskStatus.cancelled.matches(status.getStatus())))
                 {
                     Status validationStatus = DataValidationManager.getStatusForJobId(form.getJobId(), getContainer());
-                    if (validationStatus != null)
+                    if (validationStatus.getValidation().getStatus() == null)
                     {
-                        response.put("validationStatus", validationStatus.toJSON());
+                        response.put("validationProgress", validationStatus.toProgressSummaryJSON());
                     }
                     else
                     {
-                        response.put("error", "Validation status not found for jobId " + form.getJobId() + " in folder " + getContainer().getName());
+                        response.put("validationStatus", validationStatus.toJSON());
                     }
                 }
             }

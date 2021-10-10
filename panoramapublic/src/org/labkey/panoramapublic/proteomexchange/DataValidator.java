@@ -58,30 +58,22 @@ public class DataValidator
 
     public StatusValidating validateExperiment(User user) throws DataValidationException
     {
-        try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
-        {
-            StatusValidating status = initValidationStatus();
-            DataValidationManager.saveStatus(status, user);
+            StatusValidating status = initValidationStatus(user);
             _listener.started(status);
 
             TargetedMSService svc = TargetedMSService.get();
             validate(status, svc, user);
 
-            transaction.commit();
-
             return status;
-        }
     }
 
     private void validate(StatusValidating status, TargetedMSService svc, User user) throws DataValidationException
     {
-        _listener.validatingModifications();
-        validateModifications(status, user);
-        sleep();
-        _listener.modificationsValidated(status);
-
         validateSampleFiles(status, svc, user);
+        validateModifications(status, user);
         validateLibraries(status, svc, user);
+        status.getValidation().setStatus(status.getPxStatus());
+        DataValidationManager.updateValidationStatus(status.getValidation(), user);
     }
 
     private void sleep()
@@ -102,7 +94,11 @@ public class DataValidator
         FileContentService fcs = FileContentService.get();
         for (SpecLibValidating specLib: status.getSpectralLibraries())
         {
-            validateLibrary(specLib, status, svc, user, fcs);
+            try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
+            {
+                validateLibrary(specLib, status, svc, user, fcs);
+                transaction.commit();
+            }
         }
         sleep();
         _listener.spectralLibrariesValidated(status);
@@ -308,27 +304,39 @@ public class DataValidator
 
     private void validateModifications(StatusValidating status, User user)
     {
-        List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations);
-        for (ExperimentModificationGetter.PxModification pxMod: mods)
+        _listener.validatingModifications();
+        try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
-            Modification mod = new Modification(pxMod.getSkylineName(), pxMod.getDbModId(),
-                    pxMod.getUnimodIdInt(),
-                    pxMod.getName(),
-                    pxMod.isIsotopicMod() ? ModType.ISOTOPIC : ModType.STRUCTURAL);
-            mod.setValidationId(status.getValidation().getId());
-            DataValidationManager.saveModification(mod, user);
-            status.addModification(mod);
-
-            Set<String> skylineDocsWithMod = pxMod.getSkylineDocs();
-            status.getSkylineDocs().stream().forEach(doc ->
+            List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations);
+            for (ExperimentModificationGetter.PxModification pxMod : mods)
             {
-                if (skylineDocsWithMod.contains(doc.getName()))
+                Modification mod = new Modification(pxMod.getSkylineName(), pxMod.getDbModId(),
+                        pxMod.getUnimodIdInt(),
+                        pxMod.getName(),
+                        pxMod.isIsotopicMod() ? ModType.ISOTOPIC : ModType.STRUCTURAL);
+                if (pxMod.hasPossibleUnimods())
                 {
-                    doc.addModification(mod);
+                    mod.setPossibleUnimodMatches(pxMod.getPossibleUnimodMatches());
                 }
-            });
+                mod.setValidationId(status.getValidation().getId());
+                DataValidationManager.saveModification(mod, user);
+                status.addModification(mod);
+
+                Set<String> skylineDocsWithMod = pxMod.getSkylineDocs();
+                status.getSkylineDocs().stream().forEach(doc ->
+                {
+                    if (skylineDocsWithMod.contains(doc.getName()))
+                    {
+                        doc.addModification(mod);
+                    }
+                });
+            }
+            DataValidationManager.saveSkylineDocModifications(status.getSkylineDocs(), user);
+
+            transaction.commit();
         }
-        DataValidationManager.saveSkylineDocModifications(status.getSkylineDocs(), user);
+        sleep();
+        _listener.modificationsValidated(status);
     }
 
     private void validateSampleFiles(StatusValidating status, TargetedMSService svc, User user)
@@ -336,27 +344,33 @@ public class DataValidator
         for (SkylineDocValidating skyDoc: status.getSkylineDocs())
         {
             _listener.validatingDocument(skyDoc);
-            List<ISampleFile> sampleFiles = skyDoc.getSampleFiles().stream().map(s -> s.getSampleFile()).collect(Collectors.toList());
-            Map<String, Path> paths = svc.getSampleFilesPaths(sampleFiles, skyDoc.getContainer(), false);
 
-            Set<String> duplicateSkylineSampleFileNames = getDuplicateSkylineSampleFileNames(skyDoc.getSampleFiles());
-            for (SkylineDocSampleFile sampleFile : skyDoc.getSampleFiles())
+            try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
-                if(duplicateSkylineSampleFileNames.contains(sampleFile.getSkylineName()))
+                List<ISampleFile> sampleFiles = skyDoc.getSampleFiles().stream().map(s -> s.getSampleFile()).collect(Collectors.toList());
+                Map<String, Path> paths = svc.getSampleFilesPaths(sampleFiles, skyDoc.getContainer(), false);
+
+                Set<String> duplicateSkylineSampleFileNames = getDuplicateSkylineSampleFileNames(skyDoc.getSampleFiles());
+                for (SkylineDocSampleFile sampleFile : skyDoc.getSampleFiles())
                 {
-                    // Sample file names in Skyline documents submitted to Panorama Public must have unique names.
-                    // We do not allow sample files with the same name but different paths imported into separate
-                    // replicates, for example. Skyline allows this but it can get very confusing even for the user.
-                    sampleFile.setStatus(DataFile.AMBIGUOUS);
+                    if (duplicateSkylineSampleFileNames.contains(sampleFile.getSkylineName()))
+                    {
+                        // Sample file names in Skyline documents submitted to Panorama Public must have unique names.
+                        // We do not allow sample files with the same name but different paths imported into separate
+                        // replicates, for example. Skyline allows this but it can get very confusing even for the user.
+                        sampleFile.setStatus(DataFile.AMBIGUOUS);
+                    }
+                    else
+                    {
+                        Path path = paths.get(sampleFile.getName());
+                        sampleFile.setStatus(path != null ? path.toString() : DataFile.NOT_FOUND);
+                    }
                 }
-                else
-                {
-                    Path path = paths.get(sampleFile.getName());
-                    sampleFile.setStatus(path != null ? path.toString() : DataFile.NOT_FOUND);
-                }
+
+                DataValidationManager.updateSampleFileStatus(skyDoc, user);
+                transaction.commit();
             }
 
-            DataValidationManager.updateSampleFileStatus(skyDoc, user);
             sleep();
             if (_listener != null)
             {
@@ -373,13 +387,20 @@ public class DataValidator
         return duplicates;
     }
 
-    private StatusValidating initValidationStatus() throws DataValidationException
+    private StatusValidating initValidationStatus(User user) throws DataValidationException
     {
-        StatusValidating status = new StatusValidating(_expAnnotations, _jobId);
-        TargetedMSService targetedMsSvc = TargetedMSService.get();
-        addSkylineDocs(status, targetedMsSvc);
-        addSpectralLibraries(status, targetedMsSvc);
-        return status;
+        try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
+        {
+            StatusValidating status = new StatusValidating(_expAnnotations, _jobId);
+            TargetedMSService targetedMsSvc = TargetedMSService.get();
+            addSkylineDocs(status, targetedMsSvc);
+            addSpectralLibraries(status, targetedMsSvc);
+
+            DataValidationManager.saveStatus(status, user);
+
+            transaction.commit();
+            return status;
+        }
     }
 
     private void addSkylineDocs(StatusValidating status, TargetedMSService targetedMsSvc)
@@ -441,13 +462,31 @@ public class DataValidator
     {
         List<? extends ISampleFile> sampleFiles = svc.getSampleFiles(skylineDoc.getRunId());
 
-        for(ISampleFile s: sampleFiles)
+        Set<String> sciexWiffFileNames = new HashSet<>();
+
+        for (ISampleFile s: sampleFiles)
         {
             SampleFileValidating sampleFile = new SampleFileValidating(s);
-            skylineDoc.addSampleFile(sampleFile);
-            if(isSciexWiff(s.getFileName()))
+            boolean sciexWiff = isSciexWiff(s.getFileName());
+            if (sciexWiff)
             {
-                // If this is a SCIEX .wiff file check for the presence of the corresponding .wiff.scan file
+                if (sciexWiffFileNames.contains(sampleFile.getName()) && !sampleFile.getName().equals(sampleFile.getSkylineName()))
+                {
+                    // Multi-injection SCIEX wiff files will have the same file name but different skyline file name.
+                    // We don't want to add this twice to the list of document sample files.
+                    // Example: D:\Data\CPTAC_Study9s\Site52_041009_Study9S_Phase-I.wiff|Site52_STUDY9S_PHASEI_6ProtMix_QC_07|6
+                    // SampleFile.getName(): Site52_041009_Study9S_Phase-I.wiff
+                    // SampleFile.getSkylineName(): Site52_041009_Study9S_Phase-I.wiff|Site52_STUDY9S_PHASEI_6ProtMix_QC_07|6
+                    continue;
+                }
+                sciexWiffFileNames.add(sampleFile.getName());
+            }
+
+            skylineDoc.addSampleFile(sampleFile);
+
+            if (sciexWiff)
+            {
+                // If this is a SCIEX .wiff file we will also look for the corresponding .wiff.scan file
                 String fileName = s.getFileName() + ".scan";
                 SampleFileValidating wiffScanFile = new SampleFileValidating(new ISampleFile()
                 {

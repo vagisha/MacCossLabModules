@@ -91,9 +91,10 @@ public class UnimodModifications
         return list;
     }
 
-    public UnimodModification getMatch(String normalizedFormula, String[] sites, boolean structural)
+    List<UnimodModification> getMatches(String normalizedFormula, String[] sites, boolean structural)
     {
         List<UnimodModification> uMods = getByFormula(normalizedFormula);
+        List<UnimodModification> matches = new ArrayList<>();
         for(UnimodModification uMod: uMods)
         {
             if (structural && !uMod.isStructural())
@@ -105,12 +106,18 @@ public class UnimodModifications
                 continue;
             }
 
-            if(uMod.matches(normalizedFormula, sites, structural))
+            if (sites == null || sites.length == 0)
             {
-                return uMod;
+                // The modification was created in Skyline without specifying an amino acid specificity. But the formula
+                // matches so we will add this as a possible modification.
+                matches.add(uMod);
+            }
+            else if(uMod.matches(normalizedFormula, sites))
+            {
+                matches.add(uMod);
             }
         }
-        return null;
+        return matches;
     }
 
     public String buildIsotopicModFormula(char aminoAcid, boolean label2h, boolean label13c, boolean label15n, boolean label18o)

@@ -41,7 +41,7 @@ CREATE TABLE panoramapublic.SkylineDocValidation
 (
     Id                         SERIAL NOT NULL,
     ValidationId               INT NOT NULL,
-    RunId                      INT NOT NULL, -- targetedms.runs.Id
+    RunId                      BIGINT NOT NULL, -- targetedms.runs.Id
     Container                  ENTITYID NOT NULL,
     Name                       VARCHAR(300),
 
@@ -73,6 +73,8 @@ CREATE TABLE panoramapublic.ModificationValidation
     UnimodId                   INT,
     UnimodName                 VARCHAR(100),
     ModType                    VARCHAR(10) NOT NULL, -- Structural, Isotopic
+    DbModId                    BIGINT NOT NULL, -- targetedms.StructuralModification.Id OR targetedms.IsotopicModification.Id
+    UnimodMatches              TEXT, -- Example: 6:Carboxymethyl&&143:HexNAc(2)
 
     CONSTRAINT PK_ModificationValidation PRIMARY KEY (Id),
     CONSTRAINT FK_ModificationValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
