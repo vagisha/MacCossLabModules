@@ -19,9 +19,9 @@
     Integer jobId = jobIdStr != null ? Integer.valueOf(jobIdStr) : null;
 %>
 <div>
-    <span style="font-weight:bold;text-decoration:underline;margin-right:5px;">Job Status</span>
-    <% if (jobId != null ) { %><span><%=link("[Job Details]", PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), jobId))%></span> <% } %>
+    <span style="font-weight:bold;text-decoration:underline;margin-right:5px;">Job Status: </span>
     <span id="jobStatusSpan"></span>
+    <% if (jobId != null ) { %><span style="margin-left:10px;"><%=link("[View Job Details]", PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), jobId))%></span> <% } %>
 </div>
 <div style="margin-top:10px;" id="validationProgressDiv"></div>
 <div style="margin-top:10px;"><div id="validationStatusDiv"></div></div>
@@ -175,19 +175,19 @@
         }
 
         function getStatusDetails(json) {
-            const statusId = json["status"];
+            const statusId = json["statusId"];
             return statusId === 3 ? getStatusValidHtml(json)
                     : statusId === 2 ? getIncompleteDataHtml(json) : getStatusInvalidHtml(json);
         }
 
         function getButtonText(json) {
-            const statusId = json["status"];
+            const statusId = json["statusId"];
             return statusId === 3 ? "Continue Submission"
                     : statusId === 2 ? "Continue with an Incomplete PX Submission" : "Continue without a ProteomeXchange ID";
         }
 
         function getButtonLink(json) {
-            var url = LABKEY.ActionURL.buildURL('targetedms', 'submitExperiment.view', null,
+            var url = LABKEY.ActionURL.buildURL('panoramapublic', 'submitExperiment.view', null,
                     {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
             return url;
         }
@@ -504,6 +504,14 @@
                     }
                 ]
             });
+
+            if (specLibStore.getCount() === 0) {
+                return Ext4.create('Ext.Panel', {
+                    title: 'Spectral Libraries',
+                    padding: 10,
+                    items: [{xtype: 'component', html: "No spectral libraries found", padding: 10}]
+                });
+            }
 
             return Ext4.create('Ext.grid.Panel', {
                 store: specLibStore,

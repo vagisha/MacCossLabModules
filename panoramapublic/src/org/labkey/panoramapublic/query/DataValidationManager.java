@@ -11,6 +11,7 @@ import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
 import org.labkey.panoramapublic.model.validation.Modification;
+import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
@@ -99,6 +100,12 @@ public class DataValidationManager
     {
         filter.addCondition(FieldKey.fromParts("SourceType"), SpecLibSourceFile.ID_SOURCE);
         return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), filter, null).getArrayList(SpecLibSourceFile.class);
+    }
+
+    public static @Nullable PxStatus getPxStatusForValidationId(int validationId)
+    {
+        DataValidation validation = new TableSelector(PanoramaPublicManager.getTableInfoDataValidation()).getObject(validationId, DataValidation.class);
+        return validation != null ? validation.getStatus() : null;
     }
 
     public static void saveStatus(StatusValidating status, User user)

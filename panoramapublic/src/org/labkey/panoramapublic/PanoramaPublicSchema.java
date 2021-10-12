@@ -23,21 +23,31 @@ import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.ContainerForeignKey;
 import org.labkey.api.data.DbSchema;
 import org.labkey.api.data.DbSchemaType;
+import org.labkey.api.data.EnumTableInfo;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.dialect.SqlDialect;
 import org.labkey.api.module.Module;
+import org.labkey.api.portal.ProjectUrls;
 import org.labkey.api.query.DefaultSchema;
+import org.labkey.api.query.DetailsURL;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
+import org.labkey.api.query.QueryForeignKey;
 import org.labkey.api.query.QuerySchema;
 import org.labkey.api.query.UserIdQueryForeignKey;
 import org.labkey.api.query.UserSchema;
 import org.labkey.api.security.User;
+import org.labkey.api.targetedms.RepresentativeDataState;
+import org.labkey.api.util.PageFlowUtil;
+import org.labkey.api.view.ActionURL;
+import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class PanoramaPublicSchema extends UserSchema
@@ -58,6 +68,7 @@ public class PanoramaPublicSchema extends UserSchema
     public static final String TABLE_SPEC_LIB_VALIDATION = "SpecLibValidation";
     public static final String TABLE_SKYLINE_DOC_SPEC_LIB = "SkylineDocSpecLib";
     public static final String TABLE_SPEC_LIB_SOURCE_FILE = "SpecLibSourceFile";
+    public static final String TABLE_PX_STATUS = "PxStatus";
 
 
     public PanoramaPublicSchema(User user, Container container)
@@ -119,6 +130,20 @@ public class PanoramaPublicSchema extends UserSchema
             return getFilteredPxXmlTable(name, cf);
         }
 
+        if (TABLE_PX_STATUS.equalsIgnoreCase(name))
+        {
+            EnumTableInfo<PxStatus> tableInfo = new EnumTableInfo<>(
+                    PxStatus.class,
+                    this,
+                    PxStatus::getLabel,
+                    true,
+                    "ProteomeXchange status determined after validating a dataset");
+
+            var viewColumn = tableInfo.getMutableColumn("Value");
+            viewColumn.setLabel("PX Status");
+            return tableInfo;
+        }
+
         if (TABLE_DATA_VALIDATION.equalsIgnoreCase(name))
         {
             FilteredTable<PanoramaPublicSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf);
@@ -126,6 +151,12 @@ public class PanoramaPublicSchema extends UserSchema
             result.getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(this));
             result.getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(this));
             result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
+            result.getMutableColumn("Status").setFk(QueryForeignKey.from(this, cf).to(PanoramaPublicSchema.TABLE_PX_STATUS, "RowId", null));
+            Map<String, Object> params = new HashMap<>();
+            params.put("jobId", FieldKey.fromParts("JobId"));
+            params.put("id", FieldKey.fromParts("ExperimentAnnotationsId"));
+            result.setDetailsURL(new DetailsURL(new ActionURL(PanoramaPublicController.PxValidationStatusAction.class, getContainer()), params));
+
             return result;
         }
 
@@ -198,7 +229,7 @@ public class PanoramaPublicSchema extends UserSchema
         hs.add(TABLE_SUBMISSION);
         hs.add(TABLE_EXPERIMENT_ANNOTATIONS);
         hs.add(TABLE_PX_XML);
-
+        hs.add(TABLE_DATA_VALIDATION);
         return hs;
     }
 }

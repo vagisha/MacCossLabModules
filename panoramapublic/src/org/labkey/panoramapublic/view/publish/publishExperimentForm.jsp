@@ -174,8 +174,8 @@
                 },
                 {
                     xtype: 'hidden',
-                    name: 'dataValidated',
-                    value: <%=bean.getForm().isDataValidated()%>
+                    name: 'validationId',
+                    value: <%=bean.getForm().getValidationId()%>
                 },
                 {
                     xtype: 'hidden',

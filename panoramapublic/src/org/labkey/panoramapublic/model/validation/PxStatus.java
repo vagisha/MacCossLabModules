@@ -18,4 +18,9 @@ public enum PxStatus
     {
         return _label;
     }
+
+    public boolean incompleteSubmission()
+    {
+        return ordinal() < Complete.ordinal();
+    }
 }
