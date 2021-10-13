@@ -1791,7 +1791,7 @@ public class PanoramaPublicController extends SpringActionController
             if (form.getValidationId() != null)
             {
                 PxStatus pxStatus = DataValidationManager.getPxStatusForValidationId(form.getValidationId());
-                form.setIncompletePxSubmission(pxStatus.incompleteSubmission());
+                form.setIncompletePxSubmission(pxStatus.incompleteSubmission()); // TODO: check for null pxStatus
             }
             form.setGetPxid(!submitExperimentForm.isSkipPxCheck());
         }
@@ -2111,19 +2111,19 @@ public class PanoramaPublicController extends SpringActionController
             }
         }
 
-        boolean validateGetRequest(PublishExperimentForm form, BindException errors)
-        {
-            _experimentAnnotations = ExperimentAnnotationsManager.get(form.getId());
-            if (_experimentAnnotations == null)
-            {
-                errors.reject(ERROR_MSG, "No experiment found for Id " + form.getId());
-                return false;
-            }
-
-            ensureCorrectContainer(getContainer(), _experimentAnnotations.getContainer(), getViewContext());
-
-            return true;
-        }
+//        boolean validateGetRequest(PublishExperimentForm form, BindException errors)
+//        {
+//            _experimentAnnotations = ExperimentAnnotationsManager.get(form.getId());
+//            if (_experimentAnnotations == null)
+//            {
+//                errors.reject(ERROR_MSG, "No experiment found for Id " + form.getId());
+//                return false;
+//            }
+//
+//            ensureCorrectContainer(getContainer(), _experimentAnnotations.getContainer(), getViewContext());
+//
+//            return true;
+//        }
 
         private JspView getPublishFormView(PublishExperimentForm form, ExperimentAnnotations exptAnnotations, BindException errors)
         {
@@ -2337,7 +2337,7 @@ public class PanoramaPublicController extends SpringActionController
         {
             if(JournalManager.journalHasAccess(journal, experiment))
             {
-                errors.reject(ERROR_MSG, journal.getName() + "\" already has access to this experiment. Please select another publication target." );
+                errors.reject(ERROR_MSG, "\"" + journal.getName() + "\" already has access to this experiment. Please select another publication target." );
             }
         }
 
@@ -2845,10 +2845,10 @@ public class PanoramaPublicController extends SpringActionController
 
         abstract Submission getSubmission();
 
-        boolean validateGetRequest(PublishExperimentForm form, BindException errors)
-        {
-            return super.validateGetRequest(form, errors) && foundValidSubmissionRequest(form, errors);
-        }
+//        boolean validateGetRequest(PublishExperimentForm form, BindException errors)
+//        {
+//            return super.validateGetRequest(form, errors) && foundValidSubmissionRequest(form, errors);
+//        }
 
         boolean foundValidSubmissionRequest(PublishExperimentForm form, Errors errors)
         {

@@ -91,6 +91,7 @@ public class DataValidator
     private void validateLibraries(StatusValidating status, TargetedMSService svc, User user) throws DataValidationException
     {
         _listener.validatingSpectralLibraries();
+        sleep();
         FileContentService fcs = FileContentService.get();
         for (SpecLibValidating specLib: status.getSpectralLibraries())
         {
@@ -100,7 +101,6 @@ public class DataValidator
                 transaction.commit();
             }
         }
-        sleep();
         _listener.spectralLibrariesValidated(status);
     }
 
@@ -305,6 +305,7 @@ public class DataValidator
     private void validateModifications(StatusValidating status, User user)
     {
         _listener.validatingModifications();
+        sleep();
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
             List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations);
@@ -335,7 +336,6 @@ public class DataValidator
 
             transaction.commit();
         }
-        sleep();
         _listener.modificationsValidated(status);
     }
 
@@ -344,7 +344,7 @@ public class DataValidator
         for (SkylineDocValidating skyDoc: status.getSkylineDocs())
         {
             _listener.validatingDocument(skyDoc);
-
+            sleep();
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
                 List<ISampleFile> sampleFiles = skyDoc.getSampleFiles().stream().map(s -> s.getSampleFile()).collect(Collectors.toList());
@@ -371,7 +371,6 @@ public class DataValidator
                 transaction.commit();
             }
 
-            sleep();
             if (_listener != null)
             {
                 _listener.sampleFilesValidated(skyDoc, status);
