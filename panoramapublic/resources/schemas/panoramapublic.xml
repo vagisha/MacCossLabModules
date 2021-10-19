@@ -179,6 +179,16 @@
                     <fkTable>Containers</fkTable>
                 </fk>
             </column>
+            <column columnName="PublicDataUserId">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+            </column>
+            <column columnName="PublicDataUserPasswd">
+                <isHidden>true</isHidden>
+            </column>
         </columns>
     </table>
 

@@ -38,6 +38,7 @@ import org.labkey.api.portal.ProjectUrls;
 import org.labkey.api.query.BatchValidationException;
 import org.labkey.api.query.ValidationException;
 import org.labkey.api.security.Group;
+import org.labkey.api.security.GroupManager;
 import org.labkey.api.security.MutableSecurityPolicy;
 import org.labkey.api.security.SecurityManager;
 import org.labkey.api.security.SecurityPolicy;

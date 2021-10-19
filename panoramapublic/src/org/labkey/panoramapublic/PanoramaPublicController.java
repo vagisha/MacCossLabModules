@@ -101,6 +101,7 @@ import org.labkey.api.security.permissions.InsertPermission;
 import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.security.roles.ProjectAdminRole;
+import org.labkey.api.security.roles.ReaderRole;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.Button;
 import org.labkey.api.util.DOM;
@@ -109,6 +110,7 @@ import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
+import org.labkey.api.util.Pair;
 import org.labkey.api.util.TestContext;
 import org.labkey.api.util.URLHelper;
 import org.labkey.api.view.*;
@@ -145,6 +147,7 @@ import org.labkey.panoramapublic.view.expannotations.ExperimentAnnotationsFormDa
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentWebPart;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentsWebPart;
 import org.springframework.validation.BindException;
+import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.servlet.ModelAndView;
@@ -166,6 +169,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.labkey.api.targetedms.TargetedMSService.FolderType.*;
+import static org.labkey.api.targetedms.TargetedMSService.RAW_FILES_TAB;
 import static org.labkey.api.util.DOM.Attribute.action;
 import static org.labkey.api.util.DOM.Attribute.method;
 import static org.labkey.api.util.DOM.Attribute.name;
@@ -174,6 +178,7 @@ import static org.labkey.api.util.DOM.Attribute.type;
 import static org.labkey.api.util.DOM.Attribute.value;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
+import static org.labkey.api.util.DOM.HR;
 import static org.labkey.api.util.DOM.INPUT;
 import static org.labkey.api.util.DOM.LABEL;
 import static org.labkey.api.util.DOM.LK.CHECKBOX;
@@ -184,6 +189,7 @@ import static org.labkey.api.util.DOM.UL;
 import static org.labkey.api.util.DOM.at;
 import static org.labkey.api.util.DOM.cl;
 import static org.labkey.api.util.DOM.createHtmlFragment;
+import static org.labkey.panoramapublic.proteomexchange.NcbiUtils.PUBMED_ID;
 
 /**
  * User: vsharma
@@ -195,7 +201,7 @@ public class PanoramaPublicController extends SpringActionController
     private static final DefaultActionResolver _actionResolver = new DefaultActionResolver(PanoramaPublicController.class);
     public static final String NAME = "panoramapublic";
     public static final String PANORAMA_REVIEWER_PREFIX = "panorama+reviewer";
-    public static final String PUBMED_ID = "^[0-9]{1,8}$"; // https://libguides.library.arizona.edu/c.php?g=406096&p=2779570
+
 
     public PanoramaPublicController()
     {
@@ -516,7 +522,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             DataRegion journalDetails = new DataRegion();
-            journalDetails.setColumns(PanoramaPublicManager.getTableInfoJournal().getColumns("Name", "LabkeyGroupId", "Project", "Created", "CreatedBy", "SupportContainer"));
+            journalDetails.setColumns(PanoramaPublicManager.getTableInfoJournal().getColumns("Name", "LabkeyGroupId", "Project", "Created", "CreatedBy", "SupportContainer", "PublicDataUserId"));
 
             ButtonBar buttonBar = new ButtonBar();
             buttonBar.setStyle(ButtonBar.Style.separateButtons);
@@ -532,6 +538,12 @@ public class PanoramaPublicController extends SpringActionController
                 changeSupportContainerButton.setActionType(ActionButton.Action.GET);
                 changeSupportContainerButton.setPrimary(false);
                 buttonBar.add(changeSupportContainerButton);
+
+                ActionURL addPublicDataUserUrl = new ActionURL(AddPublicDataUserAction.class, getContainer());
+                ActionButton addPublicDataUserButton = new ActionButton(addPublicDataUserUrl, "Add Public Data User");
+                addPublicDataUserButton.setActionType(ActionButton.Action.GET);
+                addPublicDataUserButton.setPrimary(false);
+                buttonBar.add(addPublicDataUserButton);
             }
             journalDetails.setButtonBar(buttonBar);
 
@@ -722,6 +734,115 @@ public class PanoramaPublicController extends SpringActionController
                 return ContainerService.get().getForPath(_supportContainerPath);
             }
             return null;
+        }
+    }
+
+    /*
+    Configure the user account that can be used to download files from public datasets on Panorama Public with a WebDAV
+    client such as Cyberduck, or by mapping a network drive in Windows. Anonymous downloads do not work in WebDAV clients.
+     */
+    @RequiresPermission(AdminOperationsPermission.class)
+    public static class AddPublicDataUserAction extends FormViewAction<PublicDataUserAction>
+    {
+        private Journal _journal;
+        @Override
+        public void validateCommand(PublicDataUserAction form, Errors errors)
+        {
+            _journal = form.lookupJournal();
+            if(_journal == null)
+            {
+                errors.reject(ERROR_MSG, "No journal found for journal ID  " + form.getId());
+            }
+            if(StringUtils.isBlank(form.getUserEmail()))
+            {
+                errors.reject(ERROR_MSG, "User email cannot be blank");
+            }
+        }
+
+        @Override
+        public ModelAndView getView(PublicDataUserAction form, boolean reshow, BindException errors)
+        {
+            if(!reshow)
+            {
+                _journal = form.lookupJournal();
+                if(_journal == null)
+                {
+                    errors.reject(ERROR_MSG, "Did not find a journal for journalId: " + form.getId());
+                    return new SimpleErrorView(errors);
+                }
+                User publicDataUser = _journal.getPublicDataUser();
+                if (publicDataUser != null)
+                {
+                    form.setUserEmail(publicDataUser.getEmail());
+                }
+            }
+
+            HtmlView view = new HtmlView(
+                    DIV(
+                            ERRORS(errors),
+                            "Enter the email address for the user account that can be used to download public datasets in a WebDAV client",
+                            FORM(at(method, "POST", action, new ActionURL(AddPublicDataUserAction.class, getContainer()).addParameter("id", _journal.getId())),
+                                    SPAN(cl("labkey-form-label"), "User Email Address"),
+                                    INPUT(at(type, "Text", name, "userEmail", value, form.getUserEmail())),
+                                    BR(),
+                                    new Button.ButtonBuilder("Save").submit(true).build(),
+                                    new Button.ButtonBuilder("Cancel").submit(false).href(getJournalGroupDetailsUrl(_journal.getId(), getContainer())).build()
+                            )
+                    )
+            );
+            view.setTitle("Configure Public Data User");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
+        }
+
+        @Override
+        public boolean handlePost(PublicDataUserAction form, BindException errors)
+        {
+            User user = null;
+            try
+            {
+                user = UserManager.getUser(new ValidEmail(form.getUserEmail()));
+            }
+            catch (ValidEmail.InvalidEmailException e)
+            {
+                errors.reject(ERROR_MSG, "Invalid email address");
+                return false;
+            }
+            if (user == null)
+            {
+                errors.reject(ERROR_MSG, "User with given email address does not exist");
+                return false;
+            }
+            _journal.setPublicDataUserId(user.getUserId());
+            JournalManager.updateJournal(_journal, getUser());
+            return true;
+        }
+
+        @Override
+        public URLHelper getSuccessURL(PublicDataUserAction form)
+        {
+            return getJournalGroupDetailsUrl(form.getId(), getContainer());
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Configure Public Data User");
+        }
+    }
+
+    public static class PublicDataUserAction extends JournalForm
+    {
+        private String _userEmail;
+
+        public String getUserEmail()
+        {
+            return _userEmail;
+        }
+
+        public void setUserEmail(String userEmail)
+        {
+            _userEmail = userEmail;
         }
     }
 
@@ -4008,6 +4129,11 @@ public class PanoramaPublicController extends SpringActionController
             addExperimentViewDependencies(view);
             view.setTitle(TargetedMSExperimentWebPart.WEB_PART_NAME);
             view.setInitialValue(SUBMITTER, getUser().getUserId());
+            List<PsiInstrumentParser.PsiInstrument> instruments = ExperimentAnnotationsManager.getContainerInstruments(getContainer(), getUser());
+            if (instruments.size() > 0)
+            {
+                view.setInitialValue("instrument", StringUtils.join(instruments.stream().map(i -> i.getName()).collect(Collectors.toList()), ","));
+            }
             return view;
         }
 
@@ -4350,8 +4476,9 @@ public class PanoramaPublicController extends SpringActionController
         private String _version;
         private boolean _isCurrentVersion = false;
         private ActionURL _versionsUrl;
+        private ExperimentAnnotations _journalCopy;
 
-        public ExperimentAnnotationsDetails(){}
+        // public ExperimentAnnotationsDetails(){}
         public ExperimentAnnotationsDetails(User user, ExperimentAnnotations exptAnnotations, boolean fullDetails)
         {
             _experimentAnnotations = exptAnnotations;
@@ -4368,6 +4495,14 @@ public class PanoramaPublicController extends SpringActionController
                 // 2. AND this is a NOT journal copy (i.e. a folder in the Panorama Public project)
                 // 3. AND if this experiment has been copied to Panorama Public, the copy is not final (paper published and data public).
                 _canPublish = c.hasPermission(user, AdminPermission.class) && (ExperimentAnnotationsManager.canSubmitExperiment(_experimentAnnotations, _lastPublishedRecord));
+                if (_lastPublishedRecord != null)
+                {
+                    Submission lastCopiedSubmission = _lastPublishedRecord.getLatestCopiedSubmission();
+                    if (lastCopiedSubmission != null)
+                    {
+                        _journalCopy = ExperimentAnnotationsManager.get(lastCopiedSubmission.getCopiedExperimentId());
+                    }
+                }
             }
 
             if (_experimentAnnotations.isJournalCopy() && _experimentAnnotations.getSourceExperimentId() != null)
@@ -4457,6 +4592,37 @@ public class PanoramaPublicController extends SpringActionController
         public boolean isCurrentVersion()
         {
             return _isCurrentVersion;
+        }
+
+        public boolean canAddMakePublicLink()
+        {
+            return _journalCopy != null && !(_journalCopy.isPublic() && _journalCopy.isPublished() && _journalCopy.isPeerReviewed());
+        }
+
+        public String getMakePublicButtonText()
+        {
+            if (_journalCopy != null)
+            {
+                return !_journalCopy.isPublic() ? "Make Data Public" :
+                       !_journalCopy.isPublished() ? "Add Publication Link" :
+                       _journalCopy.isPeerReviewed() ? "Edit Publication Link" : "";
+            }
+            return "";
+        }
+
+        public boolean isJournalCopyPublic()
+        {
+            return _journalCopy != null && _journalCopy.isPublic();
+        }
+
+        public boolean isJournalCopyPublished()
+        {
+            return _journalCopy != null && _journalCopy.isPublished();
+        }
+
+        public boolean canEditPublication()
+        {
+            return isJournalCopyPublished() && !_journalCopy.isPeerReviewed();
         }
     }
 
@@ -4987,6 +5153,280 @@ public class PanoramaPublicController extends SpringActionController
                     webPart.setProperty(FilesWebPart.FILE_ROOT_PROPERTY_NAME, fileRootString);
                 }
             }
+        }
+    }
+
+    @RequiresPermission(AdminPermission.class)
+    public static class MakeDataPublicAction extends FormViewAction<PublicationDetailsForm>
+    {
+        private ExperimentAnnotations _expAnnot;
+        private ExperimentAnnotations _copiedExperiment;
+
+        private boolean validate(PublicationDetailsForm form, Errors errors)
+        {
+            _expAnnot = form.lookupExperiment();
+            if (_expAnnot == null)
+            {
+                errors.reject(ERROR_MSG, "Failed to lookup experiment annotations with Id " + form.getId());
+                return false;
+            }
+
+            ensureCorrectContainer(getContainer(), _expAnnot.getContainer(), getViewContext());
+            return true;
+        }
+
+        private ExperimentAnnotations getCopiedExperimentFor(ExperimentAnnotations expAnnot, Errors errors)
+        {
+            if (expAnnot.isJournalCopy())
+            {
+                return expAnnot;
+            }
+            else
+            {
+                JournalSubmission js = SubmissionManager.getNewestJournalSubmission(expAnnot);
+                if (js == null)
+                {
+                    errors.reject(ERROR_MSG, "Unable to find submission request for experiment Id " + expAnnot.getId());
+                    return null;
+                }
+                Submission submission = js.getLatestSubmission();
+                ExperimentAnnotations copiedExperiment = submission != null ? ExperimentAnnotationsManager.get(submission.getCopiedExperimentId()) : null;
+                if (copiedExperiment == null)
+                {
+                    Journal journal = JournalManager.getJournal(js.getJournalId());
+                    errors.reject(ERROR_MSG, String.format("Unable to find a copy of experiment Id %d on '%s'", expAnnot.getId(), journal != null ? journal.getName() : "UNKNOWN"));
+                    return null;
+                }
+                return copiedExperiment;
+            }
+        }
+
+        @Override
+        public ModelAndView getView(PublicationDetailsForm form, boolean reshow, BindException errors)
+        {
+            if (reshow)
+            {
+                if (errors.hasErrors())
+                {
+                    return _copiedExperiment != null ? getPublicationDetailsView(form, errors)
+                            : new SimpleErrorView(errors, false);
+                }
+                else if (form.hasPubmedId() && form.hasLinkAndCitation() && !form.isPubmedIdConfirmed())
+                {
+                    return new HtmlView(DIV("Please confirm the citation for the PubMedID " + form.getPubmedId(),
+                            BR(),
+                            form.getCitation(),
+                            BR(),
+                            FORM(
+                                    at(method, "POST"),
+                                    INPUT(at(type, "hidden", name, "link", value, form.getLink())),
+                                    INPUT(at(type, "hidden", name, "citation", value, form.getCitation())),
+                                    INPUT(at(type, "hidden", name, "pubmedId", value, form.getPubmedId())),
+                                    INPUT(at(type, "hidden", name, "pubmedIdConfirmed", value, true)),
+                                    new Button.ButtonBuilder("Continue").submit(true).build(),
+                                    new Button.ButtonBuilder("Cancel").href(PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(getContainer()))
+                            )));
+                }
+            }
+
+            if (!validate(form, errors))
+            {
+                return new SimpleErrorView(errors, false);
+            }
+
+            _copiedExperiment = getCopiedExperimentFor(_expAnnot, errors);
+            if (_copiedExperiment == null)
+            {
+                return new SimpleErrorView(errors);
+            }
+
+            return getPublicationDetailsView(form, errors);
+        }
+
+        private ModelAndView getPublicationDetailsView(PublicationDetailsForm form, BindingResult errors)
+        {
+            return new HtmlView("Make Data Public",
+                    DIV("Add Publication Details",
+                            ERRORS(errors),
+                            FORM(
+                                    at(method, "POST"),
+                                    SPAN(cl("labkey-form-label"), "Publication Link"),
+                                    INPUT(at(type, "Text", name, "link", value, form.getLink())),
+                                    SPAN(cl("labkey-form-label"), "Citation"),
+                                    INPUT(at(type, "Text", name, "citation", value, form.getCitation())),
+                                    DIV("-------------------------- OR -------------------------------"),
+                                    SPAN(cl("labkey-form-label"), "PubMed ID"),
+                                    INPUT(at(type, "Text", name, "pubmedId", value, form.getPubmedId())),
+                                    LABEL("Publication link and citation are not required if a PubMed ID is provided."),
+                                    // CHECKBOX(at(name, "makePublic")),
+                                    // LABEL("Make public"),
+                                    BR(),
+                                    new Button.ButtonBuilder("Continue").submit(true).build(),
+                                    new Button.ButtonBuilder("Cancel").href(PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(getContainer()))
+                            )
+                    ));
+        }
+
+        @Override
+        public void validateCommand(PublicationDetailsForm form, Errors errors)
+        {
+            if (!validate(form, errors))
+            {
+                return;
+            }
+            _copiedExperiment = getCopiedExperimentFor(_expAnnot, errors);
+            if (_copiedExperiment == null)
+            {
+                return;
+            }
+
+            // if ()
+        }
+
+        @Override
+        public boolean handlePost(PublicationDetailsForm form, BindException errors)
+        {
+            if (!StringUtils.isBlank(form.getPubmedId()) && !form.isPubmedIdConfirmed())
+            {
+                if(!form.getPubmedId().matches(PUBMED_ID))
+                {
+                    errors.reject(ERROR_MSG, "Invalid PubMed ID");
+                    return false;
+                }
+
+                Pair<String, String> linkAndCitation = NcbiUtils.getLinkAndCitation(form.getPubmedId());
+                if (linkAndCitation != null)
+                {
+                    form.setLink(linkAndCitation.first);
+                    form.setCitation(linkAndCitation.second);
+                    return false; // Show view to confirm the citation
+                }
+                else
+                {
+                    errors.reject("Unable to get a citation for PubMed ID: " + form.getPubmedId());
+                    return false;
+                }
+            }
+
+            // Add the publication link and citation to the copied experiment
+            if (form.hasLinkAndCitation())
+            {
+                _copiedExperiment.setPublicationLink(form.getLink());
+                _copiedExperiment.setCitation(form.getCitation());
+                if (form.hasPubmedId())
+                {
+                    _copiedExperiment.setPubmedId(form.getPubmedId());
+                }
+                ExperimentAnnotationsManager.save(_copiedExperiment, getUser());
+            }
+
+            // Make the folder public
+            Container container = _copiedExperiment.getContainer();
+            MutableSecurityPolicy newPolicy = new MutableSecurityPolicy(container, container.getPolicy());
+            newPolicy.addRoleAssignment(SecurityManager.getGroup(Group.groupGuests), ReaderRole.class);
+            SecurityPolicyManager.savePolicy(newPolicy);
+
+            // If the "Raw Data" tab is displayed, add the data download information webpart
+            // Add the Subfolders webpart if it is not already there
+            String webpartName = "Download Data";
+            List<Portal.WebPart> parts = Portal.getParts(_expAnnot.getContainer(), RAW_FILES_TAB);
+            if (parts.size() != 0)
+            {
+                boolean hasDownloadInfoWebpart = parts.stream().anyMatch(p -> webpartName.equals(p.getName()));
+                if (!hasDownloadInfoWebpart)
+                {
+                    WebPartFactory webPartFactory = Portal.getPortalPart(webpartName);
+                    if(webPartFactory != null)
+                    {
+                        Portal.addPart(_expAnnot.getContainer(), RAW_FILES_TAB, webPartFactory, WebPartFactory.LOCATION_BODY);
+                    }
+                }
+            }
+
+            // Publish the DOI if the experiment has one
+            if (_copiedExperiment.hasDoi())
+            {
+                try
+                {
+                    DataCiteService.publishIfDraftDoi(_copiedExperiment);
+                }
+                catch (DataCiteException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+
+            return true;
+        }
+
+        @Override
+        public ActionURL getSuccessURL(PublicationDetailsForm form)
+        {
+            return getViewExperimentDetailsURL(_expAnnot.getId(), getContainer());
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Make Data Public");
+        }
+    }
+
+    public static class PublicationDetailsForm extends ExperimentIdForm
+    {
+        private String _link;
+        private String _citation;
+        private String _pubmedId;
+        private boolean _pubmedIdConfirmed;
+
+        public String getLink()
+        {
+            return _link;
+        }
+
+        public void setLink(String link)
+        {
+            _link = link;
+        }
+
+        public String getCitation()
+        {
+            return _citation;
+        }
+
+        public void setCitation(String citation)
+        {
+            _citation = citation;
+        }
+
+        public String getPubmedId()
+        {
+            return _pubmedId;
+        }
+
+        public void setPubmedId(String pubmedId)
+        {
+            _pubmedId = pubmedId;
+        }
+
+        public boolean hasPubmedId()
+        {
+            return !StringUtils.isBlank(_pubmedId);
+        }
+
+        public boolean hasLinkAndCitation()
+        {
+            return !StringUtils.isBlank(_link) && !StringUtils.isBlank(_citation);
+        }
+
+        public boolean isPubmedIdConfirmed()
+        {
+            return _pubmedIdConfirmed;
+        }
+
+        public void setPubmedIdConfirmed(boolean pubmedIdConfirmed)
+        {
+            _pubmedIdConfirmed = pubmedIdConfirmed;
         }
     }
 
