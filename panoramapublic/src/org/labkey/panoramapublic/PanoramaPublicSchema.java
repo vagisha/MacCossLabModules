@@ -20,7 +20,6 @@ import org.jetbrains.annotations.NotNull;
 import org.labkey.api.collections.CaseInsensitiveHashSet;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerFilter;
-import org.labkey.api.data.ContainerForeignKey;
 import org.labkey.api.data.DbSchema;
 import org.labkey.api.data.DbSchemaType;
 import org.labkey.api.data.SQLFragment;
@@ -102,8 +101,6 @@ public class PanoramaPublicSchema extends UserSchema
             projectCol.setConceptURI(BuiltInColumnTypes.CONTAINERID_CONCEPT_URI);
             var supportContainerCol = result.getMutableColumn(FieldKey.fromParts("SupportContainer"));
             supportContainerCol.setConceptURI(BuiltInColumnTypes.CONTAINERID_CONCEPT_URI);
-            var publicDataUserCol = result.getMutableColumn(FieldKey.fromParts("PublicDataUserId"));
-            publicDataUserCol.setConceptURI(BuiltInColumnTypes.USERID_CONCEPT_URI);
             return result;
         }
 

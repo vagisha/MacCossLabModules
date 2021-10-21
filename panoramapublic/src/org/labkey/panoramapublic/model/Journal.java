@@ -17,8 +17,6 @@ package org.labkey.panoramapublic.model;
 
 
 import org.labkey.api.data.Container;
-import org.labkey.api.security.User;
-import org.labkey.api.security.UserManager;
 
 import java.util.Date;
 
@@ -36,10 +34,6 @@ public class Journal
     private Container _supportContainer;
     private Date _created;
     private int _createdBy;
-    private Integer _publicDataUserId; // This user will be assigned the reader role in folders that are made public
-                                       // on Panorama Public.  This is the account that can be used in
-                                       // WebDAV clients to download files from public datasets
-    private String _publicDataUserPasswd;
 
     public Integer getId()
     {
@@ -109,30 +103,5 @@ public class Journal
     public void setCreatedBy(int createdBy)
     {
         _createdBy = createdBy;
-    }
-
-    public Integer getPublicDataUserId()
-    {
-        return _publicDataUserId;
-    }
-
-    public void setPublicDataUserId(Integer publicDataUserId)
-    {
-        _publicDataUserId = publicDataUserId;
-    }
-
-    public User getPublicDataUser()
-    {
-        return _publicDataUserId != null ? UserManager.getUser(_publicDataUserId) : null;
-    }
-
-    public String getPublicDataUserPasswd()
-    {
-        return _publicDataUserPasswd;
-    }
-
-    public void setPublicDataUserPasswd(String publicDataUserPasswd)
-    {
-        _publicDataUserPasswd = publicDataUserPasswd;
     }
 }

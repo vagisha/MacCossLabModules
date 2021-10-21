@@ -30,10 +30,8 @@ import org.labkey.api.security.permissions.AdminPermission;
 import org.labkey.api.security.roles.RoleManager;
 import org.labkey.api.settings.AdminConsole;
 import org.labkey.api.targetedms.TargetedMSService;
-import org.labkey.api.util.Link;
 import org.labkey.api.view.ActionURL;
 import org.labkey.api.view.BaseWebPartFactory;
-import org.labkey.api.view.HtmlView;
 import org.labkey.api.view.JspView;
 import org.labkey.api.view.Portal;
 import org.labkey.api.view.ShortURLService;
@@ -55,7 +53,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.DIV;
 import static org.labkey.api.util.DOM.at;
 
@@ -179,7 +176,7 @@ public class PanoramaPublicModule extends SpringModule
             @Override
             public WebPartView getWebPartView(@NotNull ViewContext portalCtx, @NotNull Portal.WebPart webPart)
             {
-                JspView view = new JspView("/org/labkey/panoramapublic/view/expannotations/dataDownloadInfo.jsp");
+                JspView view = new JspView("/org/labkey/panoramapublic/view/publish/dataDownloadInfo.jsp");
                 view.setTitle("Download Data");
                 return view;
             }

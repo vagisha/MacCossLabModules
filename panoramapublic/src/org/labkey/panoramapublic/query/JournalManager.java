@@ -15,11 +15,12 @@
  */
 package org.labkey.panoramapublic.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.admin.FolderExportPermission;
 import org.labkey.api.data.Container;
+import org.labkey.api.data.PropertyManager;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.data.SqlSelector;
@@ -42,6 +43,7 @@ import org.labkey.api.security.roles.FolderAdminRole;
 import org.labkey.api.security.roles.ProjectAdminRole;
 import org.labkey.api.security.roles.Role;
 import org.labkey.api.security.roles.RoleManager;
+import org.labkey.api.util.logging.LogHelper;
 import org.labkey.api.view.ActionURL;
 import org.labkey.api.view.ShortURLRecord;
 import org.labkey.api.view.ShortURLService;
@@ -64,7 +66,12 @@ import java.util.SortedSet;
  */
 public class JournalManager
 {
-    private static final Logger LOG = LogManager.getLogger(JournalManager.class);
+    private static final String PUBLIC_DATA_USER = " Public Data User";
+    private static final String USER_ID = "User Id";
+    private static final String USER_EMAIL = "User Email";
+    private static final String USER_PASSWORD = "User Password";
+
+    private static final Logger LOG = LogHelper.getLogger(JournalManager.class, "Messages about querying Journal (e.g. Panorama Public) information");
 
     public static List<Journal> getJournals()
     {
@@ -220,7 +227,11 @@ public class JournalManager
             {
                 if(role.getRole().equals(projectAdminRole))
                 {
-                    newPolicy.addRoleAssignment(UserManager.getUser(role.getUserId()), FolderAdminRole.class);
+                    User user = UserManager.getUser(role.getUserId());
+                    if (user != null)
+                    {
+                        newPolicy.addRoleAssignment(user, FolderAdminRole.class);
+                    }
                 }
             }
         }
@@ -346,5 +357,53 @@ public class JournalManager
             }
         }
         return null;
+    }
+
+    public static @Nullable PublicDataUser getPublicDataUser(@NotNull Journal journal)
+    {
+        PropertyManager.PropertyMap map = PropertyManager.getEncryptedStore().getWritableProperties(journal.getName() + PUBLIC_DATA_USER, false);
+        if(map != null)
+        {
+            return new PublicDataUser(Integer.parseInt(map.get(USER_ID)), map.get(USER_EMAIL), map.get(USER_PASSWORD));
+        }
+        return null;
+    }
+
+    public static void savePublicDataUser(@NotNull Journal journal, @NotNull User user, @NotNull String password)
+    {
+        PropertyManager.PropertyMap map = PropertyManager.getEncryptedStore().getWritableProperties(journal.getName() + PUBLIC_DATA_USER, true);
+        map.put(USER_ID, String.valueOf(user.getUserId()));
+        map.put(USER_EMAIL, user.getEmail());
+        map.put(USER_PASSWORD, password);
+        map.save();
+    }
+
+    public static final class PublicDataUser
+    {
+        private final int _userId;
+        private final String _email;
+        private final String _password;
+
+        public PublicDataUser(int userId, String email, String password)
+        {
+            _userId = userId;
+            _email = email;
+            _password = password;
+        }
+
+        public int getUserId()
+        {
+            return _userId;
+        }
+
+        public String getEmail()
+        {
+            return _email;
+        }
+
+        public String getPassword()
+        {
+            return _password;
+        }
     }
 }
