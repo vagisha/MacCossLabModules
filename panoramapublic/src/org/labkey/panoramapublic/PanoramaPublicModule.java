@@ -59,6 +59,7 @@ import static org.labkey.api.util.DOM.at;
 public class PanoramaPublicModule extends SpringModule
 {
     public static final String NAME = "PanoramaPublic";
+    public static final String DOWNLOAD_DATA_INFO_WP = "Download Data";
 
     @Override
     public String getName()
@@ -171,7 +172,7 @@ public class PanoramaPublicModule extends SpringModule
             }
         };
 
-        BaseWebPartFactory dataDownloadInfoFactory = new BaseWebPartFactory("Download Data")
+        BaseWebPartFactory dataDownloadInfoFactory = new BaseWebPartFactory(DOWNLOAD_DATA_INFO_WP)
         {
             @Override
             public WebPartView getWebPartView(@NotNull ViewContext portalCtx, @NotNull Portal.WebPart webPart)

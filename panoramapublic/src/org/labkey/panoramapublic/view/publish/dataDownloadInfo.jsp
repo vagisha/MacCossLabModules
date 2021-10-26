@@ -2,21 +2,19 @@
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <labkey:errors/>
 <script type="text/javascript">
-
     LABKEY.requiresExt4Sandbox(true, function() {
         Ext4.onReady(function(){
-            var webdavUrl = LABKEY.ActionURL.getBaseURL() + "_webdav" + LABKEY.ActionURL.getContainer() + "/@files/RawFiles/";
-            // Ext4.get('webdav_url_link').update("<a href=\"" + encodeURI(webdavUrl) + "\">" + webdavUrl + "</a>");
-            Ext4.get('webdav_url_link').update(webdavUrl);
-            // console.log(Ext4.String.htmlEncode(webdavUrl));
+            var webdavUrl = LABKEY.ActionURL.getBaseURL() + LABKEY.ActionURL.encodePath("_webdav" + LABKEY.Security.currentContainer.path + "/@files/RawFiles/");
+            Ext4.get('webdav_url_link').update(Ext4.util.Format.htmlEncode(webdavUrl));
         });
     });
 </script>
 <p>
-    Raw data can be downloaded by selecting one or more files or folders in the browser above and clicking the download icon ( <span class="fa fa-download"></span> ).
-    Data can also be downloaded by mapping this folder as a network drive in Windows Explorer, or by using a <%=link("WebDAV").href("https://en.wikipedia.org/wiki/WebDAV")%>
-    client such as <span class="nobr"><%=link("CyberDuck").href("https://cyberduck.io")%></span> or <span class="nobr"><%=link("WinSCP").href("https://winscp.net/eng/docs/introduction")%></span>.
-    For details look at <%=link("Download data from Panorama Public").href("/wiki/home/page.view?name=download_public_data")%>. Use the following URL and login to connect to this folder:
+    Select one or more files or folders in the browser above and click the download icon ( <span class="fa fa-download"></span> ).
+    Data can also be downloaded by mapping this folder as a network drive in Windows Explorer, or by using a <%=link("WebDAV").href("https://en.wikipedia.org/wiki/WebDAV").clearClasses()%>
+    client such as <span class="nobr"><%=link("CyberDuck").href("https://cyberduck.io").clearClasses()%></span> or <span class="nobr"><%=link("WinSCP").href("https://winscp.net/eng/docs/introduction").clearClasses()%></span>.
+    For details look at <%=link("Download data from Panorama Public").href("/wiki/home/page.view?name=download_public_data").clearClasses()%>.
+    Use the following URL, login email and password to connect to this folder:
     <br/>
     <br/>
     URL: <b class="bold"><span class="nobr" id="webdav_url_link"></span></b>

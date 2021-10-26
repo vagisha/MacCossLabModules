@@ -115,7 +115,8 @@ public class PanoramaPublicNotification
         postNotification(srcExpAnnotations, journal, je, messageBody.toString(), user /* User is either a site admin or a Panorama Public admin, and should have permissions to post*/);
     }
 
-    public static void notifyDataPublished(ExperimentAnnotations srcExperiment, ExperimentAnnotations journalCopy, Journal journal, JournalExperiment je, DataCiteException doiError, User user)
+    public static void notifyDataPublished(ExperimentAnnotations srcExperiment, ExperimentAnnotations journalCopy, Journal journal, JournalExperiment je,
+                                           DataCiteException doiError, User user)
     {
         StringBuilder messageBody = new StringBuilder();
         appendRequestName(journalCopy, journal, ACTION.PUBLISHED, messageBody);

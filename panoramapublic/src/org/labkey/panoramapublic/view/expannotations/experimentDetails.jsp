@@ -187,8 +187,8 @@
     <%if(canPublish && !journalCopyPending){%>
         <a class="button-small button-small-red" style="float:left; margin:0px 5px 0px 2px;" href="<%=h(publishUrl)%>"><%=h(publishButtonText)%></a>
     <%}%>
-    <% if (annotDetails.canAddMakePublicLink()) { %>
-        <%=link(annotDetails.getMakePublicButtonText(), new ActionURL(PanoramaPublicController.MakeDataPublicAction.class,getContainer())
+    <% if (annotDetails.canAddPublishLink(getUser())) { %>
+        <%=link(annotDetails.getPublishButtonText(), new ActionURL(PanoramaPublicController.MakePublicAction.class,getContainer())
                 .addParameter("id", annot.getId()))
                 .clearClasses().addClass("button-small button-small-red")
                 .style("margin:0px 5px 0px 2px;")%>

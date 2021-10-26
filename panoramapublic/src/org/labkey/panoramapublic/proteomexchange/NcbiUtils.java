@@ -256,7 +256,11 @@ public class NcbiUtils
         try
         {
             JSONParser parser = new JSONParser();
-            return (org.json.simple.JSONObject) parser.parse(new StringReader(response));
+            var object = parser.parse(new StringReader(response));
+            if (object instanceof org.json.simple.JSONObject)
+            {
+                return (org.json.simple.JSONObject)object;
+            }
         }
         catch (IOException | ParseException e)
         {

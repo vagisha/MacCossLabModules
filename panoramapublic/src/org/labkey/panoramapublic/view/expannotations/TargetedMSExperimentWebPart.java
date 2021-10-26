@@ -76,7 +76,7 @@ public class TargetedMSExperimentWebPart extends VBox
                 NavTree navTree = new NavTree();
                 navTree.addChild("ProteomeXchange", new ActionURL(PanoramaPublicController.GetPxActionsAction.class, container).addParameter("id", expAnnotations.getId()));
                 navTree.addChild("DOI", new ActionURL(PanoramaPublicController.DoiOptionsAction.class, container).addParameter("id", expAnnotations.getId()));
-                navTree.addChild("Make Data Public", new ActionURL(PanoramaPublicController.MakeDataPublicAction.class, container).addParameter("id", expAnnotations.getId()));
+                navTree.addChild("Make Data Public", new ActionURL(PanoramaPublicController.MakePublicAction.class, container).addParameter("id", expAnnotations.getId()));
                 setNavMenu(navTree);
             }
         }

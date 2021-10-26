@@ -470,7 +470,10 @@ public class ExperimentAnnotations
         String publicationLink = getPublicationLink();
         // Authors use the medRxiv and bioRxiv services to make their manuscripts available as preprints before peer review, allowing
         // other scientists to see, discuss, and comment on the findings immediately.
-        return isPublished() && !(publicationLink.contains("www.biorxiv.org") || publicationLink.contains("www.medrxiv.org"));
+        return isPublished() && !(publicationLink.contains("www.biorxiv.org") || publicationLink.contains("www.medrxiv.org"))
+                && !(publicationLink.contains("panoramaweb.org")); // We set the publication link to be the short url for the data
+                                                                   // when the data is made public by the user without providing
+                                                                   // publication details. The user is able to update the link later.
     }
 
     public String getPubmedId()
@@ -512,6 +515,11 @@ public class ExperimentAnnotations
     {
         TargetedMSService.FolderType folderType = TargetedMSService.get().getFolderType(getContainer());
         return Experiment.equals(folderType) && isPublic() && isPublished();
+    }
+
+    public boolean hasCompletePublicationInfo()
+    {
+        return isPeerReviewed() && hasPubmedId();
     }
 
     public String getDoi()
