@@ -1,0 +1,15 @@
+<query xmlns="http://labkey.org/data/xml/query">
+    <metadata>
+        <tables xmlns="http://labkey.org/data/xml">
+            <table tableName="SpectralLibraries" tableDbType="TABLE">
+                <columns>
+                    <column columnName="RunIds">
+                        <displayColumnFactory>
+                            <className>org.labkey.panoramapublic.query.LibraryDocumentsDisplayColumnFactory</className>
+                        </displayColumnFactory>
+                    </column>
+                </columns>
+            </table>
+        </tables>
+    </metadata>
+</query>

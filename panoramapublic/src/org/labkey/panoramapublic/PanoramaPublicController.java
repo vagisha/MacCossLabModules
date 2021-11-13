@@ -141,6 +141,7 @@ import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
+import org.labkey.panoramapublic.query.SpecLibView;
 import org.labkey.panoramapublic.query.SubmissionManager;
 import org.labkey.panoramapublic.view.PanoramaPublicRunListView;
 import org.labkey.panoramapublic.view.expannotations.ExperimentAnnotationsFormDataRegion;
@@ -4455,6 +4456,10 @@ public class PanoramaPublicController extends SpringActionController
                 ((FilteredTable) tinfo).addCondition(sql);
             }
             result.addView(runListView);
+
+            // List of Spectral Libraries
+            SpecLibView specLibView = new SpecLibView(getViewContext(), exptAnnotations);
+            result.addView(specLibView);
 
             // If this experiment has been submitted show the submission requests
             List<JournalSubmission> jsList = SubmissionManager.getAllJournalSubmissions(exptAnnotations);

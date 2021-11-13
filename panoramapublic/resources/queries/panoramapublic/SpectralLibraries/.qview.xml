@@ -1,0 +1,15 @@
+<customView xmlns="http://labkey.org/data/xml/queryCustomView" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <columns>
+        <column name="Name" />
+        <column name="FileNameHint">
+            <properties>
+                <property name="columnTitle" value="FileName" />
+            </properties>
+        </column>
+        <column name="RunIds">
+            <properties>
+                <property name="columnTitle" value="SkylineDocuments" />
+            </properties>
+        </column>
+    </columns>
+</customView>

@@ -17,13 +17,23 @@
 package org.labkey.panoramapublic;
 
 import org.labkey.api.data.Container;
+import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbSchema;
+import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.data.TableInfo;
+import org.labkey.api.data.TableSelector;
 import org.labkey.api.portal.ProjectUrls;
+import org.labkey.api.query.FieldKey;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.view.ActionURL;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class PanoramaPublicManager
 {
@@ -77,5 +87,19 @@ public class PanoramaPublicManager
     public static ActionURL getRawDataTabUrl(Container container)
     {
         return PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(container, TargetedMSService.RAW_FILES_TAB);
+    }
+
+    public static List<ITargetedMSRun> getRuns(Set<Long> runIds)
+    {
+        TargetedMSService svc = TargetedMSService.get();
+
+        TableInfo runsTable = svc.getTableInfoRuns();
+        var filter = new SimpleFilter().addInClause(FieldKey.fromParts("id"), runIds);
+        Map<Long, String> runIdContainers = new TableSelector(runsTable, runsTable.getColumns("id", "container"), filter, null).getValueMap();
+
+        return runIdContainers.keySet().stream()
+                .map(runId -> svc.getRun(runId, ContainerManager.getForId(runIdContainers.get(runId))))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 }

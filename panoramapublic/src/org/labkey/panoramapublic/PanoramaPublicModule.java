@@ -45,6 +45,7 @@ import org.labkey.panoramapublic.proteomexchange.SkylineVersion;
 import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
 import org.labkey.panoramapublic.query.ExperimentTitleDisplayColumn;
 import org.labkey.panoramapublic.query.JournalManager;
+import org.labkey.panoramapublic.query.SpecLibView;
 import org.labkey.panoramapublic.security.CopyTargetedMSExperimentRole;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentWebPart;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentsWebPart;
@@ -207,6 +208,15 @@ public class PanoramaPublicModule extends SpringModule
                 // This webpart should be available only in subfolders of projects configured as Journal projects (e.g. Panorama Public)
                 Container project = c.getProject();
                 return project != null && JournalManager.getJournal(project) != null;
+            }
+        };
+
+        BaseWebPartFactory spectralLibrariesFactory = new BaseWebPartFactory("Spectral Libraries")
+        {
+            @Override
+            public WebPartView getWebPartView(@NotNull ViewContext portalCtx, @NotNull Portal.WebPart webPart)
+            {
+                return new SpecLibView(portalCtx);
             }
         };
 
