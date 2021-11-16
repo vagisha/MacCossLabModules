@@ -226,6 +226,7 @@ public class PanoramaPublicModule extends SpringModule
         webpartFactoryList.add(proteinSearchFactory);
         webpartFactoryList.add(peptideSearchFactory);
         webpartFactoryList.add(dataDownloadInfoFactory);
+        webpartFactoryList.add(spectralLibrariesFactory);
         return webpartFactoryList;
     }
 

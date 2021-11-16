@@ -126,6 +126,8 @@ import org.labkey.panoramapublic.model.Journal;
 import org.labkey.panoramapublic.model.JournalExperiment;
 import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
+import org.labkey.panoramapublic.model.SpecLibInfo;
+import org.labkey.panoramapublic.model.SpecLibKey;
 import org.labkey.panoramapublic.model.Submission;
 import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
@@ -141,6 +143,7 @@ import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
+import org.labkey.panoramapublic.query.SpecLibInfoManager;
 import org.labkey.panoramapublic.query.SpecLibView;
 import org.labkey.panoramapublic.query.SubmissionManager;
 import org.labkey.panoramapublic.view.PanoramaPublicRunListView;
@@ -5608,6 +5611,295 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
+    @RequiresPermission(AdminPermission.class)
+    public static class EditSpecLibInfoAction extends PanoramaPublicAction<EditSpecLibInfoForm>
+    {
+        private SpecLibKey _libKey;
+
+        @Override
+        public ModelAndView getModelAndView(EditSpecLibInfoForm form, boolean reshow, BindException errors)
+        {
+            if (!reshow)
+            {
+                if (form.getSpecLibInfoId() != null)
+                {
+                    SpecLibInfo info = SpecLibInfoManager.get(form.getSpecLibInfoId());
+                    if (info == null)
+                    {
+                        errors.reject(ERROR_MSG, "Cannot find a SpecLibInfo row for Id " + form.getSpecLibInfoId());
+                        return new SimpleErrorView(errors);
+                    }
+                    _libKey = info.getLibraryKey();
+                    form.setSourceType(info.getSourceType());
+                    form.setSourceUrl(info.getSourceUrl());
+                    form.setSourcePxid(info.getSourcePxid());
+                    form.setSourceAccession(info.getSourceAccession());
+                    form.setSourceUsername(info.getSourceUsername());
+                    form.setSourcePassword(info.getSourcePassword());
+                    form.setDependencyType(info.getDependencyType());
+                }
+                else
+                {
+                    // Library container may not be the same as the container which contains the ExperimentAnnotations, if
+                    // the experiment is configured to include subfolders. Get the library container from the query params.
+                    Container libContainer = ContainerManager.getForId(form.getLibContainerId());
+                    if (libContainer == null)
+                    {
+                        errors.reject(ERROR_MSG, String.format("Could not find container for id '%s'; spectral library id: %d",
+                                form.getLibContainerId(), form.getSpecLibId()));
+                        return new SimpleErrorView(errors);
+                    }
+                    _libKey = SpecLibInfoManager.getSpecLibKey(form.getSpecLibId(), libContainer, getUser());
+                    if (_libKey == null)
+                    {
+                        errors.reject(ERROR_MSG, "Could find a spectrum library with Id " + form.getSpecLibId());
+                        return new SimpleErrorView(errors);
+                    }
+                }
+            }
+
+            JspView view = new JspView<>("/org/labkey/panoramapublic/view/editSpecLibInfo.jsp", new SpecLibInfoBean(_libKey, form), errors);
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            view.setTitle("Edit Spectral Library Information");
+            return view;
+        }
+
+        @Override
+        public void validatePostCommand(EditSpecLibInfoForm form, Errors errors)
+        {
+            if (!SpecLibInfo.SourceType.isValid(form.getSourceType()))
+            {
+                errors.reject(ERROR_MSG, "Invalid source type");
+            }
+
+            if (!SpecLibInfo.DependencyType.isValid(form.getDependencyType()))
+            {
+                errors.reject(ERROR_MSG, "Invalid dependency type");
+            }
+        }
+
+        @Override
+        public boolean handlePost(EditSpecLibInfoForm form, BindException errors)
+        {
+            if (errors.getErrorCount() > 0)
+            {
+                return false;
+            }
+
+            SpecLibInfo info = SpecLibInfoManager.get(form.getSpecLibInfoId());
+            info.setSourceType(form.getSourceType());
+            info.setSourceUrl(form.getSourceUrl());
+            info.setSourcePxid(form.getSourcePxid());
+            info.setSourceAccession(form.getSourceAccession());
+            info.setSourceUsername(form.getSourceUsername());
+            info.setSourcePassword(form.getSourcePassword());
+            info.setDependencyType(form.getDependencyType());
+            SpecLibInfoManager.update(info, getUser());
+            return true;
+        }
+
+        @Override
+        public URLHelper getSuccessURL(EditSpecLibInfoForm editSpecLibInfoForm)
+        {
+            return getContainer().getStartURL(getUser());
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Edit Spectral Library Information");
+        }
+    }
+
+    public static class SpecLibInfoBean
+    {
+        private final SpecLibKey _libKey;
+        private final EditSpecLibInfoForm _form;
+
+        public SpecLibInfoBean(SpecLibKey libKey, EditSpecLibInfoForm form)
+        {
+            _libKey = libKey;
+            _form = form;
+        }
+
+        public SpecLibKey getLibKey()
+        {
+            return _libKey;
+        }
+
+        public EditSpecLibInfoForm getForm()
+        {
+            return _form;
+        }
+    }
+
+    public static class EditSpecLibInfoForm extends ExperimentIdForm
+    {
+        private long _specLibId; // rowId from targetedms.spectrumlibrary table
+        private long _runId; // TODO: Do we need this?
+        private String _libContainerId;
+        private Integer _specLibInfoId;
+        private int _sourceType;
+        private String _sourceUrl;
+        private String _sourcePxid;
+        private String _sourceAccession;
+        private String _sourceUsername;
+        private String _sourcePassword;
+        private int _dependencyType;
+
+        public long getSpecLibId()
+        {
+            return _specLibId;
+        }
+
+        public void setSpecLibId(long specLibId)
+        {
+            _specLibId = specLibId;
+        }
+
+        public long getRunId()
+        {
+            return _runId;
+        }
+
+        public void setRunId(long runId)
+        {
+            _runId = runId;
+        }
+
+        public String getLibContainerId()
+        {
+            return _libContainerId;
+        }
+
+        public void setLibContainerId(String libContainerId)
+        {
+            _libContainerId = libContainerId;
+        }
+
+        public Integer getSpecLibInfoId()
+        {
+            return _specLibInfoId;
+        }
+
+        public void setSpecLibInfoId(Integer specLibInfoId)
+        {
+            _specLibInfoId = specLibInfoId;
+        }
+
+        public int getSourceType()
+        {
+            return _sourceType;
+        }
+
+        public void setSourceType(int sourceType)
+        {
+            _sourceType = sourceType;
+        }
+
+        public String getSourceUrl()
+        {
+            return _sourceUrl;
+        }
+
+        public void setSourceUrl(String sourceUrl)
+        {
+            _sourceUrl = sourceUrl;
+        }
+
+        public String getSourcePxid()
+        {
+            return _sourcePxid;
+        }
+
+        public void setSourcePxid(String sourcePxid)
+        {
+            _sourcePxid = sourcePxid;
+        }
+
+        public String getSourceAccession()
+        {
+            return _sourceAccession;
+        }
+
+        public void setSourceAccession(String sourceAccession)
+        {
+            _sourceAccession = sourceAccession;
+        }
+
+        public String getSourceUsername()
+        {
+            return _sourceUsername;
+        }
+
+        public void setSourceUsername(String sourceUsername)
+        {
+            _sourceUsername = sourceUsername;
+        }
+
+        public String getSourcePassword()
+        {
+            return _sourcePassword;
+        }
+
+        public void setSourcePassword(String sourcePassword)
+        {
+            _sourcePassword = sourcePassword;
+        }
+
+        public int getDependencyType()
+        {
+            return _dependencyType;
+        }
+
+        public void setDependencyType(int dependencyType)
+        {
+            _dependencyType = dependencyType;
+        }
+    }
+
+    public static abstract class PanoramaPublicAction <T extends ExperimentIdForm> extends FormViewAction<T>
+    {
+        protected ExperimentAnnotations _expAnnot;
+
+        protected abstract ModelAndView getModelAndView(T form, boolean reshow, BindException errors);
+        protected abstract void validatePostCommand(T form, Errors errors);
+
+        private boolean validateExperiment(T form, Errors errors)
+        {
+            _expAnnot = form.lookupExperiment();
+            if (_expAnnot == null)
+            {
+                errors.reject(ERROR_MSG, "Cannot find an experiment with Id " + form.getId());
+                return false;
+            }
+
+            ensureCorrectContainer(getContainer(), _expAnnot.getContainer(), getViewContext());
+            return true;
+        }
+
+        @Override
+        public ModelAndView getView(T form, boolean reshow, BindException errors)
+        {
+            if (!validateExperiment(form, errors))
+            {
+                return new SimpleErrorView(errors, false);
+            }
+
+            return getModelAndView(form, reshow, errors);
+        }
+
+        @Override
+        public void validateCommand(T form, Errors errors)
+        {
+            if (!validateExperiment(form, errors))
+            {
+                return;
+            }
+
+            validatePostCommand(form, errors);
+        }
+    }
     // ------------------------------------------------------------------------
     // BEGIN Add the PanoramaPublic module to existing TargetedMS containers
     // ------------------------------------------------------------------------

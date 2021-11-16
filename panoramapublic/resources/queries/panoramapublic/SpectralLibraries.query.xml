@@ -8,6 +8,17 @@
                             <className>org.labkey.panoramapublic.query.LibraryDocumentsDisplayColumnFactory</className>
                         </displayColumnFactory>
                     </column>
+                    <column columnName="Details">
+                        <displayColumnFactory>
+                            <className>org.labkey.panoramapublic.query.EditLibraryDisplayColumnFactory</className>
+                        </displayColumnFactory>
+                    </column>
+                    <column columnName="SpecLibId">
+                        <fk>
+                            <fkDbSchema>targetedms</fkDbSchema>
+                            <fkTable>SpectrumLibrary</fkTable>
+                        </fk>
+                    </column>
                 </columns>
             </table>
         </tables>

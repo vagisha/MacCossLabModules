@@ -311,7 +311,7 @@ public class ExperimentAnnotationsManager
         Container leaf = container;
         while(container != null && !container.isRoot())
         {
-            ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.get(container);
+            ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getInContainer(container);
             if(expAnnotations == null)
             {
                 container = container.getParent();
@@ -333,7 +333,7 @@ public class ExperimentAnnotationsManager
         return null;
     }
 
-    private static ExperimentAnnotations get(Container container)
+    public static ExperimentAnnotations getInContainer(Container container)
     {
         SimpleFilter filter = container != null ? SimpleFilter.createContainerFilter(container) : null;
         List<ExperimentAnnotations> expAnnotations = new TableSelector(PanoramaPublicManager.getTableInfoExperimentAnnotations(),

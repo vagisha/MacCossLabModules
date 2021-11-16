@@ -3,12 +3,12 @@
         <column name="Name" />
         <column name="FileNameHint">
             <properties>
-                <property name="columnTitle" value="FileName" />
+                <property name="columnTitle" value="File Name" />
             </properties>
         </column>
         <column name="RunIds">
             <properties>
-                <property name="columnTitle" value="SkylineDocuments" />
+                <property name="columnTitle" value="Skyline Documents" />
             </properties>
         </column>
     </columns>

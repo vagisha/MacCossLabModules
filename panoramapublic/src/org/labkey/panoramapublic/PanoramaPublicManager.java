@@ -84,22 +84,13 @@ public class PanoramaPublicManager
         return TargetedMSService.get().getRunByLsid(lsid, container);
     }
 
+    public static TableInfo getTableInfoSpecLibInfo()
+    {
+        return getSchema().getTable(PanoramaPublicSchema.TABLE_SPEC_LIB_INFO);
+    }
+
     public static ActionURL getRawDataTabUrl(Container container)
     {
         return PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(container, TargetedMSService.RAW_FILES_TAB);
-    }
-
-    public static List<ITargetedMSRun> getRuns(Set<Long> runIds)
-    {
-        TargetedMSService svc = TargetedMSService.get();
-
-        TableInfo runsTable = svc.getTableInfoRuns();
-        var filter = new SimpleFilter().addInClause(FieldKey.fromParts("id"), runIds);
-        Map<Long, String> runIdContainers = new TableSelector(runsTable, runsTable.getColumns("id", "container"), filter, null).getValueMap();
-
-        return runIdContainers.keySet().stream()
-                .map(runId -> svc.getRun(runId, ContainerManager.getForId(runIdContainers.get(runId))))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
     }
 }
