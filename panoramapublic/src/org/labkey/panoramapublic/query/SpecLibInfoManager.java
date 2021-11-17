@@ -2,7 +2,6 @@ package org.labkey.panoramapublic.query;
 
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.data.Container;
-import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.Filter;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.SimpleFilter;
@@ -11,19 +10,17 @@ import org.labkey.api.data.Table;
 import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.query.FieldKey;
-import org.labkey.api.query.QueryService;
 import org.labkey.api.security.User;
 import org.labkey.api.security.permissions.ReadPermission;
-import org.labkey.api.targetedms.ISpectrumLibrary;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
-import org.labkey.panoramapublic.model.SpecLibInfo;
-import org.labkey.panoramapublic.model.SpecLibKey;
+import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
+import org.labkey.panoramapublic.model.speclib.SpecLibKey;
+import org.labkey.panoramapublic.model.speclib.SpectrumLibrary;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -83,16 +80,11 @@ public class SpecLibInfoManager
                 .collect(Collectors.toList());
     }
 
-    public static @Nullable SpecLibKey getSpecLibKey(long specLibId, Container container, User user)
+    public static @Nullable SpectrumLibrary getSpectrumLibrary(long specLibId, Container container, User user)
     {
         TargetedMSService svc = TargetedMSService.get();
         TableInfo table = svc.getUserSchema(user, container).getTable("spectrumlibrary");
-        SpectrumLibrary library = new TableSelector(table).getObject(specLibId, SpectrumLibrary.class);
-        if (library != null)
-        {
-            return new SpecLibKey(library.getName(), library.getFileNameHint(), library.getSkylineLibraryId(), library.getLibraryType());
-        }
-        return null;
+        return new TableSelector(table).getObject(specLibId, SpectrumLibrary.class);
     }
 
     public static class RunContainer
@@ -121,78 +113,4 @@ public class SpecLibInfoManager
         }
     }
 
-    public static class SpectrumLibrary implements ISpectrumLibrary
-    {
-        private long _id;
-        private String _name;
-        private String _fileNameHint;
-        private String _skylineLibraryId;
-        private String _libraryType;
-        private String _revision;
-
-        public long getId()
-        {
-            return _id;
-        }
-
-        public void setId(long id)
-        {
-            _id = id;
-        }
-
-        @Override
-        public String getName()
-        {
-            return _name;
-        }
-
-        public void setName(String name)
-        {
-            _name = name;
-        }
-
-        @Override
-        public String getFileNameHint()
-        {
-            return _fileNameHint;
-        }
-
-        public void setFileNameHint(String fileNameHint)
-        {
-            _fileNameHint = fileNameHint;
-        }
-
-        @Override
-        public String getSkylineLibraryId()
-        {
-            return _skylineLibraryId;
-        }
-
-        public void setSkylineLibraryId(String skylineLibraryId)
-        {
-            _skylineLibraryId = skylineLibraryId;
-        }
-
-        @Override
-        public String getLibraryType()
-        {
-            return _libraryType;
-        }
-
-        public void setLibraryType(String libraryType)
-        {
-            _libraryType = libraryType;
-        }
-
-        @Override
-        public String getRevision()
-        {
-            return _revision;
-        }
-
-        public void setRevision(String revision)
-        {
-            _revision = revision;
-        }
-    }
 }

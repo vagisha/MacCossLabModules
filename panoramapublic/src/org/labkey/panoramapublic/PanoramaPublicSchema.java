@@ -23,6 +23,7 @@ import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.ContainerForeignKey;
 import org.labkey.api.data.DbSchema;
 import org.labkey.api.data.DbSchemaType;
+import org.labkey.api.data.EnumTableInfo;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.dialect.SqlDialect;
@@ -32,8 +33,9 @@ import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QuerySchema;
 import org.labkey.api.query.UserSchema;
-import org.labkey.api.query.column.BuiltInColumnTypes;
 import org.labkey.api.security.User;
+import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
+import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
@@ -51,6 +53,9 @@ public class PanoramaPublicSchema extends UserSchema
     public static final String TABLE_EXPERIMENT_ANNOTATIONS = "ExperimentAnnotations";
     public static final String TABLE_PX_XML = "PxXml";
     public static final String TABLE_SPEC_LIB_INFO = "SpecLibInfo";
+
+    public static final String TABLE_LIB_DEPENDENCY_TYPE = "SpecLibDependencyType";
+    public static final String TABLE_LIB_SOURCE_TYPE = "SpecLibSourceType";
 
     public PanoramaPublicSchema(User user, Container container)
     {
@@ -116,6 +121,34 @@ public class PanoramaPublicSchema extends UserSchema
         if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(name))
         {
             return getFilteredSpecLibInfoTable(name, cf);
+        }
+
+        if (TABLE_LIB_DEPENDENCY_TYPE.equalsIgnoreCase(name))
+        {
+            EnumTableInfo<SpecLibDependencyType> tableInfo = new EnumTableInfo<>(
+                    SpecLibDependencyType.class,
+                    this,
+                    SpecLibDependencyType::getDescription,
+                    true,
+                    "Types of dependencies on a spectral library");
+
+            var viewColumn = tableInfo.getMutableColumn("Value");
+            viewColumn.setLabel("Dependency Type");
+            return tableInfo;
+        }
+
+        if (TABLE_LIB_SOURCE_TYPE.equalsIgnoreCase(name))
+        {
+            EnumTableInfo<SpecLibSourceType> tableInfo = new EnumTableInfo<>(
+                    SpecLibSourceType.class,
+                    this,
+                    SpecLibSourceType::getDescription,
+                    true,
+                    "Spectral library source types");
+
+            var viewColumn = tableInfo.getMutableColumn("Value");
+            viewColumn.setLabel("Source Type");
+            return tableInfo;
         }
         return null;
     }

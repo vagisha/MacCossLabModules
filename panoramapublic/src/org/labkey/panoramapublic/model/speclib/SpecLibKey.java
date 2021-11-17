@@ -1,8 +1,7 @@
-package org.labkey.panoramapublic.model;
+package org.labkey.panoramapublic.model.speclib;
 
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Locale;
+import org.labkey.panoramapublic.speclib.LibraryType;
 
 public class SpecLibKey
 {
@@ -21,7 +20,7 @@ public class SpecLibKey
         _libraryType = libraryType;
     }
 
-    public String getKey()
+    public String getKeyString()
     {
         return String.format("%s%s%s%s%s", _name, SEP, _libraryType,
                 (_fileNameHint != null ? SEP + _fileNameHint : ""),
@@ -41,5 +40,30 @@ public class SpecLibKey
             return new SpecLibKey(name, libraryType, fileNameHint, skylineLibId);
         }
         return null;
+    }
+
+    public String getName()
+    {
+        return _name;
+    }
+
+    public String getFileNameHint()
+    {
+        return _fileNameHint;
+    }
+
+    public String getSkylineLibraryId()
+    {
+        return _skylineLibraryId;
+    }
+
+    public String getLibraryType()
+    {
+        return _libraryType;
+    }
+
+    public LibraryType getType()
+    {
+        return LibraryType.getType(_libraryType);
     }
 }

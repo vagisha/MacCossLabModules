@@ -126,9 +126,12 @@ import org.labkey.panoramapublic.model.Journal;
 import org.labkey.panoramapublic.model.JournalExperiment;
 import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
-import org.labkey.panoramapublic.model.SpecLibInfo;
-import org.labkey.panoramapublic.model.SpecLibKey;
+import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
+import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
+import org.labkey.panoramapublic.model.speclib.SpecLibKey;
+import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.model.Submission;
+import org.labkey.panoramapublic.model.speclib.SpectrumLibrary;
 import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
 import org.labkey.panoramapublic.proteomexchange.NcbiUtils;
@@ -5630,35 +5633,38 @@ public class PanoramaPublicController extends SpringActionController
                         return new SimpleErrorView(errors);
                     }
                     _libKey = info.getLibraryKey();
-                    form.setSourceType(info.getSourceType());
+                    form.setPublicLibrary(info.isPublicLibrary());
                     form.setSourceUrl(info.getSourceUrl());
-                    form.setSourcePxid(info.getSourcePxid());
+                    form.setSourceType(info.getSourceType().name());
                     form.setSourceAccession(info.getSourceAccession());
                     form.setSourceUsername(info.getSourceUsername());
                     form.setSourcePassword(info.getSourcePassword());
-                    form.setDependencyType(info.getDependencyType());
+                    form.setDependencyType(info.getDependencyType().name());
                 }
                 else
                 {
-                    // Library container may not be the same as the container which contains the ExperimentAnnotations, if
+                    // Library container may not be the same as the container which contains the ExperimentAnnotations if
                     // the experiment is configured to include subfolders. Get the library container from the query params.
                     Container libContainer = ContainerManager.getForId(form.getLibContainerId());
                     if (libContainer == null)
                     {
-                        errors.reject(ERROR_MSG, String.format("Could not find container for id '%s'; spectral library id: %d",
+                        errors.reject(ERROR_MSG, String.format("Could not find folder for id '%s'; spectral library id: %d",
                                 form.getLibContainerId(), form.getSpecLibId()));
                         return new SimpleErrorView(errors);
                     }
-                    _libKey = SpecLibInfoManager.getSpecLibKey(form.getSpecLibId(), libContainer, getUser());
-                    if (_libKey == null)
+                    SpectrumLibrary spectrumLibrary = SpecLibInfoManager.getSpectrumLibrary(form.getSpecLibId(), libContainer, getUser());
+                    if (spectrumLibrary == null)
                     {
-                        errors.reject(ERROR_MSG, "Could find a spectrum library with Id " + form.getSpecLibId());
+                        errors.reject(ERROR_MSG, String.format("Could find a spectrum library with Id %d in folder '%s'",
+                                form.getSpecLibId(), libContainer.getPath()));
                         return new SimpleErrorView(errors);
                     }
+                    _libKey = spectrumLibrary.getKey();
                 }
             }
 
-            JspView view = new JspView<>("/org/labkey/panoramapublic/view/editSpecLibInfo.jsp", new SpecLibInfoBean(_libKey, form), errors);
+            SpecLibInfoBean bean = new SpecLibInfoBean(_libKey, form);
+            JspView view = new JspView<>("/org/labkey/panoramapublic/view/editSpecLibInfo.jsp", bean, errors);
             view.setFrame(WebPartView.FrameType.PORTAL);
             view.setTitle("Edit Spectral Library Information");
             return view;
@@ -5667,12 +5673,12 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         public void validatePostCommand(EditSpecLibInfoForm form, Errors errors)
         {
-            if (!SpecLibInfo.SourceType.isValid(form.getSourceType()))
+            if (SpecLibSourceType.get(form.getSourceType()) == null)
             {
                 errors.reject(ERROR_MSG, "Invalid source type");
             }
 
-            if (!SpecLibInfo.DependencyType.isValid(form.getDependencyType()))
+            if (SpecLibDependencyType.get(form.getDependencyType()) == null)
             {
                 errors.reject(ERROR_MSG, "Invalid dependency type");
             }
@@ -5687,13 +5693,13 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             SpecLibInfo info = SpecLibInfoManager.get(form.getSpecLibInfoId());
-            info.setSourceType(form.getSourceType());
+            info.setPublicLibrary(form.isPublicLibrary());
             info.setSourceUrl(form.getSourceUrl());
-            info.setSourcePxid(form.getSourcePxid());
+            info.setSourceType(SpecLibSourceType.get(form.getSourceType()));
             info.setSourceAccession(form.getSourceAccession());
             info.setSourceUsername(form.getSourceUsername());
             info.setSourcePassword(form.getSourcePassword());
-            info.setDependencyType(form.getDependencyType());
+            info.setDependencyType(SpecLibDependencyType.get(form.getDependencyType()));
             SpecLibInfoManager.update(info, getUser());
             return true;
         }
@@ -5737,15 +5743,18 @@ public class PanoramaPublicController extends SpringActionController
     {
         private long _specLibId; // rowId from targetedms.spectrumlibrary table
         private long _runId; // TODO: Do we need this?
-        private String _libContainerId;
+        private String _libContainerId; // TODO: Do we need this?
         private Integer _specLibInfoId;
-        private int _sourceType;
+
+        private boolean _publicLibrary;
         private String _sourceUrl;
-        private String _sourcePxid;
+
+        private String _sourceType;
         private String _sourceAccession;
         private String _sourceUsername;
         private String _sourcePassword;
-        private int _dependencyType;
+
+        private String _dependencyType;
 
         public long getSpecLibId()
         {
@@ -5787,14 +5796,14 @@ public class PanoramaPublicController extends SpringActionController
             _specLibInfoId = specLibInfoId;
         }
 
-        public int getSourceType()
+        public boolean isPublicLibrary()
         {
-            return _sourceType;
+            return _publicLibrary;
         }
 
-        public void setSourceType(int sourceType)
+        public void setPublicLibrary(boolean publicLibrary)
         {
-            _sourceType = sourceType;
+            _publicLibrary = publicLibrary;
         }
 
         public String getSourceUrl()
@@ -5807,14 +5816,14 @@ public class PanoramaPublicController extends SpringActionController
             _sourceUrl = sourceUrl;
         }
 
-        public String getSourcePxid()
+        public String getSourceType()
         {
-            return _sourcePxid;
+            return _sourceType;
         }
 
-        public void setSourcePxid(String sourcePxid)
+        public void setSourceType(String sourceType)
         {
-            _sourcePxid = sourcePxid;
+            _sourceType = sourceType;
         }
 
         public String getSourceAccession()
@@ -5847,12 +5856,12 @@ public class PanoramaPublicController extends SpringActionController
             _sourcePassword = sourcePassword;
         }
 
-        public int getDependencyType()
+        public String getDependencyType()
         {
             return _dependencyType;
         }
 
-        public void setDependencyType(int dependencyType)
+        public void setDependencyType(String dependencyType)
         {
             _dependencyType = dependencyType;
         }
