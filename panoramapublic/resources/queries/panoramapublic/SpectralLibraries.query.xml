@@ -3,7 +3,10 @@
         <tables xmlns="http://labkey.org/data/xml">
             <table tableName="SpectralLibraries" tableDbType="TABLE">
                 <columns>
-                    <column columnName="RunIds">
+                    <column columnName="FileNameHint">
+                        <columnTitle>FileName</columnTitle>
+                    </column>
+                    <column columnName="SkylineDocuments">
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.LibraryDocumentsDisplayColumnFactory</className>
                         </displayColumnFactory>
@@ -17,6 +20,12 @@
                         <fk>
                             <fkDbSchema>targetedms</fkDbSchema>
                             <fkTable>SpectrumLibrary</fkTable>
+                        </fk>
+                    </column>
+                    <column columnName="SpecLibInfoId">
+                        <fk>
+                            <fkDbSchema>panoramapublic</fkDbSchema>
+                            <fkTable>SpecLibInfo</fkTable>
                         </fk>
                     </column>
                 </columns>

@@ -1,8 +1,7 @@
 package org.labkey.panoramapublic.model.speclib;
 
+import org.jetbrains.annotations.Nullable;
 import org.labkey.api.util.SafeToRenderEnum;
-
-import java.util.Arrays;
 
 public enum SpecLibSourceType implements SafeToRenderEnum
 {
@@ -10,25 +9,27 @@ public enum SpecLibSourceType implements SafeToRenderEnum
     OTHER_REPOSITORY("In another repository"),
     UNAVAILABLE("Files unavailable");
 
-    private final String _description;
+    private final String _label;
 
-    SpecLibSourceType(String description)
+    SpecLibSourceType(String label)
     {
-        _description = description;
+        _label = label;
     }
 
-    public String getDescription()
+    public String getLabel()
     {
-        return _description;
+        return _label;
     }
 
-    public static SpecLibSourceType get(int ordinal)
+    public static @Nullable SpecLibSourceType getFromName(String name)
     {
-        return values().length < ordinal ? values()[ordinal] : null;
-    }
-
-    public static SpecLibSourceType get(String name)
-    {
-        return Arrays.stream(values()).filter(t -> t.name().equals(name)).findFirst().orElse(null);
+        try
+        {
+            return name != null ? valueOf(name) : null;
+        }
+        catch(IllegalArgumentException e)
+        {
+            return null;
+        }
     }
 }

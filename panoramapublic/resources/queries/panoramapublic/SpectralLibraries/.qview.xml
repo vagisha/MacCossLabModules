@@ -6,10 +6,6 @@
                 <property name="columnTitle" value="File Name" />
             </properties>
         </column>
-        <column name="RunIds">
-            <properties>
-                <property name="columnTitle" value="Skyline Documents" />
-            </properties>
-        </column>
+        <column name="SkylineDocuments" />
     </columns>
 </customView>

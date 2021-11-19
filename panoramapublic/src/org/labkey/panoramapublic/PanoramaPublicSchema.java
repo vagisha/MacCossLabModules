@@ -38,6 +38,7 @@ import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
+import org.labkey.panoramapublic.query.SpecLibInfoTableInfo;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
 
 import java.util.Set;
@@ -120,7 +121,7 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(name))
         {
-            return getFilteredSpecLibInfoTable(name, cf);
+            return new SpecLibInfoTableInfo(this, cf);
         }
 
         if (TABLE_LIB_DEPENDENCY_TYPE.equalsIgnoreCase(name))
@@ -128,7 +129,7 @@ public class PanoramaPublicSchema extends UserSchema
             EnumTableInfo<SpecLibDependencyType> tableInfo = new EnumTableInfo<>(
                     SpecLibDependencyType.class,
                     this,
-                    SpecLibDependencyType::getDescription,
+                    SpecLibDependencyType::getLabel,
                     true,
                     "Types of dependencies on a spectral library");
 
@@ -142,12 +143,12 @@ public class PanoramaPublicSchema extends UserSchema
             EnumTableInfo<SpecLibSourceType> tableInfo = new EnumTableInfo<>(
                     SpecLibSourceType.class,
                     this,
-                    SpecLibSourceType::getDescription,
+                    SpecLibSourceType::getLabel,
                     true,
                     "Spectral library source types");
 
             var viewColumn = tableInfo.getMutableColumn("Value");
-            viewColumn.setLabel("Source Type");
+            viewColumn.setLabel("Source Files");
             return tableInfo;
         }
         return null;

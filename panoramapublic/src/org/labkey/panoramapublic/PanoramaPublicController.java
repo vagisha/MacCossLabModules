@@ -101,6 +101,7 @@ import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.security.roles.ProjectAdminRole;
 import org.labkey.api.security.roles.ReaderRole;
+import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.Button;
 import org.labkey.api.util.DOM;
@@ -4463,9 +4464,18 @@ public class PanoramaPublicController extends SpringActionController
             }
             result.addView(runListView);
 
-            // List of Spectral Libraries
-            SpecLibView specLibView = new SpecLibView(getViewContext(), exptAnnotations);
-            result.addView(specLibView);
+            // List of Spectral Libraries if there are any
+            List<ITargetedMSRun> runs = ExperimentAnnotationsManager.getTargetedMSRuns(exptAnnotations);
+            TargetedMSService tmsSvc = TargetedMSService.get();
+            for (ITargetedMSRun run: runs)
+            {
+                if (tmsSvc.getLibraries(run).size() > 0)
+                {
+                    SpecLibView specLibView = new SpecLibView(getViewContext(), exptAnnotations);
+                    result.addView(specLibView);
+                    break;
+                }
+            }
 
             // If this experiment has been submitted show the submission requests
             List<JournalSubmission> jsList = SubmissionManager.getAllJournalSubmissions(exptAnnotations);
@@ -5617,71 +5627,154 @@ public class PanoramaPublicController extends SpringActionController
     @RequiresPermission(AdminPermission.class)
     public static class EditSpecLibInfoAction extends PanoramaPublicAction<EditSpecLibInfoForm>
     {
-        private SpecLibKey _libKey;
+        private SpecLibInfo _specLibInfo;
 
         @Override
         public ModelAndView getModelAndView(EditSpecLibInfoForm form, boolean reshow, BindException errors)
         {
             if (!reshow)
             {
-                if (form.getSpecLibInfoId() != null)
+                _specLibInfo = getSpecLibInfo(form, errors);
+                if (errors.hasErrors())
                 {
-                    SpecLibInfo info = SpecLibInfoManager.get(form.getSpecLibInfoId());
-                    if (info == null)
-                    {
-                        errors.reject(ERROR_MSG, "Cannot find a SpecLibInfo row for Id " + form.getSpecLibInfoId());
-                        return new SimpleErrorView(errors);
-                    }
-                    _libKey = info.getLibraryKey();
-                    form.setPublicLibrary(info.isPublicLibrary());
-                    form.setSourceUrl(info.getSourceUrl());
-                    form.setSourceType(info.getSourceType().name());
-                    form.setSourceAccession(info.getSourceAccession());
-                    form.setSourceUsername(info.getSourceUsername());
-                    form.setSourcePassword(info.getSourcePassword());
-                    form.setDependencyType(info.getDependencyType().name());
+                    return new SimpleErrorView(errors);
                 }
-                else
+                SpecLibKey libKey = getLibKey(form, errors);
+                if (libKey == null)
                 {
-                    // Library container may not be the same as the container which contains the ExperimentAnnotations if
-                    // the experiment is configured to include subfolders. Get the library container from the query params.
-                    Container libContainer = ContainerManager.getForId(form.getLibContainerId());
-                    if (libContainer == null)
+                    return new SimpleErrorView(errors);
+                }
+                form.setSpecLibKey(libKey.getStringKey());
+                if ( _specLibInfo != null)
+                {
+                    form.setSpecLibInfoId(_specLibInfo.getId());
+                    form.setPublicLibrary(_specLibInfo.isPublicLibrary());
+                    form.setSourceUrl(_specLibInfo.getSourceUrl());
+                    if (_specLibInfo.getSourceType() != null)
                     {
-                        errors.reject(ERROR_MSG, String.format("Could not find folder for id '%s'; spectral library id: %d",
-                                form.getLibContainerId(), form.getSpecLibId()));
-                        return new SimpleErrorView(errors);
+                        form.setSourceType(_specLibInfo.getSourceType().name());
                     }
-                    SpectrumLibrary spectrumLibrary = SpecLibInfoManager.getSpectrumLibrary(form.getSpecLibId(), libContainer, getUser());
-                    if (spectrumLibrary == null)
+                    form.setSourceAccession(_specLibInfo.getSourceAccession());
+                    form.setSourceUsername(_specLibInfo.getSourceUsername());
+                    form.setSourcePassword(_specLibInfo.getSourcePassword());
+                    if (form.getDependencyType() == null)
                     {
-                        errors.reject(ERROR_MSG, String.format("Could find a spectrum library with Id %d in folder '%s'",
-                                form.getSpecLibId(), libContainer.getPath()));
-                        return new SimpleErrorView(errors);
+                        form.setDependencyType(_specLibInfo.getDependencyType().name());
                     }
-                    _libKey = spectrumLibrary.getKey();
                 }
             }
 
-            SpecLibInfoBean bean = new SpecLibInfoBean(_libKey, form);
-            JspView view = new JspView<>("/org/labkey/panoramapublic/view/editSpecLibInfo.jsp", bean, errors);
+            JspView view = new JspView<>("/org/labkey/panoramapublic/view/editSpecLibInfo.jsp", form, errors);
             view.setFrame(WebPartView.FrameType.PORTAL);
             view.setTitle("Edit Spectral Library Information");
             return view;
         }
 
+        private SpecLibInfo getSpecLibInfo(EditSpecLibInfoForm form, Errors errors)
+        {
+            SpecLibInfo specLibInfo = null;
+            if (form.getSpecLibInfoId() != null)
+            {
+                specLibInfo = SpecLibInfoManager.get(form.getSpecLibInfoId(), getUser(), getContainer());
+                if (specLibInfo == null)
+                {
+                    errors.reject(ERROR_MSG, "Could find a SpecLibInfo row for Id " + form.getSpecLibInfoId());
+                }
+            }
+            return specLibInfo;
+        }
+        private SpecLibKey getLibKey(EditSpecLibInfoForm form, Errors errors)
+        {
+            if (_specLibInfo != null)
+            {
+                return _specLibInfo.getLibraryKey();
+            }
+            else
+            {
+                // Container that has the library may not be the same as the container which contains the ExperimentAnnotations
+                // if the experiment is configured to include subfolders. Get the library container from the query params.
+                Container libContainer = ContainerManager.getForId(form.getLibContainerId());
+                if (libContainer == null)
+                {
+                    errors.reject(ERROR_MSG, "Could not find folder with Id " + form.getLibContainerId());
+                    return null;
+                }
+                SpectrumLibrary spectrumLibrary = SpecLibInfoManager.getSpectrumLibrary(form.getSpecLibId(), libContainer, getUser());
+                if (spectrumLibrary == null)
+                {
+                    errors.reject(ERROR_MSG, String.format("Could not find a spectrum library with Id %d in folder '%s'",
+                            form.getSpecLibId(), libContainer.getPath()));
+                    return null;
+                }
+                return spectrumLibrary.getKey();
+            }
+        }
+
         @Override
         public void validatePostCommand(EditSpecLibInfoForm form, Errors errors)
         {
-            if (SpecLibSourceType.get(form.getSourceType()) == null)
+            _specLibInfo = getSpecLibInfo(form, errors);
+            if (errors.hasErrors())
             {
-                errors.reject(ERROR_MSG, "Invalid source type");
+                return;
+            }
+            if (_specLibInfo != null && !_specLibInfo.getStringKey().equals(form.getSpecLibKey()))
+            {
+                errors.reject(ERROR_MSG, String.format("Saved spectral library key '%s' does not match the library key in the form '%s'",
+                        _specLibInfo.getStringKey(), form.getSpecLibKey()));
+                return ;
+            }
+            if (form.isPublicLibrary())
+            {
+                var libraryUrl = form.getSourceUrl();
+                if (StringUtils.isBlank(libraryUrl))
+                {
+                    errors.reject(ERROR_MSG, "Source URL for a publicly available library cannot be blank");
+                }
+                else
+                {
+                    UrlValidator urlValidator = new UrlValidator(new String[]{"http", "https"});
+                    if (!urlValidator.isValid(libraryUrl))
+                    {
+                        errors.reject(ERROR_MSG, "Source URL for library is not valid.");
+                    }
+                }
+            }
+            else if (form.getSourceType() != null)
+            {
+                var sourceType = SpecLibSourceType.getFromName(form.getSourceType());
+                if (sourceType == null)
+                {
+                    errors.reject(ERROR_MSG, "Invalid source file location: " + form.getDependencyType());
+                }
+                else if (sourceType == SpecLibSourceType.OTHER_REPOSITORY)
+                {
+                    // We should at least have an accession / identifier
+                    var accession = form.getSourceAccession();
+                    if (StringUtils.isBlank(accession))
+                    {
+                        errors.reject(ERROR_MSG, "Accession / identifier of the data in the other repository cannot be blank.");
+                    }
+                    else if (!validAccession(accession))
+                    {
+                        errors.reject(ERROR_MSG, "Invalid accession. Accepted accessions are ProteomeXchange IDs (e.g. PXD000001)" +
+                                ", MassIVE identifier (e.g. MSV000000001) or a PeptideAtlas identifier (e.g. PASS00001).");
+                    }
+                }
             }
 
-            if (SpecLibDependencyType.get(form.getDependencyType()) == null)
+            if (form.getDependencyType() != null && SpecLibDependencyType.getFromName(form.getDependencyType()) == null)
             {
-                errors.reject(ERROR_MSG, "Invalid dependency type");
+                errors.reject(ERROR_MSG, "Invalid dependency type: " + form.getDependencyType());
             }
+        }
+
+        private static final String PXD = "^PXD[0-9]{6}$";
+        private static final String MASSIVE_ID = "^MSV[0-9]{9}$";
+        private static final String PEPTIDEATLAS_ID = "^PASS[0-9]{5}$";
+        private boolean validAccession(@NotNull String accession)
+        {
+            return accession.matches(PXD) || accession.matches(MASSIVE_ID) || accession.matches(PEPTIDEATLAS_ID);
         }
 
         @Override
@@ -5692,22 +5785,42 @@ public class PanoramaPublicController extends SpringActionController
                 return false;
             }
 
-            SpecLibInfo info = SpecLibInfoManager.get(form.getSpecLibInfoId());
-            info.setPublicLibrary(form.isPublicLibrary());
-            info.setSourceUrl(form.getSourceUrl());
-            info.setSourceType(SpecLibSourceType.get(form.getSourceType()));
-            info.setSourceAccession(form.getSourceAccession());
-            info.setSourceUsername(form.getSourceUsername());
-            info.setSourcePassword(form.getSourcePassword());
-            info.setDependencyType(SpecLibDependencyType.get(form.getDependencyType()));
-            SpecLibInfoManager.update(info, getUser());
+            if (_specLibInfo != null)
+            {
+                addSpecLibDetails(_specLibInfo, form);
+                SpecLibInfoManager.update(_specLibInfo, getUser());
+            }
+            else
+            {
+                SpecLibInfo specLibInfo = new SpecLibInfo();
+                specLibInfo.setExperimentAnnotationsId(form.getId());
+                SpecLibKey libKey = SpecLibKey.from(form.getSpecLibKey());
+                specLibInfo.setName(libKey.getName());
+                specLibInfo.setFileNameHint(libKey.getFileNameHint());
+                specLibInfo.setSkylineLibraryId(libKey.getSkylineLibraryId());
+                specLibInfo.setLibraryType(libKey.getLibraryType());
+                addSpecLibDetails(specLibInfo, form);
+                SpecLibInfoManager.save(specLibInfo, getUser());
+            }
+
             return true;
         }
 
-        @Override
-        public URLHelper getSuccessURL(EditSpecLibInfoForm editSpecLibInfoForm)
+        private void addSpecLibDetails(SpecLibInfo specLibInfo, EditSpecLibInfoForm form)
         {
-            return getContainer().getStartURL(getUser());
+            specLibInfo.setPublicLibrary(form.isPublicLibrary());
+            specLibInfo.setSourceUrl(form.getSourceUrl());
+            specLibInfo.setSourceType(SpecLibSourceType.getFromName(form.getSourceType()));
+            specLibInfo.setSourceAccession(form.getSourceAccession());
+            specLibInfo.setSourceUsername(form.getSourceUsername());
+            specLibInfo.setSourcePassword(form.getSourcePassword());
+            specLibInfo.setDependencyType(SpecLibDependencyType.getFromName(form.getDependencyType()));
+        }
+
+        @Override
+        public URLHelper getSuccessURL(EditSpecLibInfoForm form)
+        {
+            return getViewExperimentDetailsURL(form.getId(), getContainer());
         }
 
         @Override
@@ -5741,10 +5854,10 @@ public class PanoramaPublicController extends SpringActionController
 
     public static class EditSpecLibInfoForm extends ExperimentIdForm
     {
-        private long _specLibId; // rowId from targetedms.spectrumlibrary table
-        private long _runId; // TODO: Do we need this?
-        private String _libContainerId; // TODO: Do we need this?
         private Integer _specLibInfoId;
+        private long _specLibId; // rowId from targetedms.spectrumlibrary table
+        private String _libContainerId; // Id of the container that contains the spectrum library
+        private String _specLibKey;
 
         private boolean _publicLibrary;
         private String _sourceUrl;
@@ -5766,16 +5879,6 @@ public class PanoramaPublicController extends SpringActionController
             _specLibId = specLibId;
         }
 
-        public long getRunId()
-        {
-            return _runId;
-        }
-
-        public void setRunId(long runId)
-        {
-            _runId = runId;
-        }
-
         public String getLibContainerId()
         {
             return _libContainerId;
@@ -5794,6 +5897,16 @@ public class PanoramaPublicController extends SpringActionController
         public void setSpecLibInfoId(Integer specLibInfoId)
         {
             _specLibInfoId = specLibInfoId;
+        }
+
+        public String getSpecLibKey()
+        {
+            return _specLibKey;
+        }
+
+        public void setSpecLibKey(String specLibKey)
+        {
+            _specLibKey = specLibKey;
         }
 
         public boolean isPublicLibrary()

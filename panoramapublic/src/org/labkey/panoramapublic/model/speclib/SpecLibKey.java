@@ -20,7 +20,7 @@ public class SpecLibKey
         _libraryType = libraryType;
     }
 
-    public String getKeyString()
+    public String getStringKey()
     {
         return String.format("%s%s%s%s%s", _name, SEP, _libraryType,
                 (_fileNameHint != null ? SEP + _fileNameHint : ""),
@@ -37,7 +37,7 @@ public class SpecLibKey
             String libraryType = parts[1];
             String fileNameHint = parts.length > 2 ? parts[2] : null;
             String skylineLibId = parts.length > 3 ? parts[3] : null;
-            return new SpecLibKey(name, libraryType, fileNameHint, skylineLibId);
+            return new SpecLibKey(name, fileNameHint, skylineLibId, libraryType);
         }
         return null;
     }

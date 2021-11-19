@@ -279,6 +279,10 @@ public class ExperimentAnnotationsManager
             SubmissionManager.beforeCopiedExperimentDeleted(expAnnotations, user);
         }
 
+        // Delete any rows in the panoramapublic.speclibinfo table associated with this experiment
+        Table.delete(PanoramaPublicManager.getTableInfoSpecLibInfo(),
+                new SimpleFilter().addCondition(FieldKey.fromParts("ExperimentAnnotationsId"), expAnnotations.getId()));
+
         Table.delete(PanoramaPublicManager.getTableInfoExperimentAnnotations(), expAnnotations.getId());
 
         if(expAnnotations.isJournalCopy() && expAnnotations.getShortUrl() != null)

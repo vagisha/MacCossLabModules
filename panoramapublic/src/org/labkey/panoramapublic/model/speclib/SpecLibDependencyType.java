@@ -1,8 +1,7 @@
 package org.labkey.panoramapublic.model.speclib;
 
+import org.jetbrains.annotations.Nullable;
 import org.labkey.api.util.SafeToRenderEnum;
-
-import java.util.Arrays;
 
 public enum SpecLibDependencyType implements SafeToRenderEnum
 {
@@ -12,25 +11,27 @@ public enum SpecLibDependencyType implements SafeToRenderEnum
     SUPPORTING_INFO("Used only as supporting information"),
     IRRELEVANT("Irrelevant to results");
 
-    private final String _description;
+    private final String _label;
 
-    SpecLibDependencyType(String description)
+    SpecLibDependencyType(String label)
     {
-        _description = description;
+        _label = label;
     }
 
-    public String getDescription()
+    public String getLabel()
     {
-        return _description;
+        return _label;
     }
 
-    public static SpecLibDependencyType get(int ordinal)
+    public static @Nullable SpecLibDependencyType getFromName(String name)
     {
-        return values().length < ordinal ? values()[ordinal] : null;
-    }
-
-    public static SpecLibDependencyType get(String name)
-    {
-        return Arrays.stream(values()).filter(t -> t.name().equals(name)).findFirst().orElse(null);
+        try
+        {
+            return name != null ? valueOf(name) : null;
+        }
+        catch(IllegalArgumentException e)
+        {
+            return null;
+        }
     }
 }

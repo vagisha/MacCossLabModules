@@ -22,18 +22,21 @@ CREATE TABLE panoramapublic.speclibinfo
     ModifiedBy        USERID,
     Modified          TIMESTAMP,
 
-    -- Columns from the targetedms.spectrumlibrary table
-    specLibKey                TEXT  NOT NULL,
-
     experimentAnnotationsId   INT NOT NULL,
 
-    SourceType                INT NOT NULL,
+    -- Columns from the targetedms.spectrumlibrary table
+    librarytype               VARCHAR(20)  NOT NULL,
+    name                      VARCHAR(400) NOT NULL,
+    filenamehint              VARCHAR(300),
+    skylinelibraryid          VARCHAR(200),
+
+    PublicLibrary             BOOLEAN NOT NULL DEFAULT FALSE,
     SourceUrl                 TEXT,
-    SourcePxid                VARCHAR(10),
+    SourceType                INT,
     SourceAccession           VARCHAR(100),
     SourceUsername            VARCHAR(100),
     SourcePassword            VARCHAR(100),
-    DependencyType            INT NOT NULL,
+    DependencyType            INT,
 
     CONSTRAINT PK_SpecLibInfo PRIMARY KEY (Id),
     CONSTRAINT FK_SpecLibInfo_ExperimentAnnotations FOREIGN KEY (experimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id)

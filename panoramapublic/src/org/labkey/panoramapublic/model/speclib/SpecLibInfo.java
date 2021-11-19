@@ -12,9 +12,12 @@ public class SpecLibInfo
     private int _modifiedBy;
     private Date _modified;
 
-    private String _specLibKey;
-
     private int _experimentAnnotationsId;
+
+    private String _name;
+    private String _fileNameHint;
+    private String _skylineLibraryId;
+    private String _libraryType;
 
     private boolean _publicLibrary;
     private String _sourceUrl;
@@ -31,7 +34,12 @@ public class SpecLibInfo
 
     public SpecLibKey getLibraryKey()
     {
-        return SpecLibKey.from(_specLibKey);
+        return new SpecLibKey(_name, _fileNameHint, _skylineLibraryId, _libraryType);
+    }
+
+    public String getStringKey()
+    {
+        return getLibraryKey().getStringKey();
     }
 
     public static Map<SpecLibKey, SpecLibInfo> toMap(SpecLibInfo[] specLibInfos)
@@ -104,15 +112,44 @@ public class SpecLibInfo
         _modified = modified;
     }
 
-
-    public String getSpecLibKey()
+    public String getName()
     {
-        return _specLibKey;
+        return _name;
     }
 
-    public void setSpecLibKey(String specLibKey)
+    public void setName(String name)
     {
-        _specLibKey = specLibKey;
+        _name = name;
+    }
+
+    public String getFileNameHint()
+    {
+        return _fileNameHint;
+    }
+
+    public void setFileNameHint(String fileNameHint)
+    {
+        _fileNameHint = fileNameHint;
+    }
+
+    public String getSkylineLibraryId()
+    {
+        return _skylineLibraryId;
+    }
+
+    public void setSkylineLibraryId(String skylineLibraryId)
+    {
+        _skylineLibraryId = skylineLibraryId;
+    }
+
+    public String getLibraryType()
+    {
+        return _libraryType;
+    }
+
+    public void setLibraryType(String libraryType)
+    {
+        _libraryType = libraryType;
     }
 
     public boolean isPublicLibrary()

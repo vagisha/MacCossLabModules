@@ -1,5 +1,6 @@
 package org.labkey.panoramapublic.query;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.Filter;
@@ -48,10 +49,24 @@ public class SpecLibInfoManager
         return new SqlSelector(PanoramaPublicSchema.getSchema(), sql).getArray(SpecLibInfo.class);
     }
 
-    public static SpecLibInfo get(int id)
+    public static SpecLibInfo get(int id, User user, Container container)
     {
-        Filter filter = new SimpleFilter(new FieldKey(null, "id"), id);
-        return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibInfo(), filter, null).getObject(SpecLibInfo.class);
+        var schema = new PanoramaPublicSchema(user, container);
+        ;
+//        SQLFragment sql = new SQLFragment("SELECT * FROM ")
+//                .append(PanoramaPublicManager.getTableInfoSpecLibInfo(), "slib")
+//                .append(" INNER JOIN ")
+//                .append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp")
+//                .append(" ON exp.Id = slib.experimentAnnotationsId ")
+//                .append(" WHERE slib.Id = ? ").add(id)
+//                .append(" AND exp.Container = ?").add(container);
+        // return new TableSelector(schema.getTable(PanoramaPublicSchema.TABLE_LIB_SOURCE_TYPE)).getObject(id, SpecLibInfo.class);
+        return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibInfo()).getObject(id, SpecLibInfo.class);
+    }
+
+    public static SpecLibInfo save(SpecLibInfo specLibInfo, User user)
+    {
+        return Table.insert(user, PanoramaPublicManager.getTableInfoSpecLibInfo(), specLibInfo);
     }
 
     public static SpecLibInfo update(SpecLibInfo specLibInfo, User user)
@@ -59,9 +74,10 @@ public class SpecLibInfoManager
         return Table.update(user, PanoramaPublicManager.getTableInfoSpecLibInfo(), specLibInfo, specLibInfo.getId());
     }
 
-    public static SpecLibInfo addInfo(SpecLibInfo specLibInfo, User user)
+    public static List<SpecLibInfo> getForExperiment(int experimentAnnotationsId, Container container)
     {
-        return Table.insert(user, PanoramaPublicManager.getTableInfoSpecLibInfo(), specLibInfo);
+        var filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
+        return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibInfo(), filter, null).getArrayList(SpecLibInfo.class);
     }
 
     public static List<ITargetedMSRun> getRuns(Set<Long> runIds, User user)
@@ -72,12 +88,23 @@ public class SpecLibInfoManager
         List<RunContainer> runIdContainers = new TableSelector(runsTable,
                 runsTable.getColumns("id", "container"), filter, null).getArrayList(RunContainer.class);
 
-
         return runIdContainers.stream()
                 .filter(r -> r.getContainer().hasPermission(user, ReadPermission.class))
                 .map(r -> svc.getRun(r.getId(), r.getContainer()))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+    }
+
+    public static ITargetedMSRun getRun(@NotNull Long runId, User user)
+    {
+        TargetedMSService svc = TargetedMSService.get();
+        TableInfo runsTable = svc.getTableInfoRuns();
+        RunContainer runContainer = new TableSelector(runsTable,
+                runsTable.getColumns("id", "container"),
+                new SimpleFilter().addCondition(FieldKey.fromParts("id"), runId), null)
+                .getObject(RunContainer.class);
+
+        return runContainer.getContainer().hasPermission(user, ReadPermission.class) ? svc.getRun(runId, runContainer.getContainer()) : null;
     }
 
     public static @Nullable SpectrumLibrary getSpectrumLibrary(long specLibId, Container container, User user)

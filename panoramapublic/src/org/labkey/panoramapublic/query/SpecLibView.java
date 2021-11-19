@@ -1,24 +1,17 @@
 package org.labkey.panoramapublic.query;
 
-import org.labkey.api.data.ColumnInfo;
 import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.DataRegion;
 import org.labkey.api.data.DisplayColumn;
-import org.labkey.api.data.SimpleDisplayColumn;
 import org.labkey.api.data.TableInfo;
-import org.labkey.api.data.UrlColumn;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.QuerySettings;
 import org.labkey.api.query.QueryView;
-import org.labkey.api.view.ActionURL;
-import org.labkey.api.view.DataView;
+import org.labkey.api.security.permissions.AdminPermission;
 import org.labkey.api.view.ViewContext;
-import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class SpecLibView extends QueryView
@@ -37,7 +30,6 @@ public class SpecLibView extends QueryView
     {
         super(new PanoramaPublicSchema(portalCtx.getUser(), portalCtx.getContainer()));
         _exptAnnotations = exptAnnotations;
-
         setTitle(NAME);
         setSettings(createQuerySettings(portalCtx, NAME));
         setShowDetailsColumn(false);
@@ -46,36 +38,34 @@ public class SpecLibView extends QueryView
         setShowBorders(true);
         setShadeAlternatingRows(true);
 
-        setAllowableContainerFilterTypes(ContainerFilter.Type.Current, ContainerFilter.Type.CurrentAndSubfolders);
+        if (_exptAnnotations != null && _exptAnnotations.isIncludeSubfolders())
+        {
+            setAllowableContainerFilterTypes(ContainerFilter.Type.Current, ContainerFilter.Type.CurrentAndSubfolders);
+        }
+        else
+        {
+            setAllowableContainerFilterTypes(ContainerFilter.Type.Current);
+        }
 
         setFrame(FrameType.PORTAL);
     }
 
-    @Override
-    protected void setupDataView(DataView ret)
-    {
-        super.setupDataView(ret);
-
-        if (_exptAnnotations != null)
-        {
-//            ActionURL editUrl = new ActionURL(PanoramaPublicController.EditSpecLibInfoAction.class, getContainer());
-//            editUrl.addParameter("id", "${ExperimentAnnotationsId}");
-//            editUrl.addParameter("id", "${ExperimentAnnotationsId}");
-//            editUrl.addParameter("id", "${ExperimentAnnotationsId}");
-//            editUrl.addParameter("id", "${ExperimentAnnotationsId}");
-//            SimpleDisplayColumn editCol = new UrlColumn(editUrl.toString(), "Add Annotations");
-//            ret.getDataRegion().addDisplayColumn(editCol);
-        }
-    }
-
     private QuerySettings createQuerySettings(ViewContext portalCtx, String dataRegionName)
     {
-        QuerySettings settings = getSchema().getSettings(portalCtx, dataRegionName, QUERY_NAME);
+        String viewName = _exptAnnotations != null &&
+                SpecLibInfoManager.getForExperiment(_exptAnnotations.getId(), portalCtx.getContainer()).size() > 0 ?
+                "SpectralLibrariesInfo" : null;
+
+        QuerySettings settings = getSchema().getSettings(portalCtx, dataRegionName, QUERY_NAME, viewName);
+
         if(settings.getContainerFilterName() == null && _exptAnnotations != null)
         {
             settings.setContainerFilterName(_exptAnnotations.isIncludeSubfolders() ?
                     ContainerFilter.Type.CurrentAndSubfolders.name() : ContainerFilter.Type.Current.name());
         }
+        // Allow only folder admins to customize the view
+        settings.setAllowCustomizeView(portalCtx.getContainer().hasPermission(portalCtx.getUser(), AdminPermission.class));
+
         return settings;
     }
 
@@ -83,7 +73,7 @@ public class SpecLibView extends QueryView
     public List<DisplayColumn> getDisplayColumns()
     {
         List<DisplayColumn> displayCols = super.getDisplayColumns();
-        if (_exptAnnotations != null)
+        if (_exptAnnotations != null && !_exptAnnotations.isJournalCopy())
         {
             TableInfo table = getTable();
             if (table != null)
@@ -92,64 +82,7 @@ public class SpecLibView extends QueryView
                 displayCols.add(col);
             }
         }
+
         return displayCols;
-
-//        for (ColumnInfo col : QueryService.get().getColumns(table, cols).values())
-////        {
-////            DisplayColumn displayCol = col.getRenderer();
-////            displayCols.add(displayCol);
-////        }
-//        List<DisplayColumn> displayCols = new ArrayList<>();
-//        for (DisplayColumn col : super.getDisplayColumns())
-//        {
-//            if (col.getName().equalsIgnoreCase("FileNameHint"))
-//            {
-//                col.setName("File Name");
-//            }
-//            else if (col.getName().equalsIgnoreCase("SkylineDocuments"))
-//            {
-////                var skyDocsCol = new AliasedColumn("Skyline Documents", table.getColumn(FieldKey.fromParts("SkylineDocuments")));
-////                skyDocsCol.setDisplayColumnFactory(new LibraryDocumentsDisplayColumnFactory(_exptAnnotations));
-////                displayCols.add(skyDocsCol.getRenderer());
-//            }
-//            displayCols.add(col);
-////            else
-////            {
-////                displayCols.add(col);
-////            }
-//        }
-
-//        if (_exptAnnotations != null)
-//        {
-//            cols.add(0, new SimpleDisplayColumn("Details")
-//            {
-//                @Override
-//                public String renderURL(RenderContext ctx)
-//                {
-//                    String containerId = (String) ctx.getRow().get("Container");
-//                    Long specimenId = (Long) ctx.getRow().get("RowId");
-//                    ActionURL url = getHistoryLinkURL(ctx.getViewContext(), containerId).addParameter("id", specimenId.toString()).addParameter("selected", _participantVisitFiltered);
-//                    return url.toString();
-//                }
-//            });
-//        }
-
-//        ColumnInfo fileNameCol = new AliasedColumn("File Name",table.getColumn(FieldKey.fromParts("FileNameHint")));
-
-
-
-
-//        List<DisplayColumn> fromQueryDef = getQueryDef().getDisplayColumns(null, table);
-        // displayCols.addAll(getQueryDef().getDisplayColumns(null, table));
-        //displayCols.add(table.getColumn(FieldKey.fromParts("Name")).getRenderer());
-//        displayCols.add(table.getColumn(FieldKey.fromParts("Name")).getRenderer());
-//        displayCols.add(fileNameCol.getRenderer());
-//        displayCols.add(runIdsCol.getRenderer());
-//        for (ColumnInfo col : QueryService.get().getColumns(table, cols).values())
-//        {
-//            DisplayColumn displayCol = col.getRenderer();
-//            displayCols.add(displayCol);
-//        }
-//        return displayCols;
     }
 }

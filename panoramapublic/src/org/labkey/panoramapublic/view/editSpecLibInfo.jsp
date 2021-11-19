@@ -17,61 +17,22 @@
     }
 %>
 <%
-    JspView<PanoramaPublicController.SpecLibInfoBean> view = (JspView<PanoramaPublicController.SpecLibInfoBean>) HttpView.currentView();
-    PanoramaPublicController.SpecLibInfoBean bean = view.getModelBean();
-    PanoramaPublicController.EditSpecLibInfoForm form = bean.getForm();
-    SpecLibKey libKey = bean.getLibKey();
+    JspView<PanoramaPublicController.EditSpecLibInfoForm> view = (JspView<PanoramaPublicController.EditSpecLibInfoForm>) HttpView.currentView();
+    PanoramaPublicController.EditSpecLibInfoForm form = view.getModelBean();
+    // PanoramaPublicController.EditSpecLibInfoForm form = bean.getForm();
+    SpecLibKey libKey = SpecLibKey.from(form.getSpecLibKey());
     boolean supportedLibrary = libKey.getType().isSupported();
 %>
 
-<labkey:errors/>
-
-<div>
-    <em>Spectral Library</em>: <%=h(bean.getLibKey().getName())%>
+<div style="margin-bottom:10px;">
+    <b>Spectral Library</b>: <%=h(libKey.getName())%>
     <br/>
-    <em>File</em>: <%=h(bean.getLibKey().getFileNameHint())%>
-</
+    <b>File</b>: <%=h(libKey.getFileNameHint())%>
 </div>
+<labkey:errors/>
 <div id="editSpecLibInfoForm"/>
 
 <script type="text/javascript">
-
-    function clearTextFieldsAndDisable(ownerCt, fields) {
-        for (var i = 0; i < fields.length; i += 1) {
-            var tf = ownerCt.getComponent(fields[i]);
-            if (tf) {
-                tf.setValue('');
-                // tf.setDisabled(true);
-            }
-        }
-    }
-
-    function publicLibraryCheckboxChanged(cb, checked) {
-        var tf = cb.ownerCt.getComponent('sourceUrl');
-        if (tf) tf.setDisabled(!checked);
-        if (checked) {
-            clearTextFieldsAndDisable(cb.ownerCt, ['sourceAccession', 'sourceUsername', 'sourcePassword']);
-            var cbSrcType = cb.ownerCt.getComponent('sourceType');
-            if (cbSrcType) {
-                cbSrcType.setRawValue('');
-                cbSrcType.setValue('');
-                cbSrcType.clearValue();
-            }
-
-        }
-    }
-
-    function sourceTypeComboboxChanged(cb, newValue, oldValue) {
-        var tf_accession = cb.ownerCt.getComponent('sourceAccession');
-        var tf_username = cb.ownerCt.getComponent('sourceUsername');
-        var tf_password = cb.ownerCt.getComponent('sourcePassword');
-        var enable = newValue === <%=q(SpecLibSourceType.OTHER_REPOSITORY.name())%>;
-        if (tf_accession) tf_accession.setDisabled(!enable);
-        if (tf_username) tf_username.setDisabled(!enable);
-        if (tf_password) tf_password.setDisabled(!enable);
-        console.log("New value is " + newValue);
-
-    }
 
     Ext4.onReady(function(){
 
@@ -89,22 +50,30 @@
                 { xtype: 'hidden', name: 'X-LABKEY-CSRF', value: LABKEY.CSRF },
                 {
                     xtype: 'hidden',
-                    name: 'id',
+                    name: 'id', // ExperimentAnnotationsId
                     value: <%=form.getId()%>
                 },
                 {
                     xtype: 'hidden',
-                    name: 'specLibId',
+                    name: 'specLibId', // targetedms.spectrumlibrary.id
                     value: <%=form.getSpecLibId()%>
                 },
+                    <%if(form.getSpecLibInfoId() != null){%>
                 {
                     xtype: 'hidden',
-                    name: 'specLibInfoId',
+                    name: 'specLibInfoId', // panoramapublic.speclibinfo.id
                     value: <%=form.getSpecLibInfoId()%>
+                },
+                    <%}%>
+                {
+                    xtype: 'hidden',
+                    name: 'specLibKey',
+                    value: <%=q(form.getSpecLibKey())%>
                 },
                 {
                     xtype: 'checkbox',
                     name: 'publicLibrary',
+                    itemId: 'publicLibrary',
                     fieldLabel: "Public Library",
                     checked: <%=form.isPublicLibrary()%>,
                     boxLabel: 'Check this box if this is a publicly available library.',
@@ -128,13 +97,14 @@
                     itemId: 'sourceType',
                     fieldLabel: "Library Source Files",
                     allowBlank: true,
+                    editable: false,
                     hidden: <%=!supportedLibrary%>,
                     value: <%=form.getSourceType() != null ? q(form.getSourceType()) : null%>,
-                    afterBodyEl: '<span style="font-size: 0.9em;">Location of the source files used to build the library.</span>',
+                    afterBodyEl: '<span style="font-size: 0.9em;">Location of the source files used to build the library if it is not a public library.</span>',
                     msgTarget : 'under',
                     store: [
                         <% for (SpecLibSourceType sourceType: SpecLibSourceType.values()) { %>
-                        [ <%= q(sourceType.name()) %>, <%= q(sourceType.getDescription()) %> ],
+                        [ <%= q(sourceType.name()) %>, <%= q(sourceType.getLabel()) %> ],
                         <% } %>
                     ],
                     listeners: {
@@ -151,7 +121,10 @@
                     fieldLabel: "Accession",
                     disabled: <%=!SpecLibSourceType.OTHER_REPOSITORY.name().equals(form.getSourceType())%>,
                     hidden: <%=!supportedLibrary%>,
-                    value: <%=q(form.getSourceAccession())%>
+                    value: <%=q(form.getSourceAccession())%>,
+                    afterLabelTextTpl: <%=q(helpPopup("Repository Accession", "Accession or identifier of the data in the repository. " +
+                     "This can be a ProteomeXchange ID (e.g. PXD000001), a MassIVE identifier (e.g. MSV000000001)" +
+                      " or a PeptideAtlas identifier (e.g. PASS00001)."))%>
                 },
                 {
                     xtype: 'textfield',
@@ -160,7 +133,8 @@
                     fieldLabel: "User Name",
                     disabled: <%=!SpecLibSourceType.OTHER_REPOSITORY.name().equals(form.getSourceType())%>,
                     hidden: <%=!supportedLibrary%>,
-                    value: <%=q(form.getSourceUsername())%>
+                    value: <%=q(form.getSourceUsername())%>,
+                    afterLabelTextTpl: <%=q(helpPopup("Repository Username", "Username to access the data in the repository if the data is private."))%>
                 },
                 {
                     xtype: 'textfield',
@@ -169,17 +143,18 @@
                     fieldLabel: "Password",
                     disabled: <%=!SpecLibSourceType.OTHER_REPOSITORY.name().equals(form.getSourceType())%>,
                     hidden: <%=!supportedLibrary%>,
-                    value: <%=q(form.getSourcePassword())%>
+                    value: "", // Don't display the password; make the user enter it every time they edit
+                    afterLabelTextTpl: <%=q(helpPopup("Repository Password", "Password to access the data in the repository if the data is private."))%>
                 },
                 {
                     xtype: 'combobox',
                     name: 'dependencyType',
                     fieldLabel: "Dependency Type",
-                    allowBlank: false,
+                    allowBlank: true,
                     value: <%=form.getDependencyType() != null ? q(form.getDependencyType()) : null%>,
                     store: [
                         <% for (SpecLibDependencyType sourceType: SpecLibDependencyType.values()) { %>
-                        [ <%= q(sourceType.name()) %>, <%= q(sourceType.getDescription()) %> ],
+                        [ <%= q(sourceType.name()) %>, <%= q(sourceType.getLabel()) %> ],
                         <% } %>
                     ]
                 }
@@ -201,8 +176,36 @@
                     text: 'Cancel',
                     cls: 'labkey-button',
                     hrefTarget: '_self',
-                    href: <%=q(getContainer().getStartURL(getUser()))%>
+                    href: <%=q(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()))%>
                 }]
         });
     });
+
+    function toggleTextFields(ownerCt, disable, fields) {
+        for (var i = 0; i < fields.length; i += 1) {
+            var tf = ownerCt.getComponent(fields[i]);
+            if (tf) {
+                if (disable) tf.setValue('');
+                tf.setDisabled(disable);
+            }
+        }
+    }
+
+    function publicLibraryCheckboxChanged(cb, checked) {
+        toggleTextFields(cb.ownerCt, !checked, ['sourceUrl']);
+        if (checked) {
+            var cbSrcType = cb.ownerCt.getComponent('sourceType');
+            if (cbSrcType) cbSrcType.clearValue();
+        }
+    }
+
+    function sourceTypeComboboxChanged(cb, newValue, oldValue) {
+        var enable = newValue === <%=q(SpecLibSourceType.OTHER_REPOSITORY.name())%>;
+        toggleTextFields(cb.ownerCt, !enable, ['sourceAccession', 'sourceUsername', 'sourcePassword']);
+        // console.log("New value of source type is " + newValue);
+        if (newValue && newValue !== '') {
+            publicLibCb = cb.ownerCt.getComponent('publicLibrary');
+            if (publicLibCb) publicLibCb.setValue(false);
+        }
+    }
 </script>
