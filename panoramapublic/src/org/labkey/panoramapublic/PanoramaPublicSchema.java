@@ -38,7 +38,7 @@ import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
-import org.labkey.panoramapublic.query.SpecLibInfoTableInfo;
+import org.labkey.panoramapublic.query.speclib.SpecLibInfoTableInfo;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
 
 import java.util.Set;

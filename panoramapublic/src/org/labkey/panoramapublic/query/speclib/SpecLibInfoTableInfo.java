@@ -1,4 +1,4 @@
-package org.labkey.panoramapublic.query;
+package org.labkey.panoramapublic.query.speclib;
 
 import org.jetbrains.annotations.NotNull;
 import org.labkey.api.data.ColumnInfo;
@@ -13,6 +13,7 @@ import org.labkey.api.query.LookupForeignKey;
 import org.labkey.api.util.HtmlString;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
+import org.labkey.panoramapublic.query.PanoramaPublicTable;
 
 import java.io.IOException;
 import java.io.Writer;

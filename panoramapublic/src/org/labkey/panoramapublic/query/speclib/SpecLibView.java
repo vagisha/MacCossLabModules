@@ -1,4 +1,4 @@
-package org.labkey.panoramapublic.query;
+package org.labkey.panoramapublic.query.speclib;
 
 import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.DataRegion;
@@ -11,6 +11,7 @@ import org.labkey.api.security.permissions.AdminPermission;
 import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.query.SpecLibInfoManager;
 
 import java.util.List;
 

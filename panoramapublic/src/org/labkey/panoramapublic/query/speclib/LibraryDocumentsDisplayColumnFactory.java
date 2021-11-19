@@ -1,4 +1,4 @@
-package org.labkey.panoramapublic.query;
+package org.labkey.panoramapublic.query.speclib;
 
 import org.apache.commons.lang3.StringUtils;
 import org.labkey.api.data.ColumnInfo;
@@ -14,6 +14,7 @@ import org.labkey.api.util.DOM;
 import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.view.ActionURL;
+import org.labkey.panoramapublic.query.SpecLibInfoManager;
 
 import java.io.IOException;
 import java.io.Writer;

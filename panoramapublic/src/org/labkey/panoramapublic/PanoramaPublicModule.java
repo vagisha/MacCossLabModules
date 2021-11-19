@@ -45,7 +45,7 @@ import org.labkey.panoramapublic.proteomexchange.SkylineVersion;
 import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
 import org.labkey.panoramapublic.query.ExperimentTitleDisplayColumn;
 import org.labkey.panoramapublic.query.JournalManager;
-import org.labkey.panoramapublic.query.SpecLibView;
+import org.labkey.panoramapublic.query.speclib.SpecLibView;
 import org.labkey.panoramapublic.security.CopyTargetedMSExperimentRole;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentWebPart;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentsWebPart;
