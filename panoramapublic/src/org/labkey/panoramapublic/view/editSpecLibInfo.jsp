@@ -5,7 +5,7 @@
 <%@ page import="org.labkey.panoramapublic.model.speclib.SpecLibSourceType" %>
 <%@ page import="org.labkey.panoramapublic.model.speclib.SpecLibDependencyType" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
-<%@ page import="org.labkey.panoramapublic.model.speclib.SpecLibKey" %>
+<%@ page import="org.labkey.panoramapublic.model.speclib.SpectrumLibrary" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -17,17 +17,17 @@
     }
 %>
 <%
-    JspView<PanoramaPublicController.EditSpecLibInfoForm> view = (JspView<PanoramaPublicController.EditSpecLibInfoForm>) HttpView.currentView();
-    PanoramaPublicController.EditSpecLibInfoForm form = view.getModelBean();
-    // PanoramaPublicController.EditSpecLibInfoForm form = bean.getForm();
-    SpecLibKey libKey = SpecLibKey.from(form.getSpecLibKey());
-    boolean supportedLibrary = libKey.getType().isSupported();
+    JspView<PanoramaPublicController.SpecLibInfoBean> view = (JspView<PanoramaPublicController.SpecLibInfoBean>) HttpView.currentView();
+    PanoramaPublicController.SpecLibInfoBean bean = view.getModelBean();
+    PanoramaPublicController.EditSpecLibInfoForm form = bean.getForm();
+    SpectrumLibrary library = bean.getLibrary();
+    boolean supportedLibrary = library.isSupported();
 %>
 
 <div style="margin-bottom:10px;">
-    <b>Spectral Library</b>: <%=h(libKey.getName())%>
+    <b>Spectral Library</b>: <%=h(library.getName())%>
     <br/>
-    <b>File</b>: <%=h(libKey.getFileNameHint())%>
+    <b>File</b>: <%=h(library.getFileNameHint())%>
 </div>
 <labkey:errors/>
 <div id="editSpecLibInfoForm"/>
@@ -58,18 +58,13 @@
                     name: 'specLibId', // targetedms.spectrumlibrary.id
                     value: <%=form.getSpecLibId()%>
                 },
-                    <%if(form.getSpecLibInfoId() != null){%>
+                <%if(form.getSpecLibInfoId() != null){%>
                 {
                     xtype: 'hidden',
                     name: 'specLibInfoId', // panoramapublic.speclibinfo.id
                     value: <%=form.getSpecLibInfoId()%>
                 },
-                    <%}%>
-                {
-                    xtype: 'hidden',
-                    name: 'specLibKey',
-                    value: <%=q(form.getSpecLibKey())%>
-                },
+                <%}%>
                 {
                     xtype: 'checkbox',
                     name: 'publicLibrary',

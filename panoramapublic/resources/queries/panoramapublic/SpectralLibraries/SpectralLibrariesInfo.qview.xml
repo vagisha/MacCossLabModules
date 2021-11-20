@@ -6,7 +6,7 @@
                 <property name="columnTitle" value="File Name" />
             </properties>
         </column>
-        <column name="SkylineDocuments" />
+        <column name="SkylineDocLibraries" />
         <column name="SpecLibInfoId/SourceUrl">
             <properties>
                 <property name="columnTitle" value="Library URL" />

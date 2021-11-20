@@ -4,9 +4,10 @@
             <table tableName="SpectralLibraries" tableDbType="TABLE">
                 <columns>
                     <column columnName="FileNameHint">
-                        <columnTitle>FileName</columnTitle>
+                        <columnTitle>File Name</columnTitle>
                     </column>
-                    <column columnName="SkylineDocuments">
+                    <column columnName="SkylineDocLibraries">
+                        <columnTitle>Skyline Documents</columnTitle>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.speclib.LibraryDocumentsDisplayColumnFactory</className>
                         </displayColumnFactory>

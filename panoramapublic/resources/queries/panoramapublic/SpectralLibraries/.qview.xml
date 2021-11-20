@@ -6,6 +6,6 @@
                 <property name="columnTitle" value="File Name" />
             </properties>
         </column>
-        <column name="SkylineDocuments" />
+        <column name="SkylineDocLibraries" />
     </columns>
 </customView>

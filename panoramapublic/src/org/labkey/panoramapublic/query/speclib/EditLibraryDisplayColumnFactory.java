@@ -36,32 +36,24 @@ public class EditLibraryDisplayColumnFactory implements DisplayColumnFactory
                 // Show the link only to users that have have admin permissions in the container
                 if (ctx.getContainer().hasPermission(ctx.getViewContext().getUser(), AdminPermission.class))
                 {
-                    ActionURL editUrl = new ActionURL(PanoramaPublicController.EditSpecLibInfoAction.class, ctx.getContainer());
                     Long specLibId = ctx.get(colInfo.getFieldKey(), Long.class);
                     Integer specLibInfoId = ctx.get(SPECLIB_INFO_ID, Integer.class);
-
+                    int experimentAnnotationsId;
                     if (specLibInfoId != null)
                     {
-                        Integer exptAnnotationsId = ctx.get(EXPT_ANNOT_ID, Integer.class);
-                        editUrl.addParameter("id", exptAnnotationsId);
-                        editUrl.addParameter("specLibInfoId", specLibInfoId);
-                        out.write(PageFlowUtil.link("Edit").href(editUrl).toString());
-                        return;
+                        experimentAnnotationsId = ctx.get(EXPT_ANNOT_ID, Integer.class);
                     }
-                    else if (specLibId != null)
+                    else
                     {
                         ExperimentAnnotations exptAnnotations = ExperimentAnnotationsManager.getInContainer(ctx.getContainer());
-                        if (exptAnnotations != null)
-                        {
-                            String libContainerId = ctx.get(SPEC_LIB_CONTAINER, String.class);
-
-                            editUrl.addParameter("id", exptAnnotations.getId());
-                            editUrl.addParameter("specLibId", specLibId);
-                            editUrl.addParameter("libContainerId", libContainerId);
-                            out.write(PageFlowUtil.link("Add").href(editUrl).toString());
-                            return;
-                        }
+                        experimentAnnotationsId = exptAnnotations != null ? exptAnnotations.getId() : 0;
                     }
+                    if (experimentAnnotationsId != 0)
+                    {
+                        ActionURL editUrl = PanoramaPublicController.getEditSpecLibInfoURL(experimentAnnotationsId, specLibId, specLibInfoId, ctx.getContainer());
+                        out.write(PageFlowUtil.link(specLibInfoId != null ? "Edit" : "Add").href(editUrl).toString());
+                    }
+
                 }
                 out.write("<em>Not Editable</em>");
             }

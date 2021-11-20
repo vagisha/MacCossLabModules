@@ -1,7 +1,8 @@
 SELECT lib.*,
        lib.RunIds AS SkylineDocuments,
+       lib.SpecLibIds AS SkylineDocLibraries,
        lib.SpecLibId AS Details,
-       run.Container AS libContainer,
+       -- run.Container AS libContainer,
        libinfo.id AS specLibInfoId
 FROM
 (SELECT librarytype,
@@ -9,12 +10,13 @@ FROM
         filenamehint,
         skylinelibraryid,
         GROUP_CONCAT(DISTINCT runId, ',') AS RunIds, -- Skyline documents that have this library
+        GROUP_CONCAT(DISTINCT Id, ',') AS SpecLibIds, -- Skyline documents that have this library
         MAX(Id) AS SpecLibId -- One spectral library that we can use as the example
  FROM targetedms.spectrumlibrary
  GROUP BY librarytype, name, filenamehint, skylinelibraryid
 ) lib
-INNER JOIN targetedms.spectrumlibrary lib2 ON lib2.id = lib.SpecLibId
-INNER JOIN targetedms.runs run on lib2.runId = run.id
+-- INNER JOIN targetedms.spectrumlibrary lib2 ON lib2.id = lib.SpecLibId
+-- INNER JOIN targetedms.runs run on lib2.runId = run.id
 LEFT OUTER JOIN panoramapublic.speclibinfo libInfo ON
 libInfo.librarytype = lib.librarytype
 AND libInfo.name = lib.name
