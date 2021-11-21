@@ -1,6 +1,7 @@
 package org.labkey.panoramapublic.query.speclib;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.labkey.api.data.ColumnInfo;
 import org.labkey.api.data.DataColumn;
 import org.labkey.api.data.DisplayColumn;
@@ -18,6 +19,7 @@ import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.view.ActionURL;
 import org.labkey.panoramapublic.PanoramaPublicController;
+import org.labkey.panoramapublic.query.SpecLibInfoManager;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -26,21 +28,20 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.EM;
 import static org.labkey.api.util.DOM.LI;
+import static org.labkey.api.util.DOM.SPAN;
 import static org.labkey.api.util.DOM.at;
 
-public class LibraryDocumentsDisplayColumnFactory implements DisplayColumnFactory
+public class LibraryDocsDisplayColumnFactory implements DisplayColumnFactory
 {
     private static final FieldKey SPECLIB_INFO_ID = FieldKey.fromParts("specLibInfoId");
-    private static final FieldKey RUN_IDS = FieldKey.fromParts("RunIds");
 
-    public LibraryDocumentsDisplayColumnFactory() {}
+    public LibraryDocsDisplayColumnFactory() {}
 
     @Override
     public DisplayColumn createRenderer(ColumnInfo colInfo)
@@ -55,21 +56,24 @@ public class LibraryDocumentsDisplayColumnFactory implements DisplayColumnFactor
                 {
                     TargetedMSService svc = TargetedMSService.get();
                     User user = ctx.getViewContext().getUser();
-                    List<ISpectrumLibrary> libraries = getLibraries(specLibIds.split(","), user, svc);
+                    Set<Long> ids = Arrays.stream(specLibIds.split(","))
+                            .map(s -> NumberUtils.toLong(s, 0))
+                            .filter(l -> l != 0)
+                            .collect(Collectors.toSet());
+                    List<ISpectrumLibrary> libraries = SpecLibInfoManager.getLibraries(ids, user);
                     if (libraries.size() > 0)
                     {
                         Integer specLibInfoId = ctx.get(SPECLIB_INFO_ID, Integer.class);
-                        String allRunIds = ctx.get(RUN_IDS, String.class);
-                        List<DOM.Renderable> runLinks = new ArrayList<>();
+                        List<DOM.Renderable> runLibraryLinks = new ArrayList<>();
                         for (ISpectrumLibrary library: libraries)
                         {
                             ITargetedMSRun run = svc.getRun(library.getRunId(), user);
                             if (run != null)
                             {
-                                runLinks.add(getRunLink(run, library, specLibInfoId, allRunIds));
+                                runLibraryLinks.add(LI(PanoramaPublicController.getRunLibraryLink(run, library, specLibInfoId, specLibIds)));
                             }
                         }
-                        DOM.DIV(runLinks).appendTo(out);
+                        DOM.DIV(runLibraryLinks).appendTo(out);
                     }
                     else
                     {
@@ -78,45 +82,12 @@ public class LibraryDocumentsDisplayColumnFactory implements DisplayColumnFactor
                 }
             }
 
-            private DOM.Renderable getRunLink(ITargetedMSRun run, ISpectrumLibrary library, Integer specLibInfoId, String allRunIds)
-            {
-                Path libPath = TargetedMSService.get().getLibraryFilePath(run, library);
-                ActionURL viewSpecLibAction = new ActionURL(PanoramaPublicController.ViewSpecLibAction.class, run.getContainer());
-                viewSpecLibAction.addParameter("specLibId", library.getId());
-                // viewSpecLibAction.addParameter("libContainerId", run.getContainer().getId());
-                if (allRunIds != null)
-                {
-                    viewSpecLibAction.addParameter("allRunIds", allRunIds);
-                }
-                if (specLibInfoId != null)
-                {
-                    viewSpecLibAction.addParameter("specLibInfoId", specLibInfoId);
-                }
-                ActionURL url = PageFlowUtil.urlProvider(TargetedMSUrls.class).getShowRunUrl(run.getContainer(), run.getId());
-                return LI(new Link.LinkBuilder(run.getFileName()).href(url).clearClasses().build(),
-                        HtmlString.NBSP, "[",
-                        (libPath != null && Files.exists(libPath)) ?
-                                new Link.LinkBuilder("Library").href(viewSpecLibAction).build()
-                                : EM(at(style, "color:red;"), "Missing Library"),
-                        "] "
-                );
-            }
-
             @Override
             public void addQueryFieldKeys(Set<FieldKey> keys)
             {
                 super.addQueryFieldKeys(keys);
                 keys.add(SPECLIB_INFO_ID);
-                keys.add(RUN_IDS);
             }
         };
-    }
-
-    private List<ISpectrumLibrary> getLibraries(String[] ids, User user, TargetedMSService svc)
-    {
-        Set<Long> specLibIds = Arrays.stream(ids).map(Long::parseLong).collect(Collectors.toSet());
-        List<ISpectrumLibrary> libraries = new ArrayList<>();
-        specLibIds.forEach(id -> libraries.add(svc.getLibrary(id, null, user)));
-        return libraries.stream().filter(Objects::nonNull).collect(Collectors.toList());
     }
 }

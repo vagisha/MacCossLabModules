@@ -6,6 +6,7 @@
 <%@ page import="org.labkey.panoramapublic.model.speclib.SpecLibDependencyType" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
 <%@ page import="org.labkey.panoramapublic.model.speclib.SpectrumLibrary" %>
+<%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -22,6 +23,7 @@
     PanoramaPublicController.EditSpecLibInfoForm form = bean.getForm();
     SpectrumLibrary library = bean.getLibrary();
     boolean supportedLibrary = library.isSupported();
+    var returnUrl = form.getReturnURLHelper(getContainer().getStartURL(getUser()));
 %>
 
 <div style="margin-bottom:10px;">
@@ -52,6 +54,12 @@
                     xtype: 'hidden',
                     name: 'id', // ExperimentAnnotationsId
                     value: <%=form.getId()%>
+                },
+                {
+                    // instead of generateReturnUrlFormField(returnUrl)
+                    xtype: 'hidden',
+                    name: <%=q(ActionURL.Param.returnUrl.name())%>,
+                    value: <%=q(returnUrl)%>
                 },
                 {
                     xtype: 'hidden',
@@ -170,8 +178,9 @@
                 {
                     text: 'Cancel',
                     cls: 'labkey-button',
-                    hrefTarget: '_self',
-                    href: <%=q(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()))%>
+                    handler: function(btn) {
+                        window.location = <%= q(returnUrl) %>;
+                    }
                 }]
         });
     });

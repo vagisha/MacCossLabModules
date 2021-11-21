@@ -15,7 +15,12 @@ import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
 import org.labkey.panoramapublic.model.speclib.SpectrumLibrary;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class SpecLibInfoManager
 {
@@ -23,7 +28,7 @@ public class SpecLibInfoManager
 
     public static SpecLibInfo get(int id, Container container)
     {
-        SQLFragment sql = new SQLFragment("SELECT * FROM ")
+        SQLFragment sql = new SQLFragment("SELECT slib.* FROM ")
                 .append(PanoramaPublicManager.getTableInfoSpecLibInfo(), "slib")
                 .append(" INNER JOIN ")
                 .append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp")
@@ -45,13 +50,26 @@ public class SpecLibInfoManager
 
     public static List<SpecLibInfo> getForExperiment(int experimentAnnotationsId, Container container)
     {
-        var filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
-        return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibInfo(), filter, null).getArrayList(SpecLibInfo.class);
+        var expAnnotations = ExperimentAnnotationsManager.get(experimentAnnotationsId);
+        if (expAnnotations != null && expAnnotations.getContainer().equals(container))
+        {
+            var filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
+            return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibInfo(), filter, null).getArrayList(SpecLibInfo.class);
+        }
+        return Collections.emptyList();
     }
 
     public static @Nullable SpectrumLibrary getSpectrumLibrary(long specLibId, @Nullable Container container, User user)
     {
-        ISpectrumLibrary library = TargetedMSService.get().getLibrary(specLibId, null, user);
+        ISpectrumLibrary library = TargetedMSService.get().getLibrary(specLibId, container, user);
         return library != null ? new SpectrumLibrary(library) : null;
+    }
+
+    public static List<ISpectrumLibrary> getLibraries(Collection<Long> specLibIds, User user)
+    {
+        List<ISpectrumLibrary> libraries = new ArrayList<>();
+        TargetedMSService svc = TargetedMSService.get();
+        specLibIds.forEach(id -> libraries.add(svc.getLibrary(id, null, user)));
+        return libraries.stream().filter(Objects::nonNull).collect(Collectors.toList());
     }
 }

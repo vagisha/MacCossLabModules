@@ -9,7 +9,7 @@
                     <column columnName="SkylineDocLibraries">
                         <columnTitle>Skyline Documents</columnTitle>
                         <displayColumnFactory>
-                            <className>org.labkey.panoramapublic.query.speclib.LibraryDocumentsDisplayColumnFactory</className>
+                            <className>org.labkey.panoramapublic.query.speclib.LibraryDocsDisplayColumnFactory</className>
                         </displayColumnFactory>
                     </column>
                     <column columnName="Details">

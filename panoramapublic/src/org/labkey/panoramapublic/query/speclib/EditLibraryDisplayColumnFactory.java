@@ -21,7 +21,6 @@ public class EditLibraryDisplayColumnFactory implements DisplayColumnFactory
 {
     private static final FieldKey SPECLIB_INFO_ID = FieldKey.fromParts("specLibInfoId");
     private static final FieldKey EXPT_ANNOT_ID = FieldKey.fromParts("specLibInfoId", "experimentAnnotationsId");
-    private static final FieldKey SPEC_LIB_CONTAINER = FieldKey.fromParts("specLibId", "runId", "container");
 
     public EditLibraryDisplayColumnFactory() {}
 
@@ -51,7 +50,9 @@ public class EditLibraryDisplayColumnFactory implements DisplayColumnFactory
                     if (experimentAnnotationsId != 0)
                     {
                         ActionURL editUrl = PanoramaPublicController.getEditSpecLibInfoURL(experimentAnnotationsId, specLibId, specLibInfoId, ctx.getContainer());
+                        editUrl.addReturnURL(ctx.getViewContext().getActionURL());
                         out.write(PageFlowUtil.link(specLibInfoId != null ? "Edit" : "Add").href(editUrl).toString());
+                        return;
                     }
 
                 }
@@ -64,7 +65,6 @@ public class EditLibraryDisplayColumnFactory implements DisplayColumnFactory
                 super.addQueryFieldKeys(keys);
                 keys.add(SPECLIB_INFO_ID);
                 keys.add(EXPT_ANNOT_ID);
-                keys.add(SPEC_LIB_CONTAINER);
             }
         };
     }
