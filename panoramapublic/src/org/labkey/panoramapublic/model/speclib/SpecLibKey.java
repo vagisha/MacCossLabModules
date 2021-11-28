@@ -9,22 +9,25 @@ public class SpecLibKey
     private final String _fileNameHint;
     private final String _skylineLibraryId;
     private final String _libraryType;
+    private final String _revision;
 
     private static final String SEP = "__&&__";
 
-    public SpecLibKey(@NotNull String name, @NotNull String fileNameHint, String skylineLibraryId, String libraryType)
+    public SpecLibKey(@NotNull String name, @NotNull String fileNameHint, String skylineLibraryId, String libraryType, String revision)
     {
         _name = name;
         _fileNameHint = fileNameHint;
         _skylineLibraryId = skylineLibraryId;
         _libraryType = libraryType;
+        _revision = revision;
     }
 
     public String getStringKey()
     {
         return String.format("%s%s%s%s%s", _name, SEP, _libraryType,
                 (_fileNameHint != null ? SEP + _fileNameHint : ""),
-                (_skylineLibraryId != null ? SEP + _skylineLibraryId : ""));
+                (_skylineLibraryId != null ? SEP + _skylineLibraryId : ""),
+                (_revision != null ? SEP + _revision : ""));
 
     }
 
@@ -37,33 +40,9 @@ public class SpecLibKey
             String libraryType = parts[1];
             String fileNameHint = parts.length > 2 ? parts[2] : null;
             String skylineLibId = parts.length > 3 ? parts[3] : null;
-            return new SpecLibKey(name, fileNameHint, skylineLibId, libraryType);
+            String revision = parts.length > 4 ? parts[4] : null;
+            return new SpecLibKey(name, fileNameHint, skylineLibId, libraryType, revision);
         }
         return null;
-    }
-
-    public String getName()
-    {
-        return _name;
-    }
-
-    public String getFileNameHint()
-    {
-        return _fileNameHint;
-    }
-
-    public String getSkylineLibraryId()
-    {
-        return _skylineLibraryId;
-    }
-
-    public String getLibraryType()
-    {
-        return _libraryType;
-    }
-
-    public LibraryType getType()
-    {
-        return LibraryType.getType(_libraryType);
     }
 }

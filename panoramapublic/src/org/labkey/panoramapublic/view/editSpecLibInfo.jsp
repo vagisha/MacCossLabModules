@@ -4,7 +4,6 @@
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.panoramapublic.model.speclib.SpecLibSourceType" %>
 <%@ page import="org.labkey.panoramapublic.model.speclib.SpecLibDependencyType" %>
-<%@ page import="org.labkey.api.util.HtmlString" %>
 <%@ page import="org.labkey.panoramapublic.model.speclib.SpectrumLibrary" %>
 <%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
@@ -74,15 +73,21 @@
                 },
                 <%}%>
                 {
-                    xtype: 'checkbox',
-                    name: 'publicLibrary',
-                    itemId: 'publicLibrary',
-                    fieldLabel: "Public Library",
-                    checked: <%=form.isPublicLibrary()%>,
-                    boxLabel: 'Check this box if this is a publicly available library.',
+                    xtype: 'combobox',
+                    name: 'sourceType',
+                    itemId: 'sourceType',
+                    fieldLabel: "Library Source",
+                    allowBlank: true,
+                    editable: false,
+                    value: <%=form.getSourceType() != null ? q(form.getSourceType()) : null%>,
+                    store: [
+                        <% for (SpecLibSourceType sourceType: SpecLibSourceType.valuesForLibrary(library)) { %>
+                        [ <%= q(sourceType.name()) %>, <%= q(sourceType.getLabel()) %> ],
+                        <% } %>
+                    ],
                     listeners: {
-                        change: function(cb, checked) {
-                            publicLibraryCheckboxChanged(cb, checked);
+                        change: function(cb, newValue) {
+                            sourceTypeComboboxChanged(cb, newValue);
                         }
                     }
                 },
@@ -91,32 +96,10 @@
                     name: 'sourceUrl',
                     itemId: 'sourceUrl',
                     fieldLabel: "Library URL",
-                    disabled: <%=!form.isPublicLibrary()%>,
-                    value: <%=q(form.getSourceUrl())%>
+                    disabled: <%=!SpecLibSourceType.PUBLIC_LIBRARY.name().equals(form.getSourceType())%>,
+                    value: <%=q(form.getSourceUrl())%>,
+                    afterLabelTextTpl: <%=q(helpPopup("URL where the library can be downloaded"))%>
                 },
-                {
-                    xtype: 'combobox',
-                    name: 'sourceType',
-                    itemId: 'sourceType',
-                    fieldLabel: "Library Source Files",
-                    allowBlank: true,
-                    editable: false,
-                    hidden: <%=!supportedLibrary%>,
-                    value: <%=form.getSourceType() != null ? q(form.getSourceType()) : null%>,
-                    afterBodyEl: '<span style="font-size: 0.9em;">Location of the source files used to build the library if it is not a public library.</span>',
-                    msgTarget : 'under',
-                    store: [
-                        <% for (SpecLibSourceType sourceType: SpecLibSourceType.values()) { %>
-                        [ <%= q(sourceType.name()) %>, <%= q(sourceType.getLabel()) %> ],
-                        <% } %>
-                    ],
-                    listeners: {
-                        change: function(cb, newValue, oldValue, eOpts ) {
-                            sourceTypeComboboxChanged(cb, newValue, oldValue);
-                        }
-                    }
-                },
-
                 {
                     xtype: 'textfield',
                     name: 'sourceAccession',
@@ -154,7 +137,9 @@
                     name: 'dependencyType',
                     fieldLabel: "Dependency Type",
                     allowBlank: true,
+                    editable: false,
                     value: <%=form.getDependencyType() != null ? q(form.getDependencyType()) : null%>,
+                    afterLabelTextTpl: <%=q(helpPopup("Level of dependence on the library."))%>,
                     store: [
                         <% for (SpecLibDependencyType sourceType: SpecLibDependencyType.values()) { %>
                         [ <%= q(sourceType.name()) %>, <%= q(sourceType.getLabel()) %> ],
@@ -195,21 +180,10 @@
         }
     }
 
-    function publicLibraryCheckboxChanged(cb, checked) {
-        toggleTextFields(cb.ownerCt, !checked, ['sourceUrl']);
-        if (checked) {
-            var cbSrcType = cb.ownerCt.getComponent('sourceType');
-            if (cbSrcType) cbSrcType.clearValue();
-        }
-    }
-
-    function sourceTypeComboboxChanged(cb, newValue, oldValue) {
-        var enable = newValue === <%=q(SpecLibSourceType.OTHER_REPOSITORY.name())%>;
-        toggleTextFields(cb.ownerCt, !enable, ['sourceAccession', 'sourceUsername', 'sourcePassword']);
-        // console.log("New value of source type is " + newValue);
-        if (newValue && newValue !== '') {
-            publicLibCb = cb.ownerCt.getComponent('publicLibrary');
-            if (publicLibCb) publicLibCb.setValue(false);
-        }
+    function sourceTypeComboboxChanged(cb, newValue) {
+        var otherRepo = newValue === <%=q(SpecLibSourceType.OTHER_REPOSITORY.name())%>;
+        var publicLib = newValue === <%=q(SpecLibSourceType.PUBLIC_LIBRARY.name())%>;
+        toggleTextFields(cb.ownerCt, !otherRepo, ['sourceAccession', 'sourceUsername', 'sourcePassword']);
+        toggleTextFields(cb.ownerCt, !publicLib, ['sourceUrl']);
     }
 </script>

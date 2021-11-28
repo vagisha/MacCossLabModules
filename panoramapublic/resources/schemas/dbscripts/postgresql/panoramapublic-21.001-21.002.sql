@@ -24,19 +24,22 @@ CREATE TABLE panoramapublic.speclibinfo
 
     experimentAnnotationsId   INT NOT NULL,
 
-    -- Columns from the targetedms.spectrumlibrary table
+    -- Columns from the targetedms.spectrumlibrary table. The same spectral library can be used in more than one
+    -- document. We assume that libraries with identical values for these columns are the same library.
+    -- The VARCHAR column in the targetedms schema have a limit.  Here they are defined without a limit in case
+    -- the column definitions for name, filenamehint and skylinelibraryid change in the targetedms schema.
     librarytype               VARCHAR(20)  NOT NULL,
-    name                      VARCHAR(400) NOT NULL,
-    filenamehint              VARCHAR(300),
-    skylinelibraryid          VARCHAR(200),
+    name                      VARCHAR NOT NULL, -- VARCHAR(400) NOT NULL,
+    filenamehint              VARCHAR, -- VARCHAR(300),
+    skylinelibraryid          VARCHAR, -- VARCHAR(200),
+    revision                  VARCHAR(10),
 
-    PublicLibrary             BOOLEAN NOT NULL DEFAULT FALSE,
-    SourceUrl                 TEXT,
-    SourceType                INT,
+    SourceType                INT NOT NULL,
+    SourceUrl                 VARCHAR,
     SourceAccession           VARCHAR(100),
     SourceUsername            VARCHAR(100),
     SourcePassword            VARCHAR(100),
-    DependencyType            INT,
+    DependencyType            INT NOT NULL,
 
     CONSTRAINT PK_SpecLibInfo PRIMARY KEY (Id),
     CONSTRAINT FK_SpecLibInfo_ExperimentAnnotations FOREIGN KEY (experimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id)

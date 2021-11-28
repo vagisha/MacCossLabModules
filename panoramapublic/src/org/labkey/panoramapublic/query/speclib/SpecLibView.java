@@ -32,32 +32,23 @@ public class SpecLibView extends QueryView
         super(new PanoramaPublicSchema(portalCtx.getUser(), portalCtx.getContainer()));
         _exptAnnotations = exptAnnotations;
         setTitle(NAME);
-        setSettings(createQuerySettings(portalCtx, NAME));
+        setSettings(createQuerySettings(portalCtx));
         setShowDetailsColumn(false);
         setButtonBarPosition(DataRegion.ButtonBarPosition.TOP);
         setShowExportButtons(false);
         setShowBorders(true);
         setShadeAlternatingRows(true);
-
-        if (_exptAnnotations != null && _exptAnnotations.isIncludeSubfolders())
-        {
-            setAllowableContainerFilterTypes(ContainerFilter.Type.Current, ContainerFilter.Type.CurrentAndSubfolders);
-        }
-        else
-        {
-            setAllowableContainerFilterTypes(ContainerFilter.Type.Current);
-        }
-
+        setAllowableContainerFilterTypes(ContainerFilter.Type.Current, ContainerFilter.Type.CurrentAndSubfolders);
         setFrame(FrameType.PORTAL);
     }
 
-    private QuerySettings createQuerySettings(ViewContext portalCtx, String dataRegionName)
+    private QuerySettings createQuerySettings(ViewContext portalCtx)
     {
         String viewName = _exptAnnotations != null &&
                 SpecLibInfoManager.getForExperiment(_exptAnnotations.getId(), portalCtx.getContainer()).size() > 0 ?
                 "SpectralLibrariesInfo" : null;
 
-        QuerySettings settings = getSchema().getSettings(portalCtx, dataRegionName, QUERY_NAME, viewName);
+        QuerySettings settings = getSchema().getSettings(portalCtx, NAME, QUERY_NAME, viewName);
 
         if(settings.getContainerFilterName() == null && _exptAnnotations != null)
         {
@@ -74,7 +65,8 @@ public class SpecLibView extends QueryView
     public List<DisplayColumn> getDisplayColumns()
     {
         List<DisplayColumn> displayCols = super.getDisplayColumns();
-        if (_exptAnnotations != null && !_exptAnnotations.isJournalCopy())
+        if (_exptAnnotations != null && !_exptAnnotations.isJournalCopy()
+                && _exptAnnotations.getContainer().hasPermission(getUser(), AdminPermission.class))
         {
             TableInfo table = getTable();
             if (table != null)
@@ -83,7 +75,6 @@ public class SpecLibView extends QueryView
                 displayCols.add(col);
             }
         }
-
         return displayCols;
     }
 }

@@ -7,14 +7,14 @@
             </properties>
         </column>
         <column name="SkylineDocLibraries" />
+        <column name="SpecLibInfoId/SourceType/Value">
+            <properties>
+                <property name="columnTitle" value="Library Source" />
+            </properties>
+        </column>
         <column name="SpecLibInfoId/SourceUrl">
             <properties>
                 <property name="columnTitle" value="Library URL" />
-            </properties>
-        </column>
-        <column name="SpecLibInfoId/SourceType/Value">
-            <properties>
-                <property name="columnTitle" value="Source Files" />
             </properties>
         </column>
         <column name="SpecLibInfoId/SourceAccession">

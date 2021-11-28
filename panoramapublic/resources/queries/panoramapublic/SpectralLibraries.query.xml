@@ -7,7 +7,7 @@
                         <columnTitle>File Name</columnTitle>
                     </column>
                     <column columnName="SkylineDocLibraries">
-                        <columnTitle>Skyline Documents</columnTitle>
+                        <columnTitle>Skyline Documents With Library</columnTitle>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.speclib.LibraryDocsDisplayColumnFactory</className>
                         </displayColumnFactory>

@@ -390,6 +390,7 @@
             </column>
             <column columnName="filenamehint"/>
             <column columnName="skylinelibraryid"/>
+            <column columnName="revision"/>
             <column columnName="experimentAnnotationsId">
                 <fk>
                     <fkColumnName>Id</fkColumnName>
@@ -397,9 +398,8 @@
                     <fkTable>ExperimentAnnotations</fkTable>
                 </fk>
             </column>
-            <column columnName="PublicLibrary"/>
-            <column columnName="SourceUrl"/>
             <column columnName="SourceType"/>
+            <column columnName="SourceUrl"/>
             <column columnName="SourceAccession"/>
             <column columnName="SourceUsername"/>
             <column columnName="SourcePassword">

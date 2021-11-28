@@ -17,6 +17,7 @@
 package org.labkey.panoramapublic;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.labkey.api.collections.CaseInsensitiveHashSet;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerFilter;
@@ -32,14 +33,18 @@ import org.labkey.api.query.DefaultSchema;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QuerySchema;
+import org.labkey.api.query.QuerySettings;
+import org.labkey.api.query.QueryView;
 import org.labkey.api.query.UserSchema;
 import org.labkey.api.security.User;
+import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
-import org.labkey.panoramapublic.query.speclib.SpecLibInfoTableInfo;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
+import org.labkey.panoramapublic.query.speclib.SpecLibInfoTableInfo;
+import org.springframework.validation.BindException;
 
 import java.util.Set;
 
@@ -148,7 +153,7 @@ public class PanoramaPublicSchema extends UserSchema
                     "Spectral library source types");
 
             var viewColumn = tableInfo.getMutableColumn("Value");
-            viewColumn.setLabel("Source Files");
+            viewColumn.setLabel("Library Source");
             return tableInfo;
         }
         return null;
@@ -235,6 +240,16 @@ public class PanoramaPublicSchema extends UserSchema
         };
         result.wrapAllColumns(true);
         return result;
+    }
+
+    @Override
+    public @NotNull QueryView createView(ViewContext context, @NotNull QuerySettings settings, @Nullable BindException errors)
+    {
+        if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(settings.getQueryName()))
+        {
+            return new SpecLibInfoTableInfo.UserSchemaView(this, settings, errors);
+        }
+        return super.createView(context, settings, errors);
     }
 
     @Override

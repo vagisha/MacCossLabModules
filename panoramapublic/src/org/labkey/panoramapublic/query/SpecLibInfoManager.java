@@ -65,11 +65,11 @@ public class SpecLibInfoManager
         return library != null ? new SpectrumLibrary(library) : null;
     }
 
-    public static List<ISpectrumLibrary> getLibraries(Collection<Long> specLibIds, User user)
+    public static List<SpectrumLibrary> getLibraries(Collection<Long> specLibIds, User user)
     {
         List<ISpectrumLibrary> libraries = new ArrayList<>();
         TargetedMSService svc = TargetedMSService.get();
         specLibIds.forEach(id -> libraries.add(svc.getLibrary(id, null, user)));
-        return libraries.stream().filter(Objects::nonNull).collect(Collectors.toList());
+        return libraries.stream().filter(Objects::nonNull).map(SpectrumLibrary::new).collect(Collectors.toList());
     }
 }

@@ -6,8 +6,9 @@ import org.labkey.api.util.SafeToRenderEnum;
 public enum SpecLibSourceType implements SafeToRenderEnum
 {
     LOCAL("Uploaded to project"),
-    OTHER_REPOSITORY("In another repository"),
-    UNAVAILABLE("Files unavailable");
+    PUBLIC_LIBRARY("Public library"),
+    OTHER_REPOSITORY("Source files in external repository"),
+    UNAVAILABLE("Source files unavailable");
 
     private final String _label;
 
@@ -21,7 +22,7 @@ public enum SpecLibSourceType implements SafeToRenderEnum
         return _label;
     }
 
-    public static @Nullable SpecLibSourceType getFromName(String name)
+    public static @Nullable SpecLibSourceType getForName(String name)
     {
         try
         {
@@ -31,5 +32,14 @@ public enum SpecLibSourceType implements SafeToRenderEnum
         {
             return null;
         }
+    }
+
+    public static SpecLibSourceType[] valuesForLibrary(SpectrumLibrary library)
+    {
+        if (library.isSupported())
+        {
+            return values();
+        }
+        return new SpecLibSourceType[]{PUBLIC_LIBRARY};
     }
 }

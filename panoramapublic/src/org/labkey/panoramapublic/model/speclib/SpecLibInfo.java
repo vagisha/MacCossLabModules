@@ -18,11 +18,10 @@ public class SpecLibInfo
     private String _fileNameHint;
     private String _skylineLibraryId;
     private String _libraryType;
-
-    private boolean _publicLibrary;
-    private String _sourceUrl;
+    private String _revision;
 
     private SpecLibSourceType _sourceType;
+    private String _sourceUrl;
     private String _sourceAccession;
     private String _sourceUsername;
     private String _sourcePassword;
@@ -34,7 +33,7 @@ public class SpecLibInfo
 
     public SpecLibKey getLibraryKey()
     {
-        return new SpecLibKey(_name, _fileNameHint, _skylineLibraryId, _libraryType);
+        return new SpecLibKey(_name, _fileNameHint, _skylineLibraryId, _libraryType, _revision);
     }
 
     public String getStringKey()
@@ -142,6 +141,16 @@ public class SpecLibInfo
         _skylineLibraryId = skylineLibraryId;
     }
 
+    public String getRevision()
+    {
+        return _revision;
+    }
+
+    public void setRevision(String revision)
+    {
+        _revision = revision;
+    }
+
     public String getLibraryType()
     {
         return _libraryType;
@@ -150,16 +159,6 @@ public class SpecLibInfo
     public void setLibraryType(String libraryType)
     {
         _libraryType = libraryType;
-    }
-
-    public boolean isPublicLibrary()
-    {
-        return _publicLibrary;
-    }
-
-    public void setPublicLibrary(boolean publicLibrary)
-    {
-        _publicLibrary = publicLibrary;
     }
 
     public String getSourceUrl()
