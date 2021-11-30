@@ -17,9 +17,9 @@ package org.labkey.panoramapublic;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.validator.routines.EmailValidator;
 import org.apache.commons.validator.routines.UrlValidator;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -102,17 +102,22 @@ import org.labkey.api.security.permissions.InsertPermission;
 import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.security.roles.ProjectAdminRole;
+import org.labkey.api.security.roles.ReaderRole;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
+import org.labkey.api.targetedms.TargetedMSUrls;
 import org.labkey.api.util.Button;
 import org.labkey.api.util.DOM;
 import org.labkey.api.util.DOM.LK;
+import org.labkey.api.util.ExceptionUtil;
 import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
+import org.labkey.api.util.Pair;
 import org.labkey.api.util.TestContext;
 import org.labkey.api.util.URLHelper;
+import org.labkey.api.util.logging.LogHelper;
 import org.labkey.api.view.*;
 import org.labkey.api.view.template.ClientDependency;
 import org.labkey.panoramapublic.chromlib.ChromLibStateManager;
@@ -129,6 +134,10 @@ import org.labkey.panoramapublic.model.PxXml;
 import org.labkey.panoramapublic.model.Submission;
 import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.Status;
+import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
+import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
+import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
+import org.labkey.panoramapublic.model.speclib.SpectralLibrary;
 import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxDataValidationPipelineJob;
@@ -145,7 +154,12 @@ import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
+import org.labkey.panoramapublic.query.SpecLibInfoManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
+import org.labkey.panoramapublic.query.speclib.SpecLibView;
+import org.labkey.panoramapublic.speclib.LibSourceFile;
+import org.labkey.panoramapublic.speclib.SpecLibReader;
+import org.labkey.panoramapublic.speclib.SpecLibReaderException;
 import org.labkey.panoramapublic.view.PanoramaPublicRunListView;
 import org.labkey.panoramapublic.view.expannotations.ExperimentAnnotationsFormDataRegion;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentWebPart;
@@ -166,17 +180,29 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.labkey.api.targetedms.TargetedMSService.FolderType.*;
+import static org.labkey.api.targetedms.TargetedMSService.FolderType.Experiment;
+import static org.labkey.api.targetedms.TargetedMSService.FolderType.Library;
+import static org.labkey.api.targetedms.TargetedMSService.FolderType.LibraryProtein;
+import static org.labkey.api.targetedms.TargetedMSService.FolderType.Undefined;
+import static org.labkey.api.targetedms.TargetedMSService.RAW_FILES_TAB;
+import static org.labkey.api.util.DOM.A;
 import static org.labkey.api.util.DOM.Attribute.action;
+import static org.labkey.api.util.DOM.Attribute.border;
+import static org.labkey.api.util.DOM.Attribute.colspan;
+import static org.labkey.api.util.DOM.Attribute.href;
 import static org.labkey.api.util.DOM.Attribute.method;
 import static org.labkey.api.util.DOM.Attribute.name;
 import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.Attribute.type;
+import static org.labkey.api.util.DOM.Attribute.valign;
 import static org.labkey.api.util.DOM.Attribute.value;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
@@ -187,10 +213,18 @@ import static org.labkey.api.util.DOM.LK.CHECKBOX;
 import static org.labkey.api.util.DOM.LK.ERRORS;
 import static org.labkey.api.util.DOM.LK.FORM;
 import static org.labkey.api.util.DOM.SPAN;
+import static org.labkey.api.util.DOM.STRONG;
+import static org.labkey.api.util.DOM.TABLE;
+import static org.labkey.api.util.DOM.TBODY;
+import static org.labkey.api.util.DOM.TD;
+import static org.labkey.api.util.DOM.TH;
+import static org.labkey.api.util.DOM.THEAD;
+import static org.labkey.api.util.DOM.TR;
 import static org.labkey.api.util.DOM.UL;
 import static org.labkey.api.util.DOM.at;
 import static org.labkey.api.util.DOM.cl;
 import static org.labkey.api.util.DOM.createHtmlFragment;
+import static org.labkey.panoramapublic.proteomexchange.NcbiUtils.PUBMED_ID;
 
 /**
  * User: vsharma
@@ -202,14 +236,14 @@ public class PanoramaPublicController extends SpringActionController
     private static final DefaultActionResolver _actionResolver = new DefaultActionResolver(PanoramaPublicController.class);
     public static final String NAME = "panoramapublic";
     public static final String PANORAMA_REVIEWER_PREFIX = "panorama+reviewer";
-    public static final String PUBMED_ID = "^[0-9]{1,8}$"; // https://libguides.library.arizona.edu/c.php?g=406096&p=2779570
+
 
     public PanoramaPublicController()
     {
         setActionResolver(_actionResolver);
     }
 
-    private static final Logger LOG = LogManager.getLogger(PanoramaPublicController.class);
+    private static final Logger LOG = LogHelper.getLogger(PanoramaPublicController.class, "PanoramaPublicController requests");
 
     // ------------------------------------------------------------------------
     // BEGIN Actions for journal groups.
@@ -539,6 +573,12 @@ public class PanoramaPublicController extends SpringActionController
                 changeSupportContainerButton.setActionType(ActionButton.Action.GET);
                 changeSupportContainerButton.setPrimary(false);
                 buttonBar.add(changeSupportContainerButton);
+
+                ActionURL addPublicDataUserUrl = new ActionURL(AddPublicDataUserAction.class, getContainer());
+                ActionButton addPublicDataUserButton = new ActionButton(addPublicDataUserUrl, "Add Public Data User");
+                addPublicDataUserButton.setActionType(ActionButton.Action.GET);
+                addPublicDataUserButton.setPrimary(false);
+                buttonBar.add(addPublicDataUserButton);
             }
             journalDetails.setButtonBar(buttonBar);
 
@@ -729,6 +769,138 @@ public class PanoramaPublicController extends SpringActionController
                 return ContainerService.get().getForPath(_supportContainerPath);
             }
             return null;
+        }
+    }
+
+    /*
+    Set the user account that can be used to download public datasets on Panorama Public with a WebDAV client such as
+    Cyberduck, or by mapping a network drive in Windows. Anonymous downloads do not work with WebDAV.
+     */
+    @RequiresPermission(AdminOperationsPermission.class)
+    public static class AddPublicDataUserAction extends FormViewAction<PublicDataUseForm>
+    {
+        private Journal _journal;
+        @Override
+        public void validateCommand(PublicDataUseForm form, Errors errors)
+        {
+            _journal = form.lookupJournal();
+            if (_journal == null)
+            {
+                errors.reject(ERROR_MSG, "No journal found for journal Id " + form.getId());
+            }
+            if (StringUtils.isBlank(form.getUserEmail()))
+            {
+                errors.reject(ERROR_MSG, "User email cannot be blank");
+            }
+            if (StringUtils.isBlank(form.getUserPassword()))
+            {
+                errors.reject(ERROR_MSG, "User password cannot be blank");
+            }
+        }
+
+        @Override
+        public ModelAndView getView(PublicDataUseForm form, boolean reshow, BindException errors)
+        {
+            if (!reshow)
+            {
+                _journal = form.lookupJournal();
+                if (_journal == null)
+                {
+                    errors.reject(ERROR_MSG, "No journal found for journal Id " + form.getId());
+                    return new SimpleErrorView(errors);
+                }
+                JournalManager.PublicDataUser publicDataUser = JournalManager.getPublicDataUser(_journal);
+                if (publicDataUser != null)
+                {
+                    form.setUserEmail(publicDataUser.getEmail());
+                }
+            }
+
+            HtmlView view = new HtmlView(
+                    DIV(
+                            ERRORS(errors),
+                            "Enter the email address for the user account that can be used to download public datasets in a WebDAV client",
+                            FORM(at(method, "POST", action, new ActionURL(AddPublicDataUserAction.class, getContainer()).addParameter("id", _journal.getId())),
+                                    SPAN(cl("labkey-form-label"), "User Email Address"),
+                                    INPUT(at(type, "Text", name, "userEmail", value, form.getUserEmail())),
+                                    BR(),
+                                    SPAN(cl("labkey-form-label"), "User Password"),
+                                    INPUT(at(type, "Text", name, "userPassword", value, "")),
+                                    BR(),
+                                    new Button.ButtonBuilder("Save").submit(true).build(),
+                                    new Button.ButtonBuilder("Cancel").submit(false).href(getJournalGroupDetailsUrl(_journal.getId(), getContainer())).build()
+                            )
+                    )
+            );
+            view.setTitle("Add Public Data User");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
+        }
+
+        @Override
+        public boolean handlePost(PublicDataUseForm form, BindException errors)
+        {
+            ValidEmail validEmail;
+            try
+            {
+                validEmail = new ValidEmail(form.getUserEmail());
+            }
+            catch (ValidEmail.InvalidEmailException e)
+            {
+                errors.reject(ERROR_MSG, "Invalid email address");
+                return false;
+            }
+            User user = UserManager.getUser(validEmail);
+            if (user == null)
+            {
+                errors.reject(ERROR_MSG, "User with given email address does not exist");
+                return false;
+            }
+            if (!SecurityManager.matchPassword(form.getUserPassword(), SecurityManager.getPasswordHash(validEmail)))
+            {
+                errors.reject(ERROR_MSG, "Incorrect password for " + user.getEmail());
+                return false;
+            }
+            JournalManager.savePublicDataUser(_journal, user, form.getUserPassword());
+            return true;
+        }
+
+        @Override
+        public URLHelper getSuccessURL(PublicDataUseForm form)
+        {
+            return getJournalGroupDetailsUrl(form.getId(), getContainer());
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Configure Public Data User");
+        }
+    }
+
+    public static class PublicDataUseForm extends JournalForm
+    {
+        private String _userEmail;
+        private String _userPassword;
+
+        public String getUserEmail()
+        {
+            return _userEmail;
+        }
+
+        public void setUserEmail(String userEmail)
+        {
+            _userEmail = userEmail;
+        }
+
+        public String getUserPassword()
+        {
+            return _userPassword;
+        }
+
+        public void setUserPassword(String userPassword)
+        {
+            _userPassword = userPassword;
         }
     }
 
@@ -4360,6 +4532,11 @@ public class PanoramaPublicController extends SpringActionController
             addExperimentViewDependencies(view);
             view.setTitle(TargetedMSExperimentWebPart.WEB_PART_NAME);
             view.setInitialValue(SUBMITTER, getUser().getUserId());
+            List<PsiInstrumentParser.PsiInstrument> instruments = ExperimentAnnotationsManager.getContainerInstruments(getContainer(), getUser());
+            if (instruments.size() > 0)
+            {
+                view.setInitialValue("instrument", StringUtils.join(instruments.stream().map(i -> i.getName()).collect(Collectors.toList()), ","));
+            }
             return view;
         }
 
@@ -4658,6 +4835,14 @@ public class PanoramaPublicController extends SpringActionController
             }
             result.addView(runListView);
 
+            // Add a table of spectral libraries, if there are any
+            List<ITargetedMSRun> runs = ExperimentAnnotationsManager.getTargetedMSRuns(exptAnnotations);
+            TargetedMSService tmsSvc = TargetedMSService.get();
+            if (runs.stream().anyMatch(run -> tmsSvc.getLibraries(run).size() > 0))
+            {
+                result.addView(new SpecLibView(getViewContext(), exptAnnotations));
+            }
+
             // If this experiment has been submitted show the submission requests
             List<JournalSubmission> jsList = SubmissionManager.getAllJournalSubmissions(exptAnnotations);
             if (jsList.size() > 0)
@@ -4695,15 +4880,15 @@ public class PanoramaPublicController extends SpringActionController
 
     public static class ExperimentAnnotationsDetails
     {
-        private ExperimentAnnotations _experimentAnnotations;
+        private final ExperimentAnnotations _experimentAnnotations;
         private JournalSubmission _lastPublishedRecord;
-        private boolean _fullDetails = false;
-        private boolean _canPublish = false;
+        private final boolean _fullDetails;
+        private boolean _canPublish;
         private String _version;
-        private boolean _isCurrentVersion = false;
+        private boolean _isCurrentVersion;
         private ActionURL _versionsUrl;
+        private ExperimentAnnotations _journalCopy;
 
-        public ExperimentAnnotationsDetails(){}
         public ExperimentAnnotationsDetails(User user, ExperimentAnnotations exptAnnotations, boolean fullDetails)
         {
             _experimentAnnotations = exptAnnotations;
@@ -4720,6 +4905,11 @@ public class PanoramaPublicController extends SpringActionController
                 // 2. AND this is a NOT journal copy (i.e. a folder in the Panorama Public project)
                 // 3. AND if this experiment has been copied to Panorama Public, the copy is not final (paper published and data public).
                 _canPublish = c.hasPermission(user, AdminPermission.class) && (ExperimentAnnotationsManager.canSubmitExperiment(_experimentAnnotations, _lastPublishedRecord));
+                if (_lastPublishedRecord != null)
+                {
+                    Submission lastCopiedSubmission = _lastPublishedRecord.getLatestCopiedSubmission();
+                    _journalCopy = lastCopiedSubmission != null ? ExperimentAnnotationsManager.get(lastCopiedSubmission.getCopiedExperimentId()) : null;
+                }
             }
 
             if (_experimentAnnotations.isJournalCopy() && _experimentAnnotations.getSourceExperimentId() != null)
@@ -4751,19 +4941,9 @@ public class PanoramaPublicController extends SpringActionController
             return _experimentAnnotations;
         }
 
-        public void setExperimentAnnotations(ExperimentAnnotations experimentAnnotations)
-        {
-            _experimentAnnotations = experimentAnnotations;
-        }
-
         public boolean isFullDetails()
         {
             return _fullDetails;
-        }
-
-        public void setFullDetails(boolean fullDetails)
-        {
-            _fullDetails = fullDetails;
         }
 
         public boolean isCanPublish()
@@ -4771,19 +4951,9 @@ public class PanoramaPublicController extends SpringActionController
             return _canPublish;
         }
 
-        public void setCanPublish(boolean canPublish)
-        {
-            _canPublish = canPublish;
-        }
-
         public JournalSubmission getLastPublishedRecord()
         {
             return _lastPublishedRecord;
-        }
-
-        public void setLastPublishedRecord(JournalSubmission lastPublishedRecord)
-        {
-            _lastPublishedRecord = lastPublishedRecord;
         }
 
         public boolean hasVersion()
@@ -4809,6 +4979,26 @@ public class PanoramaPublicController extends SpringActionController
         public boolean isCurrentVersion()
         {
             return _isCurrentVersion;
+        }
+
+        public boolean canAddPublishLink(User user)
+        {
+           return _experimentAnnotations.getContainer().hasPermission(user, AdminPermission.class)
+                && _lastPublishedRecord != null && !_lastPublishedRecord.hasPendingSubmission() // There is no pending submission request
+                && _journalCopy != null // There exists a copy of the data on Panorama Public
+                && !(_journalCopy.isPublic() && _journalCopy.hasCompletePublicationInfo());  // The copy is not already public with a PubMed Id
+        }
+
+        public String getPublishButtonText()
+        {
+            if (_journalCopy != null)
+            {
+                return !_journalCopy.isPublic()       ? "Make Public" :
+                       !_journalCopy.isPublished()    ? "Add Publication" :
+                       !_journalCopy.isPeerReviewed() ? "Edit Publication" :
+                       !_journalCopy.hasPubmedId()    ? "Add PubMed ID" : "";
+            }
+            return "";
         }
     }
 
@@ -5389,6 +5579,1097 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
+    /**
+     * Action class for making data submitted to Panorama Public public
+     * - A PubMed ID or publication link and citation can be added OR the data can be made public
+     *   without any publication information.
+     *   If a PubMed ID is provided, the citation in NLM format is determined using NCBI's Literature Citation Exporter.
+     * - The DOI associated with the data is made "findable".
+     * This action can be invoked by a folder administrator in the submitted folder in a user project.
+     */
+    @RequiresPermission(AdminPermission.class)
+    public static class MakePublicAction extends FormViewAction<PublicationDetailsForm>
+    {
+        private ExperimentAnnotations _expAnnot;
+        private ExperimentAnnotations _copiedExperiment;
+        private Journal _journal;
+        private JournalSubmission _journalSubmission;
+        private DataCiteException _doiError;
+        private boolean _madePublic;
+        private boolean _addedPublication;
+
+        private boolean validateExperiment(PublicationDetailsForm form, Errors errors)
+        {
+            _expAnnot = form.lookupExperiment();
+            if (_expAnnot == null)
+            {
+                errors.reject(ERROR_MSG, "Cannot find an experiment with Id " + form.getId());
+                return false;
+            }
+
+            ensureCorrectContainer(getContainer(), _expAnnot.getContainer(), getViewContext());
+            return true;
+        }
+
+        private ExperimentAnnotations getCopiedExperimentFor(ExperimentAnnotations expAnnot, Errors errors)
+        {
+            _journalSubmission = getJournalSubmissionFor(expAnnot, errors);
+            if (_journalSubmission != null)
+            {
+                _journal = JournalManager.getJournal(_journalSubmission.getJournalId());
+                if (_journal == null)
+                {
+                    errors.reject(ERROR_MSG, "Cannot find a journal with Id " + _journalSubmission.getJournalId());
+                    return null;
+                }
+
+                if (expAnnot.isJournalCopy())
+                {
+                    if (!_journalSubmission.isLatestExperimentCopy(_expAnnot.getId()))
+                    {
+                        errors.reject(ERROR_MSG, "Experiment Id " + _expAnnot.getId() + " is not the most recent copy of the data");
+                        return null;
+                    }
+                    return expAnnot;
+                }
+                else
+                {
+                    Submission submission = _journalSubmission.getLatestSubmission();
+                    ExperimentAnnotations copiedExperiment = submission != null ? ExperimentAnnotationsManager.get(submission.getCopiedExperimentId()) : null;
+                    if (copiedExperiment == null)
+                    {
+                        errors.reject(ERROR_MSG, String.format("Cannot find a copy of experiment Id %d on '%s'", expAnnot.getId(), _journal.getName()));
+                        return null;
+                    }
+                    return copiedExperiment;
+                }
+            }
+            return null;
+        }
+
+        private JournalSubmission getJournalSubmissionFor(ExperimentAnnotations expAnnot, Errors errors)
+        {
+            JournalSubmission js = expAnnot.isJournalCopy() ? SubmissionManager.getSubmissionForJournalCopy(expAnnot)
+                    : SubmissionManager.getNewestJournalSubmission(expAnnot);
+            if (js == null)
+            {
+                errors.reject(ERROR_MSG, "Unable to find a submission request for"
+                            + (expAnnot.isJournalCopy() ? " copied " : " ") +  "experiment Id " + expAnnot.getId());
+            }
+            return js;
+        }
+
+        @Override
+        public ModelAndView getView(PublicationDetailsForm form, boolean reshow, BindException errors)
+        {
+            if (reshow)
+            {
+                if (errors.hasErrors())
+                {
+                    return _copiedExperiment != null ? getPublicationDetailsView(form, errors)
+                            : new SimpleErrorView(errors, false);
+                }
+
+                return getConfirmView(form, errors);
+            }
+
+            if (!validateExperiment(form, errors))
+            {
+                return new SimpleErrorView(errors, false);
+            }
+
+            _copiedExperiment = getCopiedExperimentFor(_expAnnot, errors);
+            if (_copiedExperiment == null)
+            {
+                return new SimpleErrorView(errors);
+            }
+            if (!canUpdatePublicationDetails(errors))
+            {
+                return new SimpleErrorView(errors);
+            }
+
+            form.setPubmedId(_copiedExperiment.getPubmedId());
+            form.setLink(_copiedExperiment.getPublicationLink());
+            form.setCitation(_copiedExperiment.getCitation());
+            return getPublicationDetailsView(form, errors);
+        }
+
+        private ModelAndView getPublicationDetailsView(PublicationDetailsForm form, BindException errors)
+        {
+            PublicationDetailsBean bean = new PublicationDetailsBean(form, _copiedExperiment);
+            JspView view = new JspView("/org/labkey/panoramapublic/view/publish/publicationDetails.jsp", bean, errors);
+            view.setTitle("Publication Details");
+            return view;
+        }
+
+        @NotNull
+        private ModelAndView getConfirmView(PublicationDetailsForm form, BindException errors)
+        {
+            PublicationDetailsBean bean = new PublicationDetailsBean(form, _copiedExperiment);
+            JspView view = new JspView("/org/labkey/panoramapublic/view/publish/confirmPublish.jsp", bean, errors);
+            view.setTitle("Confirm Publication Details");
+            return view;
+        }
+
+        @Override
+        public void validateCommand(PublicationDetailsForm form, Errors errors)
+        {
+            if (!validateExperiment(form, errors))
+            {
+                return;
+            }
+            _copiedExperiment = getCopiedExperimentFor(_expAnnot, errors);
+            if (_copiedExperiment == null)
+            {
+                return;
+            }
+
+            if (!canUpdatePublicationDetails(errors))
+            {
+                return;
+            }
+
+            if (!form.isUnpublished())
+            {
+                // User did not check the "Unpublished" checkbox so we need the publication details
+                if (form.hasPubmedId())
+                {
+                    if(!form.getPubmedId().matches(PUBMED_ID))
+                    {
+                        errors.reject(ERROR_MSG, "PubMed ID should be a number with 1 to 8 digits");
+                        return;
+                    }
+                }
+                else
+                {
+                    if (!form.hasLinkAndCitation())
+                    {
+                        errors.reject(ERROR_MSG, "Please provide either a PubMed ID or both a publication link and citation for the paper");
+                        return;
+                    }
+                    UrlValidator urlValidator = new UrlValidator(new String[]{"http", "https"});
+                    if (!urlValidator.isValid(form.getLink()))
+                    {
+                        errors.reject(ERROR_MSG, "Publication Link is not valid");
+                        return;
+                    }
+                }
+                if (!form.hasNewPublicationDetails(_copiedExperiment))
+                {
+                    errors.reject(ERROR_MSG, String.format("Publication details are the same as the ones associated with the data on %s at %s",
+                            _journal.getName(), _copiedExperiment.getShortUrl().renderShortURL()));
+                    return;
+                }
+            }
+            else if (_copiedExperiment.isPublic())
+            {
+                // The "Unpublished" box was checked, but the data on Panorama Public is already public so nothing will change
+                // as a result of this action
+                errors.reject(ERROR_MSG, String.format("Data on %s at %s is already public",
+                        _journal.getName(), _copiedExperiment.getShortUrl().renderShortURL()));
+                return;
+            }
+        }
+
+        private boolean canUpdatePublicationDetails(Errors errors)
+        {
+            if (_copiedExperiment.isPublic() && _copiedExperiment.hasCompletePublicationInfo())
+            {
+                errors.reject(ERROR_MSG, String.format("Data on %s at %s is already public and has complete publication details, including a PubMed ID",
+                        _journal.getName(), _copiedExperiment.getShortUrl().renderShortURL()));
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean handlePost(PublicationDetailsForm form, BindException errors)
+        {
+            if (!form.isConfirmed())
+            {
+                if (form.hasPubmedId())
+                {
+                    Pair<String, String> linkAndCitation = NcbiUtils.getLinkAndCitation(form.getPubmedId());
+                    if (linkAndCitation != null)
+                    {
+                        form.setLink(linkAndCitation.first);
+                        form.setCitation(linkAndCitation.second);
+                    }
+                    else
+                    {
+                        errors.reject(ERROR_MSG, "Unable to get a citation for PubMed ID: " + form.getPubmedId());
+                    }
+                }
+                return false;
+            }
+
+            if (!_copiedExperiment.isPublic())
+            {
+                JournalManager.PublicDataUser publicDataUser = JournalManager.getPublicDataUser(_journal);
+
+                makeFolderPublic(publicDataUser); // Make the folder public
+
+                // If the "Raw Data" tab is displayed, add the data download information webpart
+                if (publicDataUser != null)
+                {
+                    addDownloadDataWebpart(_copiedExperiment.getContainer());
+                }
+
+                // Publish the DOI, if one was assigned
+                publishDoi();
+
+                _madePublic = true;
+            }
+
+            if (!form.isUnpublished())
+            {
+                // Add the publication link and citation to the copied experiment
+                _copiedExperiment.setPublicationLink(form.getLink());
+                _copiedExperiment.setCitation(form.getCitation());
+                if (form.hasPubmedId())
+                {
+                    _copiedExperiment.setPubmedId(form.getPubmedId());
+                }
+                ExperimentAnnotationsManager.save(_copiedExperiment, getUser());
+
+                _addedPublication = true;
+            }
+
+
+            // TODO: announce to ProteomeXchange.  This will be added after updates to PX data validation process
+
+
+            // Post to the message thread associated with this submission
+            PanoramaPublicNotification.notifyDataPublished(_expAnnot, _copiedExperiment, _journal, _journalSubmission.getJournalExperiment(), _doiError, getUser());
+
+            return true;
+        }
+
+        private void makeFolderPublic(JournalManager.PublicDataUser publicDataUser)
+        {
+            Container container = _copiedExperiment.getContainer();
+            MutableSecurityPolicy newPolicy = new MutableSecurityPolicy(container, container.getPolicy());
+            newPolicy.addRoleAssignment(SecurityManager.getGroup(Group.groupGuests), ReaderRole.class);
+            if (publicDataUser != null)
+            {
+                newPolicy.addRoleAssignment(publicDataUser.getUser(), ReaderRole.class);
+            }
+            SecurityPolicyManager.savePolicy(newPolicy);
+        }
+
+        private void addDownloadDataWebpart(Container container)
+        {
+            String webpartName = PanoramaPublicModule.DOWNLOAD_DATA_INFO_WP;
+            List<Portal.WebPart> parts = Portal.getParts(container, RAW_FILES_TAB);
+            if (parts.size() != 0)
+            {
+                if (!parts.stream().anyMatch(p -> webpartName.equals(p.getName())))
+                {
+                    WebPartFactory webPartFactory = Portal.getPortalPart(webpartName);
+                    if(webPartFactory != null)
+                    {
+                        Portal.addPart(container, RAW_FILES_TAB, webPartFactory, WebPartFactory.LOCATION_BODY);
+                    }
+                }
+            }
+        }
+
+        private void publishDoi()
+        {
+            try
+            {
+                DataCiteService.publishIfDraftDoi(_copiedExperiment);
+            }
+            catch (DataCiteException e)
+            {
+                _doiError = e;
+            }
+        }
+
+        @Override
+        public ModelAndView getSuccessView(PublicationDetailsForm form)
+        {
+            var shortUrl = _copiedExperiment.getShortUrl().renderShortURL();
+            var successMsg = _madePublic ? String.format("Data on %s at %s was made public%s",
+                                                               _journal.getName(),
+                                                               shortUrl,
+                                                               (_addedPublication ? " and publication details were added." : "."))
+                                   : _addedPublication ?  String.format("Publication details were updated for data on %s at %s.", _journal.getName(), shortUrl) : "";
+            Link viewDataLink = new Link.LinkBuilder("View Data")
+                    .href(PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(_copiedExperiment.getContainer()))
+                    .target("_blank").build();
+            Button backToFolderBtn = new Button.ButtonBuilder("Back to Folder")
+                    .href(PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(_expAnnot.getContainer())).build();
+
+            return new HtmlView(
+                    DIV(successMsg, SPAN(at(style, "margin-left:10px;"), viewDataLink),
+                            _copiedExperiment.getPxid() != null ?
+                                    DIV(at(style, "margin-top:10px;"),
+                                            String.format("Accession %s will be %s on ProteomeXchange by a %s administrator.",
+                                                    _copiedExperiment.getPxid(), _madePublic ? "made public" : "updated", _journal.getName()))
+                                    : "",
+                            DIV(at(style, "margin-top:10px;"), backToFolderBtn)
+                    )
+            );
+        }
+
+        @Override
+        public ActionURL getSuccessURL(PublicationDetailsForm form)
+        {
+            return null;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Publish Data");
+        }
+    }
+
+    public static class PublicationDetailsBean
+    {
+        private final PublicationDetailsForm _form;
+        private final String _accessUrl;
+        private final boolean _isPublic;
+        private final boolean _isPeerReviewed;
+
+        public PublicationDetailsBean(PublicationDetailsForm form, ExperimentAnnotations copiedExperiment)
+        {
+            _form = form;
+            _isPublic = copiedExperiment.isPublic();
+            _isPeerReviewed = copiedExperiment.isPeerReviewed();
+            _accessUrl = copiedExperiment.getShortUrl().renderShortURL();
+        }
+
+        public PublicationDetailsForm getForm()
+        {
+            return _form;
+        }
+
+        public boolean isPublic()
+        {
+            return _isPublic;
+        }
+
+        public boolean isPeerReviewed()
+        {
+            return _isPeerReviewed;
+        }
+
+        public String getAccessUrl()
+        {
+            return _accessUrl;
+        }
+    }
+    public static class PublicationDetailsForm extends ExperimentIdForm
+    {
+        private String _link;
+        private String _citation;
+        private String _pubmedId;
+        private boolean _unpublished;
+        private boolean _confirmed;
+
+        public String getLink()
+        {
+            return _link;
+        }
+
+        public void setLink(String link)
+        {
+            _link = link;
+        }
+
+        public String getCitation()
+        {
+            return _citation;
+        }
+
+        public void setCitation(String citation)
+        {
+            _citation = citation;
+        }
+
+        public String getPubmedId()
+        {
+            return _pubmedId;
+        }
+
+        public void setPubmedId(String pubmedId)
+        {
+            _pubmedId = pubmedId;
+        }
+
+        public boolean isUnpublished()
+        {
+            return _unpublished;
+        }
+
+        public void setUnpublished(boolean unpublished)
+        {
+            _unpublished = unpublished;
+        }
+
+        public boolean isConfirmed()
+        {
+            return _confirmed;
+        }
+
+        public void setConfirmed(boolean confirmed)
+        {
+            _confirmed = confirmed;
+        }
+
+        public boolean hasPubmedId()
+        {
+            return !StringUtils.isBlank(_pubmedId);
+        }
+
+        public boolean hasLinkAndCitation()
+        {
+            return !(StringUtils.isBlank(_link) || StringUtils.isBlank(_citation));
+        }
+
+        public boolean hasNewPublicationDetails(ExperimentAnnotations copiedExperiment)
+        {
+            return !(Objects.equals(_pubmedId, copiedExperiment.getPubmedId())
+                    && Objects.equals(_link, copiedExperiment.getPublicationLink())
+                    && Objects.equals(_citation, copiedExperiment.getCitation()));
+        }
+    }
+
+    public static abstract class PanoramaPublicExperimentAction<T extends ExperimentIdForm> extends FormViewAction<T>
+    {
+        protected ExperimentAnnotations _expAnnot;
+
+        protected abstract ModelAndView getModelAndView(T form, boolean reshow, BindException errors);
+        protected abstract void validatePostCommand(T form, Errors errors);
+
+        private boolean validateExperiment(T form, Errors errors)
+        {
+            _expAnnot = form.lookupExperiment();
+            if (_expAnnot == null)
+            {
+                errors.reject(ERROR_MSG, "Cannot find an experiment with Id " + form.getId());
+                return false;
+            }
+
+            ensureCorrectContainer(getContainer(), _expAnnot.getContainer(), getViewContext());
+            return true;
+        }
+
+        @Override
+        public ModelAndView getView(T form, boolean reshow, BindException errors)
+        {
+            if (!validateExperiment(form, errors))
+            {
+                return new SimpleErrorView(errors, false);
+            }
+
+            return getModelAndView(form, reshow, errors);
+        }
+
+        @Override
+        public void validateCommand(T form, Errors errors)
+        {
+            if (!validateExperiment(form, errors))
+            {
+                return;
+            }
+
+            validatePostCommand(form, errors);
+        }
+    }
+
+    @RequiresPermission(UpdatePermission.class)
+    public static class EditSpecLibInfoAction extends PanoramaPublicExperimentAction<EditSpecLibInfoForm>
+    {
+        private SpecLibInfo _specLibInfo;
+        private SpectralLibrary _spectralLibrary;
+
+        @Override
+        public ModelAndView getModelAndView(EditSpecLibInfoForm form, boolean reshow, BindException errors)
+        {
+            if (!reshow)
+            {
+                _spectralLibrary = getLibrary(form, errors);
+                if (_spectralLibrary != null)
+                {
+                    form.setSpecLibId(_spectralLibrary.getId());
+                }
+                _specLibInfo = getSpecLibInfo(form, errors);
+                if (errors.hasErrors())
+                {
+                    return new SimpleErrorView(errors);
+                }
+
+                if ( _specLibInfo != null)
+                {
+                    form.setSpecLibInfoId(_specLibInfo.getId());
+                    if (_specLibInfo.getSourceType() != null)
+                    {
+                        form.setSourceType(_specLibInfo.getSourceType().name());
+                    }
+                    form.setSourceUrl(_specLibInfo.getSourceUrl());
+                    form.setSourceAccession(_specLibInfo.getSourceAccession());
+                    form.setSourceUsername(_specLibInfo.getSourceUsername());
+                    form.setSourcePassword(_specLibInfo.getSourcePassword());
+                    if (_specLibInfo.getDependencyType() != null)
+                    {
+                        form.setDependencyType(_specLibInfo.getDependencyType().name());
+                    }
+                }
+            }
+
+            if (_spectralLibrary == null)
+            {
+                return new SimpleErrorView(errors);
+            }
+
+            JspView view = new JspView<>("/org/labkey/panoramapublic/view/editSpecLibInfo.jsp", new SpecLibInfoBean(form, _spectralLibrary), errors);
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            view.setTitle("Edit Spectral Library Information");
+            return view;
+        }
+
+        private SpecLibInfo getSpecLibInfo(EditSpecLibInfoForm form, Errors errors)
+        {
+            SpecLibInfo specLibInfo = null;
+            if (form.getSpecLibInfoId() != null)
+            {
+                specLibInfo = SpecLibInfoManager.get(form.getSpecLibInfoId(), getContainer());
+                if (specLibInfo == null)
+                {
+                    errors.reject(ERROR_MSG, "Could not find a row in SpecLibInfo for Id: " + form.getSpecLibInfoId());
+                }
+            }
+            return specLibInfo;
+        }
+
+        private SpectralLibrary getLibrary(EditSpecLibInfoForm form, Errors errors)
+        {
+            var spectralLibrary = SpecLibInfoManager.getSpectralLibrary(form.getSpecLibId(),
+                    null, // Do not use the container in the request as the library may be in a subfolder if the
+                                  // ExperimentAnnotations is configured to include subfolders.
+                    getUser());
+            if (spectralLibrary == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find a spectral library with Id: " + form.getSpecLibId());
+                return null;
+            }
+            var run = spectralLibrary.getRun(getUser());
+            if (run == null)
+            {
+                errors.reject(ERROR_MSG, String.format("Could not find the Skyline document (Id: %d) linked to the spectral library with Id: %d",
+                        spectralLibrary.getRunId(), spectralLibrary.getId()));
+                return null;
+            }
+            if (!ExperimentAnnotationsManager.getTargetedMSRuns(_expAnnot).stream().anyMatch(r -> run.getId() == r.getId()))
+            {
+                errors.reject(ERROR_MSG, String.format("Skyline document (Id: %d) that contains the spectral library (Id: %d) does not belong to the " +
+                                "experiment (Id: %d) in the folder '%s'",
+                        run.getId(), spectralLibrary.getId(), _expAnnot.getId(), run.getContainer().getPath()));
+                return null;
+            }
+            if (!run.getContainer().hasPermission(getUser(), UpdatePermission.class))
+            {
+                errors.reject(ERROR_MSG, String.format("You do not have permissions to add details for spectral library (Id: %d) in the folder '%s'",
+                        spectralLibrary.getId(), run.getContainer().getPath()));
+                return null;
+            }
+
+            return spectralLibrary;
+        }
+
+        @Override
+        public void validatePostCommand(EditSpecLibInfoForm form, Errors errors)
+        {
+            _specLibInfo = getSpecLibInfo(form, errors);
+            _spectralLibrary = getLibrary(form, errors);
+            if (errors.hasErrors())
+            {
+                return;
+            }
+
+            if (_specLibInfo != null && !_specLibInfo.getLibraryKey().equals(_spectralLibrary.getKey()))
+            {
+                errors.reject(ERROR_MSG, String.format("Saved library key '%s' does not match the key '%s' for spectral library with Id: %d",
+                        _specLibInfo.getLibraryKey(), _spectralLibrary.getKey(), _spectralLibrary.getId()));
+                return ;
+            }
+            if (form.getSourceType() == null)
+            {
+                errors.reject(ERROR_MSG, "A value for Library Source is required");
+            }
+            else
+            {
+                var sourceType = SpecLibSourceType.getForName(form.getSourceType());
+                if (sourceType == null)
+                {
+                    errors.reject(ERROR_MSG, "Invalid value for Library Source: " + form.getSourceType());
+                }
+                else if (sourceType == SpecLibSourceType.PUBLIC_LIBRARY)
+                {
+                    var libraryUrl = form.getSourceUrl();
+                    if (StringUtils.isBlank(libraryUrl))
+                    {
+                        errors.reject(ERROR_MSG, "Source URL for a publicly available library cannot be blank");
+                    }
+                    else
+                    {
+                        UrlValidator urlValidator = new UrlValidator(new String[]{"http", "https"});
+                        if (!urlValidator.isValid(libraryUrl))
+                        {
+                            errors.reject(ERROR_MSG, "Source URL for library is not valid");
+                        }
+                    }
+                }
+                else if (sourceType == SpecLibSourceType.OTHER_REPOSITORY)
+                {
+                    // We should at least have an accession / identifier
+                    var accession = form.getSourceAccession();
+                    if (StringUtils.isBlank(accession))
+                    {
+                        errors.reject(ERROR_MSG, "Accession / identifier of the data in the other repository cannot be blank");
+                    }
+                    else if (!validAccession(accession))
+                    {
+                        errors.reject(ERROR_MSG, "Invalid accession. Accepted accessions are ProteomeXchange IDs (e.g. PXD000001)" +
+                                ", MassIVE identifiers (e.g. MSV000000001) or PeptideAtlas identifiers (e.g. PASS00001)");
+                    }
+                    if (!StringUtils.isBlank(form.getSourceUsername()) && StringUtils.isBlank(form.getSourcePassword()))
+                    {
+                        // Require a password if a username was entered. We do not display the previously saved password in the
+                        // form. User has to re-enter it each time they edit the details.
+                        errors.reject(ERROR_MSG, "Password to access data in the other repository cannot be blank");
+                    }
+                }
+            }
+
+            if (form.getDependencyType() == null)
+            {
+                errors.reject(ERROR_MSG, "A value for Dependency Type is required");
+            }
+            else if (SpecLibDependencyType.getFromName(form.getDependencyType()) == null)
+            {
+                errors.reject(ERROR_MSG, "Invalid value for Dependency Type: " + form.getDependencyType());
+            }
+        }
+
+        private static final String PXD = "^PXD[0-9]{6}$";
+        private static final String MASSIVE_ID = "^MSV[0-9]{9}$";
+        private static final String PEPTIDEATLAS_ID = "^PASS[0-9]{5}$";
+        private boolean validAccession(@NotNull String accession)
+        {
+            return accession.matches(PXD) || accession.matches(MASSIVE_ID) || accession.matches(PEPTIDEATLAS_ID);
+        }
+
+        @Override
+        public boolean handlePost(EditSpecLibInfoForm form, BindException errors)
+        {
+            if (errors.getErrorCount() > 0)
+            {
+                return false;
+            }
+
+            if (_specLibInfo != null)
+            {
+                copyValues(_specLibInfo, form);
+                SpecLibInfoManager.update(_specLibInfo, getUser());
+            }
+            else
+            {
+                var specLibInfo = new SpecLibInfo();
+                specLibInfo.setExperimentAnnotationsId(form.getId());
+                specLibInfo.setName(_spectralLibrary.getName());
+                specLibInfo.setFileNameHint(_spectralLibrary.getFileNameHint());
+                specLibInfo.setSkylineLibraryId(_spectralLibrary.getSkylineLibraryId());
+                specLibInfo.setRevision(_spectralLibrary.getRevision());
+                specLibInfo.setLibraryType(_spectralLibrary.getLibraryType());
+                copyValues(specLibInfo, form);
+                SpecLibInfoManager.save(specLibInfo, getUser());
+            }
+
+            return true;
+        }
+
+        private void copyValues(SpecLibInfo specLibInfo, EditSpecLibInfoForm form)
+        {
+            specLibInfo.setSourceType(SpecLibSourceType.getForName(form.getSourceType()));
+            specLibInfo.setSourceUrl(form.getSourceUrl());
+            specLibInfo.setSourceAccession(form.getSourceAccession());
+            specLibInfo.setSourceUsername(form.getSourceUsername());
+            specLibInfo.setSourcePassword(form.getSourcePassword());
+            specLibInfo.setDependencyType(SpecLibDependencyType.getFromName(form.getDependencyType()));
+        }
+
+        @Override
+        public URLHelper getSuccessURL(EditSpecLibInfoForm form)
+        {
+            return getViewExperimentDetailsURL(form.getId(), getContainer());
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Edit Spectral Library Information");
+        }
+    }
+
+    public static class SpecLibInfoBean
+    {
+        private final SpectralLibrary _library;
+        private final EditSpecLibInfoForm _form;
+
+
+        public SpecLibInfoBean(EditSpecLibInfoForm form, SpectralLibrary library)
+        {
+            _library = library;
+            _form = form;
+        }
+
+        public EditSpecLibInfoForm getForm()
+        {
+            return _form;
+        }
+
+        public SpectralLibrary getLibrary()
+        {
+            return _library;
+        }
+    }
+
+    public static class EditSpecLibInfoForm extends ExperimentIdForm
+    {
+        private long _specLibId; // row id from targetedms.spectrumlibrary table
+        private Integer _specLibInfoId; // row id from the panoramapublic.speclibinfo table
+
+        private String _sourceType;
+        private String _sourceUrl;
+        private String _sourceAccession;
+        private String _sourceUsername;
+        private String _sourcePassword;
+
+        private String _dependencyType;
+
+        public long getSpecLibId()
+        {
+            return _specLibId;
+        }
+
+        public void setSpecLibId(long specLibId)
+        {
+            _specLibId = specLibId;
+        }
+
+        public Integer getSpecLibInfoId()
+        {
+            return _specLibInfoId;
+        }
+
+        public void setSpecLibInfoId(Integer specLibInfoId)
+        {
+            _specLibInfoId = specLibInfoId;
+        }
+
+        public String getSourceUrl()
+        {
+            return _sourceUrl;
+        }
+
+        public void setSourceUrl(String sourceUrl)
+        {
+            _sourceUrl = sourceUrl;
+        }
+
+        public String getSourceType()
+        {
+            return _sourceType;
+        }
+
+        public void setSourceType(String sourceType)
+        {
+            _sourceType = sourceType;
+        }
+
+        public String getSourceAccession()
+        {
+            return _sourceAccession;
+        }
+
+        public void setSourceAccession(String sourceAccession)
+        {
+            _sourceAccession = sourceAccession;
+        }
+
+        public String getSourceUsername()
+        {
+            return _sourceUsername;
+        }
+
+        public void setSourceUsername(String sourceUsername)
+        {
+            _sourceUsername = sourceUsername;
+        }
+
+        public String getSourcePassword()
+        {
+            return _sourcePassword;
+        }
+
+        public void setSourcePassword(String sourcePassword)
+        {
+            _sourcePassword = sourcePassword;
+        }
+
+        public String getDependencyType()
+        {
+            return _dependencyType;
+        }
+
+        public void setDependencyType(String dependencyType)
+        {
+            _dependencyType = dependencyType;
+        }
+    }
+
+    @RequiresPermission(ReadPermission.class)
+    public static class ViewSpecLibAction extends SimpleViewAction<SpecLibForm>
+    {
+        @Override
+        public ModelAndView getView(SpecLibForm form, BindException errors) throws Exception
+        {
+            var specLib = SpecLibInfoManager.getSpectralLibrary(form.getSpecLibId(), getContainer(), getUser());
+            if (specLib == null)
+            {
+                errors.reject(ERROR_MSG, String.format("Could not find a spectral library with Id: %d in the folder '%s'",
+                        form.getSpecLibId(), getContainer().getPath()));
+                return new SimpleErrorView(errors);
+            }
+
+            ITargetedMSRun run = specLib.getRun(getUser());
+            if (run == null)
+            {
+                errors.reject(ERROR_MSG, "Could find a Skyline document for Id: " + specLib.getRunId());
+                return new SimpleErrorView(errors);
+            }
+
+            var expAnnotations = ExperimentAnnotationsManager.getExperimentIncludesContainer(getContainer());
+
+            SpecLibInfo specLibInfo = null;
+            if (form.getSpecLibInfoId() != null && expAnnotations != null)
+            {
+                specLibInfo = SpecLibInfoManager.get(form.getSpecLibInfoId(), expAnnotations.getContainer());
+                if (specLibInfo == null)
+                {
+                    errors.reject(ERROR_MSG, "Could find a SpecLibInfo row for Id: " + form.getSpecLibInfoId());
+                    return new SimpleErrorView(errors);
+                }
+            }
+
+            VBox view = new VBox();
+            view.setTitle("Library Details");
+            view.addView(getLibrarySummary(form, specLib, run, specLibInfo, expAnnotations));
+            view.addView(getSourceFilesView(specLib, run));
+            return view;
+        }
+
+        private ModelAndView getLibrarySummary(SpecLibForm form, SpectralLibrary library, ITargetedMSRun run,
+                                               @Nullable SpecLibInfo specLibInfo, @Nullable ExperimentAnnotations expAnnotations)
+        {
+            List<DOM.Renderable> rows = new ArrayList<>();
+            rows.add(getSummaryRow("Name:", library.getName()));
+            rows.add(getSummaryRow("File Name: ", SPAN(library.getFileNameHint(),
+                    SPAN(at(style, "margin-left:5px; white-space: nowrap;"), library.getDownloadLink(getUser())))));
+            rows.add(getSummaryRow("Skyline Document: ",  new Link.LinkBuilder(run.getFileName())
+                    .href(PageFlowUtil.urlProvider(TargetedMSUrls.class).getShowRunUrl(run.getContainer(), run.getId()))
+                    .clearClasses().build()));
+
+            if (specLibInfo != null)
+            {
+                if (specLibInfo.getSourceType() != null)
+                {
+                    if (SpecLibSourceType.PUBLIC_LIBRARY == specLibInfo.getSourceType())
+                    {
+                        rows.add(TR(TD(cl("labkey-form-label"), "Public Library: "),
+                                TD(A(at(href, specLibInfo.getSourceUrl()), specLibInfo.getSourceUrl()))));
+                    }
+                    else
+                    {
+                        rows.add(getSummaryRow("Library Source: ", specLibInfo.getSourceType().getLabel()));
+                        if (specLibInfo.getSourceType() == SpecLibSourceType.OTHER_REPOSITORY)
+                        {
+                            rows.add(getSummaryRow("Repository Accession: ", specLibInfo.getSourceAccession()));
+                        }
+                    }
+                }
+                if (specLibInfo.getDependencyType() != null)
+                {
+                    rows.add(getSummaryRow("Library Dependency: ", specLibInfo.getDependencyType().getLabel()));
+                }
+
+            }
+
+            if (form.getAllSpecLibIds() != null)
+            {
+                Set<Long> ids = Arrays.stream(form.getAllSpecLibIds().split(","))
+                        .map(s -> NumberUtils.toLong(s, 0))
+                        .filter(l -> l != 0 && library.getId() != l)
+                        .collect(Collectors.toSet());
+                List<SpectralLibrary> otherLibraries = SpecLibInfoManager.getLibraries(ids, getUser());
+                if (otherLibraries.size() > 0)
+                {
+                    List<DOM.Renderable> otherDocs = new ArrayList<>();
+                    for (SpectralLibrary otherLib: otherLibraries)
+                    {
+                        var params = new HashMap<String, String>();
+                        params.put("allSpecLibIds", form.getAllSpecLibIds());
+                        if (specLibInfo != null)
+                        {
+                            params.put("specLibInfoId", String.valueOf(specLibInfo.getId()));
+                        }
+                        otherDocs.add(DIV(otherLib.getRunLibraryLink(getUser(), params)));
+                    }
+
+                    rows.add(TR(TD(cl("labkey-form-label"), String.format("Other Document%s With Library: ", otherDocs.size() > 1 ? "s" : ""),
+                            TD(otherDocs))));
+                }
+            }
+
+            if (expAnnotations != null)
+            {
+                ActionURL editSpecLibUrl = getEditSpecLibInfoURL(expAnnotations.getId(), library.getId(), form.getSpecLibInfoId(), expAnnotations.getContainer());
+                ActionURL viewExperimentUrl = getViewExperimentDetailsURL(expAnnotations.getId(), expAnnotations.getContainer());
+                String linkText = specLibInfo != null ? "Edit Library Details" : "Add Library Details";
+                rows.add(TR(TD(at(colspan, 2), DIV(at(style, "margin-top: 10px;"),
+                        new Button.ButtonBuilder(linkText).href(editSpecLibUrl).build(),
+                        HtmlString.NBSP,
+                        new Button.ButtonBuilder("Experiment Details").href(viewExperimentUrl).build()))));
+            }
+            HtmlView view = new HtmlView(TABLE(cl("lk-fields-table"), rows));
+            view.setTitle("Summary");
+            return view;
+        }
+
+        @NotNull
+        private DOM.Renderable getSummaryRow(String fieldLabel, Object value)
+        {
+            return TR(TD(cl("labkey-form-label"), fieldLabel), TD(at(style, "padding:5px;"), value));
+        }
+
+        private ModelAndView getSourceFilesView(SpectralLibrary specLib, ITargetedMSRun run)
+        {
+            VBox view = new VBox();
+            view.setTitle("Library Source Files");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            Path libPath = specLib.getLibPath(getUser());
+            if (libPath == null)
+            {
+                view.addView(new HtmlView(DIV(cl("labkey-error"), "Library file is missing from the Skyline document")));
+            }
+            else
+            {
+                SpecLibReader reader = SpecLibReader.getReader(specLib);
+                if (reader == null)
+                {
+                    view.addView(new HtmlView(DIV(cl("labkey-error"), "Unsupported library. Could not read library source file names.")));
+                }
+                else
+                {
+                    try
+                    {
+                        List<LibSourceFile> libSourceFiles = reader.readLibSourceFiles(run, specLib);
+                        if (libSourceFiles == null || libSourceFiles.size() == 0)
+                        {
+                            view.addView(new HtmlView(DIV(cl("labkey-error"), "No library source file names were found.")));
+                        }
+                        else
+                        {
+                            List<String> spectrumFileNames = getSourceFiles(libSourceFiles, LibSourceFile::getSpectrumSourceFile);
+                            List<String> idFileNames = getSourceFiles(libSourceFiles, LibSourceFile::getIdFile);
+                            view.addView(new HtmlView(DIV(
+                                    TABLE(TR(
+                                            TD(at(valign, "top", style, "padding:5px;"),
+                                                    createTable("Spectrum Files", spectrumFileNames)),
+                                            TD(at(valign, "top", style, "padding:5px;"),
+                                                    createTable("Search Results Files", idFileNames)))
+                                    ))));
+                        }
+                    }
+                    catch (SpecLibReaderException e)
+                    {
+                        view.addView(new HtmlView(DIV(DIV(cl("labkey-error"), "Error reading library source files."),
+                                DIV(ExceptionUtil.renderException(e)))));
+                    }
+                }
+            }
+            return view;
+        }
+
+        private DOM.Renderable createTable(String title, List<String> fileNames)
+        {
+            if (fileNames.size() > 0)
+            {
+                return TABLE(at(border, 1),
+                        THEAD(TR(TH(at(style, "padding:5px;"), STRONG(title)))),
+                        TBODY(fileNames.stream().map(name -> TR(TD(at(style, "padding:5px;"), name)))));
+            }
+            return HtmlString.EMPTY_STRING;
+        }
+
+        @NotNull
+        private List<String> getSourceFiles(List<LibSourceFile> libSourceFiles, Function<LibSourceFile, String> mappingFunction)
+        {
+            return libSourceFiles.stream().map(mappingFunction).collect(Collectors.toList()).stream()
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.toList());
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Spectral Library Details");
+        }
+    }
+
+    public static class SpecLibForm
+    {
+        private long _specLibId; // row id from targetedms.spectrumlibrary table
+        private Integer _specLibInfoId; // row id from panoramapublic.speclibinfo table
+        private String _allSpecLibIds; // comma separated row ids of all spectral libraries with the same attributes
+
+        public Integer getSpecLibInfoId()
+        {
+            return _specLibInfoId;
+        }
+
+        public void setSpecLibInfoId(Integer specLibInfoId)
+        {
+            _specLibInfoId = specLibInfoId;
+        }
+
+        public long getSpecLibId()
+        {
+            return _specLibId;
+        }
+
+        public void setSpecLibId(long specLibId)
+        {
+            _specLibId = specLibId;
+        }
+
+        public String getAllSpecLibIds()
+        {
+            return _allSpecLibIds;
+        }
+
+        public void setAllSpecLibIds(String allSpecLibIds)
+        {
+            _allSpecLibIds = allSpecLibIds;
+        }
+    }
+
     // ------------------------------------------------------------------------
     // BEGIN Add the PanoramaPublic module to existing TargetedMS containers
     // ------------------------------------------------------------------------
@@ -5556,6 +6837,18 @@ public class PanoramaPublicController extends SpringActionController
         result.addParameter("keepPrivate", keepPrivate);
         result.addParameter("getPxid", getPxId);
         return result;
+    }
+
+    public static ActionURL getEditSpecLibInfoURL(int experimentAnnotationsId, long specLibId, @Nullable Integer specLibInfoId, Container container)
+    {
+        ActionURL editUrl = new ActionURL(PanoramaPublicController.EditSpecLibInfoAction.class, container);
+        editUrl.addParameter("id", experimentAnnotationsId);
+        editUrl.addParameter("specLibId", specLibId);
+        if (specLibInfoId != null)
+        {
+            editUrl.addParameter("specLibInfoId", specLibInfoId);
+        }
+        return editUrl;
     }
 
     public static class TestCase extends AbstractActionPermissionTest

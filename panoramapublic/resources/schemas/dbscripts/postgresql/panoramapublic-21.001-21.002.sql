@@ -13,122 +13,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-CREATE TABLE panoramapublic.DataValidation
+CREATE TABLE panoramapublic.speclibinfo
 (
-    _ts TIMESTAMP,
-    CreatedBy              USERID,
-    Created                TIMESTAMP,
-    ModifiedBy             USERID,
-    Modified               TIMESTAMP,
+    _ts               TIMESTAMP,
+    Id                SERIAL NOT NULL,
+    CreatedBy         USERID,
+    Created           TIMESTAMP,
+    ModifiedBy        USERID,
+    Modified          TIMESTAMP,
 
-    Id                         SERIAL NOT NULL,
-    Container                  ENTITYID NOT NULL,
-    ExperimentAnnotationsId    INT    NOT NULL,
-    JobId                      INTEGER NOT NULL,
-    Status                     INT,
+    experimentAnnotationsId   INT NOT NULL,
 
-    CONSTRAINT PK_DataValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_DataValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId),
-    CONSTRAINT FK_DataValidation_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id),
-    CONSTRAINT FK_DataValidation_JobId FOREIGN KEY (JobId) REFERENCES pipeline.statusfiles (RowId)
+    -- Columns from the targetedms.spectrumlibrary table. The same spectral library can be used in more than one
+    -- document. We assume that libraries with identical values for these columns are the same library.
+    -- The VARCHAR columns in the targetedms schema have a limit.  Here they are defined without a limit in case
+    -- the column definitions for name, filenamehint and skylinelibraryid change in the targetedms schema.
+    librarytype               VARCHAR(20)  NOT NULL,
+    name                      VARCHAR NOT NULL, -- VARCHAR(400) NOT NULL,
+    filenamehint              VARCHAR, -- VARCHAR(300),
+    skylinelibraryid          VARCHAR, -- VARCHAR(200),
+    revision                  VARCHAR(10),
+
+    SourceType                INT NOT NULL,
+    SourceUrl                 VARCHAR,
+    SourceAccession           VARCHAR(100),
+    SourceUsername            VARCHAR(100),
+    SourcePassword            VARCHAR(100),
+    DependencyType            INT NOT NULL,
+
+    CONSTRAINT PK_SpecLibInfo PRIMARY KEY (Id),
+    CONSTRAINT FK_SpecLibInfo_ExperimentAnnotations FOREIGN KEY (experimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id)
 );
-
-CREATE INDEX IX_DataValidation_Container ON panoramapublic.DataValidation(Container);
-CREATE INDEX IX_DataValidation_ExperimentAnnotations ON panoramapublic.DataValidation(ExperimentAnnotationsId);
-CREATE INDEX IX_DataValidation_JobId ON panoramapublic.DataValidation(JobId);
-
-CREATE TABLE panoramapublic.SkylineDocValidation
-(
-    Id                         SERIAL NOT NULL,
-    ValidationId               INT NOT NULL,
-    RunId                      BIGINT NOT NULL, -- targetedms.runs.Id
-    Container                  ENTITYID NOT NULL,
-    Name                       VARCHAR(300),
-
-    CONSTRAINT PK_SkylineDocValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_SkylineDocValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id),
-    CONSTRAINT FK_SkylineDocValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId)
-);
-CREATE INDEX IX_SkylineDocValidation_ValidationId ON panoramapublic.SkylineDocValidation(ValidationId);
-CREATE INDEX IX_SkylineDocValidation_Container ON panoramapublic.SkylineDocValidation(Container);
-CREATE INDEX IX_SkylineDocValidation_RunId ON panoramapublic.SkylineDocValidation(runId);
-
-CREATE TABLE panoramapublic.SkylineDocSampleFile
-(
-    Id                         SERIAL NOT NULL,
-    SkylineDocValidationId     INT NOT NULL,
-    Name                       VARCHAR(300) NOT NULL,
-    SkylineName                VARCHAR(300) NOT NULL,
-    Status                     TEXT,
-
-    CONSTRAINT PK_SkylineDocSampleFile PRIMARY KEY (Id),
-    CONSTRAINT FK_SkylineDocSampleFile_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id)
-);
-
-CREATE TABLE panoramapublic.ModificationValidation
-(
-    Id                         SERIAL NOT NULL,
-    ValidationId               INT NOT NULL,
-    SkylineModName             VARCHAR(100) NOT NULL,
-    UnimodId                   INT,
-    UnimodName                 VARCHAR(100),
-    ModType                    VARCHAR(10) NOT NULL, -- Structural, Isotopic
-    DbModId                    BIGINT NOT NULL, -- targetedms.StructuralModification.Id OR targetedms.IsotopicModification.Id
-    UnimodMatches              TEXT, -- Example: 6:Carboxymethyl&&143:HexNAc(2)
-
-    CONSTRAINT PK_ModificationValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_ModificationValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
-);
-
-CREATE TABLE panoramapublic.SkylineDocModification
-(
-    Id                         SERIAL NOT NULL,
-    SkylineDocValidationId     INT NOT NULL,
-    ModificationValidationId   INT NOT NULL,
-
-    CONSTRAINT PK_SkylineDocModification PRIMARY KEY (Id),
-    CONSTRAINT FK_SkylineDocModification_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
-    CONSTRAINT FK_SkylineDocModification_SpecLibValidation FOREIGN KEY (ModificationValidationId) REFERENCES panoramapublic.ModificationValidation(Id)
-);
-
-CREATE TABLE panoramapublic.SpecLibValidation
-(
-    Id                         SERIAL NOT NULL,
-    ValidationId               INT NOT NULL,
-    LibName                    VARCHAR(300) NOT NULL,
-    FileName                   VARCHAR(300) NOT NULL,
-    Size                       BIGINT,
-    LibType                    VARCHAR(30) NOT NULL,
-
-    CONSTRAINT PK_SpecLibValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_SpecLibValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
-);
-
-CREATE TABLE panoramapublic.SpecLibSourceFile
-(
-    Id                         SERIAL NOT NULL,
-    SpecLibValidationId        INT NOT NULL,
-    Name                       VARCHAR(300) NOT NULL,
-    Status                     TEXT,
-    SourceType                 VARCHAR(20) NOT NULL,
-
-    CONSTRAINT PK_SpecLibSourceFile PRIMARY KEY (Id),
-    CONSTRAINT FK_SpecLibSourceFile_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
-);
-
-CREATE TABLE panoramapublic.SkylineDocSpecLib
-(
-    Id                         SERIAL NOT NULL,
-    SkylineDocValidationId     INT NOT NULL,
-    SpecLibValidationId        INT NOT NULL,
-    Included                   BOOLEAN NOT NULL,
-
-    CONSTRAINT PK_SkyDocSpecLib PRIMARY KEY (Id),
-    CONSTRAINT FK_SkyDocSpecLib_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
-    CONSTRAINT FK_SkyDocSpecLib_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
-);
-
-
-
-
+CREATE INDEX IX_SpecLibInfo_ExperimentAnnotations ON panoramapublic.SpecLibInfo(experimentAnnotationsId);
 

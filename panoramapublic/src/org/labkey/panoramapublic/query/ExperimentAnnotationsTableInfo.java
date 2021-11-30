@@ -23,6 +23,7 @@ import org.labkey.api.data.ColumnInfo;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerFilter;
 import org.labkey.api.data.ContainerForeignKey;
+import org.labkey.api.data.CoreSchema;
 import org.labkey.api.data.DataColumn;
 import org.labkey.api.data.DisplayColumn;
 import org.labkey.api.data.DisplayColumnFactory;
@@ -30,6 +31,7 @@ import org.labkey.api.data.JdbcType;
 import org.labkey.api.data.RenderContext;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.TableInfo;
+import org.labkey.api.data.dialect.SqlDialect;
 import org.labkey.api.exp.api.ExperimentService;
 import org.labkey.api.portal.ProjectUrls;
 import org.labkey.api.query.DetailsURL;
@@ -39,7 +41,10 @@ import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.UserIdForeignKey;
 import org.labkey.api.query.UserIdRenderer;
 import org.labkey.api.query.UserSchema;
+import org.labkey.api.security.Group;
+import org.labkey.api.security.MemberType;
 import org.labkey.api.security.RoleAssignment;
+import org.labkey.api.security.SecurityManager;
 import org.labkey.api.security.User;
 import org.labkey.api.security.UserManager;
 import org.labkey.api.security.UserPrincipal;
@@ -56,9 +61,9 @@ import org.labkey.api.util.UniqueID;
 import org.labkey.api.view.ActionURL;
 import org.labkey.api.view.HttpView;
 import org.labkey.api.view.template.ClientDependency;
+import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
-import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.model.DataLicense;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.view.publish.ShortUrlDisplayColumnFactory;
@@ -93,6 +98,10 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         citationCol.setDisplayColumnFactory(colInfo -> new PublicationLinkDisplayColumn(colInfo));
         citationCol.setURLTargetWindow("_blank");
         citationCol.setLabel("Publication");
+
+        // Add column that combines the citation field with the submitter and lab head display names
+        // to allow searches for author names in the Panorama Public search form
+        addColumn(getAuthorsColumn());
 
         var spikeInColumn = getMutableColumn(FieldKey.fromParts("SpikeIn"));
         spikeInColumn.setDisplayColumnFactory(colInfo -> new YesNoDisplayColumn(colInfo));
@@ -328,6 +337,29 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         setDefaultVisibleColumns(visibleColumns);
     }
 
+    private ExprColumn getAuthorsColumn()
+    {
+        // Concatenate the citation column with the full name of the submitter and the lab head associated with the experiment.
+        // Users selected as submitter and lab head for experiments submitted to Panorama Public will always have a first and
+        // last name. Do not use the displayname since it may not always contain their first or last names.
+        // This column will not be included in the list of default columns.  It is added only to enable expanded searches for author names
+        // in the Panorama Public search form.
+        SqlDialect dialect = PanoramaPublicSchema.getSchema().getSqlDialect();
+        SQLFragment usersSql = new SQLFragment(" SELECT ")
+                .append(dialect.concatenate(new SQLFragment(" COALESCE(firstname, '') "), new SQLFragment("' '"), new SQLFragment(" COALESCE(lastname, '') ")))
+                .append(" FROM ").append(CoreSchema.getInstance().getTableInfoUsersData(), "users")
+                .append(" WHERE ")
+                .append(" users.userid = ").append(ExprColumn.STR_TABLE_ALIAS).append(".submitter")
+                .append(" OR")
+                .append(" users.userid = ").append(ExprColumn.STR_TABLE_ALIAS).append(".labhead");
+        SQLFragment authorsSql = dialect.concatenate(
+                new SQLFragment(" (SELECT ").append(dialect.getSelectConcat(usersSql, ",")).append(") "),
+                new SQLFragment("','"),
+                new SQLFragment(" (COALESCE(").append(ExprColumn.STR_TABLE_ALIAS).append(".citation, '')) ")
+                );
+        return new ExprColumn(this, "Authors", authorsSql, JdbcType.VARCHAR);
+    }
+
     @NotNull
     private ExprColumn getVersionCol()
     {
@@ -418,6 +450,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
 
         private void addUsers(NamedObjectList objectList, Container container, Role adminRole)
         {
+            // CONSIDER:  Use this instead? SecurityManager.getUsersWithPermissions(container, Collections.singleton(AdminPermission.class));
             Set<RoleAssignment> roles = container.getPolicy().getAssignments();
             for(RoleAssignment role: roles)
             {
@@ -435,6 +468,20 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
             {
                 String displayName = getUserDisplayName(u);
                 objectList.put(new SimpleNamedObject(String.valueOf(u.getUserId()), displayName));
+            }
+            else
+            {
+                // This could be a permissions group.  Add the group members
+                Group group = SecurityManager.getGroup(userId);
+                if (group != null)
+                {
+                    // Members of the group and sub-groups (not including "All Site Users")
+                    Set<User> grpMembers = SecurityManager.getAllGroupMembers(group, MemberType.ACTIVE_USERS, false);
+                    for (User member: grpMembers)
+                    {
+                        objectList.put(new SimpleNamedObject(String.valueOf(member.getUserId()), getUserDisplayName(member)));
+                    }
+                }
             }
         }
     }
@@ -469,7 +516,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         String displayName = u.getDisplayName(null);
         if(!StringUtils.isBlank(u.getFullName()))
         {
-            displayName = u.getFullName() + " (" + displayName + ")";
+            displayName = u.getFullName() + (!u.getFullName().equals(displayName) ? " (" + displayName + ")" : "");
         }
         return displayName;
     }
@@ -577,7 +624,11 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         public void renderInputHtml(RenderContext ctx, Writer out, Object value) throws IOException
         {
             String name = getFormFieldName(ctx);
-            String valueString = value == null ? "" : value.toString();
+            String valueString = getStringValue(value, isDisabledInput(ctx));
+            if (valueString == null)
+            {
+                valueString = "";
+            }
 
             String renderId = "input-picker-div-" + UniqueID.getRequestScopedUID(HttpView.currentRequest());
             StringBuilder sb = new StringBuilder();
