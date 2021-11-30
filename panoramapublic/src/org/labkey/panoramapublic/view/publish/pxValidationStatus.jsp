@@ -30,6 +30,11 @@
     .green {
         color:green;
     }
+    /* Add a CSS override for .x4-grid-row-expander. The displayed group-expand.gif gets cutoff since it is 9 x 15px
+       but the CSS width and height are set to 9 x 9px. */
+    .x4-grid-row-expander {
+        height: 15px;
+    }
     .red {
         color:red;
     }
