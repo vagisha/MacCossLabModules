@@ -10,7 +10,6 @@ import org.labkey.api.security.User;
 import org.labkey.api.targetedms.ISampleFile;
 import org.labkey.api.targetedms.ISpectrumLibrary;
 import org.labkey.api.targetedms.ITargetedMSRun;
-import org.labkey.api.targetedms.LibSourceFile;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.Pair;
@@ -29,6 +28,9 @@ import org.labkey.panoramapublic.model.validation.SpecLibValidating;
 import org.labkey.panoramapublic.model.validation.StatusValidating;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
+import org.labkey.panoramapublic.speclib.LibSourceFile;
+import org.labkey.panoramapublic.speclib.SpecLibReader;
+import org.labkey.panoramapublic.speclib.SpecLibReaderException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -126,7 +128,21 @@ public class DataValidator
             for (Pair<SkylineDocValidating, ISpectrumLibrary> docLib: specLib.getDocumentLibraries())
             {
                 ISpectrumLibrary isl = docLib.second;
-                List<LibSourceFile> docLibSources = svc.getLibrarySourceFiles(docLib.first.getRun(), isl);
+                SpecLibReader libReader = SpecLibReader.getReader(isl);
+                List<LibSourceFile> docLibSources = null;
+                if (libReader != null)
+                {
+                    try
+                    {
+                        docLibSources = libReader.readLibSourceFiles(docLib.first.getRun(), isl);
+                    }
+                    catch (SpecLibReaderException e)
+                    {
+                        // TODO: library file exists but there was an error reading the library.
+                        e.printStackTrace();
+                    }
+                }
+
                 if (sources == null)
                 {
                     sources = docLibSources;
@@ -442,7 +458,7 @@ public class DataValidator
         sLib.setLibName(lib.getName());
         sLib.setFileName(lib.getFileNameHint());
         sLib.setLibType(lib.getLibraryType());
-        Path libPath = targetedMsSvc.getSpectrumLibraryPath(doc.getRun(), lib);
+        Path libPath = targetedMsSvc.getLibraryFilePath(doc.getRun(), lib);
         if(libPath != null && Files.exists(libPath))
         {
             try
