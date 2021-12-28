@@ -145,7 +145,7 @@ public class PanoramaPublicSchema extends UserSchema
                     this,
                     PxStatus::getLabel,
                     true,
-                    "ProteomeXchange status determined after validating a dataset");
+                    "Status after validating a dataset for ProteomeXchange");
 
             var viewColumn = tableInfo.getMutableColumn("Value");
             viewColumn.setLabel("PX Status");

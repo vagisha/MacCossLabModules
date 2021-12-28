@@ -42,6 +42,7 @@ import org.labkey.api.view.WebPartView;
 import org.labkey.panoramapublic.model.Journal;
 import org.labkey.panoramapublic.model.speclib.SpecLibKey;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineProvider;
+import org.labkey.panoramapublic.pipeline.PxValidationPipelineProvider;
 import org.labkey.panoramapublic.proteomexchange.SkylineVersion;
 import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
 import org.labkey.panoramapublic.query.ExperimentTitleDisplayColumn;
@@ -95,6 +96,7 @@ public class PanoramaPublicModule extends SpringModule
     {
         PipelineService service = PipelineService.get();
         service.registerPipelineProvider(new CopyExperimentPipelineProvider(this));
+        service.registerPipelineProvider(new PxValidationPipelineProvider(this));
 
         // Register the CopyExperimentRole
         RoleManager.registerRole(new CopyTargetedMSExperimentRole());

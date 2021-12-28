@@ -3,6 +3,11 @@
 <%@ page import="org.labkey.api.view.ViewContext" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.pipeline.PipelineStatusUrls" %>
+<%@ page import="org.labkey.api.view.HttpView" %>
+<%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
+<%@ page import="org.labkey.api.pipeline.PipelineStatusFile" %>
+<%@ page import="org.labkey.api.pipeline.PipelineService" %>
+<%@ page import="org.labkey.api.pipeline.PipelineJob" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%!
@@ -14,18 +19,16 @@
 %>
 <labkey:errors/>
 <%
-    ViewContext context = getViewContext();
-    String jobIdStr = context.getActionURL().getParameter("jobId");
-    Integer jobId = jobIdStr != null ? Integer.valueOf(jobIdStr) : null;
+//    ViewContext context = getViewContext();
+//    String jobIdStr = context.getActionURL().getParameter("jobId");
+//    Integer jobId = jobIdStr != null ? Integer.valueOf(jobIdStr) : null;
+    var view = (JspView<PanoramaPublicController.PxDataValidationForm>) HttpView.currentView();
+    var form = view.getModelBean();
+    int jobId = form.getJobId();
+    var status = PipelineService.get().getStatusFile(jobId);
+    var onPageLoadMsg = String.format("Data validation job is %s. This page will automatically refresh with the validation status.",
+            status.isActive() ? (PipelineJob.TaskStatus.waiting.matches(status.getStatus()) ? "in the queue" : "running") : "complete");
 %>
-<div>
-    <span style="font-weight:bold;text-decoration:underline;margin-right:5px;">Job Status: </span>
-    <span id="jobStatusSpan"></span>
-    <% if (jobId != null ) { %><span style="margin-left:10px;"><%=link("[View Job Details]", PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), jobId))%></span> <% } %>
-</div>
-<div style="margin-top:10px;" id="validationProgressDiv"></div>
-<div style="margin-top:10px;"><div id="validationStatusDiv"></div></div>
-
 <style type="text/css">
     .green {
         color:green;
@@ -56,8 +59,32 @@
     .invalid-bkground {
         background-color: #FFF5EE;
     }
+    .btn-submit
+    {
+        background-image: none;
+    }
+    .btn-green
+    {
+        background-color: green !important;
+    }
+    .btn-orange
+    {
+        background-color: darkorange !important;
+    }
+    .btn-submit .x4-btn-inner-center
+    {
+        color:white !important;
+    }
 
 </style>
+
+<div>
+    <div class="alert alert-info" id="onPageLoadMsg"><%=h(onPageLoadMsg)%></div>
+    <span style="font-weight:bold;text-decoration:underline;margin-right:5px;">Job Status: </span> <span id="jobStatusSpan"></span>
+    <span style="margin-left:10px;"><%=link("[View Pipeline Job]", PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), jobId))%></span>
+</div>
+<div style="margin-top:10px;" id="validationProgressDiv"></div>
+<div style="margin-top:10px;"><div id="validationStatusDiv"></div></div>
 
 <script type="text/javascript">
 
@@ -111,7 +138,7 @@
             var validationStatus = json["validationStatus"];
 
             if (jobStatus && lastJobStatus !== jobStatus) {
-                // console.log(jobStatus);
+                console.log(jobStatus);
                 jobStatusSpan.innerHTML = jobStatus;
                 lastJobStatus = jobStatus;
             }
@@ -128,6 +155,14 @@
                 if (!(jobStatusLc === "complete" || jobStatusLc === "error" || jobStatusLc === "cancelled" || jobStatusLc === "cancelling")) {
                     // If task is not complete then schedule another status update in one second.
                     setTimeout(makeRequest, 1000);
+                }
+                else {
+                    var onPageLoadMsg = document.getElementById("onPageLoadMsg");
+                    if (onPageLoadMsg) {
+                        onPageLoadMsg.innerHTML = "";
+                        onPageLoadMsg.classList.remove('alert');
+                        onPageLoadMsg.classList.remove('alert-info');
+                    }
                 }
             }
         }
@@ -188,12 +223,18 @@
         function getButtonText(json) {
             const statusId = json["statusId"];
             return statusId === 3 ? "Continue Submission"
-                    : statusId === 2 ? "Continue with an Incomplete PX Submission" : "Continue without a ProteomeXchange ID";
+                    : statusId === 2 ? "Submit with an Incomplete PX Submission" : "Submit without a ProteomeXchange ID";
+        }
+
+        function getButtonCls(json) {
+            const statusId = json["statusId"];
+            return statusId === 3 ? "btn-submit btn-green" : "btn-submit btn-orange";
         }
 
         function getButtonLink(json) {
             var url = LABKEY.ActionURL.buildURL('panoramapublic', 'submitExperiment.view', null,
-                    {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
+                    // {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
+                    {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false});
             return url;
         }
 
@@ -217,7 +258,7 @@
                                 layout: {type: 'anchor', align: 'left'},
                                 items: [
                                     {xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(json)},
-                                    {xtype: 'button', text: getButtonText(json), href: getButtonLink(json)}
+                                    {xtype: 'button', text: getButtonText(json), cls: getButtonCls(json), style:'color:white', href: getButtonLink(json)}
                                 ]
                             }
                         ]
@@ -523,6 +564,7 @@
                 storeId: 'specLibStore',
                 padding: 10,
                 disableSelection: true,
+                viewConfig: {enableTextSelection: true},
                 title: 'Spectral Libraries',
                 columns: [
                     {
@@ -597,7 +639,7 @@
                     rowBodyTpl: new Ext4.XTemplate(
                             '<div style="background-color:#f1f1f1;padding:5px;margin-top:5px;font-size:10pt;">',
 
-                            '<div style="font-weight:bold; margin-top:10px;">Status: {[this.renderLibraryStatus(values.status, values.valid)]} [Update Library]</div>',
+                            '<div style="font-weight:bold; margin-top:10px;">Status: {[this.renderLibraryStatus(values.status, values.valid)]} [Edit Library Details]</div>',
 
                             '<tpl if="spectrumFiles.length &gt; 0">',
                             '<div style="font-weight:bold; margin-top:10px; text-decoration: underline;">Spectrum Files</div>',

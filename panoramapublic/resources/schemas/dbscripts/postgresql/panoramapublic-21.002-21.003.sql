@@ -24,7 +24,7 @@ CREATE TABLE panoramapublic.DataValidation
     Id                         SERIAL NOT NULL,
     Container                  ENTITYID NOT NULL,
     ExperimentAnnotationsId    INT    NOT NULL,
-    JobId                      INTEGER NOT NULL,
+    JobId                      INTEGER,
     Status                     INT,
 
     CONSTRAINT PK_DataValidation PRIMARY KEY (Id),

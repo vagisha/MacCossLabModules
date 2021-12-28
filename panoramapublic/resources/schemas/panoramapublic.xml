@@ -408,4 +408,59 @@
             <column columnName="DependencyType"/>
         </columns>
     </table>
+    <table tableName="DataValidation" tableDbType="TABLE">
+        <columns>
+            <column columnName="_ts">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Created">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="CreatedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Modified">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="ModifiedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Id"/>
+            <column columnName="experimentAnnotationsId">
+                <fk>
+                    <fkColumnName>Id</fkColumnName>
+                    <fkDbSchema>panoramapublic</fkDbSchema>
+                    <fkTable>ExperimentAnnotations</fkTable>
+                </fk>
+                <url>panoramapublic-showExperimentAnnotations.view?id=${experimentAnnotationsId}</url>
+            </column>
+            <column columnName="Container">
+                <columnTitle>Folder</columnTitle>
+                <fk>
+                    <fkColumnName>EntityId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>containers</fkTable>
+                </fk>
+            </column>
+            <column columnName="jobId">
+                <fk>
+                    <fkColumnName>RowId</fkColumnName>
+                    <fkDbSchema>pipeline</fkDbSchema>
+                    <fkTable>StatusFiles</fkTable>
+                </fk>
+                <url>pipeline-status-details.view?rowId=${jobId}</url>
+            </column>
+            <column columnName="Status"/>
+        </columns>
+    </table>
 </tables>

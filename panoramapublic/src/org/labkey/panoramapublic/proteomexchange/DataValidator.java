@@ -16,6 +16,7 @@ import org.labkey.api.util.Pair;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataFile;
+import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.DataValidationException;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
@@ -48,19 +49,21 @@ import java.util.stream.Stream;
 public class DataValidator
 {
     private final ExperimentAnnotations _expAnnotations;
+    private final DataValidation _validation;
     private final int _jobId;
     private final DataValidatorListener _listener;
 
-    public DataValidator(@NotNull ExperimentAnnotations expAnnotations, int jobId, @NotNull DataValidatorListener listener)
+    public DataValidator(@NotNull ExperimentAnnotations expAnnotations, @NotNull DataValidation validation, int jobId, @NotNull DataValidatorListener listener)
     {
         _expAnnotations = expAnnotations;
+        _validation = validation;
         _jobId = jobId;
         _listener = listener;
     }
 
     public StatusValidating validateExperiment(User user) throws DataValidationException
     {
-            StatusValidating status = initValidationStatus(user);
+            StatusValidating status = initValidationStatus(_validation, user);
             _listener.started(status);
 
             TargetedMSService svc = TargetedMSService.get();
@@ -82,7 +85,7 @@ public class DataValidator
     {
         try
         {
-            Thread.sleep(10*1000);
+            Thread.sleep(30*1000);
         }
         catch (InterruptedException e)
         {
@@ -402,11 +405,11 @@ public class DataValidator
         return duplicates;
     }
 
-    private StatusValidating initValidationStatus(User user) throws DataValidationException
+    private StatusValidating initValidationStatus(DataValidation validation, User user) throws DataValidationException
     {
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
-            StatusValidating status = new StatusValidating(_expAnnotations, _jobId);
+            StatusValidating status = new StatusValidating(validation);
             TargetedMSService targetedMsSvc = TargetedMSService.get();
             addSkylineDocs(status, targetedMsSvc);
             addSpectralLibraries(status, targetedMsSvc);

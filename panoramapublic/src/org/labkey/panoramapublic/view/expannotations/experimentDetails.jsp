@@ -70,7 +70,7 @@
     Journal journal = null;
     boolean journalCopyPending = false;
     ShortURLRecord accessUrlRecord = annot.getShortUrl(); // Will have a value if this is a journal copy of an experiment.
-    JournalSubmission js = me.getModelBean().getLastPublishedRecord(); // Will be non-null if this experiment is in a user (not journal) project.
+    JournalSubmission js = annotDetails.getLastPublishedRecord(); // Will be non-null if this experiment is in a user (not journal) project.
     String publishButtonText = "Submit";
     if (js != null)
     {
@@ -84,7 +84,8 @@
             if (!journalCopyPending)
             {
                 publishButtonText = "Resubmit";
-                publishUrl = PanoramaPublicController.getRePublishExperimentURL(annot.getId(), js.getJournalId(), getContainer(), submission.isKeepPrivate(), true); // Has been copied; User is re-submitting
+                // publishUrl = PanoramaPublicController.getRePublishExperimentURL(annot.getId(), js.getJournalId(), getContainer(), submission.isKeepPrivate(), true); // Has been copied; User is re-submitting
+                publishUrl = PanoramaPublicController.getResubmitExperimentURL(annot.getId(), getContainer(), null);
             }
         }
     }

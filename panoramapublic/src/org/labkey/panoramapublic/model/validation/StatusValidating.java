@@ -13,9 +13,9 @@ public class StatusValidating extends GenericValidationStatus <SkylineDocValidat
     private final List<Modification> _modifications;
     private final List<SpecLibValidating> _spectrumLibraries;
 
-    public StatusValidating(ExperimentAnnotations expAnnotations, int jobId)
+    public StatusValidating(DataValidation validation)
     {
-        setValidation(new DataValidation(expAnnotations.getId(), expAnnotations.getContainer(), jobId));
+        setValidation(validation);
         _skylineDocs = new ArrayList<>();
         _modifications = new ArrayList<>();
         _spectrumLibraries = new ArrayList<>();

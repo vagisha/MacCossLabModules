@@ -4,18 +4,21 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.labkey.api.pipeline.AbstractTaskFactory;
 import org.labkey.api.pipeline.AbstractTaskFactorySettings;
+import org.labkey.api.pipeline.CancelledException;
 import org.labkey.api.pipeline.PipelineJob;
 import org.labkey.api.pipeline.PipelineJobException;
 import org.labkey.api.pipeline.PipelineService;
 import org.labkey.api.pipeline.RecordedActionSet;
 import org.labkey.api.util.FileType;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
 import org.labkey.panoramapublic.model.validation.SpecLibValidating;
 import org.labkey.panoramapublic.model.validation.StatusValidating;
 import org.labkey.panoramapublic.proteomexchange.DataValidator;
 import org.labkey.panoramapublic.proteomexchange.DataValidatorListener;
+import org.labkey.panoramapublic.query.DataValidationManager;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,26 +45,41 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
 
     public void doValidation(PipelineJob job, PxDataValidationJobSupport jobSupport) throws PipelineJobException
     {
+        Logger log = job.getLogger();
         try
         {
             ExperimentAnnotations exptAnnotations = jobSupport.getExpAnnotations();
-            Logger log = job.getLogger();
+            DataValidation validation = DataValidationManager.getValidation(jobSupport.getValidationId(), exptAnnotations.getContainer());
+            if (validation == null)
+            {
+                throw new PipelineJobException(String.format("Could not find a data validation row for Id %d in folder '%s'.",
+                        jobSupport.getValidationId(), exptAnnotations.getContainer().getPath()));
+            }
             log.info("");
-            log.info("Validating data for experiment '" + exptAnnotations.getTitle() + "'.");
+            log.info(String.format("Validating data for experiment Id: %d, validation Id: %d", exptAnnotations.getId(), validation.getId()));
             // SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(exptAnnotations);
             Integer pipelineJobId = (PipelineService.get().getJobId(job.getUser(), job.getContainer(), job.getJobGUID()));
             ValidatorListener listener = new ValidatorListener(job);
-            DataValidator validator = new DataValidator(exptAnnotations, pipelineJobId, listener);
+            DataValidator validator = new DataValidator(exptAnnotations, validation, pipelineJobId, listener);
             StatusValidating status = validator.validateExperiment(job.getUser());
 
             log.info("");
             log.info("Data validation complete.");
         }
+        catch (CancelledException e)
+        {
+            log.info("Data validation job was cancelled.");
+            throw e;
+        }
+        catch (PipelineJobException e)
+        {
+            throw e;
+        }
         catch (Throwable t)
         {
-            job.getLogger().fatal("");
-            job.getLogger().fatal("Error validating experiment data", t);
-            job.getLogger().fatal("Data validation FAILED");
+            log.fatal("");
+            log.fatal("Error validating experiment data", t);
+            log.fatal("Data validation FAILED");
             throw new PipelineJobException(t) {};
         }
     }
