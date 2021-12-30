@@ -21,6 +21,7 @@
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.panoramapublic.model.ExperimentAnnotations" %>
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
+<%@ page import="org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%!
@@ -35,10 +36,11 @@
 <%
     JspView<PanoramaPublicController.MissingMetadataBean> me = (JspView<PanoramaPublicController.MissingMetadataBean>) HttpView.currentView();
     PanoramaPublicController.MissingMetadataBean bean = me.getModelBean();
+    SubmissionDataValidator.MissingMetadata missingMetadata = bean.getMissingMetadata();
 
     ExperimentAnnotations expAnnotations = bean.getExpAnnotations();
 
-    ActionURL noPxSubmissionUrl = getActionURL().clone().replaceParameter("skipPxCheck", "true");
+    ActionURL noPxSubmissionUrl = getActionURL().clone().replaceParameter("skipPxCheck", "true").replaceParameter("getPxid", "false");
 
     ActionURL editUrl = PanoramaPublicController.getEditExperimentDetailsURL(getContainer(), expAnnotations.getId(),
             PanoramaPublicController.getViewExperimentDetailsURL(expAnnotations.getId(), getContainer()));
@@ -46,22 +48,25 @@
 
 <div>
     The following information is required
-    <% if(bean.isPxSubmission()) {%>
+    <% if(bean.isPxSubmission() && !missingMetadata.hasAlwaysRequiredFields()) {%>
     for a ProteomeXchange submission.
     <% } else { %>
     for submitting data to Panorama Public.
     <% } %>
 
-    <% if(bean.getMissingMetadata().size() > 0) { %>
+    <% if(bean.getMissingMetadata().count() > 0) { %>
         <div style="font-weight:bold; margin-top:10px;">Missing experiment metadata:</div>
         <ul>
-            <%for(String missing: bean.getMissingMetadata()) {%>
+            <%for(String missing: missingMetadata.getMessages()) {%>
             <li><%=h(missing)%></li>
             <%}%>
         </ul>
         <%=button("Update Experiment Metadata").href(editUrl).build()%>
         </br> </br>
-        <%=link("Continue without a ProteomeXchange ID", noPxSubmissionUrl).usePost()%></span>
+        <% if (!bean.getMissingMetadata().hasAlwaysRequiredFields()) { %>
+          <!-- Allow continuing without a PXD only if none of the "always required" fields are missing -->
+          <%=link("Continue without a ProteomeXchange ID", noPxSubmissionUrl)%></span>
+        <% } %>
     </div>
     <%}%>
 </div>

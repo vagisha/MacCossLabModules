@@ -53,6 +53,7 @@ import org.labkey.api.security.roles.FolderAdminRole;
 import org.labkey.api.security.roles.ProjectAdminRole;
 import org.labkey.api.security.roles.Role;
 import org.labkey.api.security.roles.RoleManager;
+import org.labkey.api.util.DOM;
 import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.util.SimpleNamedObject;
@@ -72,7 +73,13 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import static org.labkey.api.util.DOM.Attribute.onclick;
+import static org.labkey.api.util.DOM.Attribute.src;
+import static org.labkey.api.util.DOM.IMG;
+import static org.labkey.api.util.DOM.at;
 
 /**
  * User: vsharma
@@ -135,6 +142,13 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
                         if(id != null && container != null)
                         {
                             ActionURL detailsPage = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(container); // experiment container
+                            // TODO: fix the link
+//                            DOM.SPAN(at(Map.of("data-active", "false", "data-loaded", "false"))
+//                                            .at(onclick, "viewExperimentDetails(this,'" + container.getPath() + "', '" + id + "','" + detailsPage + "')"),
+//                                    IMG(at(DOM.Attribute.id, "expandcontract-" + id)
+//                                            .at(src, PageFlowUtil.staticResourceUrl("_images/plus.gif"))),
+//                                    HtmlString.NBSP)
+//                                    .appendTo(out);
                             out.write("<span active=\"false\" loaded=\"false\" onclick=\"viewExperimentDetails(this,'" + container.getPath() + "', '" + id + "','" + detailsPage + "')\"><img id=\"expandcontract-" + id + "\" src=\"/labkey/_images/plus.gif\">&nbsp;");
                             out.write("</span>");
                         }

@@ -84,8 +84,8 @@
             if (!journalCopyPending)
             {
                 publishButtonText = "Resubmit";
-                // publishUrl = PanoramaPublicController.getRePublishExperimentURL(annot.getId(), js.getJournalId(), getContainer(), submission.isKeepPrivate(), true); // Has been copied; User is re-submitting
-                publishUrl = PanoramaPublicController.getResubmitExperimentURL(annot.getId(), getContainer(), null);
+                publishUrl = PanoramaPublicController.getRePublishExperimentURL(annot.getId(), js.getJournalId(), getContainer(), submission.isKeepPrivate(), true); // Has been copied; User is re-submitting
+                // publishUrl = PanoramaPublicController.getResubmitExperimentURL(annot.getId(), getContainer(), null);
             }
         }
     }
@@ -187,7 +187,7 @@
 <div>
     <%if(canPublish && !journalCopyPending){%>
         <span style="float:left; margin:0px 5px 0px 2px;">
-            <%=link(publishButtonText, publishUrl).usePost().clearClasses().addClass("button-small").addClass("button-small-red")%>
+            <%=link(publishButtonText, publishUrl).clearClasses().addClass("button-small").addClass("button-small-red")%>
         </span>
     <%}%>
     <% if (annotDetails.canAddPublishLink(getUser())) { %>

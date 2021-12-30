@@ -8,6 +8,7 @@
 <%@ page import="org.labkey.api.pipeline.PipelineStatusFile" %>
 <%@ page import="org.labkey.api.pipeline.PipelineService" %>
 <%@ page import="org.labkey.api.pipeline.PipelineJob" %>
+<%@ page import="org.labkey.panoramapublic.model.validation.DataValidation" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%!
@@ -19,15 +20,13 @@
 %>
 <labkey:errors/>
 <%
-//    ViewContext context = getViewContext();
-//    String jobIdStr = context.getActionURL().getParameter("jobId");
-//    Integer jobId = jobIdStr != null ? Integer.valueOf(jobIdStr) : null;
-    var view = (JspView<PanoramaPublicController.PxDataValidationForm>) HttpView.currentView();
-    var form = view.getModelBean();
-    int jobId = form.getJobId();
-    var status = PipelineService.get().getStatusFile(jobId);
-    var onPageLoadMsg = String.format("Data validation job is %s. This page will automatically refresh with the validation status.",
-            status.isActive() ? (PipelineJob.TaskStatus.waiting.matches(status.getStatus()) ? "in the queue" : "running") : "complete");
+    var view = (JspView<DataValidation>) HttpView.currentView();
+    var validation = view.getModelBean();
+    int jobId = validation.getJobId();
+    var jobStatus = PipelineService.get().getStatusFile(jobId);
+    var onPageLoadMsg = jobStatus != null ? (String.format("Data validation job is %s. This page will automatically refresh with the validation status.",
+            jobStatus.isActive() ? (PipelineJob.TaskStatus.waiting.matches(jobStatus.getStatus()) ? "in the queue" : "running") : "complete"))
+            : "Could not find job status for job with Id " + jobId;
 %>
 <style type="text/css">
     .green {
@@ -232,9 +231,12 @@
         }
 
         function getButtonLink(json) {
-            var url = LABKEY.ActionURL.buildURL('panoramapublic', 'submitExperiment.view', null,
+            var params = {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false};
+            const statusId = json["statusId"];
+            if (statusId === 0 || statusId === 1) {params["getPxid"] = false;}
+
+            var url = LABKEY.ActionURL.buildURL('panoramapublic', 'publishExperiment.view', null, params);
                     // {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
-                    {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false});
             return url;
         }
 
@@ -258,7 +260,7 @@
                                 layout: {type: 'anchor', align: 'left'},
                                 items: [
                                     {xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(json)},
-                                    {xtype: 'button', text: getButtonText(json), cls: getButtonCls(json), style:'color:white', href: getButtonLink(json)}
+                                    {xtype: 'button', text: getButtonText(json), cls: getButtonCls(json), style:'color:white', href: getButtonLink(json), hrefTarget:'_self'}
                                 ]
                             }
                         ]

@@ -30,7 +30,7 @@ CREATE TABLE panoramapublic.DataValidation
     CONSTRAINT PK_DataValidation PRIMARY KEY (Id),
     CONSTRAINT FK_DataValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId),
     CONSTRAINT FK_DataValidation_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id),
-    CONSTRAINT FK_DataValidation_JobId FOREIGN KEY (JobId) REFERENCES pipeline.statusfiles (RowId)
+    -- CONSTRAINT FK_DataValidation_JobId FOREIGN KEY (JobId) REFERENCES pipeline.statusfiles (RowId)
 );
 
 CREATE INDEX IX_DataValidation_Container ON panoramapublic.DataValidation(Container);

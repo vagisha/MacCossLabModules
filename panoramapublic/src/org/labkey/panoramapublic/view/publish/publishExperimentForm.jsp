@@ -170,7 +170,7 @@
                 {
                     xtype: 'hidden',
                     name: 'doSubfolderCheck',
-                    value: <%=bean.getForm().doSubfolderCheck()%>
+                    value: <%=bean.getForm().isDoSubfolderCheck()%>
                 },
                 {
                     xtype: 'hidden',

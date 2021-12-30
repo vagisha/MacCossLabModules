@@ -23,4 +23,9 @@ public enum PxStatus
     {
         return ordinal() < Complete.ordinal();
     }
+
+    public boolean invalidSubmission()
+    {
+        return ordinal() < IncompleteMetadata.ordinal();
+    }
 }

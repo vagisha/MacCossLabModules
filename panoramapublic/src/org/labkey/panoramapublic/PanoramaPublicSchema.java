@@ -161,7 +161,7 @@ public class PanoramaPublicSchema extends UserSchema
             result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
             result.getMutableColumn("Status").setFk(QueryForeignKey.from(this, cf).to(PanoramaPublicSchema.TABLE_PX_STATUS, "RowId", null));
             Map<String, Object> params = new HashMap<>();
-            params.put("jobId", FieldKey.fromParts("JobId"));
+            params.put("validationId", FieldKey.fromParts("Id"));
             params.put("id", FieldKey.fromParts("ExperimentAnnotationsId"));
             result.setDetailsURL(new DetailsURL(new ActionURL(PanoramaPublicController.PxValidationStatusAction.class, getContainer()), params));
 

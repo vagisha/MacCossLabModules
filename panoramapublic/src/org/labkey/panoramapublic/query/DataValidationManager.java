@@ -13,6 +13,7 @@ import org.labkey.api.data.Table;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
+import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataValidation;
@@ -30,8 +31,11 @@ import org.labkey.panoramapublic.model.validation.SpecLibValidating;
 import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.validation.StatusValidating;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DataValidationManager
 {
@@ -58,8 +62,18 @@ public class DataValidationManager
         return validation != null && validation.getContainer().equals(container) ? validation : null;
     }
 
-    public static boolean isValidationObsolete(@NotNull DataValidation validation, @NotNull ExperimentAnnotations expAnnotations, User user)
+    public static boolean isValidationOutdated(@NotNull DataValidation validation, @NotNull ExperimentAnnotations expAnnotations, User user)
     {
+        List<Long> validatedRunIds = getRunIdsForValidation(validation.getId());
+        List<Long> runsInExperiment = ExperimentAnnotationsManager.getTargetedMSRuns(expAnnotations).stream()
+                .map(ITargetedMSRun::getId).collect(Collectors.toList());
+        Collections.sort(validatedRunIds);
+        Collections.sort(runsInExperiment);
+        if (!validatedRunIds.equals(runsInExperiment))
+        {
+            return true;
+        }
+
         var containers = expAnnotations.isIncludeSubfolders() ? ContainerManager.getAllChildren(expAnnotations.getContainer())
                 : Set.of(expAnnotations.getContainer());
         for (Container container: containers)
@@ -87,6 +101,13 @@ public class DataValidationManager
     {
         DataValidation validation = getValidation(validationId, container);
         return validation != null ? populateStatus(validation) : null;
+    }
+
+    private static List<Long> getRunIdsForValidation(int validationId)
+    {
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("validationId"), validationId);
+        return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocValidation(),
+                Set.of("runId"), filter, null).getArrayList(Long.class);
     }
 
     @NotNull

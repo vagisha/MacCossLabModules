@@ -14,11 +14,10 @@ public class DataValidation extends DbEntity
 
     public DataValidation() {}
 
-    public DataValidation (int experimentAnnotationsId, Container container, int jobId)
+    public DataValidation (int experimentAnnotationsId, Container container)
     {
         _experimentAnnotationsId = experimentAnnotationsId;
         _container = container;
-        _jobId = jobId;
     }
 
     public Container getContainer()

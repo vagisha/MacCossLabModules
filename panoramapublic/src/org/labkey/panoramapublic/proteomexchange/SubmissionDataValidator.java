@@ -19,6 +19,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
 import org.labkey.api.data.CompareType;
@@ -32,6 +33,7 @@ import org.labkey.api.targetedms.ISpectrumLibrary;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.FileUtil;
+import org.labkey.api.util.Pair;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
@@ -108,12 +110,12 @@ public class SubmissionDataValidator
 
     public static List<String> getMissingExperimentMetadataFields(ExperimentAnnotations expAnnot)
     {
-        return getMissingExperimentMetadataFields(expAnnot, true);
+        return getMissingExperimentMetadataFields(expAnnot, true).getMessages();
     }
 
-    public static List<String> getMissingExperimentMetadataFields(ExperimentAnnotations expAnnot, boolean validateForPx)
+    public static @NotNull MissingMetadata getMissingExperimentMetadataFields(ExperimentAnnotations expAnnot, boolean validateForPx)
     {
-        List<String> errors = new ArrayList<>();
+        MissingMetadata errors = new MissingMetadata();
         if(StringUtils.isBlank(expAnnot.getTitle()))
         {
             errors.add("Title is required.");
@@ -125,7 +127,7 @@ public class SubmissionDataValidator
 
         if (StringUtils.isBlank(expAnnot.getOrganism()))
         {
-            if (validateForPx) errors.add("Organism is required.");
+            if (validateForPx) errors.addOptional("Organism is required.");
         }
         else
         {
@@ -134,7 +136,7 @@ public class SubmissionDataValidator
 
         if(StringUtils.isBlank(expAnnot.getInstrument()))
         {
-            if (validateForPx) errors.add("Instrument is required.");
+            if (validateForPx) errors.addOptional("Instrument is required.");
         }
         else
         {
@@ -151,11 +153,11 @@ public class SubmissionDataValidator
         }
         if (expAnnot.getSubmitterAffiliation() == null && validateForPx)
         {
-            errors.add("Submitter affiliation is required.");
+            errors.addOptional("Submitter affiliation is required.");
         }
         if (expAnnot.getLabHead() != null && StringUtils.isBlank(expAnnot.getLabHeadAffiliation()) && validateForPx)
         {
-            errors.add("Lab Head affiliation is required.");
+            errors.addOptional("Lab Head affiliation is required.");
         }
         if(StringUtils.isBlank(expAnnot.getAbstract()))
         {
@@ -167,6 +169,41 @@ public class SubmissionDataValidator
         }
 
         return errors;
+    }
+
+    public static class MissingMetadata
+    {
+        private List<Pair<String, Boolean>> _missingFields;
+
+        public MissingMetadata()
+        {
+            _missingFields = new ArrayList<>();
+        }
+
+        public int count()
+        {
+            return _missingFields.size();
+        }
+
+        public void addOptional(String message)
+        {
+            _missingFields.add(Pair.of(message, Boolean.FALSE));
+        }
+
+        public void add(String message)
+        {
+            _missingFields.add(Pair.of(message, Boolean.TRUE));
+        }
+
+        public List<String> getMessages()
+        {
+            return _missingFields.stream().map(Pair::getKey).collect(Collectors.toList());
+        }
+
+        public boolean hasAlwaysRequiredFields()
+        {
+            return _missingFields.stream().anyMatch(Pair::getValue);
+        }
     }
 
     private static List<ExperimentModificationGetter.PxModification> getInvalidModifications(ExperimentAnnotations expAnnot)
@@ -183,7 +220,7 @@ public class SubmissionDataValidator
         return invalidMods;
     }
 
-    private static void validateInstruments(ExperimentAnnotations expAnnot, List<String> errors)
+    private static void validateInstruments(ExperimentAnnotations expAnnot, MissingMetadata errors)
     {
         List<String> instruments = expAnnot.getInstruments();
         PsiInstrumentParser parser = new PsiInstrumentParser();
@@ -215,7 +252,7 @@ public class SubmissionDataValidator
         }
     }
 
-    private static void validateOrganisms(ExperimentAnnotations expAnnot, List<String> errors)
+    private static void validateOrganisms(ExperimentAnnotations expAnnot, MissingMetadata errors)
     {
         Map<String, Integer> organisms = expAnnot.getOrganismAndTaxId();
 
