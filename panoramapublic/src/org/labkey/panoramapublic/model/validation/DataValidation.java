@@ -60,6 +60,10 @@ public class DataValidation extends DbEntity
         _status = status;
     }
 
+    public boolean isComplete()
+    {
+        return getStatus() != null;
+    }
     @NotNull
     public JSONObject toJSON()
     {

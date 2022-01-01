@@ -24,7 +24,7 @@
     var validation = view.getModelBean();
     int jobId = validation.getJobId();
     var jobStatus = PipelineService.get().getStatusFile(jobId);
-    var onPageLoadMsg = jobStatus != null ? (String.format("Data validation job is %s. This page will automatically refresh with the validation status.",
+    var onPageLoadMsg = jobStatus != null ? (String.format("Data validation job is %s. This page will automatically refresh with the validation progress.",
             jobStatus.isActive() ? (PipelineJob.TaskStatus.waiting.matches(jobStatus.getStatus()) ? "in the queue" : "running") : "complete"))
             : "Could not find job status for job with Id " + jobId;
 %>
@@ -104,6 +104,10 @@
     var validationProgressDiv = document.getElementById("validationProgressDiv");
     var validationStatusDiv = document.getElementById("validationStatusDiv");
     var parameters = LABKEY.ActionURL.getParameters();
+    var forSubmit = true;
+    if (LABKEY.ActionURL.getParameter("forSubmit") !== undefined) {
+        forSubmit = LABKEY.ActionURL.getParameter("forSubmit") === 'true';
+    }
     var lastJobStatus = "";
 
     Ext4.onReady(makeRequest);
@@ -241,6 +245,11 @@
         }
 
         if (json) {
+            var components = [{xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(json)}];
+            if (forSubmit === true)
+            {
+                components.push({xtype: 'button', text: getButtonText(json), cls: getButtonCls(json), style:'color:white', href: getButtonLink(json), hrefTarget:'_self'});
+            }
             return {
                 xtype:  'panel',
                 layout: {type: 'anchor', align: 'left'},
@@ -258,10 +267,7 @@
                                 padding: '0, 5, 10, 5',
                                 border: false,
                                 layout: {type: 'anchor', align: 'left'},
-                                items: [
-                                    {xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(json)},
-                                    {xtype: 'button', text: getButtonText(json), cls: getButtonCls(json), style:'color:white', href: getButtonLink(json), hrefTarget:'_self'}
-                                ]
+                                items: components
                             }
                         ]
             };

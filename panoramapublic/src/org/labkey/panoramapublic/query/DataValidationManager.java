@@ -89,6 +89,12 @@ public class DataValidationManager
         return false;
     }
 
+    public static boolean isLatestValidation(@NotNull DataValidation validation, @NotNull Container container)
+    {
+        var latestValidation = DataValidationManager.getLatestValidation(validation.getExperimentAnnotationsId(), container);
+        return latestValidation != null && latestValidation.getId() == validation.getId();
+    }
+
     public static @Nullable Status getStatusForJobId(int jobId, Container container)
     {
         SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("JobId"), jobId);
