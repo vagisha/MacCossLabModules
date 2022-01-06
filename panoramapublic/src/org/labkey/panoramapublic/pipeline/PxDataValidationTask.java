@@ -12,6 +12,7 @@ import org.labkey.api.pipeline.RecordedActionSet;
 import org.labkey.api.util.FileType;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataValidation;
+import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
 import org.labkey.panoramapublic.model.validation.SpecLibValidating;
@@ -55,16 +56,21 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
                 throw new PipelineJobException(String.format("Could not find a data validation row for Id %d in folder '%s'.",
                         jobSupport.getValidationId(), exptAnnotations.getContainer().getPath()));
             }
-            log.info("");
             log.info(String.format("Validating data for experiment Id: %d, validation Id: %d", exptAnnotations.getId(), validation.getId()));
-            // SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(exptAnnotations);
             Integer pipelineJobId = (PipelineService.get().getJobId(job.getUser(), job.getContainer(), job.getJobGUID()));
+            if (pipelineJobId != null && pipelineJobId != validation.getJobId())
+            {
+                throw new PipelineJobException(String.format("Unexpected pipeline job Id %d.  Job Id saved in the validation row (Id: %d) is %d.",
+                        pipelineJobId, validation.getId(), validation.getJobId()));
+            }
+            // If this is a retry, clear out any previously saved validation rows
+            DataValidationManager.clearValidation(validation);
+
             ValidatorListener listener = new ValidatorListener(job);
-            DataValidator validator = new DataValidator(exptAnnotations, validation, pipelineJobId, listener);
+            DataValidator validator = new DataValidator(exptAnnotations, validation, listener);
             StatusValidating status = validator.validateExperiment(job.getUser());
 
-            log.info("");
-            log.info("Data validation complete.");
+            log.info("Data validation is complete. Status is " + status.getValidation().getStatus());
         }
         catch (CancelledException e)
         {
@@ -137,8 +143,8 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
         public void started(StatusValidating status)
         {
             _job.setStatus("Starting data validation");
-            _log.info("Validating data for %d Skyline documents in %d folders", status.getSkylineDocs().size(),
-                    status.getSkylineDocs().stream().map(doc -> doc.getContainer()).distinct().count());
+            _log.info(String.format("Validating data for %d Skyline documents in %d folders", status.getSkylineDocs().size(),
+                    status.getSkylineDocs().stream().map(GenericSkylineDoc::getContainer).distinct().count()));
         }
 
         @Override
@@ -178,7 +184,7 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
             }
             else
             {
-                Map<Boolean, List<Modification>> modGroups = status.getModifications().stream().collect(Collectors.partitioningBy(mod -> mod.isValid()));
+                Map<Boolean, List<Modification>> modGroups = status.getModifications().stream().collect(Collectors.partitioningBy(Modification::isValid));
                 _log.info("VALID MODIFICATIONS:");
                 for (Modification mod: modGroups.get(Boolean.TRUE))
                 {

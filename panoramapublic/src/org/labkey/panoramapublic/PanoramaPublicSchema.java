@@ -45,11 +45,13 @@ import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.model.validation.PxStatus;
+import org.labkey.panoramapublic.query.DataValidationTableInfo;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
 import org.labkey.panoramapublic.query.speclib.SpecLibInfoTableInfo;
 import org.springframework.validation.BindException;
+import org.springframework.validation.Errors;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -154,18 +156,19 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_DATA_VALIDATION.equalsIgnoreCase(name))
         {
-            FilteredTable<PanoramaPublicSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf);
-            result.wrapAllColumns(true);
-            result.getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(this));
-            result.getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(this));
-            result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
-            result.getMutableColumn("Status").setFk(QueryForeignKey.from(this, cf).to(PanoramaPublicSchema.TABLE_PX_STATUS, "RowId", null));
-            Map<String, Object> params = new HashMap<>();
-            params.put("validationId", FieldKey.fromParts("Id"));
-            params.put("id", FieldKey.fromParts("ExperimentAnnotationsId"));
-            result.setDetailsURL(new DetailsURL(new ActionURL(PanoramaPublicController.PxValidationStatusAction.class, getContainer()), params));
-
-            return result;
+            return new DataValidationTableInfo(this, cf);
+//            FilteredTable<PanoramaPublicSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf);
+//            result.wrapAllColumns(true);
+//            result.getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(this));
+//            result.getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(this));
+//            result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
+//            result.getMutableColumn("Status").setFk(QueryForeignKey.from(this, cf).to(PanoramaPublicSchema.TABLE_PX_STATUS, "RowId", null));
+//            Map<String, Object> params = new HashMap<>();
+//            params.put("validationId", FieldKey.fromParts("Id"));
+//            params.put("id", FieldKey.fromParts("ExperimentAnnotationsId"));
+//            result.setDetailsURL(new DetailsURL(new ActionURL(PanoramaPublicController.PxValidationStatusAction.class, getContainer()), params));
+//
+//            return result;
         }
 
         if (TABLE_SKYLINE_DOC_VALIDATION.equalsIgnoreCase(name))
@@ -264,10 +267,12 @@ public class PanoramaPublicSchema extends UserSchema
     @Override
     public @NotNull QueryView createView(ViewContext context, @NotNull QuerySettings settings, @Nullable BindException errors)
     {
-        if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(settings.getQueryName()))
+        if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(settings.getQueryName())
+        || TABLE_DATA_VALIDATION.equalsIgnoreCase(settings.getQueryName()))
         {
-            return new SpecLibInfoTableInfo.UserSchemaView(this, settings, errors);
+            return new DeleteOnlyView(this, settings, errors);
         }
+
         return super.createView(context, settings, errors);
     }
 
@@ -283,5 +288,39 @@ public class PanoramaPublicSchema extends UserSchema
         hs.add(TABLE_DATA_VALIDATION);
         hs.add(TABLE_SPEC_LIB_INFO);
         return hs;
+    }
+
+    // View in the query schema browser. Show the delete icon in the toolbar but not the insert or update icons
+    public static class DeleteOnlyView extends QueryView
+    {
+        public DeleteOnlyView(UserSchema schema, QuerySettings settings, @Nullable Errors errors)
+        {
+            super(schema, settings, errors);
+            disableContainerFilterSelection();
+        }
+
+        @Override
+        protected boolean canDelete()
+        {
+            return true;
+        }
+
+        @Override
+        protected boolean canInsert()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean showImportDataButton()
+        {
+            return false;
+        }
+
+        @Override
+        protected boolean canUpdate()
+        {
+            return false;
+        }
     }
 }

@@ -127,9 +127,9 @@ public class SpecLibInfoTableInfo extends PanoramaPublicTable
     // Update service allows row deletion but not insert or edit
     public static class SpecLibInfoQueryUpdateService extends RowIdQueryUpdateService<SpecLibInfo>
     {
-        public SpecLibInfoQueryUpdateService(SpecLibInfoTableInfo guideSetTable)
+        public SpecLibInfoQueryUpdateService(SpecLibInfoTableInfo tableInfo)
         {
-            super(guideSetTable);
+            super(tableInfo);
         }
 
         @Override
@@ -159,40 +159,7 @@ public class SpecLibInfoTableInfo extends PanoramaPublicTable
         @Override
         protected SpecLibInfo update(User user, Container container, SpecLibInfo bean, Integer oldKey) throws ValidationException
         {
-           throw new UnsupportedOperationException();
-        }
-    }
-
-    // View in the query schema browser. Show the delete icon in the toolbar but not the insert or update icons
-    public static class UserSchemaView extends QueryView
-    {
-        public UserSchemaView(UserSchema schema, QuerySettings settings, @Nullable Errors errors)
-        {
-            super(schema, settings, errors);
-        }
-
-        @Override
-        protected boolean canDelete()
-        {
-            return true;
-        }
-
-        @Override
-        protected boolean canInsert()
-        {
-            return false;
-        }
-
-        @Override
-        public boolean showImportDataButton()
-        {
-            return false;
-        }
-
-        @Override
-        protected boolean canUpdate()
-        {
-            return false;
+            throw new UnsupportedOperationException();
         }
     }
 }

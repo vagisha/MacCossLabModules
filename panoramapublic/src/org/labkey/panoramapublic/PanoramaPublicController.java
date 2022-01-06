@@ -136,7 +136,6 @@ import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
 import org.labkey.panoramapublic.model.Submission;
 import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
@@ -155,8 +154,8 @@ import org.labkey.panoramapublic.proteomexchange.PxHtmlWriter;
 import org.labkey.panoramapublic.proteomexchange.PxXmlWriter;
 import org.labkey.panoramapublic.proteomexchange.SubmissionDataStatus;
 import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
-import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator.MissingMetadata;
 import org.labkey.panoramapublic.query.DataValidationManager;
+import org.labkey.panoramapublic.query.DataValidationManager.MissingMetadata;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
@@ -183,6 +182,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1218,22 +1218,17 @@ public class PanoramaPublicController extends SpringActionController
                 var validation = DataValidationManager.getLatestValidation(_experiment.getId(), getContainer());
                 if (validation == null)
                 {
-                    return new HtmlView(DIV("A ProteomeXchange ID is requested but no data validation was found."));
+                    return getStartDataValidationView("A ProteomeXchange ID is requested but no data validation was found. Run a validation job before copying",
+                            _experiment, getContainer());
                 }
                 if (!validation.isComplete())
                 {
-                    return new HtmlView(DIV("Validation job is not complete.", BR(),
-                            new Button.ButtonBuilder("View Validation Status")
-                                    .href(getPxValidationStatusUrlNotForSubmit(_experiment.getId(), validation.getId(), getContainer()))
-                                    .build()));
+                    return getDataValidationIncompleteView(validation, false, _experiment, getContainer());
                 }
                 if (DataValidationManager.isValidationOutdated(validation, _experiment, getUser()))
                 {
-                    var url = new ActionURL(PreSubmissionCheckAction.class, getContainer());
-                    url.addParameter("id", _experiment.getId());
-                    return new HtmlView(DIV("Last validation check (Id: " + validation.getId() + ") is outdated. Run a validation job again before copying.",
-                            BR(),
-                            new Button.ButtonBuilder("Validate Data").href(url).build()));
+                    return getStartDataValidationView("Last validation check (Id: " + validation.getId() + ") is outdated. Run a validation job again before copying.",
+                            _experiment, getContainer());
                 }
             }
 
@@ -1764,6 +1759,12 @@ public class PanoramaPublicController extends SpringActionController
         return false;
     }
 
+    public static HtmlView getStartDataValidationView(String message, ExperimentAnnotations experimentAnnotations, Container container)
+    {
+        var url = new ActionURL(PreSubmissionCheckAction.class, container).addParameter("id", experimentAnnotations.getId());
+        return new HtmlView(DIV(message, BR(), new Button.ButtonBuilder("Validate Data").href(url).build()));
+    }
+
     // ------------------------------------------------------------------------
     // END Action for copying an experiment.
     // ------------------------------------------------------------------------
@@ -1965,7 +1966,6 @@ public class PanoramaPublicController extends SpringActionController
     @RequiresPermission(AdminPermission.class)
     public static class SubmitPxValidationJobAction extends FormHandlerAction<PxDataValidationForm>
     {
-        private int _jobId;
         private int _validationId;
         @Override
         public boolean handlePost(PxDataValidationForm form, BindException errors)
@@ -1978,7 +1978,6 @@ public class PanoramaPublicController extends SpringActionController
                 if (validation != null)
                 {
                     _validationId = validation.getId();
-                    _jobId = validation.getJobId();
                     return true;
                 }
             }
@@ -2028,10 +2027,12 @@ public class PanoramaPublicController extends SpringActionController
             if (validation == null)
             {
                 errors.reject(ERROR_MSG,
-                        String.format("Could not find a data validaiton row with Id %d, in the folder '%s'.", form.getValidationId(), getContainer().getPath()));
+                        String.format("Could not find a data validation row with Id %d, in the folder '%s'.", form.getValidationId(), getContainer().getPath()));
                 return new SimpleErrorView(errors);
             }
-            var view = new JspView<>("/org/labkey/panoramapublic/view/publish/pxValidationStatus.jsp", validation);
+            JournalSubmission js = SubmissionManager.getNewestJournalSubmission(_experimentAnnotations);
+            var view = new JspView<>("/org/labkey/panoramapublic/view/publish/pxValidationStatus.jsp",
+                    new PxValidationStatusBean(validation, js != null ? js.getLatestSubmission() : null));
             view.setFrame(WebPartView.FrameType.PORTAL);
             view.setTitle("Data Validation Status");
             return view;
@@ -2041,6 +2042,28 @@ public class PanoramaPublicController extends SpringActionController
         public void addNavTrail(NavTree root)
         {
             root.addChild("Data Validation Status");
+        }
+    }
+
+    public static class PxValidationStatusBean
+    {
+        private final DataValidation _dataValidation;
+        private final Submission _submission;
+
+        public PxValidationStatusBean(@NotNull DataValidation dataValidation, @Nullable Submission submission)
+        {
+            _dataValidation = dataValidation;
+            _submission = submission;
+        }
+
+        public DataValidation getDataValidation()
+        {
+            return _dataValidation;
+        }
+
+        public @Nullable Submission getSubmission()
+        {
+            return _submission;
         }
     }
 
@@ -2166,10 +2189,7 @@ public class PanoramaPublicController extends SpringActionController
                 Sort sort = new Sort();
                 sort.appendSortColumn(FieldKey.fromParts("Id"), Sort.SortDirection.DESC, false);
                 qSettings.setBaseSort(sort);
-                var qView = new QueryView(new PanoramaPublicSchema(getUser(), getContainer()), qSettings, null);
-                qView.setShowDetailsColumn(true);
-                qView.setFrame(WebPartView.FrameType.NONE);
-                view.addView(qView);
+                view.addView(new PanoramaPublicSchema(getUser(), getContainer()).createView(getViewContext(), qSettings, errors));
             }
 
             return view;
@@ -2276,15 +2296,16 @@ public class PanoramaPublicController extends SpringActionController
             var validation = DataValidationManager.getLatestValidation(experimentAnnotations.getId(), experimentAnnotations.getContainer());
             if (validation != null)
             {
-                if (DataValidationManager.isValidationOutdated(validation, experimentAnnotations, getUser()))
-                {
-                    form.setValidationId(validation.getId());
-                }
-                else
+                if (DataValidationManager.isPipelineJobRunning(validation))
                 {
                     throw new RedirectException(getPxValidationStatusUrl(_experimentAnnotations.getId(),
                             validation.getId(), _experimentAnnotations.getContainer()));
                 }
+
+//                if (!validation.isComplete() || DataValidationManager.isValidationOutdated(validation, experimentAnnotations, getUser()))
+//                {
+                    form.setValidationId(validation.getId());
+//                }
             }
         }
 
@@ -2411,7 +2432,7 @@ public class PanoramaPublicController extends SpringActionController
                 form.setGetPxid(false); // We cannot assign a ProteomeXchange ID if the experiment does not contain any proteomic data
             }
             boolean validateForPx = hasProteomicData && form.isGetPxid();
-            MissingMetadata missingMetadata = SubmissionDataValidator.getMissingExperimentMetadataFields(_experimentAnnotations, validateForPx);
+            MissingMetadata missingMetadata = DataValidationManager.getMissingExperimentMetadataFields(_experimentAnnotations, validateForPx);
             if (missingMetadata.count() > 0)
             {
                 return getMissingMetadataView(_experimentAnnotations, missingMetadata, validateForPx, errors);
@@ -2429,9 +2450,7 @@ public class PanoramaPublicController extends SpringActionController
                     }
                     if (!_dataValidation.isComplete())
                     {
-                        // Validation job is incomplete; redirect to validation status page
-                        throw new RedirectException(getPxValidationStatusUrl(_experimentAnnotations.getId(),
-                                form.getValidationId(), _experimentAnnotations.getContainer()));
+                        return getDataValidationIncompleteView(_dataValidation, true, _experimentAnnotations, getContainer());
                     }
                     if (!DataValidationManager.isLatestValidation(_dataValidation, getContainer()))
                     {
@@ -2440,7 +2459,7 @@ public class PanoramaPublicController extends SpringActionController
                     }
                     if (DataValidationManager.isValidationOutdated(_dataValidation, _experimentAnnotations, getUser()))
                     {
-                        return getStartValidationView(_dataValidation);
+                        return getStartValidationView("Data validation with Id " + _dataValidation.getId() + " is outdated.");
                     }
 
                     // Validation is complete and current. Show the form.
@@ -2458,27 +2477,26 @@ public class PanoramaPublicController extends SpringActionController
         @NotNull
         protected HtmlView getStartValidationView()
         {
-            return getStartValidationView(null);
+            return getStartValidationView(null, true);
         }
 
         @NotNull
-        private HtmlView getStartValidationView(@Nullable DataValidation validation)
+        private HtmlView getStartValidationView(String message)
         {
-            ActionURL validateDataUrl = new ActionURL(SubmitPxValidationJobAction.class, getContainer()).addParameter("id", _experimentAnnotations.getId());
-            ActionURL noPxSubmissionUrl = getViewContext().getActionURL().clone().replaceParameter("getPxid", "false");
-            HtmlView view = new HtmlView(DIV(
-                    validation == null ? HtmlString.EMPTY_STRING : "Data validation with Id " + validation.getId() + " is outdated.",
-                    BR(),
-                    "Click the button below to validate the data for a ProteomeXchange submission. " +
-                            "If you do not want a ProteomeXchange ID click the link to 'Submit without a ProteomeXchange ID'.",
-                    BR(), BR(),
-                    new Button.ButtonBuilder("Validate Data for ProteomeXchange").href(validateDataUrl).usePost(),
-                    BR(), BR(),
-                    new Link.LinkBuilder("Submit without a ProteomeXchange ID").href(noPxSubmissionUrl)
-            ));
-            view.setTitle("Data Validation For ProteomeXchange");
-            view.setFrame(WebPartView.FrameType.PORTAL);
-            return view;
+            return getStartValidationView(DIV(message));
+        }
+
+        @NotNull
+        protected HtmlView getStartValidationView(DOM.Renderable message)
+        {
+            return getStartValidationView(message, true);
+        }
+
+        @NotNull
+        protected HtmlView getStartValidationView(DOM.Renderable message, boolean forResubmit)
+        {
+            return PanoramaPublicController.getStartValidationView(message, forResubmit, _experimentAnnotations, getContainer(),
+                    getViewContext().getActionURL());
         }
 
         private HtmlView getConfirmIncludeSubfoldersView(ExperimentAnnotations expAnnotations, List<Container> allSubfolders, ActionURL skipSubfolderCheckUrl)
@@ -2905,6 +2923,73 @@ public class PanoramaPublicController extends SpringActionController
         public void addNavTrail(NavTree root)
         {
             root.addChild("Submit Experiment");
+        }
+    }
+
+    @NotNull
+    private static HtmlView getStartValidationView(@Nullable DOM.Renderable message, boolean addSubmitWithoutPxd,
+                                           ExperimentAnnotations experimentAnnotations, Container container,
+                                           @Nullable ActionURL submitUrl)
+    {
+        ActionURL validateDataUrl = new ActionURL(SubmitPxValidationJobAction.class, container).addParameter("id", experimentAnnotations.getId());
+        if (!addSubmitWithoutPxd)
+        {
+            validateDataUrl.addParameter("forSubmit", false);
+        }
+        var componentList = new ArrayList<DOM.Renderable>();
+        if (message != null)
+        {
+            componentList.add(DIV(at(style, "margin-bottom:10px;"), message));
+        }
+        componentList.add(DIV(at(style, "margin-bottom:10px;"), "Click the button to start a new data validation job.",
+                new Button.ButtonBuilder("Validate Data for ProteomeXchange").href(validateDataUrl).usePost().build()));
+
+        if (addSubmitWithoutPxd && submitUrl != null)
+        {
+            ActionURL noPxSubmissionUrl = submitUrl.clone().replaceParameter("getPxid", "false");
+            componentList.add(DIV(at(style, "margin-bottom:10px;"), "If you do not want a ProteomeXchange ID click the link to ",
+                    new Link.LinkBuilder("Submit without a ProteomeXchange ID").href(noPxSubmissionUrl).build()));
+        }
+        componentList.add(DIV(at(style, "top-bottom:10px;"), new Button.ButtonBuilder("Back to Experiment Details")
+                .href(getViewExperimentDetailsURL(experimentAnnotations.getId(), container)).build()));
+        HtmlView view = new HtmlView(DIV(componentList));
+        view.setTitle("Data Validation For ProteomeXchange");
+        view.setFrame(WebPartView.FrameType.PORTAL);
+        return view;
+    }
+
+    @NotNull
+    private static HtmlView getDataValidationIncompleteView(DataValidation dataValidation, boolean forSubmit, ExperimentAnnotations experimentAnnotations, Container container)
+    {
+        var pipelineJobStatus = DataValidationManager.getPipelineJobStatus(dataValidation);
+
+        if (DataValidationManager.isRunningStatus(pipelineJobStatus))
+        {
+            if (forSubmit)
+            {
+                // Validation job is still running; redirect to validation status page
+                throw new RedirectException(getPxValidationStatusUrl(experimentAnnotations.getId(),
+                        dataValidation.getId(), container));
+            }
+            else
+            {
+                return new HtmlView(DIV("Validation job is not complete.", BR(),
+                        new Button.ButtonBuilder("View Validation Status")
+                                .href(getPxValidationStatusUrlNotForSubmit(dataValidation.getExperimentAnnotationsId(), dataValidation.getId(), container))
+                                .build()));
+            }
+        }
+        else
+        {
+            // The job errored out / was cancelled / deleted
+            var jobDetailsUrl = PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(container, dataValidation.getJobId());
+            return getStartValidationView(DIV(
+                    "Data validation with Id " + dataValidation.getId() + " is incomplete.",
+                    pipelineJobStatus != null ?
+                            SPAN("The status of the pipeline job (Id: " + dataValidation.getJobId() + ") is ",
+                                    new Link.LinkBuilder(pipelineJobStatus.getStatus()).href(jobDetailsUrl).build())
+                            : " The pipeline job (Id: " + dataValidation.getJobId() + ") may have been deleted."),
+                    forSubmit, experimentAnnotations, container, null);
         }
     }
 
@@ -3337,6 +3422,13 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
+        public ModelAndView getView(PublishExperimentForm form, boolean reshow, BindException errors)
+        {
+            form.setUpdate(true);
+            return super.getView(form, reshow, errors);
+        }
+
+        @Override
         void populateForm(PublishExperimentForm form, ExperimentAnnotations exptAnnotations)
         {
             super.populateForm(form, exptAnnotations);
@@ -3430,6 +3522,27 @@ public class PanoramaPublicController extends SpringActionController
                 return false;
             }
             return true;
+        }
+
+        protected void checkForValidation(ExperimentAnnotations experimentAnnotations, PublishExperimentForm form)
+        {
+            // TODO: fix this!!
+            if (form.getValidationId() == null)
+            {
+                var validation = DataValidationManager.getLatestValidation(experimentAnnotations.getId(), experimentAnnotations.getContainer());
+                if (validation != null)
+                {
+                    if (validation.isComplete())
+                    {
+                        throw new RedirectException(getPxValidationStatusUrl(_experimentAnnotations.getId(),
+                                validation.getId(), _experimentAnnotations.getContainer()));
+                    }
+//                    else
+//                    {
+//                        return getDataValidationIncompleteView(validation, false, _experimentAnnotations, getContainer());
+//                    }
+                }
+            }
         }
 
         void populateForm(PublishExperimentForm form, ExperimentAnnotations exptAnnotations)
@@ -3623,6 +3736,13 @@ public class PanoramaPublicController extends SpringActionController
                 return false;
             }
             return true;
+        }
+
+        @Override
+        public ModelAndView getView(PublishExperimentForm form, boolean reshow, BindException errors)
+        {
+            form.setResubmit(true);
+            return super.getView(form, reshow, errors);
         }
 
         private boolean canResubmit(Errors errors)
@@ -3829,27 +3949,23 @@ public class PanoramaPublicController extends SpringActionController
             return getMissingMetadataView(new MissingMetadataBean(expAnnotations, pxSubmission, missingMedata, false), "Missing Metadata in Experiment", errors);
         }
 
-        @Override
+        @NotNull
         protected HtmlView getStartValidationView()
         {
-            ActionURL validateDataUrl = new ActionURL(SubmitPxValidationJobAction.class, getContainer()).addParameter("id", _experimentAnnotations.getId());
-            validateDataUrl.addParameter("forSubmit", false);
-            HtmlView view = new HtmlView(DIV(
-                    BR(),
-                    "Click the button below to validate the data for a ProteomeXchange submission.",
-                    BR(), BR(),
-                    new Button.ButtonBuilder("Validate Data for ProteomeXchange").href(validateDataUrl).usePost()
-            ));
-            view.setTitle("Data Validation For ProteomeXchange");
-            view.setFrame(WebPartView.FrameType.PORTAL);
-            return view;
+            return getStartValidationView(null, false);
+        }
+
+        @NotNull
+        protected HtmlView getStartValidationView(DOM.Renderable message)
+        {
+            return getStartValidationView(message, false);
         }
 
         @Override
         protected WebPartView getPublishFormView(PublishExperimentForm form, ExperimentAnnotations exptAnnotations, BindException errors)
         {
             // This action does not submit the form. This view will be displayed if the data is
-            // 1. Small molecule data that will not be submitted to ProteomeXchange
+            // 1. Small molecule data (not submitted to PX)
             // 2. OR The data is valid for a ProteomeXchange submission (either "complete" or "...missing data and/or metadata")
             if (ExperimentAnnotationsManager.hasProteomicData(_experimentAnnotations, getUser()))
             {
@@ -3967,6 +4083,7 @@ public class PanoramaPublicController extends SpringActionController
         private ExperimentAnnotations _expAnnot;
         private JournalExperiment _journalExperiment;
         private Submission _submission;
+        private Status _dataValidation;
         private String _pxResponse;
 
         @Override
@@ -4108,14 +4225,14 @@ public class PanoramaPublicController extends SpringActionController
                     DIV(new Link.LinkBuilder("Back to folder").href(PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(_expAnnot.getContainer())))));
         }
 
-        private PxXml createPxXml(ExperimentAnnotations expAnnot, JournalExperiment je, Submission submission, String pxChanageLog, boolean submittingToPx) throws PxException
+        private PxXml createPxXml(ExperimentAnnotations expAnnot, JournalExperiment je, Submission submission, Status validationStatus, String pxChanageLog, boolean submittingToPx) throws PxException
         {
             // Generate the PX XML
             int pxVersion = PxXmlManager.getNextVersion(je.getId());
             PxXmlWriter annWriter;
             try (ByteArrayOutputStream baos = new ByteArrayOutputStream())
             {
-                PxExperimentAnnotations pxInfo = new PxExperimentAnnotations(expAnnot, je, submission);
+                PxExperimentAnnotations pxInfo = new PxExperimentAnnotations(expAnnot, je, submission, validationStatus);
                 pxInfo.setPxChangeLog(pxChanageLog);
                 pxInfo.setVersion(pxVersion);
                 annWriter = new PxXmlWriter(baos, submittingToPx);
@@ -4169,7 +4286,7 @@ public class PanoramaPublicController extends SpringActionController
 
         private void validatePxXml(boolean useTestDb, String pxChangeLog, String pxUser, String pxPassword, BindException errors) throws PxException, ProteomeXchangeServiceException
         {
-            File xmlFile = writePxXmlFile(createPxXml(_expAnnot, _journalExperiment, _submission, pxChangeLog, true).getXml());
+            File xmlFile = writePxXmlFile(createPxXml(_expAnnot, _journalExperiment, _submission, _dataValidation, pxChangeLog, true).getXml());
             _pxResponse = ProteomeXchangeService.validatePxXml(xmlFile, useTestDb, pxUser, pxPassword);
             if(ProteomeXchangeService.responseHasErrors(_pxResponse))
             {
@@ -4184,7 +4301,7 @@ public class PanoramaPublicController extends SpringActionController
 
         private void submitPxXml(boolean useTestDb, boolean testMode, String pxChangeLog, String pxUser, String pxPassword, BindException errors) throws ProteomeXchangeServiceException, PxException
         {
-            PxXml pxXml = createPxXml(_expAnnot, _journalExperiment, _submission, pxChangeLog, true);
+            PxXml pxXml = createPxXml(_expAnnot, _journalExperiment, _submission, _dataValidation, pxChangeLog, true);
             File xmlFile = writePxXmlFile(pxXml.getXml());
             _pxResponse = ProteomeXchangeService.submitPxXml(xmlFile, useTestDb, pxUser, pxPassword);
             if(ProteomeXchangeService.responseHasErrors(_pxResponse))
@@ -4239,14 +4356,16 @@ public class PanoramaPublicController extends SpringActionController
         private final ExperimentAnnotations _experimentAnnotations;
         private final JournalExperiment _journalExperiment;
         private final Submission _submission;
+        private final Status _validationStatus;
         private String _pxChangeLog;
         private int _version;
 
-        public PxExperimentAnnotations(ExperimentAnnotations experimentAnnotations, JournalExperiment journalExperiment, Submission submission)
+        public PxExperimentAnnotations(ExperimentAnnotations experimentAnnotations, JournalExperiment journalExperiment, Submission submission, Status status)
         {
             _experimentAnnotations = experimentAnnotations;
             _journalExperiment = journalExperiment;
             _submission = submission;
+            _validationStatus = status;
         }
 
         public ExperimentAnnotations getExperimentAnnotations()
@@ -4262,6 +4381,11 @@ public class PanoramaPublicController extends SpringActionController
         public Submission getSubmission()
         {
             return _submission;
+        }
+
+        public Status getValidationStatus()
+        {
+            return _validationStatus;
         }
 
         public String getPxChangeLog()
@@ -4291,35 +4415,45 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         public void render(PxActionsForm form, BindException errors, PrintWriter out) throws Exception
         {
-            int experimentId = form.getId();
-            if(experimentId <= 0)
-            {
-                out.write("Invalid experiment Id found in request: " + experimentId);
-                return;
-            }
-
-            ExperimentAnnotations expAnnot = ExperimentAnnotationsManager.get(experimentId);
+            ExperimentAnnotations expAnnot = getValidExperiment(form, getContainer(), getViewContext(), errors);
             if(expAnnot == null)
             {
-                out.write("Cannot find experiment with ID " + experimentId);
-                return;
+                out.write("Could not find a valid experiment. " + errors.getMessage());
             }
 
             JournalSubmission js = expAnnot.isJournalCopy() ? SubmissionManager.getSubmissionForJournalCopy(expAnnot)
                     : SubmissionManager.getNewestJournalSubmission(expAnnot);
             if (js == null)
             {
-                out.write("Cannot find the submission request for " + (expAnnot.isJournalCopy() ? "copied " : "") + "experiment ID " + experimentId);
+                out.write("Cannot find the submission request for " + (expAnnot.isJournalCopy() ? "copied " : "") + "experiment ID " + expAnnot.getId());
             }
 
-            ensureCorrectContainer(getContainer(), expAnnot.getContainer(), getViewContext());
-
-            PxXmlWriter annWriter = new PxXmlWriter(out, false);
-            Submission submission = expAnnot.isJournalCopy() ? js.getSubmissionForCopiedExperiment(expAnnot.getId()) : js.getLatestCopiedSubmission();
-            PxExperimentAnnotations pxInfo = new PxExperimentAnnotations(expAnnot, js.getJournalExperiment(), submission);
-            pxInfo.setVersion(PxXmlManager.getNextVersion(js.getJournalExperimentId()));
-            pxInfo.setPxChangeLog(form.getChangeLog());
-            annWriter.write(pxInfo);
+            var dataValidation = DataValidationManager.getLatestValidation(expAnnot.getId(), getContainer());
+            if (dataValidation != null)
+            {
+                if (!dataValidation.isComplete())
+                {
+                    out.write("Data validation (Id: " + dataValidation.getId() + ") is incomplete. Wait for it to complete and try again.");
+                }
+                else if (DataValidationManager.isValidationOutdated(dataValidation, expAnnot, getUser()))
+                {
+                    out.write("The last data validation (Id: " + dataValidation.getId() + ") is outdated.");
+                }
+                else
+                {
+                    var status = DataValidationManager.getStatus(dataValidation);
+                    PxXmlWriter annWriter = new PxXmlWriter(out, false);
+                    Submission submission = expAnnot.isJournalCopy() ? js.getSubmissionForCopiedExperiment(expAnnot.getId()) : js.getLatestCopiedSubmission();
+                    PxExperimentAnnotations pxInfo = new PxExperimentAnnotations(expAnnot, js.getJournalExperiment(), submission, status);
+                    pxInfo.setVersion(PxXmlManager.getNextVersion(js.getJournalExperimentId()));
+                    pxInfo.setPxChangeLog(form.getChangeLog());
+                    annWriter.write(pxInfo);
+                }
+            }
+            else
+            {
+                out.write("No data validation rows were not found for experiment Id " + expAnnot.getId());
+            }
         }
     }
 
@@ -4377,39 +4511,48 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         public ModelAndView getView(PxActionsForm form, BindException errors) throws Exception
         {
-            int experimentId = form.getId();
-            if(experimentId <= 0)
+            var expAnnot = getValidExperiment(form, getContainer(), getViewContext(), errors);
+            if (expAnnot == null)
             {
-                errors.reject(ERROR_MSG, "Invalid experiment Id found in request: " + experimentId);
-                return new SimpleErrorView(errors, true);
+                return new SimpleErrorView(errors);
             }
-
-            ExperimentAnnotations expAnnot = ExperimentAnnotationsManager.get(experimentId);
-            if(expAnnot == null)
-            {
-                errors.reject(ERROR_MSG, "Cannot find experiment with ID " + experimentId);
-                return new SimpleErrorView(errors, true);
-            }
-
-            ensureCorrectContainer(getContainer(), expAnnot.getContainer(), getViewContext());
 
             JournalSubmission js = expAnnot.isJournalCopy() ? SubmissionManager.getSubmissionForJournalCopy(expAnnot)
                     : SubmissionManager.getNewestJournalSubmission(expAnnot);
             if (js == null)
             {
-                errors.reject(ERROR_MSG, "Cannot find a submission request for " + (expAnnot.isJournalCopy() ? " journal copy " : "") + "experiment ID: " + experimentId);
+                errors.reject(ERROR_MSG, "Cannot find a submission request for " + (expAnnot.isJournalCopy() ? " journal copy " : "") + "experiment ID: " + expAnnot.getId());
                 return new SimpleErrorView(errors, true);
             }
 
-            StringBuilder summaryHtml = new StringBuilder();
-            PxHtmlWriter writer = new PxHtmlWriter(summaryHtml);
-            Submission submission = expAnnot.isJournalCopy() ? js.getSubmissionForCopiedExperiment(expAnnot.getId()) : js.getLatestCopiedSubmission();
-            PxExperimentAnnotations pxInfo = new PxExperimentAnnotations(expAnnot, js.getJournalExperiment(), submission);
-            pxInfo.setPxChangeLog(form.getChangeLog());
-            pxInfo.setVersion(PxXmlManager.getNextVersion(js.getJournalExperimentId()));
-            writer.write(pxInfo);
+            var dataValidation = DataValidationManager.getLatestValidation(expAnnot.getId(), getContainer());
+            if (dataValidation != null)
+            {
+                if (!dataValidation.isComplete())
+                {
+                    return getDataValidationIncompleteView(dataValidation, false, expAnnot, getContainer());
+                }
+                else if (DataValidationManager.isValidationOutdated(dataValidation, expAnnot, getUser()))
+                {
+                    return getStartDataValidationView("Cannot get the PX XML summary. The last data validation (Id: " + dataValidation.getId() + ") is outdated. .",
+                            expAnnot, getContainer());
+                }
+                var status = DataValidationManager.getStatus(dataValidation);
+                StringBuilder summaryHtml = new StringBuilder();
+                PxHtmlWriter writer = new PxHtmlWriter(summaryHtml);
+                Submission submission = expAnnot.isJournalCopy() ? js.getSubmissionForCopiedExperiment(expAnnot.getId()) : js.getLatestSubmission();
+                PxExperimentAnnotations pxInfo = new PxExperimentAnnotations(expAnnot, js.getJournalExperiment(), submission, status);
+                pxInfo.setPxChangeLog(form.getChangeLog());
+                pxInfo.setVersion(PxXmlManager.getNextVersion(js.getJournalExperimentId()));
+                writer.write(pxInfo);
 
-            return new HtmlView(summaryHtml.toString());
+                return new HtmlView(summaryHtml.toString());
+            }
+            else
+            {
+                return getStartDataValidationView("Cannot get the PX XML summary. No data validation rows were not found for experiment Id " + expAnnot.getId(),
+                        expAnnot, getContainer());
+            }
         }
 
         @Override
@@ -5656,7 +5799,7 @@ public class PanoramaPublicController extends SpringActionController
             JournalSubmission je = SubmissionManager.getNewestJournalSubmission(exptAnnotations);
             if (je != null && je.getLatestSubmission().isPxidRequested())
             {
-                List<String> missingFields = SubmissionDataValidator.getMissingExperimentMetadataFields(form.getBean());
+                List<String> missingFields = DataValidationManager.getMissingExperimentMetadataFields(form.getBean());
                 if(missingFields.size() > 0)
                 {
                     missingFields.stream().forEach(err -> errors.reject(ERROR_MSG, err));

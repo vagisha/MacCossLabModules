@@ -1,14 +1,13 @@
 <%@ page import="org.labkey.api.view.JspView" %>
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
-<%@ page import="org.labkey.api.view.ViewContext" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.pipeline.PipelineStatusUrls" %>
 <%@ page import="org.labkey.api.view.HttpView" %>
-<%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
-<%@ page import="org.labkey.api.pipeline.PipelineStatusFile" %>
 <%@ page import="org.labkey.api.pipeline.PipelineService" %>
 <%@ page import="org.labkey.api.pipeline.PipelineJob" %>
-<%@ page import="org.labkey.panoramapublic.model.validation.DataValidation" %>
+<%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
+<%@ page import="org.labkey.api.action.SpringActionController" %>
+<%@ page import="org.labkey.panoramapublic.model.Submission" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%!
@@ -20,9 +19,16 @@
 %>
 <labkey:errors/>
 <%
-    var view = (JspView<DataValidation>) HttpView.currentView();
-    var validation = view.getModelBean();
-    int jobId = validation.getJobId();
+    var view = (JspView<PanoramaPublicController.PxValidationStatusBean>) HttpView.currentView();
+    var bean = view.getModelBean();
+    int jobId = bean.getDataValidation().getJobId();
+    var submitAction = SpringActionController.getActionName(PanoramaPublicController.PublishExperimentAction.class);
+    Submission submission = bean.getSubmission();
+    if (submission != null)
+    {
+        submitAction = submission.hasCopy() ? SpringActionController.getActionName(PanoramaPublicController.RepublishJournalExperimentAction.class)
+                : SpringActionController.getActionName(PanoramaPublicController.UpdateSubmissionAction.class);
+    }
     var jobStatus = PipelineService.get().getStatusFile(jobId);
     var onPageLoadMsg = jobStatus != null ? (String.format("Data validation job is %s. This page will automatically refresh with the validation progress.",
             jobStatus.isActive() ? (PipelineJob.TaskStatus.waiting.matches(jobStatus.getStatus()) ? "in the queue" : "running") : "complete"))
@@ -239,8 +245,9 @@
             const statusId = json["statusId"];
             if (statusId === 0 || statusId === 1) {params["getPxid"] = false;}
 
-            var url = LABKEY.ActionURL.buildURL('panoramapublic', 'publishExperiment.view', null, params);
+            // var url = LABKEY.ActionURL.buildURL('panoramapublic', 'publishExperiment.view', null, params);
                     // {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
+            var url = LABKEY.ActionURL.buildURL('panoramapublic', <%=submitAction%>'.view', null, params);
             return url;
         }
 

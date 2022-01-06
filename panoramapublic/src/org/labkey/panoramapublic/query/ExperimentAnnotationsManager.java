@@ -283,6 +283,9 @@ public class ExperimentAnnotationsManager
         Table.delete(PanoramaPublicManager.getTableInfoSpecLibInfo(),
                 new SimpleFilter().addCondition(FieldKey.fromParts("ExperimentAnnotationsId"), expAnnotations.getId()));
 
+        // Delete any data validation rows for this experiment
+        DataValidationManager.deleteValidations(expAnnotations.getId(), expAnnotations.getContainer());
+
         Table.delete(PanoramaPublicManager.getTableInfoExperimentAnnotations(), expAnnotations.getId());
 
         if(expAnnotations.isJournalCopy() && expAnnotations.getShortUrl() != null)

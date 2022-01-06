@@ -311,7 +311,7 @@ public class ExperimentModificationGetter
         public PxStructuralMod(String skylineName, long dbModId, UnimodModification uMod)
         {
             super(skylineName, false, dbModId);
-            addPossibleUnimod(uMod);
+            if (uMod != null) setUnimodMatch(uMod);
         }
     }
 
@@ -325,7 +325,7 @@ public class ExperimentModificationGetter
         public PxIsotopicMod(String skylineName, long dbModId, UnimodModification uMod)
         {
             super(skylineName, true, dbModId);
-            addPossibleUnimod(uMod);
+            if (uMod != null) setUnimodMatch(uMod);
         }
     }
 

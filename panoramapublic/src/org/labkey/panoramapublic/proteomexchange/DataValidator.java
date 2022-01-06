@@ -50,14 +50,12 @@ public class DataValidator
 {
     private final ExperimentAnnotations _expAnnotations;
     private final DataValidation _validation;
-    private final int _jobId;
     private final DataValidatorListener _listener;
 
-    public DataValidator(@NotNull ExperimentAnnotations expAnnotations, @NotNull DataValidation validation, int jobId, @NotNull DataValidatorListener listener)
+    public DataValidator(@NotNull ExperimentAnnotations expAnnotations, @NotNull DataValidation validation, @NotNull DataValidatorListener listener)
     {
         _expAnnotations = expAnnotations;
         _validation = validation;
-        _jobId = jobId;
         _listener = listener;
     }
 
@@ -85,7 +83,7 @@ public class DataValidator
     {
         try
         {
-            Thread.sleep(30*1000);
+            Thread.sleep(1*1000);
         }
         catch (InterruptedException e)
         {
@@ -102,14 +100,14 @@ public class DataValidator
         {
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
-                validateLibrary(specLib, status, svc, user, fcs);
+                validateLibrary(specLib, status, user, fcs);
                 transaction.commit();
             }
         }
         _listener.spectralLibrariesValidated(status);
     }
 
-    private void validateLibrary(SpecLibValidating specLib, StatusValidating status, TargetedMSService svc, User user, FileContentService fcs) throws DataValidationException
+    private void validateLibrary(SpecLibValidating specLib, StatusValidating status, User user, FileContentService fcs) throws DataValidationException
     {
         specLib.setValidationId(status.getValidation().getId());
         DataValidationManager.saveSpectrumLibrary(specLib, user);
@@ -159,7 +157,7 @@ public class DataValidator
                     newSpecLib.setSize(specLib.getSize());
                     newSpecLib.setLibType(specLib.getLibType());
                     newSpecLib.addDocumentLibrary(docLib.first, docLib.second);
-                    validateLibrary(newSpecLib, status, svc, user, fcs);
+                    validateLibrary(newSpecLib, status, user, fcs);
                     continue;
                 }
 
@@ -170,7 +168,10 @@ public class DataValidator
                 docLib.first.addSpecLib(docLibV);
                 DataValidationManager.saveDocSpectrumLibrary(docLibV, user);
             }
-            validateLibrarySources(specLib, sources, user, fcs);
+            if (sources != null) // Sources were not found either because the library is not supported or e.g. the required table was not found in the .blib
+            {
+                validateLibrarySources(specLib, sources, user, fcs);
+            }
         }
     }
 

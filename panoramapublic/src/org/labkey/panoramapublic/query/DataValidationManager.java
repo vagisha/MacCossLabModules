@@ -1,5 +1,7 @@
 package org.labkey.panoramapublic.query;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.audit.AuditLogService;
@@ -7,14 +9,21 @@ import org.labkey.api.audit.provider.FileSystemAuditProvider;
 import org.labkey.api.data.CompareType;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerManager;
+import org.labkey.api.data.DbScope;
 import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.data.Sort;
 import org.labkey.api.data.Table;
 import org.labkey.api.data.TableSelector;
+import org.labkey.api.pipeline.PipelineJob;
+import org.labkey.api.pipeline.PipelineService;
+import org.labkey.api.pipeline.PipelineStatusFile;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
 import org.labkey.api.targetedms.ITargetedMSRun;
+import org.labkey.api.util.Pair;
+import org.labkey.api.util.logging.LogHelper;
 import org.labkey.panoramapublic.PanoramaPublicManager;
+import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
@@ -30,15 +39,21 @@ import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
 import org.labkey.panoramapublic.model.validation.SpecLibValidating;
 import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.validation.StatusValidating;
+import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
+import org.labkey.panoramapublic.proteomexchange.PxException;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class DataValidationManager
 {
+    private static final Logger log = LogHelper.getLogger(DataValidationManager.class, "Data validation for ProteomeXchange");
+
     public static long getValidationJobCount(int experimentId)
     {
         return new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(),
@@ -60,6 +75,13 @@ public class DataValidationManager
     {
         DataValidation validation = new TableSelector(PanoramaPublicManager.getTableInfoDataValidation()).getObject(validationId, DataValidation.class);
         return validation != null && validation.getContainer().equals(container) ? validation : null;
+    }
+
+    public static @NotNull List<DataValidation> getValidations(int experimentAnnotationsId, Container container)
+    {
+        var filter = new SimpleFilter(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
+        filter.addCondition(FieldKey.fromParts("Container"), container);
+        return new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(), filter, null).getArrayList(DataValidation.class);
     }
 
     public static boolean isValidationOutdated(@NotNull DataValidation validation, @NotNull ExperimentAnnotations expAnnotations, User user)
@@ -95,6 +117,23 @@ public class DataValidationManager
         return latestValidation != null && latestValidation.getId() == validation.getId();
     }
 
+    public static boolean isPipelineJobRunning(DataValidation validation)
+    {
+        return isRunningStatus(getPipelineJobStatus(validation));
+    }
+
+    public static PipelineStatusFile getPipelineJobStatus(@NotNull DataValidation validation)
+    {
+        int jobId = validation.getJobId();
+        return PipelineService.get().getStatusFile(jobId);
+    }
+
+    public static boolean isRunningStatus(PipelineStatusFile status)
+    {
+        return status.isActive()
+                && !PipelineJob.TaskStatus.cancelling.matches(status.getStatus());
+    }
+
     public static @Nullable Status getStatusForJobId(int jobId, Container container)
     {
         SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("JobId"), jobId);
@@ -107,6 +146,11 @@ public class DataValidationManager
     {
         DataValidation validation = getValidation(validationId, container);
         return validation != null ? populateStatus(validation) : null;
+    }
+
+    public static @NotNull Status getStatus(@NotNull DataValidation validation)
+    {
+        return populateStatus(validation);
     }
 
     private static List<Long> getRunIdsForValidation(int validationId)
@@ -125,6 +169,7 @@ public class DataValidationManager
         status.setSkylineDocs(getSkylineDocs(validationIdFilter));
         status.setModifications(getModifications(validationIdFilter));
         status.setSpecLibs(getSpectrumLibraries(validationIdFilter));
+        status.setMissingMetadata(getMissingExperimentMetadataFields(ExperimentAnnotationsManager.get(validation.getExperimentAnnotationsId()), true));
         return status;
     }
 
@@ -259,5 +304,235 @@ public class DataValidationManager
     public static void updateValidationStatus(DataValidation validation, User user)
     {
         Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
+    }
+
+    public static void deleteValidations(int experimentAnnotationsId, Container container)
+    {
+        var validationList = getValidations(experimentAnnotationsId, container);
+        try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+        {
+            for (var validation: validationList)
+            {
+                deleteValidation(validation);
+            }
+            transaction.commit();
+        }
+    }
+
+    public static void deleteValidation(int validationId, Container container)
+    {
+        deleteValidation(getValidation(validationId, container));
+    }
+
+    public static void deleteValidation(DataValidation validation)
+    {
+        if (validation != null)
+        {
+            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+            {
+                clearValidation(validation);
+                Table.delete(PanoramaPublicManager.getTableInfoDataValidation(), validation.getId());
+                transaction.commit();
+            }
+        }
+    }
+
+    public static void clearValidation(DataValidation validation)
+    {
+        try(DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+        {
+            deleteModificationValidation(validation.getId());
+            deleteSpecLibValidation(validation.getId());
+            deleteSkyDocValidation(validation.getId());
+            transaction.commit();
+        }
+    }
+
+    private static void deleteSkyDocValidation(int validationId)
+    {
+        var filter = new SimpleFilter(FieldKey.fromParts("validationId"), validationId);
+        var skyDocValidationIds = new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocValidation(),
+                Set.of("Id"), filter, null).getArrayList(Integer.class);
+
+        var skyDocValidationIdsFilter = new SimpleFilter().addInClause(FieldKey.fromParts("SkylineDocValidationId"), skyDocValidationIds);
+        Table.delete(PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), skyDocValidationIdsFilter);
+        Table.delete(PanoramaPublicManager.getTableInfoSkylineDocValidation(), filter);
+    }
+
+    private static void deleteModificationValidation(int validationId)
+    {
+        var filter = new SimpleFilter(FieldKey.fromParts("validationId"), validationId);
+        var modValidationIds = new TableSelector(PanoramaPublicManager.getTableInfoModificationValidation(),
+                Set.of("Id"), filter, null).getArrayList(Integer.class);
+
+        var modValidationIdsFilter = new SimpleFilter().addInClause(FieldKey.fromParts("ModificationValidationId"), modValidationIds);
+        Table.delete(PanoramaPublicManager.getTableInfoSkylineDocModification(), modValidationIdsFilter);
+        Table.delete(PanoramaPublicManager.getTableInfoModificationValidation(), filter);
+    }
+
+    private static void deleteSpecLibValidation(int validationId)
+    {
+        var filter = new SimpleFilter(FieldKey.fromParts("validationId"), validationId);
+        var specLibIds = new TableSelector(PanoramaPublicManager.getTableInfoSpecLibValidation(),
+                Set.of("Id"), filter, null).getArrayList(Integer.class);
+
+        var specLibIdFilter = new SimpleFilter().addInClause(FieldKey.fromParts("SpecLibValidationId"), specLibIds);
+        Table.delete(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), specLibIdFilter);
+        Table.delete(PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), specLibIdFilter);
+        Table.delete(PanoramaPublicManager.getTableInfoSpecLibValidation(), filter);
+    }
+
+    public static final int MIN_ABSTRACT_LENGTH = 50;
+    public static final int MIN_TITLE_LENGTH = 30;
+
+    public static List<String> getMissingExperimentMetadataFields(ExperimentAnnotations expAnnot)
+    {
+        return getMissingExperimentMetadataFields(expAnnot, true).getMessages();
+    }
+
+    public static @NotNull MissingMetadata getMissingExperimentMetadataFields(ExperimentAnnotations expAnnot, boolean validateForPx)
+    {
+        MissingMetadata errors = new MissingMetadata();
+        if(StringUtils.isBlank(expAnnot.getTitle()))
+        {
+            errors.add("Title is required.");
+        }
+        else if(StringUtils.trim(expAnnot.getTitle()).length() < MIN_TITLE_LENGTH)
+        {
+            errors.add("Title should be at least " + MIN_TITLE_LENGTH + " characters.");
+        }
+
+        if (StringUtils.isBlank(expAnnot.getOrganism()))
+        {
+            if (validateForPx) errors.addOptional("Organism is required.");
+        }
+        else
+        {
+            validateOrganisms(expAnnot, errors);
+        }
+
+        if(StringUtils.isBlank(expAnnot.getInstrument()))
+        {
+            if (validateForPx) errors.addOptional("Instrument is required.");
+        }
+        else
+        {
+            validateInstruments(expAnnot, errors);
+        }
+
+        if(StringUtils.isBlank(expAnnot.getKeywords()))
+        {
+            errors.add("Keywords are required.");
+        }
+        if(expAnnot.getSubmitter() == null)
+        {
+            errors.add("Submitter is required.");
+        }
+        if (expAnnot.getSubmitterAffiliation() == null && validateForPx)
+        {
+            errors.addOptional("Submitter affiliation is required.");
+        }
+        if (expAnnot.getLabHead() != null && StringUtils.isBlank(expAnnot.getLabHeadAffiliation()) && validateForPx)
+        {
+            errors.addOptional("Lab Head affiliation is required.");
+        }
+        if(StringUtils.isBlank(expAnnot.getAbstract()))
+        {
+            errors.add("Abstract is required.");
+        }
+        else if(expAnnot.getAbstract().length() < MIN_ABSTRACT_LENGTH)
+        {
+            errors.add("Abstract should be at least " + MIN_ABSTRACT_LENGTH + " characters.");
+        }
+
+        return errors;
+    }
+
+    private static void validateOrganisms(ExperimentAnnotations expAnnot, MissingMetadata errors)
+    {
+        Map<String, Integer> organisms = expAnnot.getOrganismAndTaxId();
+
+        Set<String> notFound = new HashSet<>();
+        for(String orgName: organisms.keySet())
+        {
+            if(organisms.get(orgName) == null)
+            {
+                notFound.add(orgName);
+            }
+        }
+        if(notFound.size() > 0)
+        {
+            StringBuilder err = new StringBuilder("No taxonomy ID found for organism");
+            err.append(notFound.size() > 1 ? "s: " : ": ");
+            err.append(StringUtils.join(notFound, ','));
+            errors.add(err.toString());
+        }
+    }
+
+    private static void validateInstruments(ExperimentAnnotations expAnnot, MissingMetadata errors)
+    {
+        List<String> instruments = expAnnot.getInstruments();
+        PsiInstrumentParser parser = new PsiInstrumentParser();
+        Set<String> notFound = new HashSet<>();
+        for(String instrumentName: instruments)
+        {
+            PsiInstrumentParser.PsiInstrument instrument = null;
+            try
+            {
+                instrument = parser.getInstrument(instrumentName);
+            }
+            catch (PxException e)
+            {
+                errors.add("Error reading psi-ms file for validating instruments. " + e.getMessage());
+                log.error("Error reading psi-ms file for validating instruments in container " + expAnnot.getContainer(), e);
+            }
+
+            if(instrument == null)
+            {
+                notFound.add(instrumentName);
+            }
+        }
+        if(notFound.size() > 0)
+        {
+            StringBuilder err = new StringBuilder("Unrecognized instrument");
+            err.append(notFound.size() > 1 ? "s: " : ": ");
+            err.append(StringUtils.join(notFound, ','));
+            errors.add(err.toString());
+        }
+    }
+
+    public static class MissingMetadata
+    {
+        private List<Pair<String, Boolean>> _missingFields;
+
+        public MissingMetadata()
+        {
+            _missingFields = new ArrayList<>();
+        }
+
+        public int count()
+        {
+            return _missingFields.size();
+        }
+
+        public void addOptional(String message)
+        {
+            _missingFields.add(Pair.of(message, Boolean.FALSE));
+        }
+
+        public void add(String message)
+        {
+            _missingFields.add(Pair.of(message, Boolean.TRUE));
+        }
+
+        public List<String> getMessages()
+        {
+            return _missingFields.stream().map(Pair::getKey).collect(Collectors.toList());
+        }
+
+        public boolean hasAlwaysRequiredFields()
+        {
+            return _missingFields.stream().anyMatch(Pair::getValue);
+        }
     }
 }

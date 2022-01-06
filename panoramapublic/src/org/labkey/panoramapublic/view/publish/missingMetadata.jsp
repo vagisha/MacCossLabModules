@@ -22,6 +22,7 @@
 <%@ page import="org.labkey.panoramapublic.model.ExperimentAnnotations" %>
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator" %>
+<%@ page import="org.labkey.panoramapublic.query.DataValidationManager" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%!
@@ -36,7 +37,7 @@
 <%
     JspView<PanoramaPublicController.MissingMetadataBean> me = (JspView<PanoramaPublicController.MissingMetadataBean>) HttpView.currentView();
     PanoramaPublicController.MissingMetadataBean bean = me.getModelBean();
-    SubmissionDataValidator.MissingMetadata missingMetadata = bean.getMissingMetadata();
+    DataValidationManager.MissingMetadata missingMetadata = bean.getMissingMetadata();
 
     ExperimentAnnotations expAnnotations = bean.getExpAnnotations();
 

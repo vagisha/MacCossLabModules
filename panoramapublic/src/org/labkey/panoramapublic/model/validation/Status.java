@@ -3,15 +3,19 @@ package org.labkey.panoramapublic.model.validation;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.labkey.panoramapublic.query.DataValidationManager;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.labkey.panoramapublic.query.DataValidationManager.*;
 
 public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
 {
     private List<SkylineDoc> _skylineDocs;
     private List<Modification> _modifications;
     private List<SpecLib> _specLibs;
+    private MissingMetadata _missingMetadata;
 
     @Override
     public @NotNull List<SkylineDoc> getSkylineDocs()
@@ -30,7 +34,7 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         return _modifications != null ? Collections.unmodifiableList(_modifications) : Collections.emptyList();
     }
 
-    private boolean foundAllSampleFiles()
+    public boolean foundAllSampleFiles()
     {
         return getSkylineDocs().stream().allMatch(GenericSkylineDoc::foundAllSampleFiles);
     }
@@ -40,7 +44,7 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         _modifications = modifications;
     }
 
-    private boolean allModificationsValid()
+    public boolean allModificationsValid()
     {
         return getModifications().stream().allMatch(Modification::isValid);
     }
@@ -56,9 +60,24 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         _specLibs = specLibs;
     }
 
-    private boolean specLibsComplete()
+    public boolean specLibsComplete()
     {
         return getSpectralLibraries().stream().allMatch(SpecLib::isValid);
+    }
+
+    public MissingMetadata getMissingMetadata()
+    {
+        return _missingMetadata;
+    }
+
+    public void setMissingMetadata(MissingMetadata missingMetadata)
+    {
+        _missingMetadata = missingMetadata;
+    }
+
+    public boolean hasMissingMetadata()
+    {
+        return _missingMetadata != null && _missingMetadata.count() > 0;
     }
 
     @NotNull
