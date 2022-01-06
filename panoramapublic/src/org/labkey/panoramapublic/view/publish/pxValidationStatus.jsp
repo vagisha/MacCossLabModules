@@ -247,7 +247,7 @@
 
             // var url = LABKEY.ActionURL.buildURL('panoramapublic', 'publishExperiment.view', null, params);
                     // {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
-            var url = LABKEY.ActionURL.buildURL('panoramapublic', <%=submitAction%>'.view', null, params);
+            var url = LABKEY.ActionURL.buildURL('panoramapublic', <%=qh(submitAction)%> + '.view', null, params);
             return url;
         }
 
