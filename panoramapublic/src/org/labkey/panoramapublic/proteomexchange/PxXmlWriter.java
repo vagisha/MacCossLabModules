@@ -112,7 +112,6 @@ public class PxXmlWriter extends PxWriter
             _writer.writeCharacters("\n");
             _writer.writeEndElement();
             _writer.writeEndDocument();
-
         }
         catch (XMLStreamException e)
         {
@@ -391,7 +390,6 @@ public class PxXmlWriter extends PxWriter
         </ModificationList>
          */
         Element mod_list = new Element("ModificationList");
-//        List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(expAnnotations);
         var mods = validationStatus.getModifications();
         if(mods.size() == 0)
         {
@@ -413,7 +411,7 @@ public class PxXmlWriter extends PxWriter
             else if(!_submittingToPx)
             {
                 // We are not submitting this to ProteomeXchange. We want to see which modifications don't have a Unimod Id
-                mod_list.addChild(new CvParamElement("UNIMOD", NO_UNIMOD_ID, mod.getNameString()));
+                mod_list.addChild(new CvParamElement("UNIMOD", NO_UNIMOD_ID, mod.getUnimodIdStr()));
             }
         }
 
@@ -630,7 +628,6 @@ public class PxXmlWriter extends PxWriter
         el.addChild(reviewLevel);
 
         Element repoSupport = new Element("RepositorySupport");
-        // SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(annotations);
         final CvParamElement completeEl = new CvParamElement("MS", "MS:1002856", "Supported dataset by repository");
         final CvParamElement incompleteEl = new CvParamElement("MS", "MS:1003087", "supported by repository but incomplete data and/or metadata");
         PxStatus pxStatus = validationStatus.getValidation().getStatus();

@@ -9,9 +9,7 @@ import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public class Modification
@@ -25,7 +23,7 @@ public class Modification
     private String _modType;
     private String _unimodMatches;
 
-    public enum ModType {STRUCTURAL, ISOTOPIC};
+    public enum ModType {STRUCTURAL, ISOTOPIC}
 
     public Modification() {}
 
@@ -125,7 +123,7 @@ public class Modification
 
     public String getUnimodIdStr()
     {
-        return isValid() ? "UNIMOD: " + _unimodId : "No UNIMOD Id";
+        return isValid() ? "UNIMOD:" + _unimodId : "No UNIMOD Id";
     }
 
     public String getNameString()

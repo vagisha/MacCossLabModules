@@ -61,7 +61,7 @@ public class PanoramaPublicChromLibTest extends PanoramaPublicBaseTest
         updateSubmitterAccountInfo("One");
 
         // Add the "Targeted MS Experiment" webpart
-        TargetedMsExperimentWebPart expWebPart = createTargetedMsExperimentWebPart(experimentTitle);
+        TargetedMsExperimentWebPart expWebPart = createExperimentCompleteMetadata(experimentTitle);
 
         int count = 0;
         int revision = 0;

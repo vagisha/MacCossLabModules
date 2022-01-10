@@ -22,6 +22,7 @@
     var view = (JspView<PanoramaPublicController.PxValidationStatusBean>) HttpView.currentView();
     var bean = view.getModelBean();
     int jobId = bean.getDataValidation().getJobId();
+    Integer journalId = bean.getJournalId();
     var submitAction = SpringActionController.getActionName(PanoramaPublicController.PublishExperimentAction.class);
     Submission submission = bean.getSubmission();
     if (submission != null)
@@ -244,6 +245,10 @@
             var params = {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false};
             const statusId = json["statusId"];
             if (statusId === 0 || statusId === 1) {params["getPxid"] = false;}
+
+            <% if(journalId != null) { %>
+               {params["journalId"] = <%=journalId%>;}
+            <% }%>
 
             // var url = LABKEY.ActionURL.buildURL('panoramapublic', 'publishExperiment.view', null, params);
                     // {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});

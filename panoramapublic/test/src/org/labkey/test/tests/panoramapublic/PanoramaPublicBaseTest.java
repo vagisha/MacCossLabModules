@@ -86,7 +86,18 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
     }
 
     @NotNull
-    TargetedMsExperimentWebPart createTargetedMsExperimentWebPart(String experimentTitle)
+    TargetedMsExperimentWebPart createExperiment(String experimentTitle)
+    {
+        return createTargetedMsExperiment(experimentTitle, false);
+    }
+
+    @NotNull
+    TargetedMsExperimentWebPart createExperimentCompleteMetadata(String experimentTitle)
+    {
+        return createTargetedMsExperiment(experimentTitle, true);
+    }
+
+    private TargetedMsExperimentWebPart createTargetedMsExperiment(String experimentTitle, boolean completeMetadata)
     {
         goToDashboard();
         portalHelper.enterAdminMode();
@@ -95,7 +106,14 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
         // Create a new experiment
         TargetedMsExperimentWebPart expWebPart = new TargetedMsExperimentWebPart(this);
         TargetedMsExperimentInsertPage insertPage = expWebPart.startInsert();
-        insertPage.insert(experimentTitle);
+        if (completeMetadata)
+        {
+            insertPage.insertAllRequired(experimentTitle);
+        }
+        else
+        {
+            insertPage.insert(experimentTitle);
+        }
         return expWebPart;
     }
 
@@ -133,18 +151,22 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
 
     void submitWithoutPXId()
     {
-        clickContinueWithoutPxId();
+        clickAndWait(Locator.linkContainingText("Submit without a ProteomeXchange ID"));
+        submitForm();
+    }
+
+    void submitWithoutPxIdButton()
+    {
+        clickButton("Submit without a ProteomeXchange ID");
+        submitForm();
+    }
+
+    private void submitForm()
+    {
         _ext4Helper.selectComboBoxItem(Ext4Helper.Locators.formItemWithInputNamed("journalId"), PanoramaPublicTest.PANORAMA_PUBLIC);
         clickAndWait(Ext4Helper.Locators.ext4Button("Submit"));
         clickAndWait(Locator.lkButton("OK")); // Confirm to proceed with the submission.
         clickAndWait(Locator.linkWithText("Back to Experiment Details")); // Navigate to the experiment details page.
-    }
-
-    void clickContinueWithoutPxId()
-    {
-        // Expect to be on the missing information page
-        assertTextPresent("Missing Information in Submission Request");
-        clickAndWait(Locator.linkContainingText("Continue without a ProteomeXchange ID"));
     }
 
     void copyExperimentAndVerify(String projectName, String folderName, String experimentTitle, String destinationFolder)

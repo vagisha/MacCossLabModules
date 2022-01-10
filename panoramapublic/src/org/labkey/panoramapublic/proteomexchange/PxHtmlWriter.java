@@ -87,8 +87,6 @@ public class PxHtmlWriter extends PxWriter
         tr("Description", expAnnotations.getAbstract());
         tr("Review Level", (expAnnotations.isPeerReviewed()) ? "Peer Reviewed" : "Not Peer Reviewed");
 
-//        SubmissionDataStatus status = SubmissionDataValidator.validateExperiment(expAnnotations);
-
         final String complete = "Supported dataset by repository";
         final String incomplete = "supported by repository but incomplete data and/or metadata";
         final String repoSupport = "Repository Support";
@@ -252,23 +250,6 @@ public class PxHtmlWriter extends PxWriter
         }
         modList.end();
         trNoFilter("Modifications", modList.getHtml());
-
-//        List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(experimentAnnotations);
-//        HtmlList modList = new HtmlList();
-//        for(ExperimentModificationGetter.PxModification mod: mods)
-//        {
-//            String name = mod.hasUnimodId() ? mod.getName() : mod.getSkylineName();
-//            String value = mod.hasUnimodId() ? mod.getUnimodId() : mod.hasPossibleUnimods() ?
-//                    StringUtils.join(mod.getPossibleUnimodMatches().stream().map(m -> m.getId()).collect(Collectors.toList()), ",")
-//                    : NO_UNIMOD_ID;
-//            if(!mod.getName().equals(mod.getSkylineName()))
-//            {
-//               name += " (" + mod.getSkylineName() + ")";
-//            }
-//            modList.addItem(name, value, !mod.hasUnimodId());
-//        }
-//        modList.end();
-//        trNoFilter("Modifications", modList.getHtml());
     }
 
     @Override

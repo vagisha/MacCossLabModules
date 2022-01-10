@@ -182,7 +182,6 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1988,7 +1987,7 @@ public class PanoramaPublicController extends SpringActionController
             }
             JournalSubmission js = SubmissionManager.getNewestJournalSubmission(_experimentAnnotations);
             var view = new JspView<>("/org/labkey/panoramapublic/view/publish/pxValidationStatus.jsp",
-                    new PxValidationStatusBean(validation, js != null ? js.getLatestSubmission() : null));
+                    new PxValidationStatusBean(validation, js));
             view.setFrame(WebPartView.FrameType.PORTAL);
             view.setTitle("Data Validation Status");
             return view;
@@ -2004,12 +2003,12 @@ public class PanoramaPublicController extends SpringActionController
     public static class PxValidationStatusBean
     {
         private final DataValidation _dataValidation;
-        private final Submission _submission;
+        private final JournalSubmission _journalSubmission;
 
-        public PxValidationStatusBean(@NotNull DataValidation dataValidation, @Nullable Submission submission)
+        public PxValidationStatusBean(@NotNull DataValidation dataValidation, @Nullable JournalSubmission journalSubmission)
         {
             _dataValidation = dataValidation;
-            _submission = submission;
+            _journalSubmission = journalSubmission;
         }
 
         public DataValidation getDataValidation()
@@ -2017,9 +2016,19 @@ public class PanoramaPublicController extends SpringActionController
             return _dataValidation;
         }
 
+        public @Nullable JournalSubmission getJournalSubmission()
+        {
+            return _journalSubmission;
+        }
+
         public @Nullable Submission getSubmission()
         {
-            return _submission;
+            return _journalSubmission != null ? _journalSubmission.getLatestSubmission() : null;
+        }
+
+        public @Nullable Integer getJournalId()
+        {
+            return _journalSubmission != null ? _journalSubmission.getJournalId() : null;
         }
     }
 
@@ -2374,6 +2383,16 @@ public class PanoramaPublicController extends SpringActionController
 
             if (validateForPx)
             {
+                if (form.getValidationId() == null)
+                {
+                    var validation = DataValidationManager.getLatestValidation(_experimentAnnotations.getId(), getContainer());
+                    if (validation != null && validation.isComplete() && !DataValidationManager.isValidationOutdated(validation, _experimentAnnotations, getUser()))
+                    {
+                        // Redirect to validation status page
+                        throw new RedirectException(getPxValidationStatusUrl(_experimentAnnotations.getId(),
+                                validation.getId(), _experimentAnnotations.getContainer()));
+                    }
+                }
                 if (form.getValidationId() != null)
                 {
                     _dataValidation = DataValidationManager.getValidation(form.getValidationId(), getContainer());
@@ -4140,7 +4159,7 @@ public class PanoramaPublicController extends SpringActionController
 
         private File writePxXmlFile(String xmlString) throws PxException
         {
-            File xml = getLocalFile(getContainer(), "px.xml");
+            File xml = getLocalFile(getContainer(), "px.xml"); // TODO: Add date time stamp
 
             try (PrintWriter out = new PrintWriter(new FileWriter(xml, StandardCharsets.UTF_8)))
             {
@@ -4192,6 +4211,11 @@ public class PanoramaPublicController extends SpringActionController
 
         private void submitPxXml(boolean useTestDb, boolean testMode, String pxChangeLog, String pxUser, String pxPassword, BindException errors) throws ProteomeXchangeServiceException, PxException
         {
+            if (_expAnnot.getPxid() == null)
+            {
+                errors.reject(ERROR_MSG, "Experiment does not have a PX ID. It cannot be submitted.");
+                return;
+            }
             PxXml pxXml = createPxXml(_expAnnot, _journalExperiment, _submission, _validationStatus, pxChangeLog, true);
             File xmlFile = writePxXmlFile(pxXml.getXml());
             _pxResponse = ProteomeXchangeService.submitPxXml(xmlFile, useTestDb, pxUser, pxPassword);
@@ -4217,6 +4241,7 @@ public class PanoramaPublicController extends SpringActionController
 
         private static File getLocalFile(Container container, String fileName) throws PxException
         {
+            // File.createTempFile()
             java.nio.file.Path fileRoot = FileContentService.get().getFileRootPath(container, FileContentService.ContentType.files);
             if(fileRoot == null)
             {
@@ -7276,7 +7301,7 @@ public class PanoramaPublicController extends SpringActionController
         return result;
     }
 
-    public static ActionURL getPublishExperimentURL(int experimentAnnotationsId, Container container, boolean keepPrivate, boolean getPxId)
+    public static ActionURL getSubmitExperimentURL(int experimentAnnotationsId, Container container, boolean keepPrivate, boolean getPxId)
     {
         ActionURL result = new ActionURL(PublishExperimentAction.class, container);
         result.addParameter("id", experimentAnnotationsId);
@@ -7287,9 +7312,7 @@ public class PanoramaPublicController extends SpringActionController
 
     public static ActionURL getSubmitExperimentURL(int experimentAnnotationsId, Container container)
     {
-        ActionURL result = new ActionURL(PublishExperimentAction.class, container);
-        result.addParameter("id", experimentAnnotationsId);
-        return result;
+        return getSubmitExperimentURL(experimentAnnotationsId, container, true, true);
     }
 
 //    public static ActionURL getResubmitExperimentURL(int experimentAnnotationsId, Container container, @Nullable Integer validationId)
