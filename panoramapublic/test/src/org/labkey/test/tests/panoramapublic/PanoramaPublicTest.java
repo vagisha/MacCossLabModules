@@ -11,6 +11,7 @@ import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
 import org.labkey.test.components.panoramapublic.TargetedMsExperimentInsertPage;
 import org.labkey.test.components.panoramapublic.TargetedMsExperimentWebPart;
+import org.labkey.test.pages.panoramapublic.DataValidationPage;
 import org.labkey.test.util.APIContainerHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.DataRegionTable;
@@ -46,8 +47,6 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         return TestFileUtils.getSampleData("TargetedMS/" + file);
     }
 
-    private int _jobCount;
-
     @Test
     public void testExperimentCopy()
     {
@@ -56,12 +55,9 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         String folderName = "Folder 1";
         String targetFolder = "Test Copy 1";
         String experimentTitle = "This is a test experiment";
-        // String experimentTitleLong = "This is a test experiment without subfolders";
         setupSourceFolder(projectName, folderName, SUBMITTER);
 
         impersonate(SUBMITTER);
-
-        // var title = experimentTitle;
 
         // Add the "Targeted MS Experiment" webpart
         TargetedMsExperimentWebPart expWebPart = createExperiment(experimentTitle);
@@ -70,19 +66,17 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         testSubmitWithNoSkyDocs(expWebPart);
 
         // Import a Skyline document to the folder
-        _jobCount = 0;
-        importData(SKY_FILE_1, ++_jobCount);
+        int jobCount = 0;
+        importData(SKY_FILE_1, ++jobCount);
 
         // Should show an error message since the submitter's account info does not have a first and last name
         testSubmitWithIncompleteAccountInfo(expWebPart);
         updateSubmitterAccountInfo("One");
 
-        // title = experimentTitleLong;
         experimentTitle = "This is a test experiment without subfolders";
         testSubmitWithMissingMetadata(expWebPart, experimentTitle);
 
-        // Click Submit.  Expect to see the missing information page. Submit the experiment by clicking the
-        // "Continue without a ProteomeXchange ID" link
+        // Run validation job and submit without ProteomeXchange ID
         String shortAccessLink = testSubmitWithMissingRawFiles(portalHelper, expWebPart);
 
         // Verify rows in Submission table
@@ -334,20 +328,15 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
 
     private String testSubmitWithMissingRawFiles(PortalHelper portal, TargetedMsExperimentWebPart expWebPart)
     {
-        submitValidationJob(++_jobCount);
-        assertTextPresent("The data cannot be assigned a ProteomeXchange ID");
-        assertTextPresent("Missing raw data files");
-        assertTextPresent(RAW_FILE_WIFF);
-        assertTextPresent(RAW_FILE_WIFF_SCAN);
+        var validationPage = submitValidationJob();
+        validationPage.checkSampleFileStatus(List.of(), List.of(RAW_FILE_WIFF, RAW_FILE_WIFF_SCAN));
 
         portal.click(Locator.folderTab("Raw Data"));
         _fileBrowserHelper.uploadFile(getSampleDataPath(RAW_FILE_WIFF));
         _fileBrowserHelper.fileIsPresent(RAW_FILE_WIFF);
 
-        submitValidationJob(++_jobCount);
-        assertTextPresent("The data cannot be assigned a ProteomeXchange ID");
-        assertTextPresent("Missing raw data files");
-        assertTextPresent(RAW_FILE_WIFF_SCAN);
+        validationPage = submitValidationJob();
+        validationPage.checkSampleFileStatus(List.of(RAW_FILE_WIFF), List.of(RAW_FILE_WIFF_SCAN));
 
         submitWithoutPxIdButton();
 
@@ -359,18 +348,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         return accessLink;
     }
 
-    private void expandValidationRows()
-    {
-        var gridRowExapnder = Locator.XPathLocator.tagWithClass("div", "x4-grid-row-expander");
-        var els = gridRowExapnder.findElements(getDriver());
-        assertTrue("Expected to find grid expander elements", els.size() > 0);
-        for (var el: els)
-        {
-            el.click(); // Expand all the rows
-        }
-    }
-
-    private void submitValidationJob(int jobCount)
+    private DataValidationPage submitValidationJob()
     {
         goToDashboard();
         var expWebPart = new TargetedMsExperimentWebPart(this);
@@ -379,16 +357,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
                 "Validate Data for ProteomeXchange",
                 "Submit without a ProteomeXchange ID");
         clickButton("Validate Data for ProteomeXchange");
-        waitForText("Data Validation Status");
-        goToDataPipeline();
-        waitForPipelineJobsToComplete(jobCount, "Validating data for experiment", false);
-        goToDashboard();
-        expWebPart.clickSubmit();
-
-        assertTextPresent("Data Validation Status");
-        assertTextNotPresent("Could not find job status for job");
-        waitForTextToDisappear("This page will automatically refresh");
-        expandValidationRows();
+        return new DataValidationPage(getDriver());
     }
 
     private void testSubmitWithSubfolders(TargetedMsExperimentWebPart expWebPart)

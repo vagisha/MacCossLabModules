@@ -216,7 +216,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         // submitterCol.setUserEditable(getUserSchema().getUser().isInSiteAdminGroup() ? true : false);
 
         var instrCol = getMutableColumn("Instrument");
-        instrCol.setDisplayColumnFactory(colInfo -> new AutoCompleteColumn(colInfo, new ActionURL(PanoramaPublicController.CompleteInstrumentAction.class, getContainer()), true, "Enter Instrument"));
+        instrCol.setDisplayColumnFactory(colInfo -> new InstrumentColumn(colInfo, new ActionURL(PanoramaPublicController.CompleteInstrumentAction.class, getContainer()), true, "Enter Instrument"));
         instrCol.setDescription("One or more instruments are required for submitting data to ProteomeXchange.");
 
         var organismCol = getMutableColumn("Organism");
@@ -644,7 +644,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
                 valueString = "";
             }
 
-            String renderId = "input-picker-div-" + UniqueID.getRequestScopedUID(HttpView.currentRequest());
+            String renderId = getRenderId();
             StringBuilder sb = new StringBuilder();
 
             sb.append("<script type=\"text/javascript\">");
@@ -659,6 +659,12 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
             sb.append("<div style=\"font-size:11px\">").append(PageFlowUtil.filter(getHelpText(), true, false)).append("</div>");
 
             out.write(sb.toString());
+        }
+
+        @NotNull
+        String getRenderId()
+        {
+            return "input-picker-div-" + UniqueID.getRequestScopedUID(HttpView.currentRequest());
         }
 
         String getHelpText()
@@ -695,6 +701,27 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
             return "Type 3 or more letters to see a drop-down list of matching options. It may take a few seconds to populate the list.\n"
                     + "The list displays up to 20 matching options. Continue typing to refine the list.\n"
                     + "Only entries selected from the list will be saved.";
+        }
+
+        @Override
+        String getRenderId()
+        {
+            return "input-picker-div-organism";
+        }
+    }
+
+    private static class InstrumentColumn extends AutoCompleteColumn
+    {
+
+        public InstrumentColumn(ColumnInfo col, ActionURL autocompletionUrl, boolean prefetch, String placeHolderText)
+        {
+            super(col, autocompletionUrl, prefetch, placeHolderText);
+        }
+
+        @Override
+        String getRenderId()
+        {
+            return "input-picker-div-instrument";
         }
     }
 }

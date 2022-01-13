@@ -521,7 +521,7 @@
                     rowBodyTpl: new Ext4.XTemplate(
                             // Ext.XTemplate: https://docs.sencha.com/extjs/4.2.1/#!/api/Ext.XTemplate
                             '<div style="background-color:#f1f1f1;padding:5px;margin-top:5px;font-size:10pt;">',
-                            '<table style="border:1px solid black; padding:5px;">',
+                            '<table style="border:1px solid black; padding:5px;" class="sample-files-status">',
                             '<tpl for="sampleFiles">',
                             // https://stackoverflow.com/questions/5006273/extjs-xtemplate
                             '<tr><td style="border:1px solid black; padding:5px;">{name}</td><td style="border:1px solid black; padding:5px;">{[this.renderStatus(values)]}</td></tr>',
