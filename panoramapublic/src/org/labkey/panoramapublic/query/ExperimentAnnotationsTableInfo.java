@@ -142,15 +142,13 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
                         if(id != null && container != null)
                         {
                             ActionURL detailsPage = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(container); // experiment container
-                            // TODO: fix the link
-//                            DOM.SPAN(at(Map.of("data-active", "false", "data-loaded", "false"))
-//                                            .at(onclick, "viewExperimentDetails(this,'" + container.getPath() + "', '" + id + "','" + detailsPage + "')"),
-//                                    IMG(at(DOM.Attribute.id, "expandcontract-" + id)
-//                                            .at(src, PageFlowUtil.staticResourceUrl("_images/plus.gif"))),
-//                                    HtmlString.NBSP)
-//                                    .appendTo(out);
-                            out.write("<span active=\"false\" loaded=\"false\" onclick=\"viewExperimentDetails(this,'" + container.getPath() + "', '" + id + "','" + detailsPage + "')\"><img id=\"expandcontract-" + id + "\" src=\"/labkey/_images/plus.gif\">&nbsp;");
-                            out.write("</span>");
+                            DOM.SPAN(at(onclick, "viewExperimentDetails(this,'" + container.getPath() + "', '" + id + "','" + detailsPage + "')")
+                                            .data("active", "false") // will be rendered as "data-active" attribute
+                                            .data("loaded", "false"), // will be rendered as "data-loaded" attribute
+                                    IMG(at(DOM.Attribute.id, "expandcontract-" + id)
+                                            .at(src, PageFlowUtil.staticResourceUrl("_images/plus.gif"))),
+                                    HtmlString.NBSP)
+                                    .appendTo(out);
                         }
                         super.renderGridCellContents(ctx, out);
                     }

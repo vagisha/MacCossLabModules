@@ -152,8 +152,6 @@ import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
 import org.labkey.panoramapublic.proteomexchange.PxException;
 import org.labkey.panoramapublic.proteomexchange.PxHtmlWriter;
 import org.labkey.panoramapublic.proteomexchange.PxXmlWriter;
-import org.labkey.panoramapublic.proteomexchange.SubmissionDataStatus;
-import org.labkey.panoramapublic.proteomexchange.SubmissionDataValidator;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.DataValidationManager.MissingMetadata;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
@@ -4457,6 +4455,11 @@ public class PanoramaPublicController extends SpringActionController
                 StringBuilder summaryHtml = new StringBuilder();
                 PxHtmlWriter writer = new PxHtmlWriter(summaryHtml);
                 Submission submission = expAnnot.isJournalCopy() ? js.getSubmissionForCopiedExperiment(expAnnot.getId()) : js.getLatestSubmission();
+                if (submission == null)
+                {
+                    errors.reject(ERROR_MSG, "Could not find a " + (expAnnot.isJournalCopy() ? "copied" : "current") + " submission request for experiment Id: " + expAnnot.getId());
+                    return new SimpleErrorView(errors);
+                }
                 PxExperimentAnnotations pxInfo = new PxExperimentAnnotations(expAnnot, js.getJournalExperiment(), submission, status);
                 pxInfo.setPxChangeLog(form.getChangeLog());
                 pxInfo.setVersion(PxXmlManager.getNextVersion(js.getJournalExperimentId()));
@@ -5506,6 +5509,26 @@ public class PanoramaPublicController extends SpringActionController
             }
             return "";
         }
+
+        public @Nullable String getLabHeadName()
+        {
+            var labHeadName = _experimentAnnotations.getLabHeadName(); // User selected as the lab head in the experiment annotations
+            if (labHeadName == null)
+            {
+                // If the lab head does not have an account on the server, the submitter can enter the lab head's name etc.
+                // in the submission form. Check if this was the case.
+                if (_experimentAnnotations.isJournalCopy())
+                {
+                    var js  = SubmissionManager.getSubmissionForJournalCopy(_experimentAnnotations);
+                    labHeadName = js != null ? js.getLabHeadNameForCopy(_experimentAnnotations.getId()) : null;
+                }
+                else if (_lastPublishedRecord != null)
+                {
+                    labHeadName = _lastPublishedRecord.getLabHeadName();
+                }
+            }
+            return labHeadName;
+        }
     }
 
     @RequiresPermission(ReadPermission.class)
@@ -6488,6 +6511,11 @@ public class PanoramaPublicController extends SpringActionController
         public String getCitation()
         {
             return _citation;
+        }
+
+        public HtmlString getHtmlCitation()
+        {
+            return ExperimentAnnotations.getHtmlCitation(_citation);
         }
 
         public void setCitation(String citation)

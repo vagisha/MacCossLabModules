@@ -89,6 +89,7 @@
             }
         }
     }
+    String labHeadName = annotDetails.getLabHeadName();
     String accessUrl = accessUrlRecord == null ? null : accessUrlRecord.renderShortURL();
     String linkText = accessUrl == null ? null : (annot.isJournalCopy() ? "Link" : (journalCopyPending ? "Access link" : journal.getName() + " link"));
     DataLicense license = annot.getDataLicense();
@@ -220,15 +221,12 @@
         <% } %>
     </div>
  <% } %>
-<%if(annot.getCitation() != null && annot.getPublicationLink() != null){%>
-    <div class="link"><%=h(annot.getCitation())%> <strong><br />[<a href="<%=h(annot.getPublicationLink())%>" target="_blank">Publication</a>]</strong></div>
-<%}%>
-<%if(annot.getCitation() != null && annot.getPublicationLink() == null){%>
-    <div class="link"><%=h(annot.getCitation())%> </div>
-<%}%>
-<%if(annot.getCitation() == null && annot.getPublicationLink() != null){%>
-    <div class="link"><strong><br />[<a href="<%=h(annot.getPublicationLink())%>" target="_blank">Publication</a>]</strong></div>
-<%}%>
+<% if(annot.getCitation() != null || annot.getPublicationLink() != null) { %>
+    <div class="link">
+        <% if (annot.hasCitation()) { %> <%=annot.getHtmlCitation() %> <% } %>
+        <% if (annot.getPublicationLink() != null) { %> <div><strong>[<a href="<%=h(annot.getPublicationLink())%>" target="_blank">Publication</a>]</strong></div> <% } %>
+    </div>
+<% } %>
 <div>
     <% boolean addSep = false; %>
     <% if(license != null){%>
@@ -267,9 +265,9 @@
         <%=h(annot.getKeywords())%>
     </li>
     <%}%>
-    <%if(annot.getSubmitter() != null || annot.getLabHead() != null){%>
+    <%if(annot.getSubmitter() != null || labHeadName != null){%>
     <li>
-        <%if(annot.getLabHead() != null) { %> <span style="margin-right:6px;"><strong>Lab head:</strong> <%=h(annot.getLabHeadName())%> </span> <%}%>
+        <%if(labHeadName != null) { %> <span style="margin-right:6px;"><strong>Lab head:</strong> <%=h(labHeadName)%> </span> <%}%>
         <%if(annot.getSubmitter() != null) { %> <strong>Submitter:</strong> <%=h(annot.getSubmitterName())%>  <%}%>
     </li>
     <%}%>
