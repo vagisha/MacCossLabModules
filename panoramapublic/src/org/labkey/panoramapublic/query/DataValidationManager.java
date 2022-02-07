@@ -62,26 +62,39 @@ public class DataValidationManager
 
     public static @Nullable DataValidation getLatestValidation(int experimentAnnotationsId, Container container)
     {
-        var filter = new SimpleFilter(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
-        filter.addCondition(FieldKey.fromParts("Container"), container);
-        var sort = new Sort();
-        sort.appendSortColumn(FieldKey.fromParts("id"), Sort.SortDirection.DESC, false);
-        return new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(), filter, sort)
-                .setMaxRows(1)
-                .getObject(DataValidation.class);
+        var expAnnotations = ExperimentAnnotationsManager.get(experimentAnnotationsId, container);
+        if (expAnnotations != null)
+        {
+            var filter = new SimpleFilter(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
+            var sort = new Sort();
+            sort.appendSortColumn(FieldKey.fromParts("id"), Sort.SortDirection.DESC, false);
+            return new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(), filter, sort)
+                    .setMaxRows(1)
+                    .getObject(DataValidation.class);
+        }
+        return null;
     }
 
     public static @Nullable DataValidation getValidation(int validationId, Container container)
     {
-        DataValidation validation = new TableSelector(PanoramaPublicManager.getTableInfoDataValidation()).getObject(validationId, DataValidation.class);
-        return validation != null && validation.getContainer().equals(container) ? validation : null;
+        var expAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(container);
+        if (expAnnotations != null)
+        {
+            DataValidation validation = new TableSelector(PanoramaPublicManager.getTableInfoDataValidation()).getObject(validationId, DataValidation.class);
+            return validation != null && validation.getExperimentAnnotationsId() == expAnnotations.getId() ? validation : null;
+        }
+        return null;
     }
 
     public static @NotNull List<DataValidation> getValidations(int experimentAnnotationsId, Container container)
     {
-        var filter = new SimpleFilter(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
-        filter.addCondition(FieldKey.fromParts("Container"), container);
-        return new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(), filter, null).getArrayList(DataValidation.class);
+        var expAnnotations = ExperimentAnnotationsManager.get(experimentAnnotationsId, container);
+        if (expAnnotations != null)
+        {
+            var filter = new SimpleFilter(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
+            return new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(), filter, null).getArrayList(DataValidation.class);
+        }
+        return Collections.emptyList();
     }
 
     public static boolean isValidationOutdated(@NotNull DataValidation validation, @NotNull ExperimentAnnotations expAnnotations, User user)
@@ -103,7 +116,7 @@ public class DataValidationManager
             SimpleFilter filter = new SimpleFilter();
             filter.addCondition(FieldKey.fromParts("Created"), validation.getCreated(), CompareType.GT);
             filter.addCondition(FieldKey.fromParts("Container"), container.getId());
-            if (AuditLogService.get().getAuditEvents(validation.getContainer(), user, FileSystemAuditProvider.EVENT_TYPE, filter, null).size() > 0)
+            if (AuditLogService.get().getAuditEvents(expAnnotations.getContainer(), user, FileSystemAuditProvider.EVENT_TYPE, filter, null).size() > 0)
             {
                 return true;
             }
@@ -136,10 +149,15 @@ public class DataValidationManager
 
     public static @Nullable Status getStatusForJobId(int jobId, Container container)
     {
-        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("JobId"), jobId);
-        filter.addCondition(FieldKey.fromParts("Container"), container);
-        DataValidation validation = new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(), filter, null).getObject(DataValidation.class);
-        return validation != null ? populateStatus(validation) : null;
+        var expAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(container);
+        if (expAnnotations != null)
+        {
+            SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("JobId"), jobId);
+            filter.addCondition(FieldKey.fromParts("experimentAnnotationsId"), expAnnotations.getId());
+            DataValidation validation = new TableSelector(PanoramaPublicManager.getTableInfoDataValidation(), filter, null).getObject(DataValidation.class);
+            return validation != null ? populateStatus(validation) : null;
+        }
+        return null;
     }
 
     public static @Nullable Status getStatus(int validationId, Container container)

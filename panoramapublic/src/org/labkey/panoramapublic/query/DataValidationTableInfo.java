@@ -3,11 +3,9 @@ package org.labkey.panoramapublic.query;
 import org.jetbrains.annotations.NotNull;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerFilter;
-import org.labkey.api.data.ContainerForeignKey;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.query.DetailsURL;
 import org.labkey.api.query.FieldKey;
-import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QueryForeignKey;
 import org.labkey.api.query.QueryUpdateService;
 import org.labkey.api.query.RowIdQueryUpdateService;
@@ -27,12 +25,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DataValidationTableInfo extends FilteredTable<PanoramaPublicSchema>
+public class DataValidationTableInfo extends ExperimentAnnotationsFilteredTable
 {
     public DataValidationTableInfo(@NotNull PanoramaPublicSchema userSchema, ContainerFilter cf)
     {
         super(PanoramaPublicManager.getTableInfoDataValidation(), userSchema, cf);
-        wrapAllColumns(true);
         getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(userSchema));
         getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(userSchema));
         var statusCol = getMutableColumn("Status");

@@ -22,18 +22,14 @@ CREATE TABLE panoramapublic.DataValidation
     Modified               TIMESTAMP,
 
     Id                         SERIAL NOT NULL,
-    Container                  ENTITYID NOT NULL,
     ExperimentAnnotationsId    INT    NOT NULL,
     JobId                      INTEGER,
     Status                     INT,
 
     CONSTRAINT PK_DataValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_DataValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId),
-    CONSTRAINT FK_DataValidation_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id),
-    -- CONSTRAINT FK_DataValidation_JobId FOREIGN KEY (JobId) REFERENCES pipeline.statusfiles (RowId)
+    CONSTRAINT FK_DataValidation_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id)
 );
 
-CREATE INDEX IX_DataValidation_Container ON panoramapublic.DataValidation(Container);
 CREATE INDEX IX_DataValidation_ExperimentAnnotations ON panoramapublic.DataValidation(ExperimentAnnotationsId);
 CREATE INDEX IX_DataValidation_JobId ON panoramapublic.DataValidation(JobId);
 
@@ -47,6 +43,7 @@ CREATE TABLE panoramapublic.SkylineDocValidation
 
     CONSTRAINT PK_SkylineDocValidation PRIMARY KEY (Id),
     CONSTRAINT FK_SkylineDocValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id),
+    -- WHAT IF Container gets deleted
     CONSTRAINT FK_SkylineDocValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId)
 );
 CREATE INDEX IX_SkylineDocValidation_ValidationId ON panoramapublic.SkylineDocValidation(ValidationId);

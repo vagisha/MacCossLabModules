@@ -444,14 +444,6 @@
                 </fk>
                 <url>panoramapublic-showExperimentAnnotations.view?id=${experimentAnnotationsId}</url>
             </column>
-            <column columnName="Container">
-                <columnTitle>Folder</columnTitle>
-                <fk>
-                    <fkColumnName>EntityId</fkColumnName>
-                    <fkDbSchema>core</fkDbSchema>
-                    <fkTable>containers</fkTable>
-                </fk>
-            </column>
             <column columnName="jobId">
                 <fk>
                     <fkColumnName>RowId</fkColumnName>

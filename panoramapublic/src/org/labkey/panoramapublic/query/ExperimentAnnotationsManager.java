@@ -73,6 +73,13 @@ public class ExperimentAnnotationsManager
         return experimentAnnotationsId == null ? null : new TableSelector(PanoramaPublicManager.getTableInfoExperimentAnnotations(),null, null).getObject(experimentAnnotationsId, ExperimentAnnotations.class);
     }
 
+    @Nullable
+    public static ExperimentAnnotations get(int experimentAnnotationsId, Container container)
+    {
+        var expAnnotations = get(experimentAnnotationsId);
+        return expAnnotations != null && expAnnotations.getContainer().equals(container) ? expAnnotations : null;
+    }
+
     /**
      * @param experimentId FK -> exp.experiment.rowId
      * @return ExperimentAnnotations object with the given experimentId

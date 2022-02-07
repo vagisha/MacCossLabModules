@@ -1,7 +1,6 @@
 package org.labkey.panoramapublic.query.speclib;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.labkey.api.data.ColumnInfo;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerFilter;
@@ -9,16 +8,12 @@ import org.labkey.api.data.DataColumn;
 import org.labkey.api.data.DisplayColumn;
 import org.labkey.api.data.DisplayColumnFactory;
 import org.labkey.api.data.RenderContext;
-import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.Table;
 import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.query.LookupForeignKey;
-import org.labkey.api.query.QuerySettings;
 import org.labkey.api.query.QueryUpdateService;
-import org.labkey.api.query.QueryView;
 import org.labkey.api.query.RowIdQueryUpdateService;
-import org.labkey.api.query.UserSchema;
 import org.labkey.api.query.ValidationException;
 import org.labkey.api.security.User;
 import org.labkey.api.security.UserPrincipal;
@@ -27,16 +22,13 @@ import org.labkey.api.util.HtmlString;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
-import org.labkey.panoramapublic.query.PanoramaPublicTable;
-import org.springframework.validation.Errors;
+import org.labkey.panoramapublic.query.ExperimentAnnotationsFilteredTable;
 
-public class SpecLibInfoTableInfo extends PanoramaPublicTable
+public class SpecLibInfoTableInfo extends ExperimentAnnotationsFilteredTable
 {
-    private static final String EXP = "Exp";
-
     public SpecLibInfoTableInfo(PanoramaPublicSchema schema, ContainerFilter cf)
     {
-        super(PanoramaPublicManager.getTableInfoSpecLibInfo(), schema, cf, getJoinSql(), new SQLFragment(EXP + ".Container"));
+        super(PanoramaPublicManager.getTableInfoSpecLibInfo(), schema, cf);
 
         var dependencyTypeCol = getMutableColumn("DependencyType");
         if (dependencyTypeCol != null)
@@ -81,14 +73,6 @@ public class SpecLibInfoTableInfo extends PanoramaPublicTable
     public QueryUpdateService getUpdateService()
     {
         return new SpecLibInfoQueryUpdateService(this);
-    }
-
-    private static SQLFragment getJoinSql()
-    {
-        SQLFragment joinToExpAnnotSql = new SQLFragment(" INNER JOIN ");
-        joinToExpAnnotSql.append(PanoramaPublicManager.getTableInfoExperimentAnnotations(), EXP);
-        joinToExpAnnotSql.append(" ON (" + EXP + ".id = experimentAnnotationsId) ");
-        return joinToExpAnnotSql;
     }
 
     public static class PasswordDisplayColumnFactory implements DisplayColumnFactory

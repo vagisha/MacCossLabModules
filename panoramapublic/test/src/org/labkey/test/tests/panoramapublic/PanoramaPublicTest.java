@@ -66,8 +66,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         testSubmitWithNoSkyDocs(expWebPart);
 
         // Import a Skyline document to the folder
-        int jobCount = 0;
-        importData(SKY_FILE_1, ++jobCount);
+        importData(SKY_FILE_1, 1);
 
         // Should show an error message since the submitter's account info does not have a first and last name
         testSubmitWithIncompleteAccountInfo(expWebPart);

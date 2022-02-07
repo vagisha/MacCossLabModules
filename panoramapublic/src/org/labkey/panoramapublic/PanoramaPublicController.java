@@ -1792,7 +1792,7 @@ public class PanoramaPublicController extends SpringActionController
             }
             ViewBackgroundInfo info = new ViewBackgroundInfo(container, user, viewContext.getActionURL());
 
-            DataValidation validation = new DataValidation(experimentAnnotations.getId(), container);
+            DataValidation validation = new DataValidation(experimentAnnotations.getId());
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
                 validation = DataValidationManager.saveDataValidation(validation, user);
