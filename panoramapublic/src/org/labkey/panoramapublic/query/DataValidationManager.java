@@ -33,12 +33,12 @@ import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
-import org.labkey.panoramapublic.model.validation.ValidatorSkylineDoc;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDoc;
 import org.labkey.panoramapublic.model.validation.SpecLib;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
-import org.labkey.panoramapublic.model.validation.ValidatorSpecLib;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSpecLib;
 import org.labkey.panoramapublic.model.validation.Status;
-import org.labkey.panoramapublic.model.validation.ValidatorStatus;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
 import org.labkey.panoramapublic.proteomexchange.PxException;
 

@@ -1,7 +1,10 @@
-package org.labkey.panoramapublic.model.validation;
+package org.labkey.panoramapublic.proteomexchange.validator;
 
 import org.jetbrains.annotations.NotNull;
 import org.labkey.api.targetedms.ITargetedMSRun;
+import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
+import org.labkey.panoramapublic.model.validation.Modification;
+import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 
 import java.util.ArrayList;
 import java.util.Collections;

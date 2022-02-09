@@ -1,6 +1,7 @@
-package org.labkey.panoramapublic.model.validation;
+package org.labkey.panoramapublic.proteomexchange.validator;
 
 import org.labkey.api.targetedms.ISpectrumLibrary;
+import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
 
 public class ValidatorSkylineDocSpecLib extends SkylineDocSpecLib
 {

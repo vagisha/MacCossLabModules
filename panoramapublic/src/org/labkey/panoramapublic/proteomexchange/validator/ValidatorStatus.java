@@ -1,12 +1,15 @@
-package org.labkey.panoramapublic.model.validation;
+package org.labkey.panoramapublic.proteomexchange.validator;
 
 import org.jetbrains.annotations.NotNull;
+import org.labkey.panoramapublic.model.validation.DataValidation;
+import org.labkey.panoramapublic.model.validation.GenericValidationStatus;
+import org.labkey.panoramapublic.model.validation.Modification;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ValidatorStatus extends GenericValidationStatus <ValidatorSkylineDoc, ValidatorSpecLib>
+public class ValidatorStatus extends GenericValidationStatus<ValidatorSkylineDoc, ValidatorSpecLib>
 {
     private final List<ValidatorSkylineDoc> _skylineDocs;
     private final List<Modification> _modifications;

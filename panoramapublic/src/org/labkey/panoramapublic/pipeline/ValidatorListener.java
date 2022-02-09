@@ -4,9 +4,9 @@ import org.apache.logging.log4j.Logger;
 import org.labkey.api.pipeline.PipelineJob;
 import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
 import org.labkey.panoramapublic.model.validation.Modification;
-import org.labkey.panoramapublic.model.validation.ValidatorSkylineDoc;
-import org.labkey.panoramapublic.model.validation.ValidatorSpecLib;
-import org.labkey.panoramapublic.model.validation.ValidatorStatus;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDoc;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSpecLib;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.DataValidatorListener;
 
 import java.util.List;

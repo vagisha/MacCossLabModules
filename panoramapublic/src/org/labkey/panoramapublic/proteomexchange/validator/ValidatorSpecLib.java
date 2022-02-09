@@ -1,7 +1,8 @@
-package org.labkey.panoramapublic.model.validation;
+package org.labkey.panoramapublic.proteomexchange.validator;
 
 import org.labkey.api.targetedms.ISpectrumLibrary;
 import org.labkey.api.util.Pair;
+import org.labkey.panoramapublic.model.validation.SpecLib;
 
 import java.util.ArrayList;
 import java.util.List;
