@@ -23,6 +23,9 @@ public class Modification
     private String _modType;
     private String _unimodMatches;
 
+    private static final String MOD_SEPARATOR = "&&";
+    private static final String MOD_INFO_SEPARATOR = ":::";
+
     public enum ModType {STRUCTURAL, ISOTOPIC}
 
     public Modification() {}
@@ -143,8 +146,11 @@ public class Modification
 
     public void setPossibleUnimodMatches(List<UnimodModification> uModsList)
     {
-        _unimodMatches = StringUtils.join(uModsList.stream().map(m -> m.getId() + ":::" + m.getName() + ":::" + m.getNormalizedFormula() + ":::" + m.getModSites())
-                .collect(Collectors.toList()), "&&");
+        _unimodMatches = StringUtils.join(uModsList.stream().map(m -> m.getId() + MOD_INFO_SEPARATOR
+                + m.getName() + MOD_INFO_SEPARATOR
+                + m.getNormalizedFormula() + MOD_INFO_SEPARATOR
+                + m.getModSites())
+                .collect(Collectors.toList()), MOD_SEPARATOR);
     }
 
     private List<List<String>> getPossibleUnimodMatches()
@@ -153,11 +159,11 @@ public class Modification
         {
             return Collections.emptyList();
         }
-        String[] matches = StringUtils.splitByWholeSeparator(_unimodMatches, "&&");
+        String[] matches = StringUtils.splitByWholeSeparator(_unimodMatches, MOD_SEPARATOR);
         List<List<String>> matchList = new ArrayList<>();
         for (String match: matches)
         {
-            String[] parts = StringUtils.splitByWholeSeparator(match, ":::");
+            String[] parts = StringUtils.splitByWholeSeparator(match, MOD_INFO_SEPARATOR);
             if (parts.length == 4)
             {
                 matchList.add(List.of(parts));

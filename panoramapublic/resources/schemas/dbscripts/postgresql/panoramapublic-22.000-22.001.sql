@@ -29,38 +29,39 @@ CREATE TABLE panoramapublic.DataValidation
     CONSTRAINT PK_DataValidation PRIMARY KEY (Id),
     CONSTRAINT FK_DataValidation_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id)
 );
-
 CREATE INDEX IX_DataValidation_ExperimentAnnotations ON panoramapublic.DataValidation(ExperimentAnnotationsId);
 CREATE INDEX IX_DataValidation_JobId ON panoramapublic.DataValidation(JobId);
+
 
 CREATE TABLE panoramapublic.SkylineDocValidation
 (
     Id                         SERIAL NOT NULL,
     ValidationId               INT NOT NULL,
     RunId                      BIGINT NOT NULL, -- targetedms.runs.Id
-    Container                  ENTITYID NOT NULL,
-    Name                       VARCHAR(300),
+    Container                  ENTITYID NOT NULL, -- Container where the run lives
+    Name                       VARCHAR(300) NOT NULL, -- Name of the Skyline file
 
     CONSTRAINT PK_SkylineDocValidation PRIMARY KEY (Id),
     CONSTRAINT FK_SkylineDocValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id),
-    -- WHAT IF Container gets deleted
-    CONSTRAINT FK_SkylineDocValidation_Container FOREIGN KEY (Container) REFERENCES core.Containers(EntityId)
 );
 CREATE INDEX IX_SkylineDocValidation_ValidationId ON panoramapublic.SkylineDocValidation(ValidationId);
 CREATE INDEX IX_SkylineDocValidation_Container ON panoramapublic.SkylineDocValidation(Container);
 CREATE INDEX IX_SkylineDocValidation_RunId ON panoramapublic.SkylineDocValidation(runId);
 
+
 CREATE TABLE panoramapublic.SkylineDocSampleFile
 (
     Id                         SERIAL NOT NULL,
     SkylineDocValidationId     INT NOT NULL,
-    Name                       VARCHAR(300) NOT NULL,
-    SkylineName                VARCHAR(300) NOT NULL,
-    Status                     TEXT,
+    Name                       VARCHAR(300) NOT NULL, -- Name of the file on the file system
+    SkylineName                VARCHAR(300) NOT NULL, -- Name of the sample file in the Skyline document
+    Status                     TEXT, -- Path of the file if it was found
 
     CONSTRAINT PK_SkylineDocSampleFile PRIMARY KEY (Id),
     CONSTRAINT FK_SkylineDocSampleFile_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id)
 );
+CREATE INDEX IX_SkylineDocSampleFile_SkylineDocValidationId ON panoramapublic.SkylineDocSampleFile(SkylineDocValidationId);
+
 
 CREATE TABLE panoramapublic.ModificationValidation
 (
@@ -71,11 +72,13 @@ CREATE TABLE panoramapublic.ModificationValidation
     UnimodName                 VARCHAR(100),
     ModType                    VARCHAR(10) NOT NULL, -- Structural, Isotopic
     DbModId                    BIGINT NOT NULL, -- targetedms.StructuralModification.Id OR targetedms.IsotopicModification.Id
-    UnimodMatches              TEXT, -- Example: 6:Carboxymethyl&&143:HexNAc(2)
+    UnimodMatches              TEXT, -- Potential Unimod matches if no single match was found
 
     CONSTRAINT PK_ModificationValidation PRIMARY KEY (Id),
     CONSTRAINT FK_ModificationValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
 );
+CREATE INDEX IX_ModificationValidation_ValidationId ON panoramapublic.ModificationValidation(ValidationId);
+
 
 CREATE TABLE panoramapublic.SkylineDocModification
 (
@@ -87,6 +90,9 @@ CREATE TABLE panoramapublic.SkylineDocModification
     CONSTRAINT FK_SkylineDocModification_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
     CONSTRAINT FK_SkylineDocModification_SpecLibValidation FOREIGN KEY (ModificationValidationId) REFERENCES panoramapublic.ModificationValidation(Id)
 );
+CREATE INDEX IX_SkylineDocModification_SkylineDocValidationId ON panoramapublic.SkylineDocModification(SkylineDocValidationId);
+CREATE INDEX IX_SkylineDocModification_ModificationValidationId ON panoramapublic.SkylineDocModification(ModificationValidationId);
+
 
 CREATE TABLE panoramapublic.SpecLibValidation
 (
@@ -100,28 +106,33 @@ CREATE TABLE panoramapublic.SpecLibValidation
     CONSTRAINT PK_SpecLibValidation PRIMARY KEY (Id),
     CONSTRAINT FK_SpecLibValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
 );
+CREATE INDEX IX_SpecLibValidation_ValidationId ON panoramapublic.SpecLibValidation(ValidationId);
+
 
 CREATE TABLE panoramapublic.SpecLibSourceFile
 (
     Id                         SERIAL NOT NULL,
     SpecLibValidationId        INT NOT NULL,
     Name                       VARCHAR(300) NOT NULL,
-    Status                     TEXT,
     SourceType                 VARCHAR(20) NOT NULL,
+    Status                     TEXT, -- Path of the file if it was found
 
     CONSTRAINT PK_SpecLibSourceFile PRIMARY KEY (Id),
     CONSTRAINT FK_SpecLibSourceFile_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
 );
+CREATE INDEX IX_SpecLibSourceFile_SpecLibValidationId ON panoramapublic.SpecLibSourceFile(SpecLibValidationId);
+
 
 CREATE TABLE panoramapublic.SkylineDocSpecLib
 (
     Id                         SERIAL NOT NULL,
     SkylineDocValidationId     INT NOT NULL,
     SpecLibValidationId        INT NOT NULL,
-    Included                   BOOLEAN NOT NULL,
+    Included                   BOOLEAN NOT NULL, -- true if the library is included in the .sky.zip
 
     CONSTRAINT PK_SkyDocSpecLib PRIMARY KEY (Id),
     CONSTRAINT FK_SkyDocSpecLib_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
     CONSTRAINT FK_SkyDocSpecLib_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)
 );
-
+CREATE INDEX IX_SkylineDocSpecLib_SkylineDocValidationId ON panoramapublic.SkylineDocSpecLib(SkylineDocValidationId);
+CREATE INDEX IX_SkylineDocSpecLib_SpecLibValidationId ON panoramapublic.SkylineDocSpecLib(SpecLibValidationId);
