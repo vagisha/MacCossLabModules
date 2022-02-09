@@ -6,28 +6,28 @@ import org.labkey.api.util.Pair;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SpecLibValidating extends SpecLib
+public class ValidatorSpecLib extends SpecLib
 {
-    private final List<Pair<SkylineDocValidating, ISpectrumLibrary>> _documentLibraries;
+    private final List<Pair<ValidatorSkylineDoc, ISpectrumLibrary>> _documentLibraries;
 
-    public SpecLibValidating()
+    public ValidatorSpecLib()
     {
         _documentLibraries = new ArrayList<>();
         setSpectrumFiles(new ArrayList<>());
         setIdFiles(new ArrayList<>());
     }
 
-    public void addDocumentLibrary(SkylineDocValidating doc, ISpectrumLibrary specLib)
+    public void addDocumentLibrary(ValidatorSkylineDoc doc, ISpectrumLibrary specLib)
     {
         _documentLibraries.add(new Pair<>(doc, specLib));
     }
 
-    public List<Pair<SkylineDocValidating, ISpectrumLibrary>> getDocumentLibraries()
+    public List<Pair<ValidatorSkylineDoc, ISpectrumLibrary>> getDocumentLibraries()
     {
         return _documentLibraries;
     }
 
-    public void removeSkylineDoc(SkylineDocValidating doc)
+    public void removeSkylineDoc(ValidatorSkylineDoc doc)
     {
         _documentLibraries.removeIf(pair -> pair.first.getRunId() == doc.getRunId());
     }

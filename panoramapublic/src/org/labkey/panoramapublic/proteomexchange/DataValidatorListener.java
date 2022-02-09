@@ -1,16 +1,15 @@
 package org.labkey.panoramapublic.proteomexchange;
 
-import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
-import org.labkey.panoramapublic.model.validation.StatusValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorSkylineDoc;
+import org.labkey.panoramapublic.model.validation.ValidatorStatus;
 
 public interface DataValidatorListener
 {
-    void started(StatusValidating status);
-    void validatingDocument(SkylineDocValidating document);
-    void sampleFilesValidated(SkylineDocValidating document, StatusValidating status);
+    void started(ValidatorStatus status);
+    void validatingDocument(ValidatorSkylineDoc document);
+    void sampleFilesValidated(ValidatorSkylineDoc document, ValidatorStatus status);
     void validatingModifications();
-    void modificationsValidated(StatusValidating status);
+    void modificationsValidated(ValidatorStatus status);
     void validatingSpectralLibraries();
-    void spectralLibrariesValidated(StatusValidating status);
+    void spectralLibrariesValidated(ValidatorStatus status);
 }

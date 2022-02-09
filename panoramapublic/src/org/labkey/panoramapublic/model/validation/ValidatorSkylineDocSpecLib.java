@@ -2,13 +2,13 @@ package org.labkey.panoramapublic.model.validation;
 
 import org.labkey.api.targetedms.ISpectrumLibrary;
 
-public class SkylineDocSpecLibValidating extends SkylineDocSpecLib
+public class ValidatorSkylineDocSpecLib extends SkylineDocSpecLib
 {
     private ISpectrumLibrary _library;
 
-    public SkylineDocSpecLibValidating() {}
+    public ValidatorSkylineDocSpecLib() {}
 
-    public SkylineDocSpecLibValidating(ISpectrumLibrary library)
+    public ValidatorSkylineDocSpecLib(ISpectrumLibrary library)
     {
         _library = library;
     }

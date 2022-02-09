@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import java.util.Collections;
 import java.util.List;
 
+// For table panoramapublic.skylinedocvalidation
 public class SkylineDoc extends GenericSkylineDoc<SkylineDocSampleFile, SkylineDocSpecLib>
 {
     private List<SkylineDocSampleFile> _sampleFiles;

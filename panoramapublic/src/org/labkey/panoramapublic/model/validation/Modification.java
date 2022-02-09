@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+// For table panoramapublic.modificationvalidation
 public class Modification
 {
     private int _id;

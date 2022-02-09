@@ -4,9 +4,9 @@ import org.apache.logging.log4j.Logger;
 import org.labkey.api.pipeline.PipelineJob;
 import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
 import org.labkey.panoramapublic.model.validation.Modification;
-import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
-import org.labkey.panoramapublic.model.validation.SpecLibValidating;
-import org.labkey.panoramapublic.model.validation.StatusValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorSkylineDoc;
+import org.labkey.panoramapublic.model.validation.ValidatorSpecLib;
+import org.labkey.panoramapublic.model.validation.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.DataValidatorListener;
 
 import java.util.List;
@@ -25,7 +25,7 @@ public class ValidatorListener implements DataValidatorListener
     }
 
     @Override
-    public void started(StatusValidating status)
+    public void started(ValidatorStatus status)
     {
         _job.setStatus("Starting data validation");
         _log.info(String.format("Validating data for %d Skyline documents in %d folders", status.getSkylineDocs().size(),
@@ -33,13 +33,13 @@ public class ValidatorListener implements DataValidatorListener
     }
 
     @Override
-    public void validatingDocument(SkylineDocValidating document)
+    public void validatingDocument(ValidatorSkylineDoc document)
     {
         _job.setStatus("Validating document " + document.getName());
     }
 
     @Override
-    public void sampleFilesValidated(SkylineDocValidating document, StatusValidating status)
+    public void sampleFilesValidated(ValidatorSkylineDoc document, ValidatorStatus status)
     {
         _log.info("Sample file validation for Skyline document: " + document.getName());
         if (document.foundAllSampleFiles())
@@ -60,7 +60,7 @@ public class ValidatorListener implements DataValidatorListener
     }
 
     @Override
-    public void modificationsValidated(StatusValidating status)
+    public void modificationsValidated(ValidatorStatus status)
     {
         _log.info("Modifications validation:");
         if (status.getModifications().size() == 0)
@@ -92,7 +92,7 @@ public class ValidatorListener implements DataValidatorListener
     }
 
     @Override
-    public void spectralLibrariesValidated(StatusValidating status)
+    public void spectralLibrariesValidated(ValidatorStatus status)
     {
         _log.info("Spectral library validation:");
         if (status.getSpectralLibraries().size() == 0)
@@ -101,7 +101,7 @@ public class ValidatorListener implements DataValidatorListener
         }
         else
         {
-            for (SpecLibValidating specLib : status.getSpectralLibraries())
+            for (ValidatorSpecLib specLib : status.getSpectralLibraries())
             {
                 _log.info(specLib.toString());
                 if (specLib.hasMissingSpectrumFiles() || specLib.hasMissingIdFiles())

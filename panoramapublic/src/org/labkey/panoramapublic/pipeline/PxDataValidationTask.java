@@ -12,7 +12,7 @@ import org.labkey.api.pipeline.RecordedActionSet;
 import org.labkey.api.util.FileType;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.StatusValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.DataValidator;
 import org.labkey.panoramapublic.query.DataValidationManager;
 
@@ -61,7 +61,7 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
 
             ValidatorListener listener = new ValidatorListener(job);
             DataValidator validator = new DataValidator(exptAnnotations, validation, listener);
-            StatusValidating status = validator.validateExperiment(job.getUser());
+            ValidatorStatus status = validator.validateExperiment(job.getUser());
 
             log.info("Data validation is complete. Status is " + status.getValidation().getStatus());
         }

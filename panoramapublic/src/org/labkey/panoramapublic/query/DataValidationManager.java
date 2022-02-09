@@ -33,12 +33,12 @@ import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
-import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorSkylineDoc;
 import org.labkey.panoramapublic.model.validation.SpecLib;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
-import org.labkey.panoramapublic.model.validation.SpecLibValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorSpecLib;
 import org.labkey.panoramapublic.model.validation.Status;
-import org.labkey.panoramapublic.model.validation.StatusValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
 import org.labkey.panoramapublic.proteomexchange.PxException;
 
@@ -264,10 +264,10 @@ public class DataValidationManager
         return Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
     }
 
-    public static void saveStatus(StatusValidating status, User user)
+    public static void saveStatus(ValidatorStatus status, User user)
     {
         DataValidation validation = status.getValidation();
-        for (SkylineDocValidating doc : status.getSkylineDocs())
+        for (ValidatorSkylineDoc doc : status.getSkylineDocs())
         {
             doc.setValidationId(validation.getId());
             doc = Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocValidation(), doc);
@@ -293,9 +293,9 @@ public class DataValidationManager
         Table.insert(user, PanoramaPublicManager.getTableInfoModificationValidation(), modification);
     }
 
-    public static void saveSkylineDocModifications(List<SkylineDocValidating> skylineDocs, User user)
+    public static void saveSkylineDocModifications(List<ValidatorSkylineDoc> skylineDocs, User user)
     {
-        for (SkylineDocValidating doc: skylineDocs)
+        for (ValidatorSkylineDoc doc: skylineDocs)
         {
             for (SkylineDocModification mod: doc.getModifications())
             {
@@ -304,7 +304,7 @@ public class DataValidationManager
         }
     }
 
-    public static void saveSpectrumLibrary(SpecLibValidating specLib, User user)
+    public static void saveSpectrumLibrary(ValidatorSpecLib specLib, User user)
     {
         Table.insert(user, PanoramaPublicManager.getTableInfoSpecLibValidation(), specLib);
     }

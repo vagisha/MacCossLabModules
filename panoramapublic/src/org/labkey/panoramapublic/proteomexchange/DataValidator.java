@@ -20,13 +20,13 @@ import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.DataValidationException;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
-import org.labkey.panoramapublic.model.validation.SampleFileValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
-import org.labkey.panoramapublic.model.validation.SkylineDocSpecLibValidating;
-import org.labkey.panoramapublic.model.validation.SkylineDocValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorSkylineDocSpecLib;
+import org.labkey.panoramapublic.model.validation.ValidatorSkylineDoc;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
-import org.labkey.panoramapublic.model.validation.SpecLibValidating;
-import org.labkey.panoramapublic.model.validation.StatusValidating;
+import org.labkey.panoramapublic.model.validation.ValidatorSpecLib;
+import org.labkey.panoramapublic.model.validation.ValidatorStatus;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
@@ -59,9 +59,9 @@ public class DataValidator
         _listener = listener;
     }
 
-    public StatusValidating validateExperiment(User user) throws DataValidationException
+    public ValidatorStatus validateExperiment(User user) throws DataValidationException
     {
-            StatusValidating status = initValidationStatus(_validation, user);
+            ValidatorStatus status = initValidationStatus(_validation, user);
             _listener.started(status);
 
             TargetedMSService svc = TargetedMSService.get();
@@ -70,7 +70,7 @@ public class DataValidator
             return status;
     }
 
-    private void validate(StatusValidating status, TargetedMSService svc, User user) throws DataValidationException
+    private void validate(ValidatorStatus status, TargetedMSService svc, User user) throws DataValidationException
     {
         validateSampleFiles(status, svc, user);
         validateModifications(status, user);
@@ -91,12 +91,12 @@ public class DataValidator
         }
     }
 
-    private void validateLibraries(StatusValidating status, TargetedMSService svc, User user) throws DataValidationException
+    private void validateLibraries(ValidatorStatus status, TargetedMSService svc, User user) throws DataValidationException
     {
         _listener.validatingSpectralLibraries();
         sleep(); // TODO: remove this
         FileContentService fcs = FileContentService.get();
-        for (SpecLibValidating specLib: status.getSpectralLibraries())
+        for (ValidatorSpecLib specLib: status.getSpectralLibraries())
         {
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
@@ -107,16 +107,16 @@ public class DataValidator
         _listener.spectralLibrariesValidated(status);
     }
 
-    private void validateLibrary(SpecLibValidating specLib, StatusValidating status, User user, FileContentService fcs) throws DataValidationException
+    private void validateLibrary(ValidatorSpecLib specLib, ValidatorStatus status, User user, FileContentService fcs) throws DataValidationException
     {
         specLib.setValidationId(status.getValidation().getId());
         DataValidationManager.saveSpectrumLibrary(specLib, user);
 
         if (specLib.isMissingInSkyZip())
         {
-            for (Pair<SkylineDocValidating, ISpectrumLibrary> docLib: specLib.getDocumentLibraries())
+            for (Pair<ValidatorSkylineDoc, ISpectrumLibrary> docLib: specLib.getDocumentLibraries())
             {
-                SkylineDocSpecLibValidating docLibV = new SkylineDocSpecLibValidating(docLib.second);
+                ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.second);
                 docLibV.setSpeclibValidationId(specLib.getId());
                 docLibV.setSkylineDocValidationId(docLib.first.getId());
                 docLib.first.addSpecLib(docLibV);
@@ -126,7 +126,7 @@ public class DataValidator
         else
         {
             List<LibSourceFile> sources = null;
-            for (Pair<SkylineDocValidating, ISpectrumLibrary> docLib: specLib.getDocumentLibraries())
+            for (Pair<ValidatorSkylineDoc, ISpectrumLibrary> docLib: specLib.getDocumentLibraries())
             {
                 ISpectrumLibrary isl = docLib.second;
                 SpecLibReader libReader = SpecLibReader.getReader(isl);
@@ -151,7 +151,7 @@ public class DataValidator
                 else if(!areSameSources(sources, docLibSources))
                 {
                     specLib.removeSkylineDoc(docLib.first);
-                    SpecLibValidating newSpecLib = new SpecLibValidating();
+                    ValidatorSpecLib newSpecLib = new ValidatorSpecLib();
                     newSpecLib.setLibName(specLib.getLibName());
                     newSpecLib.setFileName(specLib.getFileName());
                     newSpecLib.setSize(specLib.getSize());
@@ -161,7 +161,7 @@ public class DataValidator
                     continue;
                 }
 
-                SkylineDocSpecLibValidating docLibV = new SkylineDocSpecLibValidating(docLib.second);
+                ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.second);
                 docLibV.setSpeclibValidationId(specLib.getId());
                 docLibV.setSkylineDocValidationId(docLib.first.getId());
                 docLibV.setIncluded(specLib.getSize() != null);
@@ -175,7 +175,7 @@ public class DataValidator
         }
     }
 
-    private void validateLibrarySources(SpecLibValidating specLib, List<LibSourceFile> sources, User user, FileContentService fcs) throws DataValidationException
+    private void validateLibrarySources(ValidatorSpecLib specLib, List<LibSourceFile> sources, User user, FileContentService fcs) throws DataValidationException
     {
         Set<String> checkedFiles = new HashSet<>();
         List<Container> containers = new ArrayList<>();
@@ -322,7 +322,7 @@ public class DataValidator
         return false;
     }
 
-    private void validateModifications(StatusValidating status, User user)
+    private void validateModifications(ValidatorStatus status, User user)
     {
         _listener.validatingModifications();
         sleep(); // TODO: remove this
@@ -359,9 +359,9 @@ public class DataValidator
         _listener.modificationsValidated(status);
     }
 
-    private void validateSampleFiles(StatusValidating status, TargetedMSService svc, User user)
+    private void validateSampleFiles(ValidatorStatus status, TargetedMSService svc, User user)
     {
-        for (SkylineDocValidating skyDoc: status.getSkylineDocs())
+        for (ValidatorSkylineDoc skyDoc: status.getSkylineDocs())
         {
             _listener.validatingDocument(skyDoc);
             sleep(); // TODO remove this
@@ -398,19 +398,19 @@ public class DataValidator
         }
     }
 
-    private Set<String> getDuplicateSkylineSampleFileNames(List<SampleFileValidating> sampleFiles)
+    private Set<String> getDuplicateSkylineSampleFileNames(List<ValidatorSampleFile> sampleFiles)
     {
-        Map<String, Integer> counts = sampleFiles.stream().collect(Collectors.toMap(SampleFileValidating::getSkylineName, value -> 1, Integer::sum));
+        Map<String, Integer> counts = sampleFiles.stream().collect(Collectors.toMap(ValidatorSampleFile::getSkylineName, value -> 1, Integer::sum));
         Set<String> duplicates = new HashSet<>();
         counts.entrySet().stream().filter(entry -> entry.getValue() > 1).forEach(entry -> duplicates.add(entry.getKey()));
         return duplicates;
     }
 
-    private StatusValidating initValidationStatus(DataValidation validation, User user) throws DataValidationException
+    private ValidatorStatus initValidationStatus(DataValidation validation, User user) throws DataValidationException
     {
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
-            StatusValidating status = new StatusValidating(validation);
+            ValidatorStatus status = new ValidatorStatus(validation);
             TargetedMSService targetedMsSvc = TargetedMSService.get();
             addSkylineDocs(status, targetedMsSvc);
             addSpectralLibraries(status, targetedMsSvc);
@@ -422,14 +422,14 @@ public class DataValidator
         }
     }
 
-    private void addSkylineDocs(StatusValidating status, TargetedMSService targetedMsSvc)
+    private void addSkylineDocs(ValidatorStatus status, TargetedMSService targetedMsSvc)
     {
         // Get a list of Skyline documents associated with this experiment
         List<ITargetedMSRun> runs = ExperimentAnnotationsManager.getTargetedMSRuns(_expAnnotations);
 
         for(ITargetedMSRun run: runs)
         {
-            SkylineDocValidating skyDoc = new SkylineDocValidating(run);
+            ValidatorSkylineDoc skyDoc = new ValidatorSkylineDoc(run);
             skyDoc.setName(run.getFileName());
             skyDoc.setRunId(run.getId());
             skyDoc.setContainer(run.getContainer());
@@ -439,16 +439,16 @@ public class DataValidator
         }
     }
 
-    private void addSpectralLibraries(StatusValidating status, TargetedMSService targetedMsSvc) throws DataValidationException
+    private void addSpectralLibraries(ValidatorStatus status, TargetedMSService targetedMsSvc) throws DataValidationException
     {
-        Map<String, SpecLibValidating> spectrumLibraries = new HashMap<>();
+        Map<String, ValidatorSpecLib> spectrumLibraries = new HashMap<>();
 
-        for (SkylineDocValidating doc: status.getSkylineDocs())
+        for (ValidatorSkylineDoc doc: status.getSkylineDocs())
         {
             List<? extends ISpectrumLibrary> allSpecLibs = targetedMsSvc.getLibraries(doc.getRun());
             for (ISpectrumLibrary lib: allSpecLibs)
             {
-                SpecLibValidating sLib = getSpectrumLibrary(targetedMsSvc, doc, lib);
+                ValidatorSpecLib sLib = getSpectrumLibrary(targetedMsSvc, doc, lib);
                 spectrumLibraries.putIfAbsent(sLib.getKey(), sLib);
                 sLib.addDocumentLibrary(doc, lib);
             }
@@ -456,9 +456,9 @@ public class DataValidator
         spectrumLibraries.values().forEach(status::addLibrary);
     }
 
-    private SpecLibValidating getSpectrumLibrary(TargetedMSService targetedMsSvc, SkylineDocValidating doc, ISpectrumLibrary lib) throws DataValidationException
+    private ValidatorSpecLib getSpectrumLibrary(TargetedMSService targetedMsSvc, ValidatorSkylineDoc doc, ISpectrumLibrary lib) throws DataValidationException
     {
-        SpecLibValidating sLib = new SpecLibValidating();
+        ValidatorSpecLib sLib = new ValidatorSpecLib();
         sLib.setLibName(lib.getName());
         sLib.setFileName(lib.getFileNameHint());
         sLib.setLibType(lib.getLibraryType());
@@ -477,7 +477,7 @@ public class DataValidator
         return sLib;
     }
 
-    private void addSampleFiles(SkylineDocValidating skylineDoc, TargetedMSService svc)
+    private void addSampleFiles(ValidatorSkylineDoc skylineDoc, TargetedMSService svc)
     {
         List<? extends ISampleFile> sampleFiles = svc.getSampleFiles(skylineDoc.getRunId());
 
@@ -485,7 +485,7 @@ public class DataValidator
 
         for (ISampleFile s: sampleFiles)
         {
-            SampleFileValidating sampleFile = new SampleFileValidating(s);
+            ValidatorSampleFile sampleFile = new ValidatorSampleFile(s);
             boolean sciexWiff = isSciexWiff(s.getFileName());
             if (sciexWiff)
             {
@@ -507,7 +507,7 @@ public class DataValidator
             {
                 // If this is a SCIEX .wiff file we will also look for the corresponding .wiff.scan file
                 String fileName = s.getFileName() + ".scan";
-                SampleFileValidating wiffScanFile = new SampleFileValidating(new ISampleFile()
+                ValidatorSampleFile wiffScanFile = new ValidatorSampleFile(new ISampleFile()
                 {
                     @Override
                     public String getFileName()

@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
 import org.labkey.panoramapublic.model.DbEntity;
 
+// For table panoramapublic.datavalidation
 public class DataValidation extends DbEntity
 {
     private int _experimentAnnotationsId;

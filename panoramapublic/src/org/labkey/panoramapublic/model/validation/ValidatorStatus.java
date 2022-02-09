@@ -1,19 +1,18 @@
 package org.labkey.panoramapublic.model.validation;
 
 import org.jetbrains.annotations.NotNull;
-import org.labkey.panoramapublic.model.ExperimentAnnotations;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class StatusValidating extends GenericValidationStatus <SkylineDocValidating, SpecLibValidating>
+public class ValidatorStatus extends GenericValidationStatus <ValidatorSkylineDoc, ValidatorSpecLib>
 {
-    private final List<SkylineDocValidating> _skylineDocs;
+    private final List<ValidatorSkylineDoc> _skylineDocs;
     private final List<Modification> _modifications;
-    private final List<SpecLibValidating> _spectrumLibraries;
+    private final List<ValidatorSpecLib> _spectrumLibraries;
 
-    public StatusValidating(DataValidation validation)
+    public ValidatorStatus(DataValidation validation)
     {
         setValidation(validation);
         _skylineDocs = new ArrayList<>();
@@ -21,7 +20,7 @@ public class StatusValidating extends GenericValidationStatus <SkylineDocValidat
         _spectrumLibraries = new ArrayList<>();
     }
 
-    public void addSkylineDoc(SkylineDocValidating skylineDocValidation)
+    public void addSkylineDoc(ValidatorSkylineDoc skylineDocValidation)
     {
         _skylineDocs.add(skylineDocValidation);
     }
@@ -31,19 +30,19 @@ public class StatusValidating extends GenericValidationStatus <SkylineDocValidat
         _modifications.add(modification);
     }
 
-    public void addLibrary(SpecLibValidating specLib)
+    public void addLibrary(ValidatorSpecLib specLib)
     {
         _spectrumLibraries.add(specLib);
     }
 
     @Override
-    public @NotNull List<SpecLibValidating> getSpectralLibraries()
+    public @NotNull List<ValidatorSpecLib> getSpectralLibraries()
     {
         return Collections.unmodifiableList(_spectrumLibraries);
     }
 
     @Override
-    public @NotNull List<SkylineDocValidating> getSkylineDocs()
+    public @NotNull List<ValidatorSkylineDoc> getSkylineDocs()
     {
         return Collections.unmodifiableList(_skylineDocs);
     }

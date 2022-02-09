@@ -1,5 +1,6 @@
 package org.labkey.panoramapublic.model.validation;
 
+// For table panoramapublic.skylinedocsamplefile
 public class SkylineDocSampleFile extends DataFile
 {
     private int _skylineDocValidationId;

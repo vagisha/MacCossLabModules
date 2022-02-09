@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+// For table panoramapublic.speclibvalidation
 public class SpecLib
 {
     private int _id;

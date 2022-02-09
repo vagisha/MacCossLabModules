@@ -1,5 +1,6 @@
 package org.labkey.panoramapublic.model.validation;
 
+// For table panoramapublic.skylinedocspeclib
 public class SkylineDocSpecLib
 {
     private int _id;

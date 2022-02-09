@@ -7,32 +7,32 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class SkylineDocValidating extends GenericSkylineDoc<SampleFileValidating, SkylineDocSpecLibValidating>
+public class ValidatorSkylineDoc extends GenericSkylineDoc<ValidatorSampleFile, ValidatorSkylineDocSpecLib>
 {
-    private List<SampleFileValidating> _sampleFiles;
-    private List<SkylineDocSpecLibValidating> _specLibraries;
+    private List<ValidatorSampleFile> _sampleFiles;
+    private List<ValidatorSkylineDocSpecLib> _specLibraries;
     private List<SkylineDocModification> _modifications;
     private ITargetedMSRun _run;
 
-    public SkylineDocValidating()
+    public ValidatorSkylineDoc()
     {
         _sampleFiles = new ArrayList<>();
         _specLibraries = new ArrayList<>();
         _modifications = new ArrayList<>();
     }
 
-    public SkylineDocValidating(@NotNull ITargetedMSRun run)
+    public ValidatorSkylineDoc(@NotNull ITargetedMSRun run)
     {
         this();
         _run = run;
     }
 
-    public void addSampleFile(SampleFileValidating sampleFile)
+    public void addSampleFile(ValidatorSampleFile sampleFile)
     {
         _sampleFiles.add(sampleFile);
     }
 
-    public void addSpecLib(SkylineDocSpecLibValidating specLib)
+    public void addSpecLib(ValidatorSkylineDocSpecLib specLib)
     {
         _specLibraries.add(specLib);
     }
@@ -48,13 +48,13 @@ public class SkylineDocValidating extends GenericSkylineDoc<SampleFileValidating
     }
 
     @Override
-    public List<SampleFileValidating> getSampleFiles()
+    public List<ValidatorSampleFile> getSampleFiles()
     {
         return Collections.unmodifiableList(_sampleFiles);
     }
 
     @Override
-    public List<SkylineDocSpecLibValidating> getSpecLibraries()
+    public List<ValidatorSkylineDocSpecLib> getSpecLibraries()
     {
         return Collections.unmodifiableList(_specLibraries);
     }

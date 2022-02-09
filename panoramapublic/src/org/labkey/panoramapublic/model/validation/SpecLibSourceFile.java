@@ -1,10 +1,8 @@
 package org.labkey.panoramapublic.model.validation;
 
-import org.jetbrains.annotations.NotNull;
-import org.json.JSONObject;
-
 import java.util.Objects;
 
+// For table panoramapublic.speclibsourcefile
 public class SpecLibSourceFile extends DataFile
 {
     private int _id;
