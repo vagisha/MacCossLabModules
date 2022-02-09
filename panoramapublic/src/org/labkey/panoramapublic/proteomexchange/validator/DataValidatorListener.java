@@ -1,7 +1,4 @@
-package org.labkey.panoramapublic.proteomexchange;
-
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDoc;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
+package org.labkey.panoramapublic.proteomexchange.validator;
 
 public interface DataValidatorListener
 {

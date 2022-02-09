@@ -13,7 +13,7 @@ import org.labkey.api.util.FileType;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
-import org.labkey.panoramapublic.proteomexchange.DataValidator;
+import org.labkey.panoramapublic.proteomexchange.validator.DataValidator;
 import org.labkey.panoramapublic.query.DataValidationManager;
 
 import java.util.Collections;

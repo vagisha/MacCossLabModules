@@ -1,4 +1,4 @@
-package org.labkey.panoramapublic.proteomexchange;
+package org.labkey.panoramapublic.proteomexchange.validator;
 
 import org.apache.commons.io.FilenameUtils;
 import org.jetbrains.annotations.NotNull;
@@ -20,13 +20,9 @@ import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.DataValidationException;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDocSpecLib;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDoc;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSpecLib;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
+import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.speclib.LibSourceFile;

@@ -7,7 +7,7 @@ import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDoc;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSpecLib;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
-import org.labkey.panoramapublic.proteomexchange.DataValidatorListener;
+import org.labkey.panoramapublic.proteomexchange.validator.DataValidatorListener;
 
 import java.util.List;
 import java.util.Map;
