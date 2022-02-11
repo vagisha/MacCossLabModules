@@ -81,6 +81,12 @@
     {
         color:white !important;
     }
+    .outdated-validation
+    {
+        padding: 5px;
+        background-color: #FFF6D8;
+        font-weight: bold;
+    }
 
 </style>
 
@@ -185,7 +191,7 @@
         Ext4.create('Ext.panel.Panel', {
             title: 'Data Validation Status',
             renderTo: 'validationStatusDiv',
-            items: [validationInfo(json["validation"]), skylineDocsInfo(json), modificationsInfo(json), spectralLibrariesInfo(json)]
+            items: [validationInfo(json), skylineDocsInfo(json), modificationsInfo(json), spectralLibrariesInfo(json)]
         });
     }
 
@@ -195,7 +201,7 @@
             return statusId === 3 ? 'bold green' : (statusId !== -1 ? 'bold red' : '');
         }
 
-        function getStatusValidHtml(json) {
+        function getStatusValidHtml() {
             return '<div>The data is valid for a "complete" ProteomeXchange submission.  ' +
                     'You can view the validation details below.';
         }
@@ -252,27 +258,55 @@
 
             // var url = LABKEY.ActionURL.buildURL('panoramapublic', 'publishExperiment.view', null, params);
                     // {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
-            var url = LABKEY.ActionURL.buildURL('panoramapublic', <%=qh(submitAction)%> + '.view', null, params);
+            var url = LABKEY.ActionURL.buildURL('panoramapublic', <%=qh(submitAction)%> + '.view', LABKEY.ActionURL.getContainer(), params);
             return url;
         }
 
-        if (json) {
-            var components = [{xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(json)}];
+        if (json["validation"]) {
+
+            var validationJson = json["validation"];
+
+            var components = [{xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(validationJson)}];
             if (forSubmit === true)
             {
-                components.push({xtype: 'button', text: getButtonText(json), cls: getButtonCls(json), style:'color:white', href: getButtonLink(json), hrefTarget:'_self'});
+                if (!json['validationOutdated']) {
+                    components.push({
+                        xtype: 'button',
+                        text: getButtonText(validationJson),
+                        cls: getButtonCls(validationJson),
+                        style: 'color:white',
+                        href: getButtonLink(validationJson),
+                        hrefTarget: '_self'
+                    });
+                }
+                else {
+                    console.log("Experiment annotations Id is " + validationJson["experimentAnnotationsId"]);
+                    components.push({
+                        xtype: 'label',
+                        cls: 'outdated-validation labkey-error',
+                        text: 'This validation job is outdated.'
+                    });
+                    components.push({
+                        xtype: 'button',
+                        text: 'View All Validation Jobs',
+                        style: 'color:white',
+                        href: LABKEY.ActionURL.buildURL('panoramapublic', 'viewPxValidations', LABKEY.ActionURL.getContainer(), {id: validationJson["experimentAnnotationsId"]}),
+                        hrefTarget: '_self'
+                    });
+                }
             }
+
             return {
                 xtype:  'panel',
                 layout: {type: 'anchor', align: 'left'},
                 style:  {margin: '10px'},
                 items:  [
-                            {xtype: 'component', padding: '10, 5, 0, 5', html: 'Folder: ' + htmlEncode(json["folder"])},
+                            {xtype: 'component', padding: '10, 5, 0, 5', html: 'Folder: ' + htmlEncode(validationJson["folder"])},
                             {
                                 xtype:   'component',
                                 padding: '0, 5, 10, 5',
-                                cls:     getStatusCls(json['statusId']),
-                                html:    'Status: ' + htmlEncode(json["status"])
+                                cls:     getStatusCls(validationJson['statusId']),
+                                html:    'Status: ' + htmlEncode(validationJson["status"])
                             },
                             {
                                 xtype:   'panel',
@@ -464,6 +498,7 @@
                 storeId: 'skylineDocsStore',
                 padding: 10,
                 disableSelection: true,
+                viewConfig: {enableTextSelection: true},
                 title: 'Skyline Document Sample Files',
                 columns: [
                     {
@@ -659,7 +694,7 @@
                     rowBodyTpl: new Ext4.XTemplate(
                             '<div style="background-color:#f1f1f1;padding:5px;margin-top:5px;font-size:10pt;">',
 
-                            '<div style="font-weight:bold; margin-top:10px;">Status: {[this.renderLibraryStatus(values.status, values.valid)]} [Edit Library Details]</div>',
+                            '<div style="font-weight:bold; margin-top:10px;">Status: {[this.renderLibraryStatus(values.status, values.valid)]}</div>',
 
                             '<tpl if="spectrumFiles.length &gt; 0">',
                             '<div style="font-weight:bold; margin-top:10px; text-decoration: underline;">Spectrum Files</div>',

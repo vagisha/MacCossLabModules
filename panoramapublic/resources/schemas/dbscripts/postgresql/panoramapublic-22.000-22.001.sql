@@ -42,7 +42,7 @@ CREATE TABLE panoramapublic.SkylineDocValidation
     Name                       VARCHAR(300) NOT NULL, -- Name of the Skyline file
 
     CONSTRAINT PK_SkylineDocValidation PRIMARY KEY (Id),
-    CONSTRAINT FK_SkylineDocValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id),
+    CONSTRAINT FK_SkylineDocValidation_DataValidation FOREIGN KEY (ValidationId) REFERENCES panoramapublic.DataValidation(Id)
 );
 CREATE INDEX IX_SkylineDocValidation_ValidationId ON panoramapublic.SkylineDocValidation(ValidationId);
 CREATE INDEX IX_SkylineDocValidation_Container ON panoramapublic.SkylineDocValidation(Container);

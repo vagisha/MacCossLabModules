@@ -65,7 +65,7 @@
         </br> </br>
         <% if (!bean.getMissingMetadata().hasAlwaysRequiredFields()) { %>
           <!-- Allow continuing without a PXD only if none of the "always required" fields are missing -->
-          <%=link("Continue without a ProteomeXchange ID", noPxSubmissionUrl)%></span>
+          <%=link("Submit without a ProteomeXchange ID", noPxSubmissionUrl)%></span>
         <% } %>
     </div>
     <%}%>

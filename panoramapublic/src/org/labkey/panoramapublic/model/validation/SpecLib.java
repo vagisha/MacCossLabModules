@@ -125,16 +125,16 @@ public class SpecLib
         }
         if (isUnsupportedLibrary())
         {
-            return "Unsupported library: " + getLibType();
+            return "Unsupported library type: " + getLibType();
         }
         if (isPrositLibrary())
         {
             return "VALID";
         }
-        boolean missingIdFilesInBlib = _idFiles.size() == 0;
-        boolean missingSpectrumFilesInBlib = _spectrumFiles.size() == 0;
-        boolean missingSpectrumFiles = !foundSpectrumFiles();
-        boolean missingIdFiles = !foundIdFiles();
+        boolean missingSpectrumFilesInBlib = _spectrumFiles.size() == 0; // .blib does not list any spectrum files
+        boolean missingIdFilesInBlib = _idFiles.size() == 0; // .blib does not list any Id files
+        boolean missingSpectrumFiles = !foundSpectrumFiles(); // spectrum files listed in the .blib were not found on the filesystem
+        boolean missingIdFiles = !foundIdFiles(); // Id files listed in the .blib were not found on the filesystem
         if (!(missingSpectrumFilesInBlib || missingSpectrumFiles || missingIdFilesInBlib || missingIdFiles))
         {
             return "VALID";
@@ -216,7 +216,12 @@ public class SpecLib
     public boolean isAssayLibrary()
     {
         // https://skyline.ms/wiki/home/software/Skyline/page.view?name=building_spectral_libraries
-        return isBibliospecLibrary() && getSpectrumFiles().stream().allMatch(f -> getFileName().toLowerCase().endsWith(".csv"));
+        if (isBibliospecLibrary())
+        {
+            var spectrumFiles = getSpectrumFiles();
+            return spectrumFiles.size() > 0 && spectrumFiles.stream().anyMatch(f -> getFileName().toLowerCase().endsWith(".csv"));
+        }
+        return false;
     }
 
     public boolean isIncompleteBlib()

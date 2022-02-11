@@ -16,6 +16,8 @@ import org.labkey.test.util.APIContainerHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.DataRegionTable;
 import org.labkey.test.util.Ext4Helper;
+import org.labkey.test.util.LogMethod;
+import org.labkey.test.util.LoggedParam;
 import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.PortalHelper;
 
@@ -33,6 +35,8 @@ import static org.junit.Assert.assertTrue;
 @BaseWebDriverTest.ClassTimeout(minutes = 7)
 public class PanoramaPublicTest extends PanoramaPublicBaseTest
 {
+    public static final String SAMPLEDATA_FOLDER = "panoramapublic/";
+
     private static final String SKY_FILE_1 = "Study9S_Site52_v1.sky.zip";
     private static final String RAW_FILE_WIFF = "Site52_041009_Study9S_Phase-I.wiff";
     private static final String RAW_FILE_WIFF_SCAN = RAW_FILE_WIFF + ".scan";
@@ -44,7 +48,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
 
     protected File getSampleDataPath(String file)
     {
-        return TestFileUtils.getSampleData("TargetedMS/" + file);
+        return TestFileUtils.getSampleData("TargetedMS/" + SAMPLEDATA_FOLDER + file);
     }
 
     @Test
@@ -399,6 +403,12 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         {
             assertEquals("Unexpected VersionCount", String.valueOf(count), expListTable.getRowDataAsText(row, "VersionCount").get(0).trim());
         }
+    }
+
+    @LogMethod
+    protected void importData(@LoggedParam String file, int jobCount)
+    {
+        importData(SAMPLEDATA_FOLDER + file, jobCount, false);
     }
 
     @Override

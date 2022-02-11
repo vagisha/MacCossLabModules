@@ -3,6 +3,7 @@ package org.labkey.panoramapublic.model.validation;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
 import org.labkey.panoramapublic.model.DbEntity;
+import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 
 // For table panoramapublic.datavalidation
 public class DataValidation extends DbEntity
@@ -60,6 +61,12 @@ public class DataValidation extends DbEntity
         jsonObject.put("experimentAnnotationsId", getExperimentAnnotationsId());
         jsonObject.put("status", _status != null ? _status.getLabel() : "In Progress");
         jsonObject.put("statusId", _status != null ? _status.ordinal() : -1);
+
+        var exptAnnotations = ExperimentAnnotationsManager.get(_experimentAnnotationsId);
+        if (exptAnnotations != null)
+        {
+            jsonObject.put("folder", exptAnnotations.getContainer().getName());
+        }
         return jsonObject;
     }
 }

@@ -2057,7 +2057,14 @@ public class PanoramaPublicController extends SpringActionController
                         }
                         else
                         {
-                            response.put("validationStatus", validationStatus.toJSON());
+                            JSONObject json = validationStatus.toJSON();
+                            var dataValidation = validationStatus.getValidation();
+                            var expAnnotations = ExperimentAnnotationsManager.get(dataValidation.getExperimentAnnotationsId());
+                            if (DataValidationManager.isValidationOutdated(dataValidation, expAnnotations, getUser()) && expAnnotations != null)
+                            {
+                                json.put("validationOutdated", true);
+                            }
+                            response.put("validationStatus", json);
                         }
                     }
                 }
@@ -2892,7 +2899,7 @@ public class PanoramaPublicController extends SpringActionController
         {
             componentList.add(DIV(at(style, "margin-bottom:10px;"), message));
         }
-        componentList.add(DIV(at(style, "margin-bottom:10px;"), "Click the button to start a new data validation job.",
+        componentList.add(DIV(at(style, "margin-bottom:10px; margin-right:10px;"), "Click the button to start a new data validation job.",
                 new Button.ButtonBuilder("Validate Data for ProteomeXchange").href(validateDataUrl).usePost().build()));
 
         if (addSubmitWithoutPxd && submitUrl != null)
