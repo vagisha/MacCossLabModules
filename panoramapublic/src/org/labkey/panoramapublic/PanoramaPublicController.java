@@ -1815,12 +1815,6 @@ public class PanoramaPublicController extends SpringActionController
             }
         }
 
-        boolean validateGetRequest(PublishExperimentForm form, BindException errors)
-        {
-            _experimentAnnotations = getValidExperiment(form, getContainer(), getViewContext(), errors);
-            return _experimentAnnotations != null;
-        }
-
         protected void checkForValidation(ExperimentAnnotations experimentAnnotations, PublishExperimentForm form)
         {
             if (form.getValidationId() != null)
@@ -2016,6 +2010,23 @@ public class PanoramaPublicController extends SpringActionController
                     getViewContext().getActionURL());
         }
 
+        private Container getLibraryFolderWithConflicts(User user, ExperimentAnnotations exptAnnotations)
+        {
+            List<Container> containers = exptAnnotations.isIncludeSubfolders() ?
+                    ContainerManager.getAllChildren(exptAnnotations.getContainer(), user)
+                    : Collections.singletonList(exptAnnotations.getContainer());
+
+            for(Container container: containers)
+            {
+                TargetedMSService.FolderType folderType = TargetedMSService.get().getFolderType(container);
+                if(isLibraryFolder(folderType) && ChromLibStateManager.getConflictCount(user, container, folderType) > 0)
+                {
+                    return container;
+                }
+            }
+            return null;
+        }
+
         private HtmlView getConfirmIncludeSubfoldersView(ExperimentAnnotations expAnnotations, List<Container> allSubfolders, ActionURL skipSubfolderCheckUrl)
         {
             ActionURL includeSubfoldersUrl = new ActionURL(IncludeSubFoldersInExperimentAction.class, _experimentAnnotations.getContainer())
@@ -2083,23 +2094,6 @@ public class PanoramaPublicController extends SpringActionController
                             getBackToFolderButton(getContainer())));
         }
 
-        private Container getLibraryFolderWithConflicts(User user, ExperimentAnnotations exptAnnotations)
-        {
-            List<Container> containers = exptAnnotations.isIncludeSubfolders() ?
-                    ContainerManager.getAllChildren(exptAnnotations.getContainer(), user)
-                    : Collections.singletonList(exptAnnotations.getContainer());
-
-            for(Container container: containers)
-            {
-                TargetedMSService.FolderType folderType = TargetedMSService.get().getFolderType(container);
-                if(isLibraryFolder(folderType) && ChromLibStateManager.getConflictCount(user, container, folderType) > 0)
-                {
-                    return container;
-                }
-            }
-            return null;
-        }
-
         private boolean userInfoIncomplete(ExperimentAnnotations experimentAnnotations, BindException errors)
         {
             checkAccountInfo(experimentAnnotations.getSubmitterUser(), "data submitter", errors);
@@ -2120,6 +2114,12 @@ public class PanoramaPublicController extends SpringActionController
                     errors.reject(ERROR_MSG, message);
                 }
             }
+        }
+
+        boolean validateGetRequest(PublishExperimentForm form, BindException errors)
+        {
+            _experimentAnnotations = getValidExperiment(form, getContainer(), getViewContext(), errors);
+            return _experimentAnnotations != null;
         }
 
         @NotNull
