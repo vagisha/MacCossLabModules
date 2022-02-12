@@ -38,7 +38,7 @@ import org.labkey.api.query.DetailsURL;
 import org.labkey.api.query.ExprColumn;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
-import org.labkey.api.query.UserIdForeignKey;
+import org.labkey.api.query.UserIdQueryForeignKey;
 import org.labkey.api.query.UserIdRenderer;
 import org.labkey.api.query.UserSchema;
 import org.labkey.api.security.Group;
@@ -73,7 +73,6 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.labkey.api.util.DOM.Attribute.onclick;
@@ -417,7 +416,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
         return getContainer().hasPermission(user, perm);
     }
 
-    public static class ExperimentUserForeignKey extends UserIdForeignKey
+    public static class ExperimentUserForeignKey extends UserIdQueryForeignKey
     {
         private FieldKey _fieldKey;
 
@@ -430,7 +429,7 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
 
         public ExperimentUserForeignKey(UserSchema userSchema, FieldKey fieldKey)
         {
-            super(userSchema);
+            super(userSchema, true); // Include all users so that admins can get the email address etc. of submitters and lab heads
             _fieldKey = fieldKey;
         }
 
