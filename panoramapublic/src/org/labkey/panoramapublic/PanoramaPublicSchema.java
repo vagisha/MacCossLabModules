@@ -30,17 +30,13 @@ import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.dialect.SqlDialect;
 import org.labkey.api.module.Module;
 import org.labkey.api.query.DefaultSchema;
-import org.labkey.api.query.DetailsURL;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.FilteredTable;
-import org.labkey.api.query.QueryForeignKey;
 import org.labkey.api.query.QuerySchema;
 import org.labkey.api.query.QuerySettings;
 import org.labkey.api.query.QueryView;
-import org.labkey.api.query.UserIdQueryForeignKey;
 import org.labkey.api.query.UserSchema;
 import org.labkey.api.security.User;
-import org.labkey.api.view.ActionURL;
 import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
@@ -51,10 +47,7 @@ import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
 import org.labkey.panoramapublic.query.speclib.SpecLibInfoTableInfo;
 import org.springframework.validation.BindException;
-import org.springframework.validation.Errors;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 public class PanoramaPublicSchema extends UserSchema
@@ -157,31 +150,6 @@ public class PanoramaPublicSchema extends UserSchema
         if (TABLE_DATA_VALIDATION.equalsIgnoreCase(name))
         {
             return new DataValidationTableInfo(this, cf);
-//            FilteredTable<PanoramaPublicSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf);
-//            result.wrapAllColumns(true);
-//            result.getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(this));
-//            result.getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(this));
-//            result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
-//            result.getMutableColumn("Status").setFk(QueryForeignKey.from(this, cf).to(PanoramaPublicSchema.TABLE_PX_STATUS, "RowId", null));
-//            Map<String, Object> params = new HashMap<>();
-//            params.put("validationId", FieldKey.fromParts("Id"));
-//            params.put("id", FieldKey.fromParts("ExperimentAnnotationsId"));
-//            result.setDetailsURL(new DetailsURL(new ActionURL(PanoramaPublicController.PxValidationStatusAction.class, getContainer()), params));
-//
-//            return result;
-        }
-
-        if (TABLE_SKYLINE_DOC_VALIDATION.equalsIgnoreCase(name))
-        {
-            FilteredTable<PanoramaPublicSchema> result = new FilteredTable<>(getSchema().getTable(name), this, cf);
-            result.wrapAllColumns(true);
-            result.getMutableColumn("Container").setFk(new ContainerForeignKey(this));
-            return result;
-        }
-
-        if (TABLE_SKYLINE_DOC_SAMPLE_FILE.equalsIgnoreCase(name))
-        {
-            return new FilteredTable<>(getSchema().getTable(name), this, cf);
         }
 
         if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(name))
@@ -270,7 +238,35 @@ public class PanoramaPublicSchema extends UserSchema
         if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(settings.getQueryName())
         || TABLE_DATA_VALIDATION.equalsIgnoreCase(settings.getQueryName()))
         {
-            return new DeleteOnlyView(this, settings, errors);
+            // Show the delete icon in the toolbar but not the insert or update icons
+            var view = new QueryView(this, settings, errors)
+            {
+                @Override
+                protected boolean canDelete()
+                {
+                    return true;
+                }
+
+                @Override
+                protected boolean canInsert()
+                {
+                    return false;
+                }
+
+                @Override
+                public boolean showImportDataButton()
+                {
+                    return false;
+                }
+
+                @Override
+                protected boolean canUpdate()
+                {
+                    return false;
+                }
+            };
+            view.disableContainerFilterSelection();
+            return view;
         }
 
         return super.createView(context, settings, errors);
@@ -288,39 +284,5 @@ public class PanoramaPublicSchema extends UserSchema
         hs.add(TABLE_DATA_VALIDATION);
         hs.add(TABLE_SPEC_LIB_INFO);
         return hs;
-    }
-
-    // View in the query schema browser. Show the delete icon in the toolbar but not the insert or update icons
-    public static class DeleteOnlyView extends QueryView
-    {
-        public DeleteOnlyView(UserSchema schema, QuerySettings settings, @Nullable Errors errors)
-        {
-            super(schema, settings, errors);
-            disableContainerFilterSelection();
-        }
-
-        @Override
-        protected boolean canDelete()
-        {
-            return true;
-        }
-
-        @Override
-        protected boolean canInsert()
-        {
-            return false;
-        }
-
-        @Override
-        public boolean showImportDataButton()
-        {
-            return false;
-        }
-
-        @Override
-        protected boolean canUpdate()
-        {
-            return false;
-        }
     }
 }
