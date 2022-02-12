@@ -1815,39 +1815,6 @@ public class PanoramaPublicController extends SpringActionController
             }
         }
 
-        protected void checkForValidation(ExperimentAnnotations experimentAnnotations, PublishExperimentForm form)
-        {
-            if (form.getValidationId() != null)
-            {
-                var validation = DataValidationManager.getValidation(form.getValidationId(), getContainer());
-                if (validation != null && DataValidationManager.isPipelineJobRunning(validation))
-                {
-                    throw new RedirectException(getPxValidationStatusUrl(_experimentAnnotations.getId(),
-                            validation.getId(), _experimentAnnotations.getContainer()));
-                }
-            }
-        }
-
-        protected void checkIfResubmit(ExperimentAnnotations experimentAnnotations, PublishExperimentForm form, Errors errors)
-        {
-            JournalSubmission js = SubmissionManager.getNewestJournalSubmission(experimentAnnotations);
-            if (js != null)
-            {
-                var latestSubmission = js.getLatestSubmission();
-                if (latestSubmission != null)
-                {
-                    if (latestSubmission.isPending() && !form.isUpdate())
-                    {
-                        errors.reject(ERROR_MSG, "A submission is currently pending. Expected a submission update request.");
-                    }
-                    if (latestSubmission.hasCopy() && !form.isResubmit())
-                    {
-                        errors.reject(ERROR_MSG, "The latest submission request was copied. Expected a resubmit request.");
-                    }
-                }
-            }
-        }
-
         private ModelAndView getView(PublishExperimentForm form, BindException errors)
         {
             if(form.isDoSubfolderCheck())
@@ -1982,6 +1949,39 @@ public class PanoramaPublicController extends SpringActionController
             {
                 // ProteomeXchange validation is not required because this is small molecule data OR the submitter chose to not get a ProteomeXchange Id
                 return getPublishFormView(form, _experimentAnnotations, errors);
+            }
+        }
+
+        protected void checkForValidation(ExperimentAnnotations experimentAnnotations, PublishExperimentForm form)
+        {
+            if (form.getValidationId() != null)
+            {
+                var validation = DataValidationManager.getValidation(form.getValidationId(), getContainer());
+                if (validation != null && DataValidationManager.isPipelineJobRunning(validation))
+                {
+                    throw new RedirectException(getPxValidationStatusUrl(_experimentAnnotations.getId(),
+                            validation.getId(), _experimentAnnotations.getContainer()));
+                }
+            }
+        }
+
+        protected void checkIfResubmit(ExperimentAnnotations experimentAnnotations, PublishExperimentForm form, Errors errors)
+        {
+            JournalSubmission js = SubmissionManager.getNewestJournalSubmission(experimentAnnotations);
+            if (js != null)
+            {
+                var latestSubmission = js.getLatestSubmission();
+                if (latestSubmission != null)
+                {
+                    if (latestSubmission.isPending() && !form.isUpdate())
+                    {
+                        errors.reject(ERROR_MSG, "A submission is currently pending. Expected a submission update request.");
+                    }
+                    if (latestSubmission.hasCopy() && !form.isResubmit())
+                    {
+                        errors.reject(ERROR_MSG, "The latest submission request was copied. Expected a resubmit request.");
+                    }
+                }
             }
         }
 
