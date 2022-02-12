@@ -84,8 +84,7 @@
             if (!journalCopyPending)
             {
                 publishButtonText = "Resubmit";
-                publishUrl = PanoramaPublicController.getRePublishExperimentURL(annot.getId(), js.getJournalId(), getContainer(), submission.isKeepPrivate(), true); // Has been copied; User is re-submitting
-                // publishUrl = PanoramaPublicController.getResubmitExperimentURL(annot.getId(), getContainer(), null);
+                publishUrl = PanoramaPublicController.getResubmitExperimentURL(annot.getId(), js.getJournalId(), getContainer(), submission.isKeepPrivate(), true); // Has been copied; User is re-submitting
             }
         }
     }

@@ -27,7 +27,7 @@
     Submission submission = bean.getSubmission();
     if (submission != null)
     {
-        submitAction = submission.hasCopy() ? SpringActionController.getActionName(PanoramaPublicController.RepublishJournalExperimentAction.class)
+        submitAction = submission.hasCopy() ? SpringActionController.getActionName(PanoramaPublicController.ResubmitExperimentAction.class)
                 : SpringActionController.getActionName(PanoramaPublicController.UpdateSubmissionAction.class);
     }
     var jobStatus = PipelineService.get().getStatusFile(jobId);
@@ -250,7 +250,8 @@
         function getButtonLink(json) {
             var params = {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false};
             const statusId = json["statusId"];
-            if (statusId === 0 || statusId === 1) {params["getPxid"] = false;}
+            if (statusId === 0 || statusId === 1) { params["getPxid"] = false; }
+            else { params["getPxid"] = true; }
 
             <% if(journalId != null) { %>
                {params["journalId"] = <%=journalId%>;}

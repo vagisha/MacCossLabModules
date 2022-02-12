@@ -1761,7 +1761,7 @@ public class PanoramaPublicController extends SpringActionController
 
     public static HtmlView getStartDataValidationView(String message, ExperimentAnnotations experimentAnnotations, Container container)
     {
-        var url = new ActionURL(PreSubmissionCheckAction.class, container).addParameter("id", experimentAnnotations.getId());
+        var url = new ActionURL(DataValidationCheckAction.class, container).addParameter("id", experimentAnnotations.getId());
         return new HtmlView(DIV(DIV(at(style, "margin-bottom:15px;"), message), new Button.ButtonBuilder("Validate Data").href(url).build()));
     }
 
@@ -1983,6 +1983,23 @@ public class PanoramaPublicController extends SpringActionController
                     }
                 }
             }
+        }
+
+        private static List<ITargetedMSRun> getNotSkyZipRuns(@NotNull ExperimentAnnotations expAnnot)
+        {
+            TargetedMSService service = TargetedMSService.get();
+            if (service != null)
+            {
+                Set<Container> expContainers = expAnnot.isIncludeSubfolders() ? ContainerManager.getAllChildren(expAnnot.getContainer())
+                        : Collections.singleton(expAnnot.getContainer());
+                List<ITargetedMSRun> allRuns = new ArrayList<>();
+                for (Container container: expContainers)
+                {
+                    allRuns.addAll(service.getRuns(container));
+                }
+                return allRuns.stream().filter(run -> run.getFileName().endsWith(".sky")).collect(Collectors.toList());
+            }
+            return Collections.emptyList();
         }
 
         @NotNull
@@ -3294,7 +3311,7 @@ public class PanoramaPublicController extends SpringActionController
     // BEGIN Action for updating a row in the Submission and JournalExperiment tables
     // ------------------------------------------------------------------------
     @RequiresPermission(AdminPermission.class)
-    public static class UpdateSubmissionAction extends ResubmitExperimentAction
+    public static class UpdateSubmissionAction extends AbstractResubmitAction
     {
         private Submission _submission;
 
@@ -3397,7 +3414,7 @@ public class PanoramaPublicController extends SpringActionController
     // ------------------------------------------------------------------------
 
     @RequiresPermission(AdminPermission.class)
-    public abstract static class ResubmitExperimentAction extends PublishExperimentAction
+    public abstract static class AbstractResubmitAction extends PublishExperimentAction
     {
         protected JournalSubmission _journalSubmission;
 
@@ -3604,7 +3621,7 @@ public class PanoramaPublicController extends SpringActionController
     // BEGIN Action for resubmitting an experiment
     // ------------------------------------------------------------------------
     @RequiresPermission(AdminPermission.class)
-    public static class RepublishJournalExperimentAction extends ResubmitExperimentAction
+    public static class ResubmitExperimentAction extends AbstractResubmitAction
     {
         private Submission _lastCopiedSubmission;
 
@@ -3812,7 +3829,7 @@ public class PanoramaPublicController extends SpringActionController
 
 
     @RequiresPermission(AdminPermission.class)
-    public static class PreSubmissionCheckAction extends PublishExperimentAction
+    public static class DataValidationCheckAction extends PublishExperimentAction
     {
         @Override
         public ModelAndView getView(PublishExperimentForm form, boolean reshow, BindException errors)
@@ -3825,7 +3842,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected void checkIfResubmit(ExperimentAnnotations experimentAnnotations, PublishExperimentForm form, Errors errors)
         {
-            return; // No checks for this action
+            return; // For this action we don't need to check if this is a 'resubmit'
         }
 
         @Override
@@ -3876,7 +3893,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         public boolean handlePost(PublishExperimentForm form, BindException errors) throws Exception
         {
-            errors.reject(ERROR_MSG, "Post method is not allowed for " + getActionName(PreSubmissionCheckAction.class));
+            errors.reject(ERROR_MSG, "Post method is not allowed for " + getActionName(DataValidationCheckAction.class));
             return false;
         }
 
@@ -3897,23 +3914,6 @@ public class PanoramaPublicController extends SpringActionController
             return expContainers.stream().anyMatch(container -> service.getRuns(container).size() > 0);
         }
         return false;
-    }
-
-    private static List<ITargetedMSRun> getNotSkyZipRuns(@NotNull ExperimentAnnotations expAnnot)
-    {
-        TargetedMSService service = TargetedMSService.get();
-        if (service != null)
-        {
-            Set<Container> expContainers = expAnnot.isIncludeSubfolders() ? ContainerManager.getAllChildren(expAnnot.getContainer())
-                    : Collections.singleton(expAnnot.getContainer());
-            List<ITargetedMSRun> allRuns = new ArrayList<>();
-            for (Container container: expContainers)
-            {
-                allRuns.addAll(service.getRuns(container));
-            }
-            return allRuns.stream().filter(run -> run.getFileName().endsWith(".sky")).collect(Collectors.toList());
-        }
-        return Collections.emptyList();
     }
 
     // ------------------------------------------------------------------------
@@ -5322,7 +5322,7 @@ public class PanoramaPublicController extends SpringActionController
                 vBox.setFrame(WebPartView.FrameType.PORTAL);
                 vBox.addView(submissionList);
 
-                ActionURL url = PanoramaPublicController.getPrePublishExperimentCheckURL(exptAnnotations.getId(), exptAnnotations.getContainer(), true);
+                ActionURL url = PanoramaPublicController.getDataValidationCheckUrl(exptAnnotations.getId(), exptAnnotations.getContainer(), true);
                 url.addReturnURL(getViewExperimentDetailsURL(exptAnnotations.getId(), exptAnnotations.getContainer()));
                 vBox.addView(new HtmlView(DIV(new Link.LinkBuilder("Validate for ProteomeXchange").href(url).build())));
 
@@ -5932,7 +5932,7 @@ public class PanoramaPublicController extends SpringActionController
             {
                 String action = returnUrl.getAction();
                 if(SpringActionController.getActionName(PublishExperimentAction.class).equals(action) ||
-                        SpringActionController.getActionName(RepublishJournalExperimentAction.class).equals(action) ||
+                        SpringActionController.getActionName(ResubmitExperimentAction.class).equals(action) ||
                         SpringActionController.getActionName(UpdateSubmissionAction.class).equals(action))
                 _returnPublishExptUrl = returnUrl;
             }
@@ -7294,18 +7294,6 @@ public class PanoramaPublicController extends SpringActionController
         return getSubmitExperimentURL(experimentAnnotationsId, container, true, true);
     }
 
-//    public static ActionURL getResubmitExperimentURL(int experimentAnnotationsId, Container container, @Nullable Integer validationId)
-//    {
-//        ActionURL result = new ActionURL(SubmitExperimentAction.class, container);
-//        result.addParameter("id", experimentAnnotationsId);
-//        if (validationId != null)
-//        {
-//            result.addParameter("validationId", validationId);
-//        }
-//        result.addParameter("resubmit", true);
-//        return result;
-//    }
-
     public static ActionURL getUpdateSubmissionURL(int experimentAnnotationsId, int journalId, Container container, boolean keepPrivate, boolean getPxId)
     {
         ActionURL result = new ActionURL(UpdateSubmissionAction.class, container);
@@ -7317,17 +7305,17 @@ public class PanoramaPublicController extends SpringActionController
         return result;
     }
 
-    public static ActionURL getPrePublishExperimentCheckURL(int experimentAnnotationsId, Container container, boolean notSubmitting)
+    public static ActionURL getDataValidationCheckUrl(int experimentAnnotationsId, Container container, boolean notSubmitting)
     {
-        ActionURL result = new ActionURL(PreSubmissionCheckAction.class, container);
+        ActionURL result = new ActionURL(DataValidationCheckAction.class, container);
         result.addParameter("id", experimentAnnotationsId);
         result.addParameter("notSubmitting", notSubmitting);
         return result;
     }
 
-    public static ActionURL getRePublishExperimentURL(int experimentAnnotationsId, int journalId, Container container, boolean keepPrivate , boolean getPxId)
+    public static ActionURL getResubmitExperimentURL(int experimentAnnotationsId, int journalId, Container container, boolean keepPrivate , boolean getPxId)
     {
-        ActionURL result = new ActionURL(RepublishJournalExperimentAction.class, container);
+        ActionURL result = new ActionURL(ResubmitExperimentAction.class, container);
         result.addParameter("id", experimentAnnotationsId);
         result.addParameter("journalId", journalId);
         result.addParameter("keepPrivate", keepPrivate);
@@ -7383,9 +7371,9 @@ public class PanoramaPublicController extends SpringActionController
                 new PublishExperimentAction(),
                 new UpdateSubmissionAction(),
                 new DeleteSubmissionAction(),
-                new RepublishJournalExperimentAction(),
+                new ResubmitExperimentAction(),
                 new PxXmlSummaryAction(),
-                new PreSubmissionCheckAction()
+                new DataValidationCheckAction()
             );
 
             // @RequiresPermission(AdminOperationsPermission.class)

@@ -28,7 +28,7 @@
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController.PublishExperimentAction" %>
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController.PublishExperimentForm" %>
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController.PublishExperimentFormBean" %>
-<%@ page import="org.labkey.panoramapublic.PanoramaPublicController.RepublishJournalExperimentAction" %>
+<%@ page import="org.labkey.panoramapublic.PanoramaPublicController.ResubmitExperimentAction" %>
 <%@ page import="org.labkey.panoramapublic.model.DataLicense" %>
 <%@ page import="org.labkey.panoramapublic.model.ExperimentAnnotations" %>
 <%@ page import="org.labkey.panoramapublic.model.Journal" %>
@@ -69,7 +69,7 @@
     String publishButtonText = isUpdate ? "Update" : (isResubmit ? "Resubmit" : "Submit");
     ActionURL submitUrl = isUpdate ? new ActionURL(UpdateSubmissionAction.class, getContainer())
             : (isResubmit ?
-              new ActionURL(RepublishJournalExperimentAction.class, getContainer())
+              new ActionURL(ResubmitExperimentAction.class, getContainer())
             : new ActionURL(PublishExperimentAction.class, getContainer()));
 
     ActionURL cancelUrl = PanoramaPublicController.getViewExperimentDetailsURL(bean.getForm().getId(), getContainer());

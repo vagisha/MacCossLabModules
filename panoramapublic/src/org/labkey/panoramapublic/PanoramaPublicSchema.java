@@ -265,7 +265,10 @@ public class PanoramaPublicSchema extends UserSchema
                     return false;
                 }
             };
-            view.disableContainerFilterSelection();
+            if (TABLE_DATA_VALIDATION.equalsIgnoreCase(settings.getQueryName()))
+            {
+                view.disableContainerFilterSelection(); // No need for a container filter for the data validation table
+            }
             return view;
         }
 
