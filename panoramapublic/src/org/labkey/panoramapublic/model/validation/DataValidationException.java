@@ -6,4 +6,9 @@ public class DataValidationException extends Exception
     {
         super(message, e);
     }
+
+    public DataValidationException(String message)
+    {
+        super(message);
+    }
 }

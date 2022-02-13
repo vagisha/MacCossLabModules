@@ -119,4 +119,10 @@ public class ValidatorListener implements DataValidatorListener
             }
         }
     }
+
+    @Override
+    public void warning(String message)
+    {
+        _log.warn(message);
+    }
 }

@@ -3,6 +3,7 @@ package org.labkey.panoramapublic.speclib;
 import org.apache.commons.lang3.StringUtils;
 
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.Set;
 
 public class LibSourceFile
@@ -41,5 +42,22 @@ public class LibSourceFile
     public boolean containsScoreType(String scoreType)
     {
         return scoreTypes != null && scoreTypes.contains(scoreType);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LibSourceFile that = (LibSourceFile) o;
+        return Objects.equals(getSpectrumSourceFile(), that.getSpectrumSourceFile())
+                && Objects.equals(getIdFile(), that.getIdFile())
+                && Objects.equals(scoreTypes, that.scoreTypes);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(getSpectrumSourceFile(), getIdFile(), scoreTypes);
     }
 }

@@ -9,4 +9,5 @@ public interface DataValidatorListener
     void modificationsValidated(ValidatorStatus status);
     void validatingSpectralLibraries();
     void spectralLibrariesValidated(ValidatorStatus status);
+    void warning(String message);
 }

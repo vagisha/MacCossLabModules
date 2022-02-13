@@ -71,27 +71,27 @@ public class DataValidator
     {
         validateSampleFiles(status, svc, user);
         validateModifications(status, user);
-        validateLibraries(status, svc, user);
+        validateLibraries(status, user);
         status.getValidation().setStatus(status.getPxStatus());
         DataValidationManager.updateValidationStatus(status.getValidation(), user);
     }
 
-    private void sleep()
-    {
-        try
-        {
-            Thread.sleep(1*1000);
-        }
-        catch (InterruptedException e)
-        {
-            e.printStackTrace();
-        }
-    }
+//    private void sleep()
+//    {
+//        try
+//        {
+//            Thread.sleep(1*1000);
+//        }
+//        catch (InterruptedException e)
+//        {
+//            e.printStackTrace();
+//        }
+//    }
 
-    private void validateLibraries(ValidatorStatus status, TargetedMSService svc, User user) throws DataValidationException
+    private void validateLibraries(ValidatorStatus status, User user) throws DataValidationException
     {
         _listener.validatingSpectralLibraries();
-        sleep(); // TODO: remove this
+        // sleep();
         FileContentService fcs = FileContentService.get();
         for (ValidatorSpecLib specLib: status.getSpectralLibraries())
         {
@@ -116,13 +116,13 @@ public class DataValidator
                 ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.getLibrary());
                 docLibV.setSpeclibValidationId(specLib.getId());
                 docLibV.setSkylineDocValidationId(docLib.getDocument().getId());
-                docLib.getDocument().addSpecLib(docLibV);
+                // docLib.getDocument().addSpecLib(docLibV);
                 DataValidationManager.saveDocSpectrumLibrary(docLibV, user);
             }
         }
         else
         {
-            List<LibSourceFile> sources = null;
+            List<LibSourceFile> libSources = null;
             for (ValidatorSpecLib.DocLib docLib: specLib.getDocumentLibraries())
             {
                 ISpectrumLibrary isl = docLib.getLibrary();
@@ -136,38 +136,33 @@ public class DataValidator
                     }
                     catch (SpecLibReaderException e)
                     {
-                        // TODO: library file exists but there was an error reading the library.
-                        e.printStackTrace();
+                        // Library file exists but there was an error reading the library.
+                        _listener.warning(e.getMessage());
                     }
                 }
 
-                if (sources == null)
+                if (libSources == null)
                 {
-                    sources = docLibSources;
+                    libSources = docLibSources;
                 }
-                else if(!areSameSources(sources, docLibSources))
+                else if(!areSameSources(libSources, docLibSources))
                 {
-                    specLib.removeSkylineDoc(docLib.getDocument());
-                    ValidatorSpecLib newSpecLib = new ValidatorSpecLib();
-                    newSpecLib.setLibName(specLib.getLibName());
-                    newSpecLib.setFileName(specLib.getFileName());
-                    newSpecLib.setSize(specLib.getSize());
-                    newSpecLib.setLibType(specLib.getLibType());
-                    newSpecLib.addDocumentLibrary(docLib.getDocument(), docLib.getLibrary());
-                    validateLibrary(newSpecLib, status, user, fcs);
-                    continue;
+                    throw new DataValidationException(String.format("Expected library sources to match in all documents with the library '%s'. "
+                            + ". But they did not match for the library in the document '%s'.", specLib.getKey(), docLib.getDocument().getName()));
                 }
 
                 ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.getLibrary());
                 docLibV.setSpeclibValidationId(specLib.getId());
                 docLibV.setSkylineDocValidationId(docLib.getDocument().getId());
                 docLibV.setIncluded(specLib.getSize() != null);
-                docLib.getDocument().addSpecLib(docLibV);
+                // docLib.getDocument().addSpecLib(docLibV);
                 DataValidationManager.saveDocSpectrumLibrary(docLibV, user);
             }
-            if (sources != null) // Sources were not found either because the library is not supported or e.g. the required table was not found in the .blib
+
+            // library sources will be null if the library is not supported, or e.g. the required table was not found in the .blib
+            if (libSources != null)
             {
-                validateLibrarySources(specLib, sources, user, fcs);
+                validateLibrarySources(specLib, libSources, user, fcs);
             }
         }
     }
@@ -310,7 +305,6 @@ public class DataValidator
 
     private boolean areSameSources(List<LibSourceFile> sources, List<LibSourceFile> docLibSources)
     {
-        // TODO: Test this method
         if (sources.size() == docLibSources.size())
         {
             sources.sort(Comparator.comparing(LibSourceFile::getSpectrumSourceFile)
@@ -327,7 +321,7 @@ public class DataValidator
     private void validateModifications(ValidatorStatus status, User user)
     {
         _listener.validatingModifications();
-        sleep(); // TODO: remove this
+        // sleep();
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
             List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations);
@@ -366,7 +360,7 @@ public class DataValidator
         for (ValidatorSkylineDoc skyDoc: status.getSkylineDocs())
         {
             _listener.validatingDocument(skyDoc);
-            sleep(); // TODO remove this
+            // sleep();
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
                 List<ISampleFile> sampleFiles = skyDoc.getSampleFiles().stream().map(s -> s.getSampleFile()).collect(Collectors.toList());
@@ -452,7 +446,7 @@ public class DataValidator
             {
                 ValidatorSpecLib sLib = getSpectrumLibrary(targetedMsSvc, doc, lib);
                 spectrumLibraries.putIfAbsent(sLib.getKey(), sLib);
-                sLib.addDocumentLibrary(doc, lib);
+                spectrumLibraries.get(sLib.getKey()).addDocumentLibrary(doc, lib);
             }
         }
         spectrumLibraries.values().forEach(status::addLibrary);
