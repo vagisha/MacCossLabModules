@@ -1,7 +1,6 @@
 package org.labkey.panoramapublic.proteomexchange.validator;
 
 import org.labkey.api.targetedms.ISpectrumLibrary;
-import org.labkey.api.util.Pair;
 import org.labkey.panoramapublic.model.validation.SpecLib;
 
 import java.util.ArrayList;
@@ -9,7 +8,7 @@ import java.util.List;
 
 public class ValidatorSpecLib extends SpecLib
 {
-    private final List<Pair<ValidatorSkylineDoc, ISpectrumLibrary>> _documentLibraries;
+    private final List<DocLib> _documentLibraries;
 
     public ValidatorSpecLib()
     {
@@ -20,17 +19,17 @@ public class ValidatorSpecLib extends SpecLib
 
     public void addDocumentLibrary(ValidatorSkylineDoc doc, ISpectrumLibrary specLib)
     {
-        _documentLibraries.add(new Pair<>(doc, specLib));
+        _documentLibraries.add(new DocLib(doc, specLib));
     }
 
-    public List<Pair<ValidatorSkylineDoc, ISpectrumLibrary>> getDocumentLibraries()
+    public List<DocLib> getDocumentLibraries()
     {
         return _documentLibraries;
     }
 
     public void removeSkylineDoc(ValidatorSkylineDoc doc)
     {
-        _documentLibraries.removeIf(pair -> pair.first.getRunId() == doc.getRunId());
+        _documentLibraries.removeIf(dl -> dl.getDocument().getRunId() == doc.getRunId());
     }
 
     public String getKey()
@@ -43,5 +42,27 @@ public class ValidatorSpecLib extends SpecLib
     {
         return String.format("'%s' (%s) library in %d Skyline documents was built with %d raw files; %d peptide Id files. Status: %s",
                 getLibName(), getFileName(), _documentLibraries.size(), getSpectrumFiles().size(), getIdFiles().size(), getStatusString());
+    }
+
+    public static class DocLib
+    {
+        private final ValidatorSkylineDoc _document;
+        private final ISpectrumLibrary _library;
+
+        public DocLib(ValidatorSkylineDoc document, ISpectrumLibrary library)
+        {
+            _document = document;
+            _library = library;
+        }
+
+        public ValidatorSkylineDoc getDocument()
+        {
+            return _document;
+        }
+
+        public ISpectrumLibrary getLibrary()
+        {
+            return _library;
+        }
     }
 }

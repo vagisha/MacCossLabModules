@@ -7,7 +7,7 @@ public abstract class DataFile
 {
     private int _id;
     private String _name;
-    private String _status;
+    private String _path;
 
     public static final String NOT_FOUND = "NOT_FOUND";
     public static final String AMBIGUOUS = "AMBIGUOUS";
@@ -38,31 +38,31 @@ public abstract class DataFile
      *         OR NOT_FOUND if the file wasn't found
      *         OR AMBIGUOUS if more than one sample file in a Skyline document have the same name
      */
-    public String getStatus()
+    public String getPath()
     {
-        return _status;
+        return _path;
     }
 
-    public void setStatus(String status)
+    public void setPath(String path)
     {
-        _status = status;
+        _path = path;
     }
 
     public boolean isPending()
     {
-        return _status == null;
+        return _path == null;
     }
 
     public boolean found()
     {
         // Require sample file names to be unique. Users have been know to import files that have the same name
         // but are in different directories.
-        return _status != null && !NOT_FOUND.equals(_status) && !isAmbiguous();
+        return _path != null && !NOT_FOUND.equals(_path) && !isAmbiguous();
     }
 
     public boolean isAmbiguous()
     {
-        return AMBIGUOUS.equals(getStatus());
+        return AMBIGUOUS.equals(getPath());
     }
 
     @NotNull
@@ -75,7 +75,7 @@ public abstract class DataFile
         jsonObject.put("ambiguous", isAmbiguous());
         if (found())
         {
-            jsonObject.put("path", getStatus());
+            jsonObject.put("path", getPath());
         }
         return jsonObject;
     }

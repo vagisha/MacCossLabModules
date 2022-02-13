@@ -55,7 +55,7 @@ CREATE TABLE panoramapublic.SkylineDocSampleFile
     SkylineDocValidationId     INT NOT NULL,
     Name                       VARCHAR(300) NOT NULL, -- Name of the file on the file system
     SkylineName                VARCHAR(300) NOT NULL, -- Name of the sample file in the Skyline document
-    Status                     TEXT, -- Path of the file if it was found
+    Path                       TEXT, -- Path of the file if it was found
 
     CONSTRAINT PK_SkylineDocSampleFile PRIMARY KEY (Id),
     CONSTRAINT FK_SkylineDocSampleFile_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id)
@@ -115,7 +115,7 @@ CREATE TABLE panoramapublic.SpecLibSourceFile
     SpecLibValidationId        INT NOT NULL,
     Name                       VARCHAR(300) NOT NULL,
     SourceType                 VARCHAR(20) NOT NULL,
-    Status                     TEXT, -- Path of the file if it was found
+    Path                       TEXT, -- Path of the file if it was found
 
     CONSTRAINT PK_SpecLibSourceFile PRIMARY KEY (Id),
     CONSTRAINT FK_SpecLibSourceFile_SpecLibValidation FOREIGN KEY (SpecLibValidationId) REFERENCES panoramapublic.SpecLibValidation(Id)

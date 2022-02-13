@@ -26,6 +26,7 @@ public class Modification
 
     private static final String MOD_SEPARATOR = "&&";
     private static final String MOD_INFO_SEPARATOR = ":::";
+    private static final String ERROR = "ERROR";
 
     public enum ModType {STRUCTURAL, ISOTOPIC}
 
@@ -145,32 +146,17 @@ public class Modification
         _unimodMatches = unimodMatches;
     }
 
+    // Possible Unimod matches if no single Unimod match could be found
     public void setPossibleUnimodMatches(List<UnimodModification> uModsList)
     {
-        _unimodMatches = StringUtils.join(uModsList.stream().map(m -> m.getId() + MOD_INFO_SEPARATOR
-                + m.getName() + MOD_INFO_SEPARATOR
-                + m.getNormalizedFormula() + MOD_INFO_SEPARATOR
-                + m.getModSites())
-                .collect(Collectors.toList()), MOD_SEPARATOR);
-    }
-
-    private List<List<String>> getPossibleUnimodMatches()
-    {
-        if (_unimodMatches == null)
+        if (uModsList != null && uModsList.size() > 0)
         {
-            return Collections.emptyList();
+            _unimodMatches = StringUtils.join(uModsList.stream().map(m -> m.getId() + MOD_INFO_SEPARATOR
+                    + m.getName() + MOD_INFO_SEPARATOR
+                    + m.getNormalizedFormula() + MOD_INFO_SEPARATOR
+                    + m.getModSites())
+                    .collect(Collectors.toList()), MOD_SEPARATOR);
         }
-        String[] matches = StringUtils.splitByWholeSeparator(_unimodMatches, MOD_SEPARATOR);
-        List<List<String>> matchList = new ArrayList<>();
-        for (String match: matches)
-        {
-            String[] parts = StringUtils.splitByWholeSeparator(match, MOD_INFO_SEPARATOR);
-            if (parts.length == 4)
-            {
-                matchList.add(List.of(parts));
-            }
-        }
-        return matchList;
     }
 
     @NotNull
@@ -200,12 +186,28 @@ public class Modification
         for (List<String> match: unimodMatches)
         {
             JSONObject possibleUnimod = new JSONObject();
-            possibleUnimod.put("unimodId", match.get(0));
-            possibleUnimod.put("name", match.get(1));
-            possibleUnimod.put("formula", match.get(2));
-            possibleUnimod.put("sites", match.get(3));
+            possibleUnimod.put("unimodId", match.size() > 0 ? match.get(0) : ERROR);
+            possibleUnimod.put("name", match.size() > 1 ? match.get(1) : ERROR);
+            possibleUnimod.put("formula", match.size() > 2 ? match.get(2) : ERROR);
+            possibleUnimod.put("sites", match.size() > 3 ? match.get(3) : ERROR);
             possibleUnimods.put(possibleUnimod);
         }
         return possibleUnimods;
+    }
+
+    private List<List<String>> getPossibleUnimodMatches()
+    {
+        if (_unimodMatches == null)
+        {
+            return Collections.emptyList();
+        }
+        String[] matches = StringUtils.splitByWholeSeparator(_unimodMatches, MOD_SEPARATOR);
+        List<List<String>> matchList = new ArrayList<>();
+        for (String match: matches)
+        {
+            String[] parts = StringUtils.splitByWholeSeparator(match, MOD_INFO_SEPARATOR);
+            matchList.add(List.of(parts));
+        }
+        return matchList;
     }
 }

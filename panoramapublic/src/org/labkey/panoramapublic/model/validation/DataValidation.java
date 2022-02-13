@@ -14,7 +14,7 @@ public class DataValidation extends DbEntity
 
     public DataValidation() {}
 
-    public DataValidation (int experimentAnnotationsId/*, Container container*/)
+    public DataValidation (int experimentAnnotationsId)
     {
         _experimentAnnotationsId = experimentAnnotationsId;
     }

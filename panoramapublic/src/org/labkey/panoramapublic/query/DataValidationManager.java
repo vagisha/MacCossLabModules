@@ -187,7 +187,11 @@ public class DataValidationManager
         status.setSkylineDocs(getSkylineDocs(validationIdFilter));
         status.setModifications(getModifications(validationIdFilter));
         status.setSpecLibs(getSpectrumLibraries(validationIdFilter));
-        status.setMissingMetadata(getMissingExperimentMetadataFields(ExperimentAnnotationsManager.get(validation.getExperimentAnnotationsId()), true));
+        ExperimentAnnotations experimentAnnotations = ExperimentAnnotationsManager.get(validation.getExperimentAnnotationsId());
+        if (experimentAnnotations != null)
+        {
+            status.setMissingMetadata(getMissingExperimentMetadataFields(experimentAnnotations, true));
+        }
         return status;
     }
 
@@ -521,7 +525,7 @@ public class DataValidationManager
 
     public static class MissingMetadata
     {
-        private List<Pair<String, Boolean>> _missingFields;
+        private final List<Pair<String, Boolean>> _missingFields;
 
         public MissingMetadata()
         {

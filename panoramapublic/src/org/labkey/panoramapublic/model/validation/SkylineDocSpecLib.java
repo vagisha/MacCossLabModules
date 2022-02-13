@@ -4,7 +4,7 @@ package org.labkey.panoramapublic.model.validation;
 public class SkylineDocSpecLib
 {
     private int _id;
-    private int _skylineDocValidationId; // One doc can have multiple libraries
+    private int _skylineDocValidationId;
     private Integer _speclibValidationId;
     private boolean _included; // true if the library file is included in the .sky.zip
 

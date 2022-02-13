@@ -89,6 +89,26 @@ public class SpecLib
         return _size == null;
     }
 
+    public List<SpecLibSourceFile> getSpectrumFiles()
+    {
+        return hasSpectrumFiles() ? Collections.unmodifiableList(_spectrumFiles) : Collections.emptyList();
+    }
+
+    public void setSpectrumFiles(@NotNull List<SpecLibSourceFile> spectrumFiles)
+    {
+        _spectrumFiles = spectrumFiles;
+    }
+
+    public List<SpecLibSourceFile> getIdFiles()
+    {
+        return hasIdFiles() ? Collections.unmodifiableList(_idFiles) : Collections.emptyList();
+    }
+
+    public void setIdFiles(@NotNull List<SpecLibSourceFile> idFiles)
+    {
+        _idFiles = idFiles;
+    }
+
     public boolean isValid()
     {
         if (isPending())
@@ -110,7 +130,13 @@ public class SpecLib
             return true;
         }
 
-        return foundSpectrumFiles() && (_idFiles.size() > 0 && foundIdFiles());
+        return hasSpectrumFiles() && foundSpectrumFiles() && hasIdFiles() && foundIdFiles();
+    }
+
+    public boolean isPending()
+    {
+        return getSpectrumFiles().stream().anyMatch(DataFile::isPending) ||
+                getIdFiles().stream().anyMatch(DataFile::isPending);
     }
 
     public String getStatusString()
@@ -131,20 +157,23 @@ public class SpecLib
         {
             return "VALID";
         }
-        boolean missingSpectrumFilesInBlib = _spectrumFiles.size() == 0; // .blib does not list any spectrum files
-        boolean missingIdFilesInBlib = _idFiles.size() == 0; // .blib does not list any Id files
-        boolean missingSpectrumFiles = !foundSpectrumFiles(); // spectrum files listed in the .blib were not found on the filesystem
-        boolean missingIdFiles = !foundIdFiles(); // Id files listed in the .blib were not found on the filesystem
-        if (!(missingSpectrumFilesInBlib || missingSpectrumFiles || missingIdFilesInBlib || missingIdFiles))
+
+        if (hasSpectrumFiles() && foundSpectrumFiles() && hasIdFiles() && foundIdFiles())
         {
             return "VALID";
         }
         else
         {
             String status = null;
+            boolean missingSpectrumFilesInBlib = !hasSpectrumFiles(); // .blib does not list any spectrum files
+            boolean missingIdFilesInBlib = !hasIdFiles(); // .blib does not list any Id files
+            boolean missingSpectrumFiles = !foundSpectrumFiles(); // spectrum files listed in the .blib were not found on the filesystem
+            boolean missingIdFiles = !foundIdFiles(); // Id files listed in the .blib were not found on the filesystem
+
             if (missingSpectrumFiles || missingIdFiles)
             {
-                status = String.format("Missing %s%s%s files", missingSpectrumFiles ? "spectrum " : "",
+                status = String.format("Missing %s%s%s files",
+                        missingSpectrumFiles ? "spectrum " : "",
                         missingSpectrumFiles && missingIdFiles ? "and " : "",
                         missingIdFiles ? "peptide Id " : "");
             }
@@ -171,22 +200,17 @@ public class SpecLib
         return !foundIdFiles();
     }
 
-    public boolean foundSpectrumFiles()
+    public List<String> getMissingSpectrumFileNames()
     {
-        return getSpectrumFiles().stream().allMatch(f -> !f.isPending() && f.found());
+        return getSpectrumFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
     }
 
-    public boolean foundIdFiles()
+    public List<String> getMissingIdFileNames()
     {
-        return getIdFiles().stream().allMatch(f -> !f.isPending() && f.found());
+        return getIdFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
     }
 
-    public boolean foundSourceFiles()
-    {
-        return foundSpectrumFiles() && foundIdFiles();
-    }
-
-    public boolean isPrositLibrary()
+    private boolean isPrositLibrary()
     {
         // For a library based on Prosit we expect only one row in the SpectrumSourceFiles table,
         // We expect idFileName to be blank and the value in the fileName column to be "Prositintensity_prosit_publication_v1".
@@ -203,17 +227,17 @@ public class SpecLib
         return "bibliospec".equals(_libType) || "bibliospec_lite".equals(_libType);
     }
 
-    public boolean isEncyclopeDiaLibrary()
+    private boolean isEncyclopeDiaLibrary()
     {
         return "elib".equals(_libType);
     }
 
-    public boolean isUnsupportedLibrary()
+    private boolean isUnsupportedLibrary()
     {
         return !(isBibliospecLibrary() || isEncyclopeDiaLibrary());
     }
 
-    public boolean isAssayLibrary()
+    private boolean isAssayLibrary()
     {
         // https://skyline.ms/wiki/home/software/Skyline/page.view?name=building_spectral_libraries
         if (isBibliospecLibrary())
@@ -224,57 +248,30 @@ public class SpecLib
         return false;
     }
 
-    public boolean isIncompleteBlib()
+    private boolean isIncompleteBlib()
     {
-        return !isPrositLibrary() && _spectrumFiles.size() == 0 || _idFiles.size() == 0;
+        return !isPrositLibrary() && !hasSpectrumFiles() || !hasIdFiles();
     }
 
-    public boolean isPending()
+    private boolean hasSpectrumFiles()
     {
-        return getSpectrumFiles().stream().anyMatch(DataFile::isPending) ||
-                getIdFiles().stream().anyMatch(DataFile::isPending);
+        return _spectrumFiles != null && _spectrumFiles.size() > 0;
     }
 
-    public List<String> getMissingSpectrumFileNames()
+    private boolean hasIdFiles()
     {
-        return getSpectrumFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
+        return _idFiles != null && _idFiles.size() > 0;
     }
 
-    public List<String> getMissingIdFileNames()
+    private boolean foundSpectrumFiles()
     {
-        return getIdFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
+        return getSpectrumFiles().stream().allMatch(f -> !f.isPending() && f.found());
     }
 
-    public List<SpecLibSourceFile> getSpectrumFiles()
+    private boolean foundIdFiles()
     {
-        return _spectrumFiles != null ? Collections.unmodifiableList(_spectrumFiles) : Collections.emptyList();
+        return getIdFiles().stream().allMatch(f -> !f.isPending() && f.found());
     }
-
-    public void setSpectrumFiles(List<SpecLibSourceFile> spectrumFiles)
-    {
-        _spectrumFiles = spectrumFiles;
-    }
-
-    public void addSpectrumFile(SpecLibSourceFile spectrumFile)
-    {
-        _spectrumFiles.add(spectrumFile);
-    }
-
-    public List<SpecLibSourceFile> getIdFiles()
-    {
-        return _idFiles != null ? Collections.unmodifiableList(_idFiles) : Collections.emptyList();
-    }
-
-    public void setIdFiles(List<SpecLibSourceFile> idFiles)
-    {
-        _idFiles = idFiles;
-    }
-
-    public void addIdFile(SpecLibSourceFile idFile)
-    {
-        _idFiles.add(idFile);
-    }
-
     @NotNull
     public JSONObject toJSON()
     {

@@ -4,9 +4,9 @@ package org.labkey.panoramapublic.model.validation;
 public class SkylineDocSampleFile extends DataFile
 {
     private int _skylineDocValidationId;
+    private String _skylineName; // Name in the .sky XML
     // Example: 2017_July_10_bivalves_292.raw?centroid_ms2=true.
-    // Example: D:\Data\CPTAC_Study9s\Site52_041009_Study9S_Phase-I.wiff|Site52_STUDY9S_PHASEI_6ProtMix_QC_07|6
-    private String _skylineName;
+    // Example: Site52_041009_Study9S_Phase-I.wiff|Site52_STUDY9S_PHASEI_6ProtMix_QC_07|6
 
     public SkylineDocSampleFile() {}
 
