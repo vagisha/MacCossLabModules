@@ -50,6 +50,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.ID;
+import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.SPECTRUM;
+
 public class DataValidationManager
 {
     private static final Logger log = LogHelper.getLogger(DataValidationManager.class, "Data validation for ProteomeXchange");
@@ -242,13 +245,13 @@ public class DataValidationManager
 
     private static List<SpecLibSourceFile> getSpectrumSourceFiles(SimpleFilter filter)
     {
-        filter.addCondition(FieldKey.fromParts("SourceType"), SpecLibSourceFile.SPECTRUM_SOURCE);
+        filter.addCondition(FieldKey.fromParts("SourceType"), SPECTRUM.ordinal());
         return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), filter, null).getArrayList(SpecLibSourceFile.class);
     }
 
     private static List<SpecLibSourceFile> getIdSourceFiles(SimpleFilter filter)
     {
-        filter.addCondition(FieldKey.fromParts("SourceType"), SpecLibSourceFile.ID_SOURCE);
+        filter.addCondition(FieldKey.fromParts("SourceType"), ID.ordinal());
         return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), filter, null).getArrayList(SpecLibSourceFile.class);
     }
 

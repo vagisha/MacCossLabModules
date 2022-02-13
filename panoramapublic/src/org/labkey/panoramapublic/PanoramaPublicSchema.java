@@ -41,6 +41,7 @@ import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.model.validation.PxStatus;
+import org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType;
 import org.labkey.panoramapublic.query.DataValidationTableInfo;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
@@ -68,6 +69,7 @@ public class PanoramaPublicSchema extends UserSchema
     public static final String TABLE_SPEC_LIB_VALIDATION = "SpecLibValidation";
     public static final String TABLE_SKYLINE_DOC_SPEC_LIB = "SkylineDocSpecLib";
     public static final String TABLE_SPEC_LIB_SOURCE_FILE = "SpecLibSourceFile";
+    public static final String TABLE_LIBRARY_SOURCE_FILE_TYPE = "LibrarySourceFileType";
     public static final String TABLE_PX_STATUS = "PxStatus";
     public static final String TABLE_SPEC_LIB_INFO = "SpecLibInfo";
 
@@ -145,6 +147,16 @@ public class PanoramaPublicSchema extends UserSchema
             var viewColumn = tableInfo.getMutableColumn("Value");
             viewColumn.setLabel("PX Status");
             return tableInfo;
+        }
+
+        if (TABLE_LIBRARY_SOURCE_FILE_TYPE.equalsIgnoreCase(name))
+        {
+            return new EnumTableInfo<>(
+                    LibrarySourceFileType.class,
+                    this,
+                    LibrarySourceFileType::name,
+                    true,
+                    "Spectral library source file type");
         }
 
         if (TABLE_DATA_VALIDATION.equalsIgnoreCase(name))

@@ -41,6 +41,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.*;
+
 public class DataValidator
 {
     private final ExperimentAnnotations _expAnnotations;
@@ -189,7 +191,7 @@ public class DataValidator
                 boolean isMaxquant = (source.hasIdFile() && source.getIdFile().endsWith("msms.txt")) || source.containsScoreType("MAXQUANT SCORE");
                 String ssfName = FilenameUtils.getName(ssf);
                 Path path = getPath(ssfName, containers, isMaxquant, fcs);
-                SpecLibSourceFile sourceFile = new SpecLibSourceFile(ssfName, SpecLibSourceFile.SPECTRUM_SOURCE);
+                SpecLibSourceFile sourceFile = new SpecLibSourceFile(ssfName, SPECTRUM);
                 sourceFile.setSpecLibValidationId(specLib.getId());
                 sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
                 DataValidationManager.saveSpecLibSourceFile(sourceFile, user);
@@ -201,7 +203,7 @@ public class DataValidator
                 checkedFiles.add(idFile);
                 String idFileName = FilenameUtils.getName(idFile);
                 Path path = getPath(idFileName, containers, false, fcs);
-                SpecLibSourceFile sourceFile = new SpecLibSourceFile(idFileName, SpecLibSourceFile.ID_SOURCE);
+                SpecLibSourceFile sourceFile = new SpecLibSourceFile(idFileName, ID);
                 sourceFile.setSpecLibValidationId(specLib.getId());
                 sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
                 DataValidationManager.saveSpecLibSourceFile(sourceFile, user);

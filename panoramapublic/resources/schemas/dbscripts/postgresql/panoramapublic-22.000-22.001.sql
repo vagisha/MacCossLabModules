@@ -114,7 +114,7 @@ CREATE TABLE panoramapublic.SpecLibSourceFile
     Id                         SERIAL NOT NULL,
     SpecLibValidationId        INT NOT NULL,
     Name                       VARCHAR(300) NOT NULL,
-    SourceType                 VARCHAR(20) NOT NULL,
+    SourceType                 INT NOT NULL,
     Path                       TEXT, -- Path of the file if it was found
 
     CONSTRAINT PK_SpecLibSourceFile PRIMARY KEY (Id),

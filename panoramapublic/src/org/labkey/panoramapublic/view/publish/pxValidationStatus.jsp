@@ -210,7 +210,7 @@
             var problems = '';
             if (json["modificationsValid"] === false) problems += '<li>Modifications without a Unimod ID</li>';
             if (json["sampleFilesValid"] === false) problems += '<li>Missing raw data files</li>';
-            if (json["specLibsComplete"] === false) problems += '<li>Incomplete spectral library data</li>';
+            if (json["specLibsComplete"] === false) problems += '<li>Incomplete spectral library information</li>';
             return '</br>Problems found: <ul>' + problems + '</ul>';
         }
 

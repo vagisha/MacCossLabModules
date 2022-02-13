@@ -7,14 +7,16 @@ public class SpecLibSourceFile extends DataFile
 {
     private int _id;
     private int _specLibValidationId;
-    private String _sourceType; // SPECTRUM_SOURCE | ID_SOURCE | OTHER ?? (csv, tsv)
+    private LibrarySourceFileType _sourceType;
 
-    public static final String SPECTRUM_SOURCE = "SPECTRUM_SOURCE";
-    public static final String ID_SOURCE = "ID_SOURCE";
+    public enum LibrarySourceFileType
+    {
+        SPECTRUM, ID
+    }
 
     public SpecLibSourceFile() {}
 
-    public SpecLibSourceFile(String name, String sourceType)
+    public SpecLibSourceFile(String name, LibrarySourceFileType sourceType)
     {
         setName(name);
         _sourceType = sourceType;
@@ -42,24 +44,24 @@ public class SpecLibSourceFile extends DataFile
         _specLibValidationId = specLibValidationId;
     }
 
-    public String getSourceType()
+    public LibrarySourceFileType getSourceType()
     {
         return _sourceType;
     }
 
-    public void setSourceType(String sourceType)
+    public void setSourceType(LibrarySourceFileType sourceType)
     {
         _sourceType = sourceType;
     }
 
     public boolean isSpectrumFile()
     {
-        return "SPECTRUM_SOURCE".equals(_sourceType);
+        return LibrarySourceFileType.SPECTRUM.equals(_sourceType);
     }
 
     public boolean isIdFile()
     {
-        return "ID_SOURCE".equals(_sourceType);
+        return LibrarySourceFileType.ID.equals(_sourceType);
     }
 
     @Override
