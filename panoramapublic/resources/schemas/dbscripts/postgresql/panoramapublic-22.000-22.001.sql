@@ -53,9 +53,9 @@ CREATE TABLE panoramapublic.SkylineDocSampleFile
 (
     Id                         SERIAL NOT NULL,
     SkylineDocValidationId     INT NOT NULL,
-    Name                       VARCHAR(300) NOT NULL, -- Name of the file on the file system
-    SkylineName                VARCHAR(300) NOT NULL, -- Name of the sample file in the Skyline document
-    Path                       TEXT, -- Path of the file if it was found
+    Name                       VARCHAR(300) NOT NULL, -- file name
+    FilePathImported           VARCHAR(500) NOT NULL, -- sample file path imported into the Skyline document
+    Path                       TEXT, -- path of the file on the server if it was found
 
     CONSTRAINT PK_SkylineDocSampleFile PRIMARY KEY (Id),
     CONSTRAINT FK_SkylineDocSampleFile_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id)
