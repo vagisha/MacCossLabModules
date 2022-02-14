@@ -110,11 +110,7 @@ public class DataValidator
         {
             for (ValidatorSpecLib.DocLib docLib: specLib.getDocumentLibraries())
             {
-                ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.getLibrary());
-                docLibV.setSpeclibValidationId(specLib.getId());
-                docLibV.setSkylineDocValidationId(docLib.getDocument().getId());
-                docLib.getDocument().addSpecLib(docLibV);
-                DataValidationManager.saveDocSpectrumLibrary(docLibV, user);
+                addSkylineDocSpecLib(specLib, user, docLib);
             }
         }
         else
@@ -133,7 +129,8 @@ public class DataValidator
                     }
                     catch (SpecLibReaderException e)
                     {
-                        // Library file exists but there was an error reading the library.
+                        // Library file exists but there was an error reading the library. It will be marked as 'incomplete'
+                        // in the data validation details page because of missing source file names.
                         _listener.warning(e.getMessage());
                     }
                 }
@@ -144,16 +141,13 @@ public class DataValidator
                 }
                 else if(!areSameSources(libSources, docLibSources))
                 {
+                    // We expect that libraries with the same library name, library file name, type and file size will have the same source
+                    // files. If we see this exception then we will have to include the source file name in determining unique libraries.
                     throw new DataValidationException(String.format("Expected library sources to match in all documents with the library '%s'. "
                             + ". But they did not match for the library in the document '%s'.", specLib.getKey(), docLib.getDocument().getName()));
                 }
 
-                ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.getLibrary());
-                docLibV.setSpeclibValidationId(specLib.getId());
-                docLibV.setSkylineDocValidationId(docLib.getDocument().getId());
-                docLibV.setIncluded(specLib.getSize() != null);
-                // docLib.getDocument().addSpecLib(docLibV);
-                DataValidationManager.saveDocSpectrumLibrary(docLibV, user);
+                addSkylineDocSpecLib(specLib, user, docLib);
             }
 
             // library sources will be null if the library is not supported, or e.g. the required table was not found in the .blib
@@ -164,9 +158,20 @@ public class DataValidator
         }
     }
 
+    private void addSkylineDocSpecLib(ValidatorSpecLib specLib, User user, ValidatorSpecLib.DocLib docLib)
+    {
+        ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.getLibrary());
+        docLibV.setSpeclibValidationId(specLib.getId());
+        docLibV.setSkylineDocValidationId(docLib.getDocument().getId());
+        docLibV.setIncluded(specLib.getSize() != null);
+        DataValidationManager.saveDocSpectrumLibrary(docLibV, user);
+    }
+
     private void validateLibrarySources(ValidatorSpecLib specLib, List<LibSourceFile> sources, User user, FileContentService fcs) throws DataValidationException
     {
         Set<String> checkedFiles = new HashSet<>();
+        // Since a library can be used with multiple Skyline documents which could be in subfolders we will look for the source files in the main experiment
+        // folder as well as any subfolders containing documents that have the library
         Set<Container> containers = new HashSet<>(specLib.getDocumentLibraries().stream().map(dl -> dl.getDocument().getContainer()).collect(Collectors.toSet()));
         containers.add(_expAnnotations.getContainer());
 
@@ -179,9 +184,8 @@ public class DataValidator
             if (source.hasSpectrumSourceFile() && !checkedFiles.contains(ssf))
             {
                 checkedFiles.add(ssf);
-                boolean isMaxquant = (source.hasIdFile() && source.getIdFile().endsWith("msms.txt")) || source.containsScoreType("MAXQUANT SCORE");
                 String ssfName = FilenameUtils.getName(ssf);
-                Path path = getPath(ssfName, containers, isMaxquant, fcs);
+                Path path = getPath(ssfName, containers, source.isMaxQuantSearch(), fcs);
                 SpecLibSourceFile sourceFile = new SpecLibSourceFile(ssfName, SPECTRUM);
                 sourceFile.setSpecLibValidationId(specLib.getId());
                 sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
@@ -199,6 +203,23 @@ public class DataValidator
                 sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
                 DataValidationManager.saveSpecLibSourceFile(sourceFile, user);
                 idFiles.add(sourceFile);
+            }
+
+            if (source.isMaxQuantSearch())
+            {
+                for (String fileName: LibSourceFile.MAX_QUANT_ID_FILES)
+                {
+                    if (!checkedFiles.contains(fileName))
+                    {
+                        checkedFiles.add(idFile);
+                        Path path = getPath(fileName, containers, false, fcs);
+                        SpecLibSourceFile sourceFile = new SpecLibSourceFile(fileName, ID);
+                        sourceFile.setSpecLibValidationId(specLib.getId());
+                        sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
+                        DataValidationManager.saveSpecLibSourceFile(sourceFile, user);
+                        idFiles.add(sourceFile);
+                    }
+                }
             }
         }
         specLib.setSpectrumFiles(spectrumFiles);
@@ -269,7 +290,7 @@ public class DataValidator
     private @Nullable Path getPath(Path rawFilesDirPath, String fileName, boolean allowBaseName) throws IOException
     {
         Path filePath = rawFilesDirPath.resolve(fileName);
-        if(Files.exists(filePath) || Files.isDirectory(filePath))
+        if(Files.exists(filePath))
         {
             return filePath;
         }
@@ -287,6 +308,11 @@ public class DataValidator
             }
         }
         return null;
+    }
+
+    private static boolean accept(String fileName, String uploadedFileName)
+    {
+        return accept(fileName, uploadedFileName, false);
     }
 
     private static boolean accept(String fileName, String uploadedFileName, boolean allowBasenameOnly)
@@ -431,22 +457,23 @@ public class DataValidator
 
     private void addSpectralLibraries(ValidatorStatus status, TargetedMSService targetedMsSvc) throws DataValidationException
     {
-        Map<String, ValidatorSpecLib> spectrumLibraries = new HashMap<>();
+        Map<String, ValidatorSpecLib> spectralLibraries = new HashMap<>();
 
         for (ValidatorSkylineDoc doc: status.getSkylineDocs())
         {
             List<? extends ISpectrumLibrary> allSpecLibs = targetedMsSvc.getLibraries(doc.getRun());
             for (ISpectrumLibrary lib: allSpecLibs)
             {
-                ValidatorSpecLib sLib = getSpectrumLibrary(targetedMsSvc, doc, lib);
-                spectrumLibraries.putIfAbsent(sLib.getKey(), sLib);
-                spectrumLibraries.get(sLib.getKey()).addDocumentLibrary(doc, lib);
+                ValidatorSpecLib sLib = getSpectralLibrary(targetedMsSvc, doc, lib);
+                spectralLibraries.putIfAbsent(sLib.getKey(), sLib);
+                spectralLibraries.get(sLib.getKey()).addDocumentLibrary(doc, lib);
             }
         }
-        spectrumLibraries.values().forEach(status::addLibrary);
+        // A library can be used with more than one Skyline document.  Add it only once.
+        spectralLibraries.values().forEach(status::addLibrary);
     }
 
-    private ValidatorSpecLib getSpectrumLibrary(TargetedMSService targetedMsSvc, ValidatorSkylineDoc doc, ISpectrumLibrary lib) throws DataValidationException
+    private ValidatorSpecLib getSpectralLibrary(TargetedMSService targetedMsSvc, ValidatorSkylineDoc doc, ISpectrumLibrary lib) throws DataValidationException
     {
         ValidatorSpecLib sLib = new ValidatorSpecLib();
         sLib.setLibName(lib.getName());
@@ -776,6 +803,18 @@ public class DataValidator
                     multiInjectWiff1_0.getFileName(), multiInjectWiff1_0.getFileName() + DOT_SCAN);
             assertEquals(expectedDuplicates.size(), duplicateNames.size());
             assertTrue(duplicateNames.containsAll(expectedDuplicates));
+        }
+
+        @Test
+        public void testAccept()
+        {
+            // Accept QC_10.9.17.raw OR for QC_10.9.17.raw.zip
+            assertTrue(accept("QC_10.9.17.raw", "QC_10.9.17.RAW"));
+            assertTrue(accept("QC_10.9.17.raw", "QC_10.9.17.raw.ZIP"));
+
+            // Accept 170428_DBS_cal_7a.d OR 170428_DBS_cal_7a.d.zip
+            assertTrue(accept("170428_DBS_cal_7a.d", "170428_DBS_cal_7a.d"));
+            assertTrue(accept("170428_DBS_cal_7a.d", "170428_DBS_cal_7a.d.zip"));
         }
 
         private ISampleFile createFile(String path)

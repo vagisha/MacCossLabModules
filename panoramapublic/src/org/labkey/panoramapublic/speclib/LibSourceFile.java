@@ -3,6 +3,7 @@ package org.labkey.panoramapublic.speclib;
 import org.apache.commons.lang3.StringUtils;
 
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -59,5 +60,14 @@ public class LibSourceFile
     public int hashCode()
     {
         return Objects.hash(getSpectrumSourceFile(), getIdFile(), scoreTypes);
+    }
+
+    // For a MaxQuant search we need all of these files.  Only msms.txt is listed in the SpectrumSourceFiles table of .blib
+    // https://skyline.ms/wiki/home/software/Skyline/page.view?name=building_spectral_libraries
+    public static List<String> MAX_QUANT_ID_FILES = List.of("msms.txt", "mqpar.xml", "evidence.txt", "modifications.xml");
+
+    public boolean isMaxQuantSearch()
+    {
+        return (hasIdFile() && getIdFile().endsWith("msms.txt")) || containsScoreType("MAXQUANT SCORE");
     }
 }
