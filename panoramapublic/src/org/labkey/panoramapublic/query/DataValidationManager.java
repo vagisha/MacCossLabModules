@@ -194,6 +194,10 @@ public class DataValidationManager
         if (experimentAnnotations != null)
         {
             status.setMissingMetadata(getMissingExperimentMetadataFields(experimentAnnotations, true));
+            if (status.hasMissingMetadata() && validation.isComplete())
+            {
+                validation.setStatus(PxStatus.NotValid);
+            }
         }
         return status;
     }

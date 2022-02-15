@@ -84,8 +84,13 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
     public JSONObject toJSON()
     {
         JSONObject jsonObject = new JSONObject();
-
         JSONObject validationJson = getValidation().toJSON();
+        if (hasMissingMetadata())
+        {
+            JSONArray missingFields = new JSONArray();
+            missingFields.put(getMissingMetadata().getMessages());
+            validationJson.put("missingMetadata", getMissingMetadata().getMessages());
+        }
         validationJson.put("modificationsValid", allModificationsValid());
         validationJson.put("sampleFilesValid", foundAllSampleFiles());
         validationJson.put("specLibsComplete", specLibsComplete());

@@ -21,6 +21,7 @@
 <%
     var view = (JspView<PanoramaPublicController.PxValidationStatusBean>) HttpView.currentView();
     var bean = view.getModelBean();
+    int experimentAnnotationsId = bean.getDataValidation().getExperimentAnnotationsId();
     int jobId = bean.getDataValidation().getJobId();
     Integer journalId = bean.getJournalId();
     var submitAction = SpringActionController.getActionName(PanoramaPublicController.PublishExperimentAction.class);
@@ -131,7 +132,7 @@
             method: 'GET',
             success: LABKEY.Utils.getCallbackWrapper(displayStatus),
             failure: function () {
-                setTimeout(makeRequest, 1000)
+                setTimeout(makeRequest, 5000)
             }
         });
     }
@@ -183,7 +184,7 @@
             }
         }
         else {
-            setTimeout(makeRequest, 1000);
+            setTimeout(makeRequest, 5000);
         }
     }
 
@@ -206,8 +207,21 @@
                     'You can view the validation details below.';
         }
 
+        function getMissingMetadataFields(missingFields) {
+            var list = '<ul>';
+            for (var i = 0; i < missingFields.length; i++) {
+                list += '<li>' + missingFields[i] + '</li>';
+            }
+            list += '</ul>';
+            return list;
+        }
+
         function problems(json) {
             var problems = '';
+            if (json["missingMetadata"]) {
+                var updateMedataLink = LABKEY.ActionURL.buildURL('panoramapublic', 'showUpdateExperimentAnnotations', LABKEY.ActionURL.getContainer(), {id: <%=experimentAnnotationsId%>});
+                problems += '<li>Missing metadata: [' + link("Update Metadata", updateMedataLink, 'bold') + ']' + getMissingMetadataFields(json["missingMetadata"]) + '</li>';
+            }
             if (json["modificationsValid"] === false) problems += '<li>Modifications without a Unimod ID</li>';
             if (json["sampleFilesValid"] === false) problems += '<li>Missing raw data files</li>';
             if (json["specLibsComplete"] === false) problems += '<li>Incomplete spectral library information</li>';

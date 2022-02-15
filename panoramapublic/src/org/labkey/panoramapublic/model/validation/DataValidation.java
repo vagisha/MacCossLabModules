@@ -10,6 +10,8 @@ import java.text.SimpleDateFormat;
 // For table panoramapublic.datavalidation
 public class DataValidation extends DbEntity
 {
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-d HH:mm");
+
     private int _experimentAnnotationsId;
     private int _jobId;
     private PxStatus _status;
@@ -55,12 +57,18 @@ public class DataValidation extends DbEntity
     {
         return getStatus() != null;
     }
+
+    public String getFormattedDate()
+    {
+        return getCreated() != null ? DATE_FORMAT.format(getCreated()) : "";
+    }
+
     @NotNull
     public JSONObject toJSON()
     {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("id", getId());
-        jsonObject.put("date", new SimpleDateFormat("yyyy-MM-d HH:mm").format(getCreated()));
+        jsonObject.put("date", getFormattedDate());
         jsonObject.put("experimentAnnotationsId", getExperimentAnnotationsId());
         jsonObject.put("status", _status != null ? _status.getLabel() : "In Progress");
         jsonObject.put("statusId", _status != null ? _status.ordinal() : -1);

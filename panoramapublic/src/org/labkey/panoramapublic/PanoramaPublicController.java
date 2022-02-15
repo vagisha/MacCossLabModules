@@ -111,7 +111,6 @@ import org.labkey.api.targetedms.TargetedMSUrls;
 import org.labkey.api.util.Button;
 import org.labkey.api.util.DOM;
 import org.labkey.api.util.DOM.LK;
-import org.labkey.api.util.DateUtil;
 import org.labkey.api.util.ExceptionUtil;
 import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.HtmlString;
@@ -3253,7 +3252,7 @@ public class PanoramaPublicController extends SpringActionController
                 var latestValidation = DataValidationManager.getLatestValidation(_experimentAnnotations.getId(), getContainer());
                 if (latestValidation != null)
                 {
-                    HtmlView details = getValidationSummary(latestValidation, _experimentAnnotations, getContainer(), getUser());
+                    HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation), _experimentAnnotations, getContainer(), getUser());
                     view.addView(details);
                 }
                 else
@@ -3282,15 +3281,16 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @NotNull
-    private static HtmlView getValidationSummary(DataValidation validation, ExperimentAnnotations exptAnnotations, Container container, User user)
+    private static HtmlView getValidationSummary(Status status, ExperimentAnnotations exptAnnotations, Container container, User user)
     {
+        DataValidation validation = status.getValidation();
         boolean outdated = DataValidationManager.isValidationOutdated(validation, exptAnnotations, user);
         var statusFile = PipelineService.get().getStatusFile(validation.getJobId());
         User createdByUser = UserManager.getUser(validation.getCreatedBy());
         String pxStatus = validation.getStatus() != null ? validation.getStatus().getLabel() : "Incomplete";
         ActionURL validationDetailsUrl = getPxValidationStatusUrl(exptAnnotations.getId(), validation.getId(), container);
         return new HtmlView(TABLE(cl("lk-fields-table"),
-                row("Last Validation Date: ", DateUtil.formatDate(container, validation.getCreated())),
+                row("Last Validation Date: ", validation.getFormattedDate()),
                 createdByUser != null ?
                         row("Created By: ", new Link.LinkBuilder(createdByUser.getDisplayName(user))
                                 .href(PageFlowUtil.urlProvider(UserUrls.class).getUserDetailsURL(container, user.getUserId(), null))
@@ -5303,7 +5303,7 @@ public class PanoramaPublicController extends SpringActionController
             var latestValidation = DataValidationManager.getLatestValidation(exptAnnotations.getId(), getContainer());
             if (latestValidation != null)
             {
-                HtmlView details = getValidationSummary(latestValidation, exptAnnotations, getContainer(), getUser());
+                HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation), exptAnnotations, getContainer(), getUser());
                 VBox view = new VBox(details);
                 Button viewAllButton = null;
                 if (DataValidationManager.getValidationJobCount(exptAnnotations.getId()) > 1)
