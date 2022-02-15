@@ -40,6 +40,8 @@ import org.labkey.api.security.User;
 import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
+import org.labkey.panoramapublic.model.validation.Modification;
+import org.labkey.panoramapublic.model.validation.Modification.ModType;
 import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType;
 import org.labkey.panoramapublic.query.DataValidationTableInfo;
@@ -71,6 +73,7 @@ public class PanoramaPublicSchema extends UserSchema
     public static final String TABLE_SPEC_LIB_SOURCE_FILE = "SpecLibSourceFile";
     public static final String TABLE_LIBRARY_SOURCE_FILE_TYPE = "LibrarySourceFileType";
     public static final String TABLE_PX_STATUS = "PxStatus";
+    public static final String TABLE_MOD_TYPE = "ModType";
     public static final String TABLE_SPEC_LIB_INFO = "SpecLibInfo";
 
     public static final String TABLE_LIB_DEPENDENCY_TYPE = "SpecLibDependencyType";
@@ -157,6 +160,16 @@ public class PanoramaPublicSchema extends UserSchema
                     LibrarySourceFileType::name,
                     true,
                     "Spectral library source file type");
+        }
+
+        if (TABLE_MOD_TYPE.equalsIgnoreCase(name))
+        {
+            return new EnumTableInfo<>(
+                    ModType.class,
+                    this,
+                    ModType::name,
+                    true,
+                    "Modification type (structural or isotopic)");
         }
 
         if (TABLE_DATA_VALIDATION.equalsIgnoreCase(name))

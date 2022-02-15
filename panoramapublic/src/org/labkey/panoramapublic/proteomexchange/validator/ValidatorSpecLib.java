@@ -74,7 +74,7 @@ public class ValidatorSpecLib extends SpecLib
                 getLibName(), getFileName(), _documentLibraries.size(), getSpectrumFiles().size(), getIdFiles().size(), getStatusString());
     }
 
-    public void validate(FileContentService fcs, DataValidatorListener listener, ExperimentAnnotations expAnnotations) throws DataValidationException
+    void validate(FileContentService fcs, DataValidatorListener listener, ExperimentAnnotations expAnnotations) throws DataValidationException
     {
         if (isMissingInSkyZip())
         {

@@ -21,7 +21,7 @@ public class Modification
     private long _dbModId;
     private Integer _unimodId;
     private String _unimodName;
-    private String _modType;
+    private ModType _modType;
     private String _unimodMatches;
 
     private static final String MOD_SEPARATOR = "&&";
@@ -38,7 +38,7 @@ public class Modification
         _dbModId = dbModId;
         _unimodId = unimodId;
         _unimodName = unimodName;
-        _modType = modType.name();
+        _modType = modType;
     }
 
     public int getId()
@@ -101,19 +101,14 @@ public class Modification
         _unimodName = unimodName;
     }
 
-    public String getModType()
+    public ModType getModType()
     {
         return _modType;
     }
 
-    public void setModType(String modType)
-    {
-        _modType = modType;
-    }
-
     public void setModType(ModType modType)
     {
-        _modType = modType.name();
+        _modType = modType;
     }
 
     public boolean isValid()
@@ -167,7 +162,7 @@ public class Modification
         jsonObject.put("unimodId", getUnimodId());
         jsonObject.put("name", getNameString());
         jsonObject.put("valid", isValid());
-        jsonObject.put("modType", getModType());
+        jsonObject.put("modType", getModType().name());
         jsonObject.put("dbModId", getDbModId());
         if (getUnimodId() == null)
         {

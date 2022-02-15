@@ -70,7 +70,7 @@ CREATE TABLE panoramapublic.ModificationValidation
     SkylineModName             VARCHAR(100) NOT NULL,
     UnimodId                   INT,
     UnimodName                 VARCHAR(100),
-    ModType                    VARCHAR(10) NOT NULL, -- Structural, Isotopic
+    ModType                    INT NOT NULL, -- Structural, Isotopic
     DbModId                    BIGINT NOT NULL, -- targetedms.StructuralModification.Id OR targetedms.IsotopicModification.Id
     UnimodMatches              TEXT, -- Potential Unimod matches if no single match was found
 
