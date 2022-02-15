@@ -5,6 +5,8 @@ import org.json.JSONObject;
 import org.labkey.panoramapublic.model.DbEntity;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 
+import java.text.SimpleDateFormat;
+
 // For table panoramapublic.datavalidation
 public class DataValidation extends DbEntity
 {
@@ -58,6 +60,7 @@ public class DataValidation extends DbEntity
     {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("id", getId());
+        jsonObject.put("date", new SimpleDateFormat("yyyy-MM-d HH:mm").format(getCreated()));
         jsonObject.put("experimentAnnotationsId", getExperimentAnnotationsId());
         jsonObject.put("status", _status != null ? _status.getLabel() : "In Progress");
         jsonObject.put("statusId", _status != null ? _status.ordinal() : -1);

@@ -303,6 +303,7 @@
                 style:  {margin: '10px'},
                 items:  [
                             {xtype: 'component', padding: '10, 5, 0, 5', html: 'Folder: ' + htmlEncode(validationJson["folder"])},
+                            {xtype: 'component', padding: '0, 5, 10, 5', html: 'Date: ' + htmlEncode(validationJson["date"])},
                             {
                                 xtype:   'component',
                                 padding: '0, 5, 10, 5',

@@ -143,7 +143,7 @@ public class SpecLib
     {
         if (isMissingInSkyZip())
         {
-            return "Missing in Skyline ZIP";
+            return "Library file missing from Skyline .zip";
         }
         if (isAssayLibrary())
         {
@@ -179,12 +179,11 @@ public class SpecLib
             }
             if (missingSpectrumFilesInBlib || missingIdFilesInBlib)
             {
-                status = String.format("%s%s%s%s%s",
-                        status == null ? "" : status + "; ",
-                        missingSpectrumFilesInBlib ? "Spectrum file " : "",
+                status = String.format("%sMissing %s%s%s file names in the .blib library. Library may have been built with an older version of Skyline.",
+                        status == null ? "" : status + ". ",
+                        missingSpectrumFilesInBlib ? "spectrum " : "",
                         (missingSpectrumFilesInBlib && missingIdFilesInBlib) ? "and " : "",
-                        missingIdFilesInBlib ? "Peptide ID file " : "",
-                        "names were not found in the .blib library");
+                        missingIdFilesInBlib ? "peptide ID" : "");
             }
             return status;
         }
