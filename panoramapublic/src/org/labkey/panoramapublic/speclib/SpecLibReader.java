@@ -54,10 +54,14 @@ public abstract class SpecLibReader
     public @Nullable List<LibSourceFile> readLibSourceFiles(ITargetedMSRun run, ISpectrumLibrary library) throws SpecLibReaderException
     {
         Path libFilePath = TargetedMSService.get().getLibraryFilePath(run, library);
+        return readLibSourceFiles(library, libFilePath, run.getFileName());
+    }
 
+    public @Nullable List<LibSourceFile> readLibSourceFiles(ISpectrumLibrary library, Path libFilePath, String skylineDocName) throws SpecLibReaderException
+    {
         if (libFilePath == null)
         {
-            throw new SpecLibReaderException(String.format("Could not get the path for library '%s' in the Skyline document '%s'.", library.getFileNameHint(), run.getFileName()));
+            throw new SpecLibReaderException(String.format("Could not get the path for library '%s' in the Skyline document '%s'.", library.getFileNameHint(), skylineDocName));
         }
         if (!Files.exists(libFilePath))
         {

@@ -2461,24 +2461,19 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @NotNull
-    private static HtmlView getStartValidationView(@Nullable DOM.Renderable message, boolean addSubmitWithoutPxd,
+    private static HtmlView getStartValidationView(@Nullable DOM.Renderable message, boolean forSubmit,
                                                    ExperimentAnnotations experimentAnnotations, Container container,
                                                    @Nullable ActionURL submitUrl)
     {
-        ActionURL validateDataUrl = new ActionURL(SubmitPxValidationJobAction.class, container).addParameter("id", experimentAnnotations.getId());
-        if (!addSubmitWithoutPxd)
-        {
-            validateDataUrl.addParameter("forSubmit", false);
-        }
         var componentList = new ArrayList<DOM.Renderable>();
         if (message != null)
         {
             componentList.add(DIV(at(style, "margin-bottom:10px;"), message));
         }
         componentList.add(DIV(at(style, "margin-bottom:10px; margin-right:10px;"), "Click the button to start a new data validation job.",
-                new Button.ButtonBuilder("Validate Data for ProteomeXchange").href(validateDataUrl).usePost().build()));
+                getStartDataValidationButton(experimentAnnotations, container, "Validate Data for ProteomeXchange", null, forSubmit).build()));
 
-        if (addSubmitWithoutPxd && submitUrl != null)
+        if (forSubmit && submitUrl != null)
         {
             ActionURL noPxSubmissionUrl = submitUrl.clone().replaceParameter("getPxid", "false");
             componentList.add(DIV(at(style, "margin-bottom:10px;"), "If you do not want a ProteomeXchange ID click the link to ",
@@ -2490,6 +2485,24 @@ public class PanoramaPublicController extends SpringActionController
         view.setTitle("Data Validation For ProteomeXchange");
         view.setFrame(WebPartView.FrameType.PORTAL);
         return view;
+    }
+
+    private static Button.ButtonBuilder getStartDataValidationButton(ExperimentAnnotations expAnnotations, Container container)
+    {
+        return getStartDataValidationButton(expAnnotations, container,
+                "Start Data Validation",
+                "Are you sure you want to start data validation?", true);
+    }
+
+    private static Button.ButtonBuilder getStartDataValidationButton(ExperimentAnnotations expAnnotations, Container container,
+                                                                     String buttonText, String confirmMessage, boolean forSubmit)
+    {
+        var validateDataUrl = getSubmitPxValidationJobUrl(expAnnotations, container);
+        if (!forSubmit)
+        {
+            validateDataUrl.addParameter("forSubmit", false);
+        }
+        return new Button.ButtonBuilder(buttonText).href(validateDataUrl).usePost(confirmMessage);
     }
 
     @NotNull
@@ -3225,10 +3238,10 @@ public class PanoramaPublicController extends SpringActionController
                 boolean hasProteomicData = ExperimentAnnotationsManager.hasProteomicData(_experimentAnnotations, getUser());
                 if (hasProteomicData)
                 {
-                    var submitJobUrl = new ActionURL(SubmitPxValidationJobAction.class, getContainer()).addParameter("id", _experimentAnnotations.getId());
                     view.addView(new HtmlView(DIV(
                             DIV("Data for the experiment has not been validated for a ProteomeXchange submission."),
-                            new Button.ButtonBuilder("Start Data Validation").href(submitJobUrl))));
+                            getStartDataValidationButton(_experimentAnnotations, getContainer())
+                            )));
                 }
                 else
                 {
@@ -3247,9 +3260,9 @@ public class PanoramaPublicController extends SpringActionController
                 {
                     view.addView(new HtmlView(DIV(cl("labkey-error"), "Could not find the latest data validation job")));
                 }
-                var submitJobUrl = new ActionURL(SubmitPxValidationJobAction.class, getContainer()).addParameter("id", _experimentAnnotations.getId());
-                view.addView(new HtmlView(DIV(at(style, "margin:10px;"), new Button.ButtonBuilder("Start Data Validation")
-                        .href(submitJobUrl).usePost("Are you sure you want to start data validation?"))));
+                view.addView(new HtmlView(DIV(at(style, "margin:10px;"),
+                        getStartDataValidationButton(_experimentAnnotations, getContainer())
+                       )));
 
                 var qSettings = new QuerySettings(getViewContext(), "DataValidation", "DataValidation");
                 Sort sort = new Sort();
@@ -5292,12 +5305,16 @@ public class PanoramaPublicController extends SpringActionController
             {
                 HtmlView details = getValidationSummary(latestValidation, exptAnnotations, getContainer(), getUser());
                 VBox view = new VBox(details);
+                Button viewAllButton = null;
                 if (DataValidationManager.getValidationJobCount(exptAnnotations.getId()) > 1)
                 {
-                    ActionURL url = new ActionURL(ViewPxValidationsAction.class, getContainer());
-                    url.addParameter("id", exptAnnotations.getId());
-                    view.addView(new HtmlView(new Button.ButtonBuilder("View All").href(url).build()));
+                    ActionURL url = new ActionURL(ViewPxValidationsAction.class, getContainer()).addParameter("id", exptAnnotations.getId());
+                    viewAllButton = new Button.ButtonBuilder("View All Validation Jobs").href(url).build();
                 }
+                view.addView(new HtmlView(DIV(at(style, "margin-top:15px;"),
+                        viewAllButton != null ? SPAN(at(style, "margin-right:10px;"), viewAllButton) : HtmlString.EMPTY_STRING,
+                        getStartDataValidationButton(exptAnnotations, getContainer()))));
+
                 view.setTitle("Data Validation for ProteomeXchange");
                 view.setFrame(WebPartView.FrameType.PORTAL);
                 result.addView(view);
@@ -7334,6 +7351,11 @@ public class PanoramaPublicController extends SpringActionController
             editUrl.addParameter("specLibInfoId", specLibInfoId);
         }
         return editUrl;
+    }
+
+    private static ActionURL getSubmitPxValidationJobUrl(ExperimentAnnotations exptAnnotations, Container container)
+    {
+        return new ActionURL(SubmitPxValidationJobAction.class, container).addParameter("id", exptAnnotations.getId());
     }
 
     public static ActionURL getPxValidationStatusUrl(int experimentAnnotationsId, int validationId, Container container)

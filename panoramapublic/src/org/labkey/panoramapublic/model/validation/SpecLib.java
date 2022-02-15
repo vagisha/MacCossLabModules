@@ -184,7 +184,7 @@ public class SpecLib
                         missingSpectrumFilesInBlib ? "Spectrum file " : "",
                         (missingSpectrumFilesInBlib && missingIdFilesInBlib) ? "and " : "",
                         missingIdFilesInBlib ? "Peptide ID file " : "",
-                        "names not found in the .blib library");
+                        "names were not found in the .blib library");
             }
             return status;
         }

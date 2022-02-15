@@ -236,9 +236,8 @@ public class DataValidationManager
         List<SpecLib> specLibs = new TableSelector(PanoramaPublicManager.getTableInfoSpecLibValidation(), filter, null).getArrayList(SpecLib.class);
         for (SpecLib lib: specLibs)
         {
-            SimpleFilter specLibIdFilter = new SimpleFilter(FieldKey.fromParts("SpecLibValidationId"), lib.getId());
-            lib.setSpectrumFiles(getSpectrumSourceFiles(specLibIdFilter));
-            lib.setIdFiles(getIdSourceFiles(specLibIdFilter));
+            lib.setSpectrumFiles(getSpectrumSourceFiles(new SimpleFilter(FieldKey.fromParts("SpecLibValidationId"), lib.getId())));
+            lib.setIdFiles(getIdSourceFiles(new SimpleFilter(FieldKey.fromParts("SpecLibValidationId"), lib.getId())));
         }
         return specLibs;
     }

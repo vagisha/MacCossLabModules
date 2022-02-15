@@ -429,7 +429,7 @@
                             '</tpl>',
 
 
-                            '<div style="font-weight:bold; margin-top:10px; margin-bottom:10px; text-decoration: underline;">Skyline Documents with Modification</div>',
+                            '<div style="font-weight:bold; margin-top:10px; margin-bottom:10px; text-decoration: underline;">Skyline documents with the modification</div>',
                             '<table style="border:1px solid black; padding:5px; margin-top:5px;">',
                             '<tpl for="documents">',
                             '<tr>',
@@ -715,7 +715,7 @@
                             '</table>',
                             '</tpl>',
 
-                            '<div style="font-weight:bold; margin-top:10px; margin-bottom:10px; text-decoration: underline;">Skyline Documents With the Library</div>',
+                            '<div style="font-weight:bold; margin-top:10px; margin-bottom:10px; text-decoration: underline;">Skyline documents with the library</div>',
                             '<ul>',
                             '<tpl for="documents">',
                             '<li>{[this.renderDocLink(values)]}</li>',

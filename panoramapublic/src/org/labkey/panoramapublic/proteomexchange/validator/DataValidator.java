@@ -8,6 +8,7 @@ import org.junit.Test;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.files.FileContentService;
+import org.labkey.api.module.ModuleLoader;
 import org.labkey.api.security.User;
 import org.labkey.api.targetedms.ISampleFile;
 import org.labkey.api.targetedms.ISpectrumLibrary;
@@ -15,7 +16,9 @@ import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.targetedms.model.SampleFilePath;
 import org.labkey.api.util.FileUtil;
+import org.labkey.api.util.JunitUtil;
 import org.labkey.panoramapublic.PanoramaPublicManager;
+import org.labkey.panoramapublic.PanoramaPublicModule;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.DataValidation;
@@ -28,6 +31,7 @@ import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
+import org.labkey.panoramapublic.speclib.LibraryType;
 import org.labkey.panoramapublic.speclib.SpecLibReader;
 import org.labkey.panoramapublic.speclib.SpecLibReaderException;
 
@@ -118,22 +122,7 @@ public class DataValidator
             List<LibSourceFile> libSources = null;
             for (ValidatorSpecLib.DocLib docLib: specLib.getDocumentLibraries())
             {
-                ISpectrumLibrary isl = docLib.getLibrary();
-                SpecLibReader libReader = SpecLibReader.getReader(isl);
-                List<LibSourceFile> docLibSources = null;
-                if (libReader != null)
-                {
-                    try
-                    {
-                        docLibSources = libReader.readLibSourceFiles(docLib.getDocument().getRun(), isl);
-                    }
-                    catch (SpecLibReaderException e)
-                    {
-                        // Library file exists but there was an error reading the library. It will be marked as 'incomplete'
-                        // in the data validation details page because of missing source file names.
-                        _listener.warning(e.getMessage());
-                    }
-                }
+                List<LibSourceFile> docLibSources = getLibrarySources(docLib);
 
                 if (libSources == null)
                 {
@@ -156,6 +145,48 @@ public class DataValidator
                 validateLibrarySources(specLib, libSources, user, fcs);
             }
         }
+    }
+
+    @Nullable
+    private List<LibSourceFile> getLibrarySources(ValidatorSpecLib.DocLib docLib)
+    {
+        ISpectrumLibrary isl = docLib.getLibrary();
+        SpecLibReader libReader = SpecLibReader.getReader(isl);
+
+        if (libReader != null)
+        {
+            try
+            {
+                Path libFilePath = TargetedMSService.get().getLibraryFilePath(docLib.getDocument().getRun(), isl);
+                return getLibSources(libReader, isl, libFilePath, docLib.getDocument().getName());
+            }
+            catch (SpecLibReaderException e)
+            {
+                // Library file exists but there was an error reading the library. It will be marked as 'incomplete'
+                // in the data validation details page because of missing source file names.
+                _listener.warning(e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static List<LibSourceFile> getLibSources(SpecLibReader libReader, ISpectrumLibrary isl, Path libFilePath, String documentName) throws SpecLibReaderException
+    {
+        List<LibSourceFile> sourceFiles = libReader.readLibSourceFiles(isl, libFilePath, documentName);
+        if (sourceFiles != null && sourceFiles.stream().anyMatch(LibSourceFile::isMaxQuantSearch))
+        {
+            // For libraries built with MaxQuant search results we need to add additional files that are required for library building
+            Set<String> idFileNames = sourceFiles.stream().filter(LibSourceFile::hasIdFile).map(LibSourceFile::getIdFile).collect(Collectors.toSet());
+            for (String file: LibSourceFile.MAX_QUANT_ID_FILES)
+            {
+                if (!idFileNames.contains(file))
+                {
+                    sourceFiles.add(new LibSourceFile(null, file, null));
+                }
+            }
+        }
+        return sourceFiles;
     }
 
     private void addSkylineDocSpecLib(ValidatorSpecLib specLib, User user, ValidatorSpecLib.DocLib docLib)
@@ -184,46 +215,27 @@ public class DataValidator
             if (source.hasSpectrumSourceFile() && !checkedFiles.contains(ssf))
             {
                 checkedFiles.add(ssf);
-                String ssfName = FilenameUtils.getName(ssf);
-                Path path = getPath(ssfName, containers, source.isMaxQuantSearch(), fcs);
-                SpecLibSourceFile sourceFile = new SpecLibSourceFile(ssfName, SPECTRUM);
+                Path path = getPath(ssf, containers, source.isMaxQuantSearch(), fcs);
+                SpecLibSourceFile sourceFile = new SpecLibSourceFile(ssf, SPECTRUM);
                 sourceFile.setSpecLibValidationId(specLib.getId());
                 sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
-                DataValidationManager.saveSpecLibSourceFile(sourceFile, user);
                 spectrumFiles.add(sourceFile);
             }
             String idFile = source.getIdFile();
             if (source.hasIdFile() && !checkedFiles.contains(idFile))
             {
                 checkedFiles.add(idFile);
-                String idFileName = FilenameUtils.getName(idFile);
-                Path path = getPath(idFileName, containers, false, fcs);
-                SpecLibSourceFile sourceFile = new SpecLibSourceFile(idFileName, ID);
+                Path path = getPath(idFile, containers, false, fcs);
+                SpecLibSourceFile sourceFile = new SpecLibSourceFile(idFile, ID);
                 sourceFile.setSpecLibValidationId(specLib.getId());
                 sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
-                DataValidationManager.saveSpecLibSourceFile(sourceFile, user);
                 idFiles.add(sourceFile);
-            }
-
-            if (source.isMaxQuantSearch())
-            {
-                for (String fileName: LibSourceFile.MAX_QUANT_ID_FILES)
-                {
-                    if (!checkedFiles.contains(fileName))
-                    {
-                        checkedFiles.add(idFile);
-                        Path path = getPath(fileName, containers, false, fcs);
-                        SpecLibSourceFile sourceFile = new SpecLibSourceFile(fileName, ID);
-                        sourceFile.setSpecLibValidationId(specLib.getId());
-                        sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
-                        DataValidationManager.saveSpecLibSourceFile(sourceFile, user);
-                        idFiles.add(sourceFile);
-                    }
-                }
             }
         }
         specLib.setSpectrumFiles(spectrumFiles);
         specLib.setIdFiles(idFiles);
+        spectrumFiles.forEach(s -> DataValidationManager.saveSpecLibSourceFile(s, user));
+        idFiles.forEach(s -> DataValidationManager.saveSpecLibSourceFile(s, user));
     }
 
     private Path getPath(String name, Set<Container> containers, boolean isMaxquant, FileContentService fcs) throws DataValidationException
@@ -806,10 +818,57 @@ public class DataValidator
         }
 
         @Test
+        public void testGetLibrarySources() throws IOException
+        {
+            Path testDataDir = JunitUtil.getSampleData(ModuleLoader.getInstance().getModule(PanoramaPublicModule.class), "TargetedMS/panoramapublic").toPath();
+            Path libPath = testDataDir.resolve("maxquant.blib");
+            ISpectrumLibrary isl = createLibrary(libPath);
+            SpecLibReader libReader = SpecLibReader.getReader(isl);
+            assertNotNull(libReader);
+            List<LibSourceFile> libSources = null;
+            try
+            {
+                libSources = getLibSources(libReader, isl, libPath, "no_name_document");
+            }
+            catch (SpecLibReaderException e)
+            {
+                fail("Unexpected exception: " + e.getMessage());
+            }
+            assertNotNull(libSources);
+            assertEquals(8, libSources.size());
+
+            // Files read from the .blib's SpectrumSourceFiles table
+            List<String> spectrumSources = List.of("BBM_332_P110_C04_PRM_003.raw", "BBM_332_P110_C04_PRM_004.raw",
+                    "BBM_332_P110_C04_PRM_005.raw", "BBM_332_P110_C04_PRM_006.raw", "BBM_332_P110_C04_PRM_007.raw");
+            String idFile = "msms.txt";
+            for (int i = 0; i < spectrumSources.size(); i++)
+            {
+                LibSourceFile libSource = libSources.get(i);
+                assertTrue(libSource.hasSpectrumSourceFile());
+                assertEquals(spectrumSources.get(i), libSource.getSpectrumSourceFile());
+                assertTrue(libSource.hasIdFile());
+                assertEquals(idFile, libSource.getIdFile());
+            }
+
+            // Additional files added for MaxQuant
+            Set<String> expectedIdFiles = new HashSet<>(LibSourceFile.MAX_QUANT_ID_FILES);
+            for (int i = spectrumSources.size(); i < libSources.size(); i++)
+            {
+                LibSourceFile libSource = libSources.get(i);
+                assertFalse(libSource.hasSpectrumSourceFile());
+                assertTrue(libSource.hasIdFile());
+                assertTrue(expectedIdFiles.contains(libSource.getIdFile()));
+            }
+            Set<String> idFilesInSources = libSources.stream().map(LibSourceFile::getIdFile).collect(Collectors.toSet());
+            assertEquals(expectedIdFiles, idFilesInSources);
+        }
+
+        @Test
         public void testAccept()
         {
             // Accept QC_10.9.17.raw OR for QC_10.9.17.raw.zip
-            assertTrue(accept("QC_10.9.17.raw", "QC_10.9.17.RAW"));
+            assertFalse(accept("QC_10.9.17.raw", "QC_10.9.17.RAW"));
+            assertTrue(accept("QC_10.9.17.raw", "QC_10.9.17.raw"));
             assertTrue(accept("QC_10.9.17.raw", "QC_10.9.17.raw.ZIP"));
 
             // Accept 170428_DBS_cal_7a.d OR 170428_DBS_cal_7a.d.zip
@@ -831,6 +890,54 @@ public class DataValidator
                 public Long getInstrumentId()
                 {
                     return null;
+                }
+            };
+        }
+
+        private ISpectrumLibrary createLibrary(Path path)
+        {
+            return new ISpectrumLibrary()
+            {
+                @Override
+                public long getId()
+                {
+                    return 0;
+                }
+
+                @Override
+                public long getRunId()
+                {
+                    return 0;
+                }
+
+                @Override
+                public String getName()
+                {
+                    return FileUtil.getFileName(path);
+                }
+
+                @Override
+                public String getFileNameHint()
+                {
+                    return getName();
+                }
+
+                @Override
+                public String getSkylineLibraryId()
+                {
+                    return null;
+                }
+
+                @Override
+                public String getRevision()
+                {
+                    return null;
+                }
+
+                @Override
+                public String getLibraryType()
+                {
+                    return LibraryType.bibliospec.name();
                 }
             };
         }
