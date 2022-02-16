@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.labkey.panoramapublic.proteomexchange.UnimodModification.Terminus;
+
 public class UnimodModifications
 {
     private List<UnimodModification> _modifications;
@@ -91,7 +93,7 @@ public class UnimodModifications
         return list;
     }
 
-    List<UnimodModification> getMatches(String normalizedFormula, String[] sites, boolean structural)
+    List<UnimodModification> getMatches(String normalizedFormula, String[] sites, Terminus terminus, boolean structural)
     {
         List<UnimodModification> uMods = getByFormula(normalizedFormula);
         List<UnimodModification> matches = new ArrayList<>();
@@ -106,13 +108,7 @@ public class UnimodModifications
                 continue;
             }
 
-            if (sites == null || sites.length == 0)
-            {
-                // The modification was created in Skyline without specifying an amino acid specificity. But the formula
-                // matches so we will add this as a possible modification.
-                matches.add(uMod);
-            }
-            else if(uMod.matches(normalizedFormula, sites))
+            if(uMod.matches(normalizedFormula, sites, terminus))
             {
                 matches.add(uMod);
             }

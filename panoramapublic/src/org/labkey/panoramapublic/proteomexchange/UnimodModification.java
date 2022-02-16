@@ -30,11 +30,26 @@ public class UnimodModification
 {
     private final int _id;
     private final String _name;
-    private String _normFormula;
-    private Set<String> _modSites;
+    private final String _normFormula;
+    private final Set<String> _modSites;
     private boolean _isNterm;
     private boolean _isCterm;
     private boolean _isIsotopic;
+
+    public enum Terminus
+    {
+        N("N-term"), C("C-term");
+        private final String label;
+        Terminus(String label)
+        {
+            this.label = label;
+        }
+
+        public String getLabel()
+        {
+            return label;
+        }
+    }
 
     public UnimodModification(int id, String name, String normalizedFormula)
     {
@@ -89,35 +104,33 @@ public class UnimodModification
         _isIsotopic = isotopic;
     }
 
-    public boolean matches(String normFormula, String[] sites)
+    /**
+     * @param normFormula
+     * @param sites
+     * @param terminus
+     * @return true if the given normalized formula matches this modification's composition, and the given sites are in the
+     * allowed sites for this modification. If no sites are given then the given terminus must match. If both the given
+     * sites and terminus are null or empty then return false.
+     */
+    public boolean matches(String normFormula, String[] sites, Terminus terminus)
     {
         if(!formulaMatches(normFormula))
         {
             return false;
         }
-        if(!containsSites(sites, _modSites))
+        boolean hasSites = sites != null && sites.length > 0;
+        if (!hasSites && terminus == null)
         {
+            // Cannot find an exact match based on just the formula
             return false;
         }
-        return true;
+        return hasSites ? _modSites.containsAll(Arrays.asList(sites)) :
+                          terminus != null && ((_isNterm && Terminus.N.equals(terminus)) || _isCterm && Terminus.C.equals(terminus));
     }
 
     public boolean formulaMatches(String normFormula)
     {
         return _normFormula.equals(normFormula);
-    }
-
-    private boolean containsSites(String[] sites, Set<String> modSites)
-    {
-        if(sites == null || sites.length == 0)
-        {
-            return true;
-        }
-        if(modSites.size() == 0)
-        {
-            return false;
-        }
-        return modSites.containsAll(Arrays.asList(sites));
     }
 
     public static String normalizeFormula(String formula)
