@@ -18,10 +18,12 @@ package org.labkey.panoramapublic.proteomexchange;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import static org.labkey.panoramapublic.proteomexchange.UnimodModification.Terminus;
+import static org.labkey.panoramapublic.proteomexchange.UnimodParser.*;
 
 public class UnimodModifications
 {
@@ -108,7 +110,15 @@ public class UnimodModifications
                 continue;
             }
 
-            if(uMod.matches(normalizedFormula, sites, terminus))
+            Set<Specificity> specificities = new HashSet<>();
+            for (String site: sites)
+            {
+                // If a terminus is given, the modification occurs on the specified amino acids at the specified terminus.
+                // If no sites are given then the modification can occur on any amino acid at the specified terminus.
+                Position pos = Terminus.N == terminus ? Position.AnyNterm : Terminus.C == terminus ? Position.AnyCterm : Position.Anywhere;
+                specificities.add(new Specificity(site, pos));
+            }
+            if(uMod.matches(normalizedFormula, specificities, terminus))
             {
                 matches.add(uMod);
             }

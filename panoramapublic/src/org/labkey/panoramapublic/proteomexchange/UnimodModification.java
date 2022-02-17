@@ -16,9 +16,9 @@
 package org.labkey.panoramapublic.proteomexchange;
 
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,30 +26,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.labkey.panoramapublic.proteomexchange.UnimodParser.*;
+
 public class UnimodModification
 {
     private final int _id;
     private final String _name;
     private final String _normFormula;
-    private final Set<String> _modSites;
-    private boolean _isNterm;
-    private boolean _isCterm;
+    private final Set<Specificity> _modSites;
+    private TermSpecificity _nTerm;
+    private TermSpecificity _cTerm;
     private boolean _isIsotopic;
-
-    public enum Terminus
-    {
-        N("N-term"), C("C-term");
-        private final String label;
-        Terminus(String label)
-        {
-            this.label = label;
-        }
-
-        public String getLabel()
-        {
-            return label;
-        }
-    }
 
     public UnimodModification(int id, String name, String normalizedFormula)
     {
@@ -74,19 +61,30 @@ public class UnimodModification
         return _normFormula;
     }
 
-    public void setNterm(boolean nterm)
+    public void setNterm(@NotNull Position position)
     {
-        _isNterm = nterm;
+        if (_nTerm != null)
+        {
+            // Some Unimod modifications have terminus specificity on both Any N-term and Protein N-term. Keep the less restrictive one.
+            position = position.ordinal() < _nTerm.getPosition().ordinal() ? position : _nTerm.getPosition();
+        }
+        _nTerm = new TermSpecificity(Terminus.N, position);
     }
 
-    public void setCterm(boolean cterm)
+    public void setCterm(@NotNull Position position)
     {
-        _isCterm = cterm;
+        if (_cTerm != null)
+        {
+            // Some Unimod modifications have terminus specificity on both Any C-term and Protein C-term. Keep the less restrictive one.
+            // Example: Unimod:2, Amidation https://www.unimod.org/modifications_view.php?editid1=2
+            position = position.ordinal() < _cTerm.getPosition().ordinal() ? position : _cTerm.getPosition();
+        }
+        _cTerm = new TermSpecificity(Terminus.C, position);
     }
 
-    public void addSite(String site, String classification)
+    public void addSite(@NotNull String site, @NotNull Position position)
     {
-        _modSites.add(site);
+        _modSites.add(new Specificity(site, position));
     }
 
     public boolean isStructural()
@@ -105,27 +103,53 @@ public class UnimodModification
     }
 
     /**
-     * @param normFormula
-     * @param sites
-     * @param terminus
-     * @return true if the given normalized formula matches this modification's composition, and the given sites are in the
+     * @param normFormula normalized formula for the modification {@link UnimodModification#normalizeFormula(String)}
+     * @param sites sites (amino acids + terminus) where this modification occurs
+     * @param terminus terminus (N-term / C-term) where this modification occurs if no sites are specified.
+     * @return true if the given normalized formula matches this Unimod modification's composition, and the given sites are in the
      * allowed sites for this modification. If no sites are given then the given terminus must match. If both the given
      * sites and terminus are null or empty then return false.
      */
-    public boolean matches(String normFormula, String[] sites, Terminus terminus)
+    public boolean matches(String normFormula, @NotNull Set<Specificity> sites, Terminus terminus)
     {
         if(!formulaMatches(normFormula))
         {
             return false;
         }
-        boolean hasSites = sites != null && sites.length > 0;
-        if (!hasSites && terminus == null)
+        if (sites.size() == 0 && terminus == null)
         {
             // Cannot find an exact match based on just the formula
             return false;
         }
-        return hasSites ? _modSites.containsAll(Arrays.asList(sites)) :
-                          terminus != null && ((_isNterm && Terminus.N.equals(terminus)) || _isCterm && Terminus.C.equals(terminus));
+        if (sites.size() > 0)
+        {
+            for (Specificity site: sites)
+            {
+                // If this Unimod modification has a C/N-term position restriction then we need to match that, but if the Skyline definition
+                // has a terminus restriction we can ignore it.
+                // Example Skyline modification: Label:13C(6)15N(4) (C-term R) has a C-term restriction.
+                // This one should match Unimod:267, Label:13C(6)15N(4).
+                // In Unimod, however, the specificity on 'R' does not have a position restriction on the C-term.
+                // https://www.unimod.org/modifications_view.php?editid1=267
+                if (!_modSites.contains(site)  // Try match with the given site + terminus definition
+                        && !_modSites.contains(new Specificity(site.getSite(), Position.Anywhere))) // Try match with no terminus restriction
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        else
+        {
+            // If there are no amino acid sites given, match on the terminus
+            TermSpecificity termSpecificity = Terminus.N == terminus ? _nTerm : Terminus.C == terminus ? _cTerm : null;
+            return termSpecificity != null
+                    // Do not match if the position for the term specificity for this Unimod modification is Protein C-term or Protein N-term.
+                    // In Skyline we cannot define a modification on Protein C/N-term.
+                    // Some Unimod modifications have terminus specificity on both Any *-term and Protein *-term. We keep the less restrictive one.
+                    /**{@link UnimodModification#setNterm(Position)} and {@link UnimodModification#setCterm(Position)} */
+                    && termSpecificity.getPosition().isAnywhere();
+        }
     }
 
     public boolean formulaMatches(String normFormula)
@@ -253,11 +277,11 @@ public class UnimodModification
         {
             sb.append(", Sites: ").append(StringUtils.join(_modSites, ":"));
         }
-        if(_isCterm)
+        if(_cTerm != null)
         {
             sb.append(", C-term");
         }
-        if(_isNterm)
+        if(_nTerm != null)
         {
             sb.append(", N-term");
         }
