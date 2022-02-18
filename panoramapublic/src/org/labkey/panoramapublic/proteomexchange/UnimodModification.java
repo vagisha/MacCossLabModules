@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.labkey.panoramapublic.proteomexchange.UnimodParser.*;
 
@@ -293,7 +294,7 @@ public class UnimodModification
     {
         if(_modSites.size() > 0)
         {
-            return StringUtils.join(_modSites, ":");
+            return StringUtils.join(_modSites.stream().map(s -> s.getSite()).collect(Collectors.toSet()), ":");
         }
         return "";
     }

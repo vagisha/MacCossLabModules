@@ -3301,9 +3301,9 @@ public class PanoramaPublicController extends SpringActionController
                         new Link.LinkBuilder(statusFile.getStatus()).href(PageFlowUtil.urlProvider(PipelineStatusUrls.class)
                                 .urlDetails(container, validation.getJobId())).clearClasses().build()
                         : SPAN("Status not found for job Id " + validation.getJobId())),
-                TR(TD(at(colspan, 2), DIV(at(style, "background-color: #FFF6D8;margin:2px;font-weight:bold;"),
-                        validation.getStatus() == null ? SPAN(cl("labkey-error"), "Validation Incomplete") :
-                        outdated ? SPAN(cl("labkey-error"), "Data validation is outdated") : "Data validation is current")))
+                TR(TD(at(colspan, 2),
+                        (outdated || validation.getStatus() == null) ? DIV(at(style, "background-color: #FFF6D8;margin:2px;font-weight:bold;"),
+                                SPAN(cl("labkey-error"), outdated ? "Data validation is outdated" : "Validation Incomplete")) : HtmlString.EMPTY_STRING))
         ));
     }
 

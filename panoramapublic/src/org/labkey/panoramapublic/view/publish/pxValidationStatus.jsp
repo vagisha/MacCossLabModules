@@ -351,8 +351,8 @@
         return link("UNIMOD:" + unimodId, "https://www.unimod.org/modifications_view.php?editid1=" + unimodId, cls);
     }
 
-    function invalid() {
-        return '<span class="red bold">INVALID</span>';
+    function missing() {
+        return '<span class="red bold">MISSING</span>';
     }
 
     function modificationsInfo(json) {
@@ -360,7 +360,7 @@
         if (json["modifications"]) {
             const modificationsStore = Ext4.create('Ext.data.Store', {
                 storeId: 'modificationsStore',
-                fields:  ['id', 'unimodId', 'name', 'valid', 'modType', 'dbModId', 'modType', 'documents', 'possibleUnimodMatches'],
+                fields:  ['id', 'skylineModInfo', 'unimodId', 'unimodName', 'valid', 'modType', 'dbModId', 'documents', 'possibleUnimodMatches'],
                 data:    json,
                 proxy:   { type: 'memory', reader: { type: 'json', root: 'modifications' }},
                 sorters: [
@@ -379,10 +379,10 @@
                 ]
             });
 
-            return Ext4.create('Ext.grid.Panel', {
+            var grid = Ext4.create('Ext.grid.Panel', {
                 store:    modificationsStore,
                 storeId: 'modificationsStore',
-                padding:  10,
+                padding:  '0 10 10 10',
                 disableSelection: true,
                 collapsible: true,
                 animCollapse: false,
@@ -391,24 +391,36 @@
                 columns: {
                     items: [
                     {
+                        text: 'Name',
+                        dataIndex: 'skylineModInfo',
+                        flex: 4,
+                        renderer: function (v) { return htmlEncode(v); }
+                    },
+                    {
                         text: 'Unimod Id',
                         dataIndex: 'unimodId',
-                        width: 120,
+                        flex: 2,
                         renderer: function (value) {
                             // Can do metadata.style = "color:green;" or metadata.tdCls = 'green'
                             if (value) return unimodLink(value, 'green bold');
-                            else return invalid();
+                            else return missing();
                         }
                     },
                     {
-                        text: 'Name',
-                        dataIndex: 'name',
-                        flex: 1,
+                        text: 'Unimod Name',
+                        dataIndex: 'unimodName',
+                        flex: 3,
+                        renderer: function (v) { return htmlEncode(v); }
+                    },
+                    {
+                        text: 'Type',
+                        flex: 2,
+                        dataIndex: 'modType',
                         renderer: function (v) { return htmlEncode(v); }
                     },
                     {
                         text: 'Document Count',
-                        width: 150,
+                        flex: 1,
                         dataIndex: 'documents',
                         renderer: function (v) { return v.length; }
                     }],
@@ -460,12 +472,14 @@
                                     return documentLink(doc.name, doc.container, doc.runId);
                                 },
                                 renderPeptidesLink: function (doc, dbModId, modType) {
+                                    if (!modType) return;
+                                    var modTypeUpper = modType.toUpperCase();
                                     var params = {
                                         'schemaName': 'targetedms',
                                         'query.PeptideId/PeptideGroupId/RunId~eq': doc.runId,
-                                        'query.queryName': queryName = modType === 'STRUCTURAL' ? 'PeptideStructuralModification' : 'PeptideIsotopeModification'
+                                        'query.queryName': queryName = modTypeUpper === 'STRUCTURAL' ? 'PeptideStructuralModification' : 'PeptideIsotopeModification'
                                     };
-                                    if (modType === 'STRUCTURAL') params['query.StructuralModId/Id~eq'] = dbModId;
+                                    if (modTypeUpper === 'STRUCTURAL') params['query.StructuralModId/Id~eq'] = dbModId;
                                     else params['query.IsotopeModId/Id~eq'] = dbModId;
                                     return link('[PEPTIDES]', LABKEY.ActionURL.buildURL('query', 'executeQuery.view', doc.container, params));
                                 },
@@ -476,6 +490,16 @@
                     )
                 }]
             });
+            var noteText = "Modifications ending with <strong>**</strong> in the Name column did not have a Unimod Id in the Skyline document."
+            + " A Unimod Id was inferred based on the formula, modification site(s) and terminus in the modification definition."
+            + " Please review the assigned Unimod Id. If the assignment is incorrect please choose a modification with a Unimod Id"
+            + " in Skyline and re-upload the document. if you cannot find the modification in Skyline's built-in modification list"
+            + " please <a href=\"https://panoramaweb.org/support.url\">contact the Skyline / Panorama support team</a>.";
+            var note = {xtype: 'component',
+                padding: '10 10 0 10',
+                cls: 'labkey-error',
+                html: '<em>' + noteText + '</em>'};
+            return {xtype: 'panel', border: 0, items: [note, grid]};
         }
         return {xtype: 'label', text: 'Missing JSON property "modifications"'};
     }

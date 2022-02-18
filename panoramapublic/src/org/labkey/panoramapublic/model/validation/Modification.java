@@ -5,6 +5,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.labkey.api.targetedms.IModification;
+import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ public class Modification
     private long _dbModId;
     private Integer _unimodId;
     private String _unimodName;
+    private boolean _inferred;
     private ModType _modType;
     private String _unimodMatches;
 
@@ -28,15 +31,16 @@ public class Modification
     private static final String MOD_INFO_SEPARATOR = ":::";
     private static final String ERROR = "ERROR";
 
-    public enum ModType {STRUCTURAL, ISOTOPIC}
+    public enum ModType {Structural, Isotopic}
 
     public Modification() {}
 
-    public Modification(@NotNull String skylineModName, long dbModId, @Nullable Integer unimodId, @Nullable String unimodName, @NotNull ModType modType)
+    public Modification(@NotNull String skylineModName, long dbModId, @Nullable Integer unimodId, boolean inferred, @Nullable String unimodName, @NotNull ModType modType)
     {
         _skylineModName = skylineModName;
         _dbModId = dbModId;
         _unimodId = unimodId;
+        _inferred = inferred;
         _unimodName = unimodName;
         _modType = modType;
     }
@@ -89,6 +93,16 @@ public class Modification
     public void setUnimodId(Integer unimodId)
     {
         _unimodId = unimodId;
+    }
+
+    public boolean isInferred()
+    {
+        return _inferred;
+    }
+
+    public void setInferred(boolean inferred)
+    {
+        _inferred = inferred;
     }
 
     public String getUnimodName()
@@ -159,8 +173,10 @@ public class Modification
     {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("id", getId());
+        jsonObject.put("skylineModInfo", getSkylineModInfo());
         jsonObject.put("unimodId", getUnimodId());
-        jsonObject.put("name", getNameString());
+        jsonObject.put("unimodName", getUnimodName());
+        jsonObject.put("inferred", isInferred());
         jsonObject.put("valid", isValid());
         jsonObject.put("modType", getModType().name());
         jsonObject.put("dbModId", getDbModId());
@@ -173,6 +189,45 @@ public class Modification
             }
         }
         return jsonObject;
+    }
+
+    private String getSkylineModInfo()
+    {
+        if (getUnimodId() != null && !isInferred())
+        {
+            return getSkylineModName();
+        }
+        String info = "";
+        if(ModType.Structural == getModType())
+        {
+            IModification.IStructuralModification mod = TargetedMSService.get().getStructuralModification(getDbModId());
+            if (mod.getFormula() != null) info += mod.getFormula();
+            if (mod.getAminoAcid() != null) info += ", at: " + mod.getAminoAcid();
+            if (mod.getTerminus() != null) info += ", " + mod.getTerminus() + "-term";
+            if (info.startsWith(",")) info = info.substring(1).trim();
+        }
+        else if (ModType.Isotopic == getModType())
+        {
+            IModification.IIsotopeModification mod = TargetedMSService.get().getIsotopeModification(getDbModId());
+            if (mod.getFormula() != null) info += mod.getFormula();
+            else
+            {
+                String labels = "";
+                if (mod.getLabel2H() != null) labels += "2H ";
+                if (mod.getLabel13C() != null) labels += "13C ";
+                if (mod.getLabel15N() != null) labels += "15N ";
+                if (mod.getLabel18O() != null) labels += "18O";
+                if (labels.length() > 0)
+                {
+                    info += "label: " + labels.trim();
+                }
+            }
+            if (mod.getAminoAcid() != null) info += ", at: " + mod.getAminoAcid();
+            if (mod.getTerminus() != null) info += ", " + mod.getTerminus() + "-term";
+
+            if (info.startsWith(",")) info = info.substring(1).trim();
+        }
+        return getSkylineModName() + " (" + info + ")" + (isInferred() ? "**" : "");
     }
 
     private JSONArray getPossibleUnimodMatchesJSON(List<List<String>> unimodMatches)

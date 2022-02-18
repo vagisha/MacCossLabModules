@@ -103,7 +103,7 @@ public class ExperimentModificationGetter
         if(mod.getUnimodId() != null)
         {
             UnimodModification uMod = uMods.getById(mod.getUnimodId());
-            return uMod != null ? new PxStructuralMod(mod.getName(), mod.getId(), uMod) : new PxStructuralMod(mod.getName(), mod.getId());
+            return uMod != null ? new PxStructuralMod(mod.getName(), mod.getId(), uMod, false) : new PxStructuralMod(mod.getName(), mod.getId());
         }
         else
         {
@@ -127,7 +127,7 @@ public class ExperimentModificationGetter
         {
             // If there was only one match for the modification formula and modification sites / terminus then assume
             // that this is the right match.
-            pxMod.setUnimodMatch(uModList.get(0));
+            pxMod.setUnimodMatch(uModList.get(0), true);
         }
         else
         {
@@ -140,7 +140,7 @@ public class ExperimentModificationGetter
         if(mod.getUnimodId() != null)
         {
             UnimodModification uMod = uMods.getById(mod.getUnimodId());
-            return uMod != null ? new PxIsotopicMod(mod.getName(), mod.getId(), uMod) : new PxIsotopicMod(mod.getName(), mod.getId());
+            return uMod != null ? new PxIsotopicMod(mod.getName(), mod.getId(), uMod, false) : new PxIsotopicMod(mod.getName(), mod.getId());
         }
         else
         {
@@ -216,6 +216,7 @@ public class ExperimentModificationGetter
         private final long _dbModId; // database id from the IsotopeModification table if _isotopicMod is true, StructuralModification otherwise
         private final boolean _isotopicMod;
         private UnimodModification _match;
+        private boolean _matchInferred;
         private final List<UnimodModification> _unimodModifications; // List of possible Unimod modifications
 
         PxModification(String skylineName, boolean isIsotopic, long dbModId)
@@ -277,9 +278,15 @@ public class ExperimentModificationGetter
             return _isotopicMod;
         }
 
-        public void setUnimodMatch(UnimodModification uMod)
+        public void setUnimodMatch(UnimodModification uMod, boolean inferred)
         {
             _match = uMod;
+            _matchInferred = inferred;
+        }
+
+        public boolean isMatchInferred()
+        {
+            return _matchInferred;
         }
 
         public void addPossibleUnimod(UnimodModification uMod)
@@ -305,10 +312,10 @@ public class ExperimentModificationGetter
             super(skylineName, false, dbModId);
         }
 
-        public PxStructuralMod(String skylineName, long dbModId, UnimodModification uMod)
+        public PxStructuralMod(String skylineName, long dbModId, UnimodModification uMod, boolean inferred)
         {
             super(skylineName, false, dbModId);
-            if (uMod != null) setUnimodMatch(uMod);
+            if (uMod != null) setUnimodMatch(uMod, inferred);
         }
     }
 
@@ -319,10 +326,10 @@ public class ExperimentModificationGetter
             super(skylineName, true, dbModId);
         }
 
-        public PxIsotopicMod(String skylineName, long dbModId, UnimodModification uMod)
+        public PxIsotopicMod(String skylineName, long dbModId, UnimodModification uMod, boolean inferred)
         {
             super(skylineName, true, dbModId);
-            if (uMod != null) setUnimodMatch(uMod);
+            if (uMod != null) setUnimodMatch(uMod, inferred);
         }
     }
 

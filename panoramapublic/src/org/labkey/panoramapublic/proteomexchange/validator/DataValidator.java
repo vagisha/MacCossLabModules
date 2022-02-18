@@ -102,8 +102,9 @@ public class DataValidator
             {
                 Modification mod = new Modification(pxMod.getSkylineName(), pxMod.getDbModId(),
                         pxMod.getUnimodIdInt(),
+                        pxMod.isMatchInferred(),
                         pxMod.getName(),
-                        pxMod.isIsotopicMod() ? ModType.ISOTOPIC : ModType.STRUCTURAL);
+                        pxMod.isIsotopicMod() ? ModType.Isotopic : ModType.Structural);
                 if (pxMod.hasPossibleUnimods())
                 {
                     mod.setPossibleUnimodMatches(pxMod.getPossibleUnimodMatches());
