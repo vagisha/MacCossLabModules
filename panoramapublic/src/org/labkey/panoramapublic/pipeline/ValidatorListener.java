@@ -121,8 +121,8 @@ public class ValidatorListener implements DataValidatorListener
     }
 
     @Override
-    public void warning(String message)
+    public void error(String message)
     {
-        _log.warn(message);
+        _log.error(message);
     }
 }

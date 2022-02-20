@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.labkey.panoramapublic.speclib.LibraryType.*;
@@ -76,7 +77,7 @@ public abstract class SpecLibReader
             // https://www.labkey.org/home/Developer/issues/issues-details.view?issueId=43061
             if (size == 0)
             {
-                throw new SpecLibReaderException("Found 0-byte library file: " + libFilePath);
+                return Collections.emptyList();
             }
             return readLibSourceFiles(FileUtil.getAbsolutePath(libFilePath));
         }

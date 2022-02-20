@@ -1,5 +1,7 @@
 package org.labkey.panoramapublic.proteomexchange.validator;
 
+import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Assert;
 import org.junit.Test;
@@ -10,10 +12,10 @@ import org.labkey.api.targetedms.ISpectrumLibrary;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.JunitUtil;
+import org.labkey.api.util.UnexpectedException;
 import org.labkey.panoramapublic.PanoramaPublicModule;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataFile;
-import org.labkey.panoramapublic.model.validation.DataValidationException;
 import org.labkey.panoramapublic.model.validation.SpecLib;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
@@ -74,21 +76,19 @@ public class ValidatorSpecLib extends SpecLib
                 getLibName(), getFileName(), _documentLibraries.size(), getSpectrumFiles().size(), getIdFiles().size(), getStatusString());
     }
 
-    void validate(FileContentService fcs, DataValidatorListener listener, ExperimentAnnotations expAnnotations) throws DataValidationException
+    List<String> validate(FileContentService fcs, ExperimentAnnotations expAnnotations)
     {
-        if (isMissingInSkyZip())
+        List<String> errors = new ArrayList<>();
+        for (ValidatorSpecLib.DocLib docLib: getDocumentLibraries())
         {
-            for (ValidatorSpecLib.DocLib docLib: getDocumentLibraries())
-            {
-                addSkylineDocSpecLib(docLib);
-            }
+            addSkylineDocSpecLib(docLib);
         }
-        else
+        if (!isMissingInSkyZip())
         {
             List<LibSourceFile> libSources = null;
             for (ValidatorSpecLib.DocLib docLib: getDocumentLibraries())
             {
-                List<LibSourceFile> docLibSources = getLibrarySources(docLib, listener);
+                List<LibSourceFile> docLibSources = getLibrarySources(docLib);
 
                 if (libSources == null)
                 {
@@ -98,19 +98,21 @@ public class ValidatorSpecLib extends SpecLib
                 {
                     // We expect that libraries with the same library name, library file name, type and file size will have the same source
                     // files. If we see this exception then we will have to include the source file name in determining unique libraries.
-                    throw new DataValidationException(String.format("Expected library sources to match in all documents with the library '%s'. "
-                            + ". But they did not match for the library in the document '%s'.", getKey(), docLib.getDocument().getName()));
+                    errors.add(String.format("Expected library sources to match in all documents with the library '%s'"
+                            + ". But they did not match for the library in the document '%s'. Other documents that have this libary are %s.",
+                            getKey(),
+                            docLib.getDocument().getName(),
+                            StringUtils.join(getDocumentLibraries().stream().map(dl -> dl.getDocument().getName()).collect(Collectors.toSet()), ", ")));
                 }
-
-                addSkylineDocSpecLib(docLib);
             }
 
             // library sources will be null if the library is not supported, or e.g. the required table was not found in the .blib
-            if (libSources != null)
+            if (errors.isEmpty() && libSources != null)
             {
                 validateLibrarySources(libSources, fcs, expAnnotations);
             }
         }
+        return errors;
     }
 
     private void addSkylineDocSpecLib(ValidatorSpecLib.DocLib docLib)
@@ -122,32 +124,31 @@ public class ValidatorSpecLib extends SpecLib
     }
 
     @Nullable
-    private List<LibSourceFile> getLibrarySources(ValidatorSpecLib.DocLib docLib, DataValidatorListener listener)
+    private List<LibSourceFile> getLibrarySources(ValidatorSpecLib.DocLib docLib)
     {
         ISpectrumLibrary isl = docLib.getLibrary();
         SpecLibReader libReader = SpecLibReader.getReader(isl);
 
         if (libReader != null)
         {
-            try
-            {
-                Path libFilePath = TargetedMSService.get().getLibraryFilePath(docLib.getDocument().getRun(), isl);
-                return getLibSources(libReader, isl, libFilePath, docLib.getDocument().getName());
-            }
-            catch (SpecLibReaderException e)
-            {
-                // Library file exists but there was an error reading the library. It will be marked as 'incomplete'
-                // in the data validation details page because of missing source file names.
-                listener.warning(e.getMessage());
-            }
+            Path libFilePath = TargetedMSService.get().getLibraryFilePath(docLib.getDocument().getRun(), isl);
+            return getLibSources(libReader, isl, libFilePath, docLib.getDocument().getName());
         }
         return null;
     }
 
     @Nullable
-    private static List<LibSourceFile> getLibSources(SpecLibReader libReader, ISpectrumLibrary isl, Path libFilePath, String documentName) throws SpecLibReaderException
+    private static List<LibSourceFile> getLibSources(SpecLibReader libReader, ISpectrumLibrary isl, Path libFilePath, String documentName)
     {
-        List<LibSourceFile> sourceFiles = libReader.readLibSourceFiles(isl, libFilePath, documentName);
+        List<LibSourceFile> sourceFiles;
+        try
+        {
+            sourceFiles = libReader.readLibSourceFiles(isl, libFilePath, documentName);
+        }
+        catch (SpecLibReaderException e)
+        {
+            throw UnexpectedException.wrap(e, "Error reading source files from library file " + libFilePath.toString());
+        }
         if (sourceFiles != null && sourceFiles.stream().anyMatch(LibSourceFile::isMaxQuantSearch))
         {
             // For libraries built with MaxQuant search results we need to add additional files that are required for library building
@@ -178,12 +179,12 @@ public class ValidatorSpecLib extends SpecLib
         return Objects.equals(sources, docLibSources);
     }
 
-    private void validateLibrarySources(List<LibSourceFile> sources, FileContentService fcs, ExperimentAnnotations expAnnotations) throws DataValidationException
+    private void validateLibrarySources(List<LibSourceFile> sources, FileContentService fcs, ExperimentAnnotations expAnnotations)
     {
         Set<String> checkedFiles = new HashSet<>();
         // Since a library can be used with multiple Skyline documents which could be in subfolders we will look for the source files in the main experiment
         // folder as well as any subfolders containing documents that have the library
-        Set<Container> containers = new HashSet<>(getDocumentLibraries().stream().map(dl -> dl.getDocument().getContainer()).collect(Collectors.toSet()));
+        Set<Container> containers = getDocumentLibraries().stream().map(dl -> dl.getDocument().getContainer()).collect(Collectors.toSet());
         containers.add(expAnnotations.getContainer());
 
         List<SpecLibSourceFile> spectrumFiles = new ArrayList<>();
@@ -216,7 +217,7 @@ public class ValidatorSpecLib extends SpecLib
         setIdFiles(idFiles);
     }
 
-    private Path getPath(String name, Set<Container> containers, boolean isMaxquant, FileContentService fcs) throws DataValidationException
+    private Path getPath(String name, Set<Container> containers, boolean isMaxquant, FileContentService fcs)
     {
         for (Container container: containers)
         {
@@ -243,7 +244,7 @@ public class ValidatorSpecLib extends SpecLib
         return null;
     }
 
-    private Path findInDirectoryTree(java.nio.file.Path rawFilesDirPath, String fileName, boolean allowBaseName) throws DataValidationException
+    private Path findInDirectoryTree(java.nio.file.Path rawFilesDirPath, String fileName, boolean allowBaseName)
     {
         try
         {
@@ -255,7 +256,7 @@ public class ValidatorSpecLib extends SpecLib
         }
         catch (IOException e)
         {
-            throw new DataValidationException("Error looking for files in " + rawFilesDirPath, e);
+            throw UnexpectedException.wrap(e, "Error looking for files in " + rawFilesDirPath);
         }
 
         // Look in subdirectories
@@ -272,7 +273,7 @@ public class ValidatorSpecLib extends SpecLib
         }
         catch (IOException e)
         {
-            throw new DataValidationException("Error looking for files in sub-directories of" + rawFilesDirPath, e);
+            throw UnexpectedException.wrap(e, "Error looking for files in sub-directories of" + rawFilesDirPath);
         }
         return null;
     }
@@ -320,7 +321,7 @@ public class ValidatorSpecLib extends SpecLib
         private final ValidatorSkylineDoc _document;
         private final ISpectrumLibrary _library;
 
-        public DocLib(ValidatorSkylineDoc document, ISpectrumLibrary library)
+        public DocLib(@NotNull ValidatorSkylineDoc document, @NotNull ISpectrumLibrary library)
         {
             _document = document;
             _library = library;
@@ -347,15 +348,7 @@ public class ValidatorSpecLib extends SpecLib
             ISpectrumLibrary isl = createLibrary(libPath);
             SpecLibReader libReader = SpecLibReader.getReader(isl);
             assertNotNull(libReader);
-            List<LibSourceFile> libSources = null;
-            try
-            {
-                libSources = getLibSources(libReader, isl, libPath, "no_name_document");
-            }
-            catch (SpecLibReaderException e)
-            {
-                fail("Unexpected exception: " + e.getMessage());
-            }
+            List<LibSourceFile> libSources = getLibSources(libReader, isl, libPath, "no_name_document");
             assertNotNull(libSources);
             assertEquals(8, libSources.size());
 

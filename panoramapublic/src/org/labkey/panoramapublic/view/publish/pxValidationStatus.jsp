@@ -18,6 +18,71 @@
     }
 %>
 <labkey:errors/>
+
+<style type="text/css">
+
+    /* Add a CSS override for .x4-grid-row-expander. The displayed group-expand.gif gets cutoff since it is 9 x 15px
+       but the CSS width and height are set to 9 x 9px. */
+    .x4-grid-row-expander {
+        height: 15px;
+    }
+    .pxv-bold {
+        font-weight: bold; !important
+    }
+    div.pxv-table-header {
+        font-weight:bold;
+        text-decoration: underline;
+    }
+    .pxv-valid {
+        color:darkgreen;
+        font-weight: bold;
+    }
+    .pxv-invalid {
+        color:red;
+        font-weight: bold;
+    }
+    .pxv-btn-submit
+    {
+        background-image: none;
+    }
+    .pxv-btn-green
+    {
+        background-color: darkgreen !important;
+    }
+    .pxv-btn-orange
+    {
+        background-color: darkorange !important;
+    }
+    .pxv-btn-red
+    {
+        background-color: firebrick !important;
+    }
+
+    .pxv-btn-submit .x4-btn-inner-center
+    {
+        color:white !important;
+    }
+    .pxv-outdated-validation
+    {
+        padding: 5px;
+        background-color: #FFF6D8;
+        font-weight: bold;
+    }
+    .pxv-bold-underline
+    {
+        font-weight:bold; text-decoration: underline;
+    }
+    .pxv-margin10
+    {
+        margin-top:10px;
+    }
+    .pxv-margin10-both
+    {
+        margin-top:10px; margin-bottom:10px;
+    }
+
+</style>
+
 <%
     var view = (JspView<PanoramaPublicController.PxValidationStatusBean>) HttpView.currentView();
     var bean = view.getModelBean();
@@ -36,66 +101,13 @@
             jobStatus.isActive() ? (PipelineJob.TaskStatus.waiting.matches(jobStatus.getStatus()) ? "in the queue" : "running") : "complete"))
             : "Could not find job status for job with Id " + jobId;
 %>
-<style type="text/css">
-    .green {
-        color:green;
-    }
-    /* Add a CSS override for .x4-grid-row-expander. The displayed group-expand.gif gets cutoff since it is 9 x 15px
-       but the CSS width and height are set to 9 x 9px. */
-    .x4-grid-row-expander {
-        height: 15px;
-    }
-    .red {
-        color:red;
-    }
-    .bold {
-        font-weight: bold;
-    }
-    div.table-header {
-        font-weight:bold;
-        text-decoration: underline;
-    }
-    .valid {
-        color:green;
-        font-weight: bold;
-    }
-    .invalid {
-        color:red;
-        font-weight: bold;
-    }
-    .invalid-bkground {
-        background-color: #FFF5EE;
-    }
-    .btn-submit
-    {
-        background-image: none;
-    }
-    .btn-green
-    {
-        background-color: green !important;
-    }
-    .btn-orange
-    {
-        background-color: darkorange !important;
-    }
-    .btn-submit .x4-btn-inner-center
-    {
-        color:white !important;
-    }
-    .outdated-validation
-    {
-        padding: 5px;
-        background-color: #FFF6D8;
-        font-weight: bold;
-    }
-
-</style>
 
 <div>
-    <div class="alert alert-info" id="onPageLoadMsg"><%=h(onPageLoadMsg)%></div>
-    <span style="font-weight:bold;text-decoration:underline;margin-right:5px;">Job Status: </span> <span id="jobStatusSpan"></span>
+    <div class="alert alert-info" id="onPageLoadMsgDiv"><%=h(onPageLoadMsg)%></div>
+    <span class="pxv-bold-underline", style="margin-right:5px;">Job Status: </span> <span id="jobStatusSpan"></span>
     <span style="margin-left:10px;"><%=link("[View Pipeline Job]", PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), jobId))%></span>
 </div>
+
 <div style="margin-top:10px;" id="validationProgressDiv"></div>
 <div style="margin-top:10px;"><div id="validationStatusDiv"></div></div>
 
@@ -123,6 +135,7 @@
         forSubmit = LABKEY.ActionURL.getParameter("forSubmit") === 'true';
     }
     var lastJobStatus = "";
+    const FIVE_SEC = 5000;
 
     Ext4.onReady(makeRequest);
 
@@ -132,60 +145,87 @@
             method: 'GET',
             success: LABKEY.Utils.getCallbackWrapper(displayStatus),
             failure: function () {
-                setTimeout(makeRequest, 5000)
+                onFailure("Request was unsuccessful. The server may be unavailable. Please try reloading the page.")
             }
         });
     }
 
+    function onFailure(message)
+    {
+        setTimeout(alert(message), 500);
+    }
+
     function displayStatus(json) {
 
-        function getValidationProgressHtml(validationProgress) {
-            var html = "";
-            if (validationProgress) {
-                for (var i = 0; i < validationProgress.length; i++) {
-                    html += htmlEncode(validationProgress[i]) + "</br>";
-                }
-            }
-            return html;
-        }
-
         if (json) {
-            var jobStatus = json["jobStatus"];
-            var validationProgress = json["validationProgress"];
-            var validationStatus = json["validationStatus"];
 
-            if (jobStatus && lastJobStatus !== jobStatus) {
-                console.log(jobStatus);
-                jobStatusSpan.innerHTML = jobStatus;
-                lastJobStatus = jobStatus;
+            if (json["error"])
+            {
+                onFailure("There was an error: " + json["error"]);
+                return;
             }
+            const jobStatus = json["jobStatus"];
+            const validationProgress = json["validationProgress"];
+            const validationStatus = json["validationStatus"];
+            if (!(validationProgress || validationStatus))
+            {
+                onFailure("Unexpected JSON response returned by the server.");
+                return;
+            }
+
             if (validationProgress) {
                 validationProgressDiv.innerHTML = getValidationProgressHtml(validationProgress);
             }
             if (validationStatus) {
-                validationProgressDiv.innerHTML = "";
-                displayValidationStatus(validationStatus);
+                validationProgressDiv.innerHTML = ""; // Remove the job progress text
+                displayValidationStatus(validationStatus); // Display the full status details
             }
 
             if (jobStatus) {
+                if (lastJobStatus !== jobStatus) {
+                    // console.log("Job status: " + jobStatus);
+                    jobStatusSpan.innerHTML = jobStatus;
+                    lastJobStatus = jobStatus;
+                }
+
                 const jobStatusLc = jobStatus.toLowerCase();
                 if (!(jobStatusLc === "complete" || jobStatusLc === "error" || jobStatusLc === "cancelled" || jobStatusLc === "cancelling")) {
-                    // If task is not complete then schedule another status update in one second.
-                    setTimeout(makeRequest, 1000);
+                    // If task is not yet complete then schedule another request.
+                    setTimeout(makeRequest, FIVE_SEC);
                 }
                 else {
-                    var onPageLoadMsg = document.getElementById("onPageLoadMsg");
-                    if (onPageLoadMsg) {
-                        onPageLoadMsg.innerHTML = "";
-                        onPageLoadMsg.classList.remove('alert');
-                        onPageLoadMsg.classList.remove('alert-info');
+                    var onPageLoadMsgDiv = document.getElementById("onPageLoadMsgDiv");
+                    if (onPageLoadMsgDiv) {
+                        onPageLoadMsgDiv.innerHTML = "";
+                        onPageLoadMsgDiv.classList.remove('alert');
+                        onPageLoadMsgDiv.classList.remove('alert-info');
+
+                        if (jobStatusLc === "error") {
+                            onPageLoadMsgDiv.innerHTML = "There were errors while running the pipeline job. Please " +
+                                    '<%=link("view the pipeline job log", PageFlowUtil.urlProvider(PipelineStatusUrls.class).urlDetails(getContainer(), jobId))
+                                .clearClasses().addClass("alert-link")%>' + " for details.";
+                            onPageLoadMsgDiv.classList.add('alert', 'alert-warning', 'labkey-error');
+                        }
                     }
                 }
             }
+            else {
+                jobStatusSpan.innerHTML = "UNKNOWN"; // The job may have been deleted. That is why we did not get the job status in the response.
+            }
         }
         else {
-            setTimeout(makeRequest, 5000);
+            onFailure("Server did not return a valid response.");
         }
+    }
+
+    function getValidationProgressHtml(validationProgress) {
+        var html = "";
+        if (validationProgress) {
+            for (var i = 0; i < validationProgress.length; i++) {
+                html += htmlEncode(validationProgress[i]) + "</br>";
+            }
+        }
+        return html;
     }
 
     function displayValidationStatus(json) {
@@ -196,31 +236,29 @@
         });
     }
 
+    // -----------------------------------------------------------
+    // Displays the main validation summary panel
+    // -----------------------------------------------------------
     function validationInfo(json) {
 
         function getStatusCls(statusId) {
-            return statusId === 3 ? 'bold green' : (statusId !== -1 ? 'bold red' : '');
-        }
-
-        function getStatusValidHtml() {
-            return '<div>The data is valid for a "complete" ProteomeXchange submission.  ' +
-                    'You can view the validation details below.';
+            return statusId === 3 ? 'pxv-valid' : (statusId !== -1 ? 'pxv-invalid' : '');
         }
 
         function getMissingMetadataFields(missingFields) {
             var list = '<ul>';
             for (var i = 0; i < missingFields.length; i++) {
-                list += '<li>' + missingFields[i] + '</li>';
+                list += '<li>' + htmlEncode(missingFields[i]) + '</li>';
             }
             list += '</ul>';
             return list;
         }
 
-        function problems(json) {
+        function problemSummary(json) {
             var problems = '';
             if (json["missingMetadata"]) {
                 var updateMedataLink = LABKEY.ActionURL.buildURL('panoramapublic', 'showUpdateExperimentAnnotations', LABKEY.ActionURL.getContainer(), {id: <%=experimentAnnotationsId%>});
-                problems += '<li>Missing metadata: [' + link("Update Metadata", updateMedataLink, 'bold') + ']' + getMissingMetadataFields(json["missingMetadata"]) + '</li>';
+                problems += '<li>Missing metadata: [' + link("Update Metadata", updateMedataLink, 'pxv-bold') + ']' + getMissingMetadataFields(json["missingMetadata"]) + '</li>';
             }
             if (json["modificationsValid"] === false) problems += '<li>Modifications without a Unimod ID</li>';
             if (json["sampleFilesValid"] === false) problems += '<li>Missing raw data files</li>';
@@ -228,42 +266,45 @@
             return '</br>Problems found: <ul>' + problems + '</ul>';
         }
 
+        function getStatusValidHtml() {
+            return 'The data is valid for a "complete" ProteomeXchange submission.  ' +
+                    'You can view the validation details below.';
+        }
+
         function getIncompleteDataHtml(json) {
-            return '<div>The data can be assigned a ProteomeXchange ID but it is not valid for a "complete" ProteomeXchange submission. ' +
-                    problems(json) +
+            return 'The data can be assigned a ProteomeXchange ID but it is not valid for a "complete" ProteomeXchange submission. ' +
+                    problemSummary(json) +
                     'You can view the validation details in the tables below. ' +
                     'For a "complete" submission try submitting after fixing the problems reported. ' +
                     'Otherwise, you can continue with an incomplete submission.';
         }
 
         function getStatusInvalidHtml(json) {
-            return '<div>The data cannot be assigned a ProteomeXchange ID. ' +
-                    problems(json) +
+            return 'The data cannot be assigned a ProteomeXchange ID. ' +
+                    problemSummary(json) +
                     'You can view the validation details in the tables below. ' +
                     'Try submitting the data after fixing the problems reported. ' +
-                    'Otherwise, you can submit the data without a ProteomeXchange ID. ';
+                    'Otherwise, you can submit the data without a ProteomeXchange ID.';
         }
 
-        function getStatusDetails(json) {
-            const statusId = json["statusId"];
-            return statusId === 3 ? getStatusValidHtml(json)
-                    : statusId === 2 ? getIncompleteDataHtml(json) : getStatusInvalidHtml(json);
+        function getStatusDetails(statusId, json) {
+            var html =  statusId === 3 ? getStatusValidHtml(json)
+                        : statusId === 2 ? getIncompleteDataHtml(json) : getStatusInvalidHtml(json);
+            return '<div>' + html + '</div>';
         }
 
-        function getButtonText(json) {
-            const statusId = json["statusId"];
+        function getButtonText(statusId) {
             return statusId === 3 ? "Continue Submission"
-                    : statusId === 2 ? "Submit with an Incomplete PX Submission" : "Submit without a ProteomeXchange ID";
+                    : statusId === 2 ? "Continue with an Incomplete PX Submission" : "Submit without a ProteomeXchange ID";
         }
 
-        function getButtonCls(json) {
-            const statusId = json["statusId"];
-            return statusId === 3 ? "btn-submit btn-green" : "btn-submit btn-orange";
+        function getButtonCls(statusId) {
+            var cls = "pxv-btn-submit";
+            return cls + (statusId === 3 ? " pxv-btn-green"  : statusId === 2 ? " pxv-btn-orange" : " pxv-btn-red");
         }
 
-        function getButtonLink(json) {
+        function getButtonLink(statusId, json) {
             var params = {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false};
-            const statusId = json["statusId"];
             if (statusId === 0 || statusId === 1) { params["getPxid"] = false; }
             else { params["getPxid"] = true; }
 
@@ -271,40 +312,37 @@
                {params["journalId"] = <%=journalId%>;}
             <% }%>
 
-            // var url = LABKEY.ActionURL.buildURL('panoramapublic', 'publishExperiment.view', null, params);
-                    // {id: json["experimentAnnotationsId"], validationId: json["id"], "doSubfolderCheck": false, "validateForPx": false});
-            var url = LABKEY.ActionURL.buildURL('panoramapublic', <%=qh(submitAction)%> + '.view', LABKEY.ActionURL.getContainer(), params);
-            return url;
+            return LABKEY.ActionURL.buildURL('panoramapublic', <%=qh(submitAction)%>, LABKEY.ActionURL.getContainer(), params);
         }
 
         if (json["validation"]) {
 
-            var validationJson = json["validation"];
+            const validationJson = json["validation"];
+            const statusId = validationJson["statusId"];
 
-            var components = [{xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(validationJson)}];
+            var components = [{xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(statusId, validationJson)}];
             if (forSubmit === true)
             {
                 if (!json['validationOutdated']) {
                     components.push({
                         xtype: 'button',
-                        text: getButtonText(validationJson),
-                        cls: getButtonCls(validationJson),
-                        style: 'color:white',
-                        href: getButtonLink(validationJson),
+                        text: getButtonText(statusId),
+                        cls: getButtonCls(statusId),
+                        href: getButtonLink(statusId, validationJson),
                         hrefTarget: '_self'
                     });
                 }
                 else {
-                    console.log("Experiment annotations Id is " + validationJson["experimentAnnotationsId"]);
+                    // console.log("Experiment annotations Id is " + validationJson["experimentAnnotationsId"]);
                     components.push({
                         xtype: 'label',
-                        cls: 'outdated-validation labkey-error',
+                        cls: 'pxv-outdated-validation labkey-error',
                         text: 'This validation job is outdated.'
                     });
                     components.push({
                         xtype: 'button',
                         text: 'View All Validation Jobs',
-                        style: 'color:white',
+                        margin: '0 0 0 10',
                         href: LABKEY.ActionURL.buildURL('panoramapublic', 'viewPxValidations', LABKEY.ActionURL.getContainer(), {id: validationJson["experimentAnnotationsId"]}),
                         hrefTarget: '_self'
                     });
@@ -343,8 +381,7 @@
     }
 
     function documentLink(documentName, containerPath, runId) {
-        var url = LABKEY.ActionURL.buildURL('targetedms', 'showPrecursorList.view', containerPath, {id: runId});
-        return link(documentName, url);
+        return link(documentName, LABKEY.ActionURL.buildURL('targetedms', 'showPrecursorList.view', containerPath, {id: runId}));
     }
 
     function unimodLink(unimodId, cls) {
@@ -352,15 +389,18 @@
     }
 
     function missing() {
-        return '<span class="red bold">MISSING</span>';
+        return '<span class="pxv-invalid">MISSING</span>';
     }
 
+    // -----------------------------------------------------------
+    // Displays the modifications validation grid
+    // -----------------------------------------------------------
     function modificationsInfo(json) {
 
         if (json["modifications"]) {
             const modificationsStore = Ext4.create('Ext.data.Store', {
                 storeId: 'modificationsStore',
-                fields:  ['id', 'skylineModInfo', 'unimodId', 'unimodName', 'valid', 'modType', 'dbModId', 'documents', 'possibleUnimodMatches'],
+                fields:  ['id', 'skylineModInfo', 'unimodId', 'unimodName', 'inferred', 'valid', 'modType', 'dbModId', 'documents', 'possibleUnimodMatches'],
                 data:    json,
                 proxy:   { type: 'memory', reader: { type: 'json', root: 'modifications' }},
                 sorters: [
@@ -378,6 +418,9 @@
                     }
                 ]
             });
+
+            var hasInferred = modificationsStore.find('inferred', true) != -1;
+            // console.log("Has inferred " + hasInferred);
 
             var grid = Ext4.create('Ext.grid.Panel', {
                 store:    modificationsStore,
@@ -402,7 +445,7 @@
                         flex: 2,
                         renderer: function (value) {
                             // Can do metadata.style = "color:green;" or metadata.tdCls = 'green'
-                            if (value) return unimodLink(value, 'green bold');
+                            if (value) return unimodLink(value, 'pxv-valid');
                             else return missing();
                         }
                     },
@@ -436,7 +479,7 @@
                             '<div style="background-color:#f1f1f1;padding:15px 10px 15px 10px;margin-top:5px;font-size:10pt;">',
 
                             '<tpl if="possibleUnimodMatches.length &gt; 0">',
-                            '<div class="table-header">Possible Unimod Matches</div>',
+                            '<div class="pxv-table-header">Possible Unimod Matches</div>',
                             '<table style="border:1px solid black; padding:5px; margin-top:5px;">',
                             '<thead><tr><th style="border:1px solid black; padding:5px;">Unimod ID</th>',
                             '<th style="border:1px solid black; padding:5px;">Name</th>',
@@ -456,7 +499,7 @@
                             '</tpl>',
 
 
-                            '<div style="font-weight:bold; margin-top:10px; margin-bottom:10px; text-decoration: underline;">Skyline documents with the modification</div>',
+                            '<div class="pxv-bold-underline pxv-margin10-both">Skyline documents with the modification</div>',
                             '<table style="border:1px solid black; padding:5px; margin-top:5px;">',
                             '<tpl for="documents">',
                             '<tr>',
@@ -481,7 +524,7 @@
                                     };
                                     if (modTypeUpper === 'STRUCTURAL') params['query.StructuralModId/Id~eq'] = dbModId;
                                     else params['query.IsotopeModId/Id~eq'] = dbModId;
-                                    return link('[PEPTIDES]', LABKEY.ActionURL.buildURL('query', 'executeQuery.view', doc.container, params));
+                                    return link('[PEPTIDES]', LABKEY.ActionURL.buildURL('query', 'executeQuery', doc.container, params));
                                 },
                                 renderUnimodLink: function (values) {
                                     return unimodLink(values.unimodId);
@@ -490,20 +533,29 @@
                     )
                 }]
             });
-            var noteText = "Modifications ending with <strong>**</strong> in the Name column did not have a Unimod Id in the Skyline document."
-            + " A Unimod Id was inferred based on the formula, modification site(s) and terminus in the modification definition."
-            + " Please review the assigned Unimod Id. If the assignment is incorrect please choose a modification with a Unimod Id"
-            + " in Skyline and re-upload the document. if you cannot find the modification in Skyline's built-in modification list"
-            + " please <a href=\"https://panoramaweb.org/support.url\">contact the Skyline / Panorama support team</a>.";
-            var note = {xtype: 'component',
-                padding: '10 10 0 10',
-                cls: 'labkey-error',
-                html: '<em>' + noteText + '</em>'};
-            return {xtype: 'panel', border: 0, items: [note, grid]};
+            if (hasInferred) {
+                var noteHtml = "Modifications ending with <strong>**</strong> in the Name column did not have a Unimod Id in the Skyline document."
+                        + " A Unimod Id was inferred based on the formula, modification site(s) and terminus in the modification definition."
+                        + " If any of the inferred Unimod Ids is incorrect, please choose a modification with a Unimod Id in Skyline and re-upload the document."
+                        + " If you cannot find the modification in Skyline's built-in modification list, please"
+                        + " <a class=\"alert-link\" href=\"https://panoramaweb.org/support.url\" target=\"_blank\">contact the Skyline / Panorama support team</a>.";
+                var note = {
+                    xtype: 'component',
+                    padding: 10,
+                    margin: '15 10 5 10',
+                    cls: 'labkey-error alert alert-warning',
+                    html: '<em>' + noteHtml + '</em>'
+                };
+                return {xtype: 'panel', border: 0, items: [note, grid]};
+            }
+            else { return grid; }
         }
         return {xtype: 'label', text: 'Missing JSON property "modifications"'};
     }
 
+    // -----------------------------------------------------------
+    // Displays the sample files validation grid
+    // -----------------------------------------------------------
     function skylineDocsInfo(json) {
         if (json["skylineDocuments"]) {
             var skylineDocsStore = Ext4.create('Ext.data.Store', {
@@ -558,7 +610,7 @@
                         sortable: false,
                         hideable: false,
                         renderer: function (value, metadata, record) {
-                            var url = LABKEY.ActionURL.buildURL('targetedms', 'showReplicates.view', record.get('container'), {id: record.get('runId')});
+                            var url = LABKEY.ActionURL.buildURL('targetedms', 'showReplicates', record.get('container'), {id: record.get('runId')});
                             return link(value.length, url);
                         }
                     },
@@ -569,7 +621,7 @@
                         width: 150,
                         dataIndex: 'valid',
                         renderer: function (value, metadata) {
-                            metadata.tdCls = value ? 'valid' : 'invalid';
+                            metadata.tdCls = value ? 'pxv-valid' : 'pxv-invalid';
                             return value ? "COMPLETE" : "INCOMPLETE";
                         }
                     },
@@ -584,11 +636,9 @@
                             // metadata.tdCls = iconCls;
                             metadata.style = 'text-align: center';
                             if (record.get('valid') === false) {
-                                var url = LABKEY.ActionURL.buildURL('project', 'begin.view', value, {pageId: 'Raw Data'});
-                                return '<a href="' + htmlEncode(url) + '" target="_blank">[Upload]</a>';
+                                return link('[Upload]', LABKEY.ActionURL.buildURL('project', 'begin', value, {pageId: 'Raw Data'}));
                             }
                             return "";
-                            // return link("Upload Files", url, 'iconUpload');
                         }
                     }],
                 plugins: [{
@@ -605,7 +655,7 @@
                             '</div>',
                             {
                                 renderStatus: function (sampleFile) {
-                                    var cls = sampleFile.found === true ? 'valid' : 'invalid';
+                                    var cls = sampleFile.found === true ? 'pxv-valid' : 'pxv-invalid';
                                     var status = "FOUND";
                                     if (sampleFile.found === false) status = "MISSING";
                                     if (sampleFile.ambiguous === true) status = "AMBIGUOUS";
@@ -621,6 +671,9 @@
         return {xtype: 'label', text: 'Missing JSON for property "skylineDocuments"'};
     }
 
+    // -----------------------------------------------------------
+    // Displays the spectral libraries validation grid
+    // -----------------------------------------------------------
     function spectralLibrariesInfo(json) {
         if (json["spectrumLibraries"]) {
             var specLibStore = Ext4.create('Ext.data.Store', {
@@ -664,7 +717,7 @@
                 columns: [
                     {
                         text: 'Name',
-                        dataIndex: 'libName', // TODO: link to a Spectrum Library webpart
+                        dataIndex: 'libName', // TODO: link to a Spectral Library webpart
                         flex: 3,
                         sortable: false,
                         hideable: false,
@@ -725,7 +778,7 @@
                         hideable: false,
                         flex: 2,
                         renderer: function (value, metadata) {
-                            metadata.tdCls = value === true ? 'valid' : 'invalid';
+                            metadata.tdCls = value === true ? 'pxv-valid' : 'pxv-invalid';
                             return value === true ? 'COMPLETE' : 'INCOMPLETE';
                         }
                     }],
@@ -737,7 +790,7 @@
                             '<div style="font-weight:bold; margin-top:10px;">Status: {[this.renderLibraryStatus(values.status, values.valid)]}</div>',
 
                             '<tpl if="spectrumFiles.length &gt; 0">',
-                            '<div style="font-weight:bold; margin-top:10px; text-decoration: underline;">Spectrum Files</div>',
+                            '<div class="pxv-bold-underline pxv-margin10">Spectrum Files</div>',
                             '<table style="border:1px solid black; padding:5px; margin-top:5px;">',
                             '<tpl for="spectrumFiles">',
                             '<tr><td style="border:1px solid black; padding:5px;">{name}</td><td style="border:1px solid black; padding:5px;">{[this.renderStatus(values)]}</td></tr>',
@@ -746,7 +799,7 @@
                             '</tpl>',
 
                             '<tpl if="idFiles.length &gt; 0">',
-                            '<div style="font-weight:bold; margin-top:10px; text-decoration: underline;">Peptide Id Files</div>',
+                            '<div class="pxv-bold-underline pxv-margin10">Peptide Id Files</div>',
                             '<table style="border:1px solid black; padding:5px;  margin-top:5px;">',
                             '<tpl for="idFiles">',
                             '<tr><td style="border:1px solid black; padding:5px;">{name}</td><td style="border:1px solid black; padding:5px;">{[this.renderStatus(values)]}</td></tr>',
@@ -754,7 +807,7 @@
                             '</table>',
                             '</tpl>',
 
-                            '<div style="font-weight:bold; margin-top:10px; margin-bottom:10px; text-decoration: underline;">Skyline documents with the library</div>',
+                            '<div class="pxv-bold-underline pxv-margin10-both">Skyline documents with the library</div>',
                             '<ul>',
                             '<tpl for="documents">',
                             '<li>{[this.renderDocLink(values)]}</li>',
@@ -764,7 +817,7 @@
                             '</div>',
                             {
                                 renderStatus: function (file) {
-                                    var cls = file.found === true ? 'valid' : 'invalid';
+                                    var cls = file.found === true ? 'pxv-valid' : 'pxv-invalid';
                                     var status = "FOUND";
                                     if (file.found === false) status = "MISSING";
                                     if (file.ambiguous === true) status = "AMBIGUOUS";
@@ -774,7 +827,7 @@
                                     return documentLink(doc.name, doc.container, doc.runId);
                                 },
                                 renderLibraryStatus: function (status, valid) {
-                                    var cls = valid === true ? 'valid' : 'invalid';
+                                    var cls = valid === true ? 'pxv-valid' : 'pxv-invalid';
                                     return '<span class="' + cls + '">' + status + '</span>';
                                 },
                             }

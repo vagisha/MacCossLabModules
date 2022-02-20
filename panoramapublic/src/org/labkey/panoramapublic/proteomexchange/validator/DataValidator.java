@@ -7,23 +7,28 @@ import org.labkey.api.security.User;
 import org.labkey.api.targetedms.ISpectrumLibrary;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
+import org.labkey.api.util.UnexpectedException;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.DataValidationException;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
+import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
+import org.labkey.panoramapublic.speclib.LibSourceFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DataValidator
 {
@@ -38,7 +43,7 @@ public class DataValidator
         _listener = listener;
     }
 
-    public ValidatorStatus validateExperiment(User user) throws DataValidationException
+    public ValidatorStatus validateExperiment(User user)
     {
             ValidatorStatus status = initValidationStatus(_validation, user);
             _listener.started(status);
@@ -49,7 +54,7 @@ public class DataValidator
             return status;
     }
 
-    private void validate(ValidatorStatus status, TargetedMSService svc, User user) throws DataValidationException
+    private void validate(ValidatorStatus status, TargetedMSService svc, User user)
     {
         validateSampleFiles(status, svc, user);
         validateModifications(status, user);
@@ -58,7 +63,7 @@ public class DataValidator
         DataValidationManager.updateValidationStatus(status.getValidation(), user);
     }
 
-    private void validateLibraries(ValidatorStatus status, User user) throws DataValidationException
+    private void validateLibraries(ValidatorStatus status, User user)
     {
         _listener.validatingSpectralLibraries();
         // sleep();
@@ -70,7 +75,12 @@ public class DataValidator
                 specLib.setValidationId(status.getValidation().getId());
                 DataValidationManager.saveSpectrumLibrary(specLib, user);
 
-                specLib.validate(fcs, _listener, _expAnnotations);
+                List<String> errors = specLib.validate(fcs, _expAnnotations);
+                if (!errors.isEmpty())
+                {
+                    _listener.error("There were unexpected errors in validating the library " + specLib.getFileName());
+                    errors.forEach(_listener::error);
+                }
 
                 specLib.getDocumentLibraries().forEach(dl -> addSkylineDocSpecLib(specLib, user, dl));
                 specLib.getSpectrumFiles().forEach(s -> DataValidationManager.saveSpecLibSourceFile(s, user));
@@ -79,6 +89,7 @@ public class DataValidator
                 transaction.commit();
             }
         }
+
         _listener.spectralLibrariesValidated(status);
     }
 
@@ -147,7 +158,7 @@ public class DataValidator
         }
     }
 
-    private ValidatorStatus initValidationStatus(DataValidation validation, User user) throws DataValidationException
+    private ValidatorStatus initValidationStatus(DataValidation validation, User user)
     {
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
@@ -180,7 +191,7 @@ public class DataValidator
         }
     }
 
-    private void addSpectralLibraries(ValidatorStatus status, TargetedMSService targetedMsSvc) throws DataValidationException
+    private void addSpectralLibraries(ValidatorStatus status, TargetedMSService targetedMsSvc)
     {
         Map<String, ValidatorSpecLib> spectralLibraries = new HashMap<>();
 
@@ -198,7 +209,7 @@ public class DataValidator
         spectralLibraries.values().forEach(status::addLibrary);
     }
 
-    private ValidatorSpecLib getSpectralLibrary(TargetedMSService targetedMsSvc, ValidatorSkylineDoc doc, ISpectrumLibrary lib) throws DataValidationException
+    private ValidatorSpecLib getSpectralLibrary(TargetedMSService targetedMsSvc, ValidatorSkylineDoc doc, ISpectrumLibrary lib)
     {
         ValidatorSpecLib sLib = new ValidatorSpecLib();
         sLib.setLibName(lib.getName());
@@ -213,7 +224,7 @@ public class DataValidator
             }
             catch (IOException e)
             {
-                throw new DataValidationException("Error getting size of library file '" + libPath + "'.", e);
+                throw UnexpectedException.wrap(e, "Error getting size of the library file '" + libPath + "'.");
             }
         }
         return sLib;

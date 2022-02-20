@@ -1917,7 +1917,7 @@ public class PanoramaPublicController extends SpringActionController
                                 validation.getId(), _experimentAnnotations.getContainer()));
                     }
                 }
-                if (form.getValidationId() != null)
+                else
                 {
                     _dataValidation = DataValidationManager.getValidation(form.getValidationId(), getContainer());
                     if (_dataValidation == null)
@@ -2020,9 +2020,9 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @NotNull
-        protected HtmlView getStartValidationView(DOM.Renderable message, boolean forResubmit)
+        protected HtmlView getStartValidationView(DOM.Renderable message, boolean forSubmit)
         {
-            return PanoramaPublicController.getStartValidationView(message, forResubmit, _experimentAnnotations, getContainer(),
+            return PanoramaPublicController.getStartValidationView(message, forSubmit, _experimentAnnotations, getContainer(),
                     getViewContext().getActionURL());
         }
 
@@ -2946,47 +2946,6 @@ public class PanoramaPublicController extends SpringActionController
 
         return experimentAnnotations;
     }
-    
-    private static DataValidation submitValidationJob(@NotNull ExperimentAnnotations experimentAnnotations, @NotNull User user,
-                                               @NotNull ViewContext viewContext, BindException errors)
-    {
-        try{
-            Container container = experimentAnnotations.getContainer();
-            PipeRoot root = PipelineService.get().findPipelineRoot(container);
-            if (root == null || !root.isValid())
-            {
-                throw new NotFoundException("No valid pipeline root found for " + container.getPath());
-            }
-            ViewBackgroundInfo info = new ViewBackgroundInfo(container, user, viewContext.getActionURL());
-
-            DataValidation validation = new DataValidation(experimentAnnotations.getId());
-            try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
-            {
-                validation = DataValidationManager.saveDataValidation(validation, user);
-                PxDataValidationPipelineJob job = new PxDataValidationPipelineJob(info, root, experimentAnnotations, validation.getId());
-                PipelineService.get().queueJob(job);
-                Integer jobId = PipelineService.get().getJobId(user, container, job.getJobGUID());
-                if (jobId == null)
-                {
-                    errors.reject(ERROR_MSG, "Data validation job was not submitted for experiment Id: " + experimentAnnotations.getId());
-                    return null;
-                }
-                else
-                {
-                    validation.setJobId(jobId);
-                    validation = DataValidationManager.updateDataValidation(validation, user);
-                }
-
-                transaction.commit();
-                return validation;
-            }
-        }
-        catch (PipelineValidationException e)
-        {
-            errors.reject(ERROR_MSG, "There was an error starting a pipeline job to validate the data for ProteomeXchange.");
-        }
-        return null;
-    }
 
     public static class MissingMetadataBean
     {
@@ -3045,6 +3004,47 @@ public class PanoramaPublicController extends SpringActionController
             return false;
         }
 
+        private DataValidation submitValidationJob(@NotNull ExperimentAnnotations experimentAnnotations, @NotNull User user,
+                                                          @NotNull ViewContext viewContext, BindException errors)
+        {
+            try{
+                Container container = experimentAnnotations.getContainer();
+                PipeRoot root = PipelineService.get().findPipelineRoot(container);
+                if (root == null || !root.isValid())
+                {
+                    throw new NotFoundException("No valid pipeline root found for " + container.getPath());
+                }
+                ViewBackgroundInfo info = new ViewBackgroundInfo(container, user, viewContext.getActionURL());
+
+                DataValidation validation = new DataValidation(experimentAnnotations.getId());
+                try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
+                {
+                    validation = DataValidationManager.saveDataValidation(validation, user);
+                    PxDataValidationPipelineJob job = new PxDataValidationPipelineJob(info, root, experimentAnnotations, validation.getId());
+                    PipelineService.get().queueJob(job);
+                    Integer jobId = PipelineService.get().getJobId(user, container, job.getJobGUID());
+                    if (jobId == null)
+                    {
+                        errors.reject(ERROR_MSG, "Data validation job was not submitted for experiment Id: " + experimentAnnotations.getId());
+                        return null;
+                    }
+                    else
+                    {
+                        validation.setJobId(jobId);
+                        validation = DataValidationManager.updateDataValidation(validation, user);
+                    }
+
+                    transaction.commit();
+                    return validation;
+                }
+            }
+            catch (PipelineValidationException e)
+            {
+                errors.reject(ERROR_MSG, "There was an error starting a pipeline job to validate the data for ProteomeXchange.");
+            }
+            return null;
+        }
+
         @Override
         public URLHelper getSuccessURL(PxDataValidationForm form)
         {
@@ -3059,7 +3059,7 @@ public class PanoramaPublicController extends SpringActionController
             if (validationJobs.size() > 0)
             {
                 var job = validationJobs.size() > 1 ? "jobs" : "job";
-                errors.reject(ERROR_MSG, String.format("%d data validation %s %s running. Wait for the running %s to finish or cancel the %s and try again.",
+                errors.reject(ERROR_MSG, String.format("%d data validation %s %s already running in this folder. Wait for the running %s to finish, or cancel the %s and try again.",
                         validationJobs.size(), job, validationJobs.size() > 1 ? "are" : "is", job, job));
             }
         }
@@ -3148,42 +3148,32 @@ public class PanoramaPublicController extends SpringActionController
             Status validationStatus = DataValidationManager.getStatus(form.getValidationId(), getContainer());
             if (validationStatus != null)
             {
+                if (!validationStatus.getValidation().isComplete())
+                {
+                    response.put("validationProgress", validationStatus.toProgressSummaryJSON());
+                }
+                else
+                {
+                    JSONObject json = validationStatus.toJSON();
+                    var dataValidation = validationStatus.getValidation();
+                    var expAnnotations = ExperimentAnnotationsManager.get(dataValidation.getExperimentAnnotationsId());
+                    if (DataValidationManager.isValidationOutdated(dataValidation, expAnnotations, getUser()) && expAnnotations != null)
+                    {
+                        json.put("validationOutdated", true);
+                    }
+                    response.put("validationStatus", json);
+                }
+
                 int jobId = validationStatus.getValidation().getJobId();
                 PipelineStatusFile status = PipelineService.get().getStatusFile(jobId);
                 if (status != null)
                 {
                     response.put("jobStatus", status.getStatus());
-
-                    if (!(PipelineJob.TaskStatus.waiting.matches(status.getStatus())
-                            || PipelineJob.TaskStatus.error.matches(status.getStatus())
-                            || PipelineJob.TaskStatus.cancelling.matches(status.getStatus())
-                            || PipelineJob.TaskStatus.cancelled.matches(status.getStatus())))
-                    {
-                        if (!validationStatus.getValidation().isComplete())
-                        {
-                            response.put("validationProgress", validationStatus.toProgressSummaryJSON());
-                        }
-                        else
-                        {
-                            JSONObject json = validationStatus.toJSON();
-                            var dataValidation = validationStatus.getValidation();
-                            var expAnnotations = ExperimentAnnotationsManager.get(dataValidation.getExperimentAnnotationsId());
-                            if (DataValidationManager.isValidationOutdated(dataValidation, expAnnotations, getUser()) && expAnnotations != null)
-                            {
-                                json.put("validationOutdated", true);
-                            }
-                            response.put("validationStatus", json);
-                        }
-                    }
-                }
-                else
-                {
-                    response.put("status", "Could not get status for job Id " + jobId);
                 }
             }
             else
             {
-                response.put("status", "No status found");
+                response.put("error", String.format("Data validation for Id:%d was not found in the folder '%s'.", form.getValidationId(), getContainer().getPath()));
             }
             return response;
         }
@@ -3463,7 +3453,8 @@ public class PanoramaPublicController extends SpringActionController
                 var validation = DataValidationManager.getLatestValidation(experimentAnnotations.getId(), experimentAnnotations.getContainer());
                 if (validation != null)
                 {
-                    if (validation.isComplete() || DataValidationManager.isPipelineJobRunning(validation))
+                    if ((validation.isComplete() && !DataValidationManager.isValidationOutdated(validation, experimentAnnotations, getUser()))
+                            || DataValidationManager.isPipelineJobRunning(validation))
                     {
                         // Redirect to validation status page
                         throw new RedirectException(getPxValidationStatusUrl(_experimentAnnotations.getId(),
@@ -3647,7 +3638,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         boolean foundValidSubmissionRequest(PublishExperimentForm form, Errors errors)
         {
-            return super.foundValidSubmissionRequest(form, errors) && foundLastCopiedSubmission(errors) && canResubmit(errors);
+            return super.foundValidSubmissionRequest(form, errors) && foundLastCopiedSubmission(errors) && canResubmit(form, errors);
         }
 
         private boolean foundLastCopiedSubmission(Errors errors)
@@ -3674,12 +3665,18 @@ public class PanoramaPublicController extends SpringActionController
             return super.getView(form, reshow, errors);
         }
 
-        private boolean canResubmit(Errors errors)
+        private boolean canResubmit(PublishExperimentForm form, Errors errors)
         {
             ExperimentAnnotations journalCopy = ExperimentAnnotationsManager.get(_lastCopiedSubmission.getCopiedExperimentId());
             if(journalCopy == null)
             {
                 errors.reject(ERROR_MSG,"This experiment does not have an existing copy on " + _journal.getName() + ".  It cannot be resubmitted.");
+                return false;
+            }
+            if (journalCopy.getPxid() != null && !form.isGetPxid())
+            {
+                errors.reject(ERROR_MSG,"The existing copy on " + _journal.getName() + " was assigned a ProteomeXchange Id." +
+                        " The experiment cannot be resubmitted without a ProteomeXchange Id.");
                 return false;
             }
             if(journalCopy.isFinal())
