@@ -96,7 +96,7 @@
     }
 
 </style>
-
+<!--background-color:#f1f1f1;padding:15px 10px 15px 10px;margin-top:5px;font-size:10pt;-->
 <%
     var view = (JspView<PanoramaPublicController.PxValidationStatusBean>) HttpView.currentView();
     var bean = view.getModelBean();
@@ -795,20 +795,20 @@
                             '<div class="pxv-tpl-table-title" style="margin-bottom:5px;">Skyline documents with the library</div>',
                             '<ul>',
                             '<tpl for="documents">',
-                            '<li>{[this.docLink(values)]}</li>',
+                            '<li>{[this.renderDocLink(values)]}</li>',
                             '</tpl>',
                             '</ul>',
                             '</div>',
                             {
+                                renderDocLink: function (doc) {
+                                    return documentLink(doc.name, doc.container, doc.runId);
+                                },
                                 renderLibraryStatus: function (status, valid) {
                                     var cls = valid === true ? 'pxv-valid' : 'pxv-invalid';
                                     return '<span class="' + cls + '">' + status + '</span>';
                                 },
                                 renderTable: function(dataFiles, tblCls, title) {
                                     return dataFilesTableTpl.apply({files: dataFiles, tblCls: tblCls, title: title});
-                                },
-                                docLink: function (doc) {
-                                    return documentLink(doc.name, doc.container, doc.runId);
                                 },
                                 compiled:true
                             }
