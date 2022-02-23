@@ -11,7 +11,7 @@ public class SpecLibSourceFile extends DataFile
 
     public enum LibrarySourceFileType
     {
-        SPECTRUM, ID
+        SPECTRUM, PEPTIDE_ID
     }
 
     public SpecLibSourceFile() {}
@@ -61,7 +61,7 @@ public class SpecLibSourceFile extends DataFile
 
     public boolean isIdFile()
     {
-        return LibrarySourceFileType.ID.equals(_sourceType);
+        return LibrarySourceFileType.PEPTIDE_ID.equals(_sourceType);
     }
 
     @Override

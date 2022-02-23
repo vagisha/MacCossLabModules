@@ -35,7 +35,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.ID;
+import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.PEPTIDE_ID;
 import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.SPECTRUM;
 
 public class ValidatorSpecLib extends SpecLib
@@ -207,7 +207,7 @@ public class ValidatorSpecLib extends SpecLib
             {
                 checkedFiles.add(idFile);
                 Path path = getPath(idFile, containers, false, fcs);
-                SpecLibSourceFile sourceFile = new SpecLibSourceFile(idFile, ID);
+                SpecLibSourceFile sourceFile = new SpecLibSourceFile(idFile, PEPTIDE_ID);
                 sourceFile.setSpecLibValidationId(getId());
                 sourceFile.setPath(path != null ? path.toString() : DataFile.NOT_FOUND);
                 idFiles.add(sourceFile);

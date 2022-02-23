@@ -21,14 +21,18 @@ import org.labkey.api.security.permissions.Permission;
 import org.labkey.api.util.HtmlString;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
+import org.labkey.panoramapublic.PanoramaPublicSchema.InnerJoinClause;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
-import org.labkey.panoramapublic.query.ExperimentAnnotationsFilteredTable;
+import org.labkey.panoramapublic.query.PanoramaPublicTable;
 
-public class SpecLibInfoTableInfo extends ExperimentAnnotationsFilteredTable
+import java.util.List;
+
+public class SpecLibInfoTableInfo extends PanoramaPublicTable
 {
     public SpecLibInfoTableInfo(PanoramaPublicSchema schema, ContainerFilter cf)
     {
-        super(PanoramaPublicManager.getTableInfoSpecLibInfo(), schema, cf);
+        super(PanoramaPublicManager.getTableInfoSpecLibInfo(), schema, cf,
+                List.of(new InnerJoinClause(null, "experimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "Exp", "id")));
 
         var dependencyTypeCol = getMutableColumn("DependencyType");
         if (dependencyTypeCol != null)

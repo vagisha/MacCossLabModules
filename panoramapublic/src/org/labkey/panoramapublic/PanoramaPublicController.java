@@ -5298,7 +5298,7 @@ public class PanoramaPublicController extends SpringActionController
 
             // If the data has been validated for a ProteomeXchange submission, show the summary of the last validation
             var latestValidation = DataValidationManager.getLatestValidation(exptAnnotations.getId(), getContainer());
-            if (latestValidation != null)
+            if (latestValidation != null && getContainer().hasPermission(getUser(), AdminPermission.class))
             {
                 HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation), exptAnnotations, getContainer(), getUser());
                 VBox view = new VBox(details);
@@ -5319,7 +5319,7 @@ public class PanoramaPublicController extends SpringActionController
 
             // If this experiment has been submitted show the submission requests
             List<JournalSubmission> jsList = SubmissionManager.getAllJournalSubmissions(exptAnnotations);
-            if (jsList.size() > 0)
+            if (jsList.size() > 0 && getContainer().hasPermission(getUser(), AdminPermission.class))
             {
                 QuerySettings qSettings = new QuerySettings(getViewContext(), "Submission", "Submission");
                 qSettings.setBaseFilter(new SimpleFilter(new SimpleFilter.InClause(FieldKey.fromParts("JournalExperimentId"),

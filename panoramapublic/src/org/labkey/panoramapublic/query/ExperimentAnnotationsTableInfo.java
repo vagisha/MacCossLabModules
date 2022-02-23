@@ -333,6 +333,8 @@ public class ExperimentAnnotationsTableInfo extends FilteredTable<PanoramaPublic
 
         addColumn(getVersionCol());
         addColumn(getVersionCountCol());
+        getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(schema));
+        getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(schema));
 
         List<FieldKey> visibleColumns = new ArrayList<>();
         visibleColumns.add(FieldKey.fromParts("Share"));

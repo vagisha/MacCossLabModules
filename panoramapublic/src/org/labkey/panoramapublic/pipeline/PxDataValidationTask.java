@@ -78,7 +78,7 @@ public class PxDataValidationTask extends PipelineJob.Task<PxDataValidationTask.
         {
             log.fatal("");
             log.fatal("Error validating experiment data", t);
-            log.fatal("Data validation FAILED");
+            log.fatal("Data validation failed");
             throw new PipelineJobException(t) {};
         }
     }

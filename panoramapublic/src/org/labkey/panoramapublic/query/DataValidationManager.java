@@ -50,7 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.ID;
+import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.PEPTIDE_ID;
 import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.SPECTRUM;
 
 public class DataValidationManager
@@ -254,7 +254,7 @@ public class DataValidationManager
 
     private static List<SpecLibSourceFile> getIdSourceFiles(SimpleFilter filter)
     {
-        filter.addCondition(FieldKey.fromParts("SourceType"), ID.ordinal());
+        filter.addCondition(FieldKey.fromParts("SourceType"), PEPTIDE_ID.ordinal());
         return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), filter, null).getArrayList(SpecLibSourceFile.class);
     }
 

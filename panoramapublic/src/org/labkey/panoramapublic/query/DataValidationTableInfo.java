@@ -3,17 +3,21 @@ package org.labkey.panoramapublic.query;
 import org.jetbrains.annotations.NotNull;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerFilter;
+import org.labkey.api.data.JdbcType;
+import org.labkey.api.data.SQLFragment;
+import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.query.DetailsURL;
+import org.labkey.api.query.ExprColumn;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.query.QueryForeignKey;
 import org.labkey.api.query.QueryUpdateService;
 import org.labkey.api.query.RowIdQueryUpdateService;
-import org.labkey.api.query.UserIdQueryForeignKey;
 import org.labkey.api.query.ValidationException;
 import org.labkey.api.security.User;
 import org.labkey.api.security.UserPrincipal;
 import org.labkey.api.security.permissions.Permission;
+import org.labkey.api.util.ContainerContext;
 import org.labkey.api.view.ActionURL;
 import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.PanoramaPublicManager;
@@ -25,13 +29,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DataValidationTableInfo extends ExperimentAnnotationsFilteredTable
+public class DataValidationTableInfo extends PanoramaPublicTable
 {
     public DataValidationTableInfo(@NotNull PanoramaPublicSchema userSchema, ContainerFilter cf)
     {
-        super(PanoramaPublicManager.getTableInfoDataValidation(), userSchema, cf);
-        getMutableColumn("CreatedBy").setFk(new UserIdQueryForeignKey(userSchema));
-        getMutableColumn("ModifiedBy").setFk(new UserIdQueryForeignKey(userSchema));
+        super(PanoramaPublicManager.getTableInfoDataValidation(), userSchema, cf,
+                List.of(new PanoramaPublicSchema.InnerJoinClause(null, "experimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "Exp", "id")));
+
         var statusCol = getMutableColumn("Status");
         if (statusCol != null)
         {
@@ -40,7 +44,18 @@ public class DataValidationTableInfo extends ExperimentAnnotationsFilteredTable
         Map<String, Object> params = new HashMap<>();
         params.put("validationId", FieldKey.fromParts("Id"));
         params.put("id", FieldKey.fromParts("ExperimentAnnotationsId"));
-        statusCol.setURL(new DetailsURL(new ActionURL(PanoramaPublicController.PxValidationStatusAction.class, getContainer()), params));
+        var validationStatusUrl = new ActionURL(PanoramaPublicController.PxValidationStatusAction.class, null);
+        statusCol.setURL(new DetailsURL(validationStatusUrl, params).setContainerContext(getContainerContext()));
+
+        ExprColumn docCountCol = createCountsColumn(PanoramaPublicManager.getTableInfoSkylineDocValidation(),
+                PanoramaPublicSchema.TABLE_SKYLINE_DOC_VALIDATION, "DocumentCount");
+        addColumn(docCountCol);
+        ExprColumn libCountCol = createCountsColumn(PanoramaPublicManager.getTableInfoSpecLibValidation(),
+                PanoramaPublicSchema.TABLE_SPEC_LIB_VALIDATION, "LibraryCount");
+        addColumn(libCountCol);
+        ExprColumn modCountCol = createCountsColumn(PanoramaPublicManager.getTableInfoModificationValidation(),
+                PanoramaPublicSchema.TABLE_MODIFICATION_VALIDATION, "ModificationCount");
+        addColumn(modCountCol);
 
         List<FieldKey> visibleColumns = new ArrayList<>();
         visibleColumns.add(FieldKey.fromParts("Id"));
@@ -48,7 +63,30 @@ public class DataValidationTableInfo extends ExperimentAnnotationsFilteredTable
         visibleColumns.add(FieldKey.fromParts("CreatedBy"));
         visibleColumns.add(FieldKey.fromParts("JobId"));
         visibleColumns.add(FieldKey.fromParts("Status"));
+        visibleColumns.add(FieldKey.fromParts(docCountCol.getName()));
+        visibleColumns.add(FieldKey.fromParts(libCountCol.getName()));
+        visibleColumns.add(FieldKey.fromParts(modCountCol.getName()));
         setDefaultVisibleColumns(visibleColumns);
+    }
+
+    private ExprColumn createCountsColumn(TableInfo table, String queryName, String name)
+    {
+        return createCountsColumn(this, table, "validationId", queryName, name, getContainerContext());
+    }
+    @NotNull
+    public static ExprColumn createCountsColumn(TableInfo parentTable, TableInfo table, String fkColName, String queryName, String name, ContainerContext containerContext)
+    {
+        SQLFragment countSql = new SQLFragment(" (SELECT COUNT(*) FROM ").append(table, "t")
+                .append(" WHERE t.").append(fkColName).append("=").append(ExprColumn.STR_TABLE_ALIAS).append(".id) ");
+        ExprColumn countsCol = new ExprColumn(parentTable, name, countSql, JdbcType.INTEGER);
+
+        ActionURL url = new ActionURL("query", "executeQuery", null)
+                .addParameter("schemaName", PanoramaPublicSchema.SCHEMA_NAME)
+                .addParameter("query.queryName", queryName)
+                .addParameter("query." + fkColName + "~eq", "${id}");
+
+        countsCol.setURL(new DetailsURL(url).setContainerContext(containerContext));
+        return countsCol;
     }
 
 
