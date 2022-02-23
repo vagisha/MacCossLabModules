@@ -22,6 +22,7 @@ import org.labkey.api.view.ActionURL;
 import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
+import org.labkey.panoramapublic.PanoramaPublicSchema.ContainerJoinType;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 
 import java.util.ArrayList;
@@ -33,8 +34,7 @@ public class DataValidationTableInfo extends PanoramaPublicTable
 {
     public DataValidationTableInfo(@NotNull PanoramaPublicSchema userSchema, ContainerFilter cf)
     {
-        super(PanoramaPublicManager.getTableInfoDataValidation(), userSchema, cf,
-                List.of(new PanoramaPublicSchema.InnerJoinClause(null, "experimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "Exp", "id")));
+        super(PanoramaPublicManager.getTableInfoDataValidation(), userSchema, cf, ContainerJoinType.ExpAnnotJoin);
 
         var statusCol = getMutableColumn("Status");
         if (statusCol != null)

@@ -11,10 +11,7 @@ import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QueryForeignKey;
 import org.labkey.api.query.UserIdQueryForeignKey;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
-import org.labkey.panoramapublic.PanoramaPublicSchema.InnerJoinClause;
-
-import java.util.List;
-import java.util.stream.Collectors;
+import org.labkey.panoramapublic.PanoramaPublicSchema.ContainerJoinType;
 
 public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
 {
@@ -22,47 +19,14 @@ public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
     private final SQLFragment _containerSql;
     private final FieldKey _containerFieldKey;
 
-    private static final String CONTAINER = "Container";
-
-    public PanoramaPublicTable(TableInfo table, PanoramaPublicSchema schema, ContainerFilter cf, @NotNull List<InnerJoinClause> joinList)
+    public PanoramaPublicTable(TableInfo table, PanoramaPublicSchema schema, ContainerFilter cf, @NotNull ContainerJoinType joinType)
     {
         super(table, schema, cf);
-        _joinSql = getJoinSql(joinList);
-        _containerSql = getContainerSql(joinList);
-        _containerFieldKey = getFieldKeyForContainer(joinList);
+        _joinSql = joinType.getJoinSql();
+        _containerSql = joinType.getContainerSql();
+        _containerFieldKey = joinType.getContainerFieldKey() != null ? joinType.getContainerFieldKey() : getContainerFieldKey();
         wrapAllColumns(true);
         addQueryFKs();
-    }
-
-    private SQLFragment getJoinSql(List<InnerJoinClause> joinList)
-    {
-        SQLFragment sql = new SQLFragment();
-        for (var innerJoin: joinList)
-        {
-            sql.append(innerJoin.toSql());
-        }
-        return sql;
-    }
-
-    private SQLFragment getContainerSql(List<InnerJoinClause> joinList)
-    {
-        if (joinList.size() > 0)
-        {
-            // We expect the last table in the join sequence to have the container column
-            return new SQLFragment(joinList.get(joinList.size() - 1).getJoinTableAlias()).append(".").append(CONTAINER);
-        }
-        return new SQLFragment(CONTAINER);
-    }
-
-    private FieldKey getFieldKeyForContainer(List<InnerJoinClause> joinList)
-    {
-        if (joinList.size() == 0)
-        {
-            return super.getContainerFieldKey();
-        }
-        var parts = joinList.stream().map(InnerJoinClause::getJoinCol).collect(Collectors.toList());
-        parts.add(CONTAINER);
-        return FieldKey.fromParts(parts);
     }
 
     @Override

@@ -55,6 +55,7 @@ import org.springframework.validation.BindException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class PanoramaPublicSchema extends UserSchema
 {
@@ -181,7 +182,7 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SKYLINE_DOC_VALIDATION.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocValidation(), this, cf, ValidationToExpAnnotJoins);
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocValidation(), this, cf, ContainerJoinType.DataValidationJoin);
             var sampleFileCountsCol = DataValidationTableInfo.createCountsColumn(table,
                     PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), "SkylineDocValidationId",
                     PanoramaPublicSchema.TABLE_SKYLINE_DOC_SAMPLE_FILE, "SampleFiles", table.getContainerContext());
@@ -194,15 +195,12 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SKYLINE_DOC_SAMPLE_FILE.equalsIgnoreCase(name))
         {
-            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), this, cf,
-                    List.of(new InnerJoinClause(null, "SkylineDocValidationId", PanoramaPublicManager.getTableInfoSkylineDocValidation(), "doc", "id"),
-                            new InnerJoinClause("doc", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
-                            new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id")));
+            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), this, cf, ContainerJoinType.SkyDocValidationJoin);
         }
 
         if (TABLE_SPEC_LIB_VALIDATION.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibValidation(), this, cf, ValidationToExpAnnotJoins);
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibValidation(), this, cf, ContainerJoinType.DataValidationJoin);
             var sourceFileCountCol = DataValidationTableInfo.createCountsColumn(table,
                     PanoramaPublicManager.getTableInfoSpecLibSourceFile(), "SpecLibValidationId",
                     PanoramaPublicSchema.TABLE_SPEC_LIB_SOURCE_FILE, "SourceFiles", table.getContainerContext());
@@ -215,10 +213,7 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SPEC_LIB_SOURCE_FILE.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), this, cf,
-                    List.of(new InnerJoinClause(null, "SpecLibValidationId", PanoramaPublicManager.getTableInfoSpecLibValidation(), "l", "id"),
-                            new InnerJoinClause("l", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
-                            new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id")));
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), this, cf, ContainerJoinType.SpecLibValidationJoin);
             var sourceTypeCol = table.getMutableColumn("SourceType");
             if (sourceTypeCol != null)
             {
@@ -229,7 +224,7 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_MODIFICATION_VALIDATION.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoModificationValidation(), this, cf, ValidationToExpAnnotJoins);
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoModificationValidation(), this, cf, ContainerJoinType.DataValidationJoin);
             var modTypeCol = table.getMutableColumn("ModType");
             if (modTypeCol != null)
             {
@@ -383,11 +378,65 @@ public class PanoramaPublicSchema extends UserSchema
         return hs;
     }
 
-    private static final List<InnerJoinClause> ValidationToExpAnnotJoins = List.of(
-            new InnerJoinClause(null, "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
-            new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"));
+    private static final String CONTAINER = "Container";
+
+    public enum ContainerJoinType
+    {
+        ExpAnnotJoin(List.of(
+                new InnerJoinClause(null, "experimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "Exp", "id"))),
+        DataValidationJoin(List.of(
+                new InnerJoinClause(null, "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
+                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
+        SpecLibValidationJoin(List.of(
+                new InnerJoinClause(null, "SpecLibValidationId", PanoramaPublicManager.getTableInfoSpecLibValidation(), "l", "id"),
+                new InnerJoinClause("l", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
+                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
+        SkyDocValidationJoin(List.of(new InnerJoinClause(null, "SkylineDocValidationId", PanoramaPublicManager.getTableInfoSkylineDocValidation(), "doc", "id"),
+                new InnerJoinClause("doc", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
+                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id")))
+        ;
+
+        private final List<InnerJoinClause> _joinList;
+
+        ContainerJoinType(List<InnerJoinClause> joinList)
+        {
+            _joinList = joinList;
+        }
+
+        public @NotNull SQLFragment getJoinSql()
+        {
+            SQLFragment sql = new SQLFragment();
+            for (var innerJoin: _joinList)
+            {
+                sql.append(innerJoin.toSql());
+            }
+            return sql;
+        }
+
+        public @NotNull SQLFragment getContainerSql()
+        {
+            SQLFragment sql = new SQLFragment();
+            if (_joinList.size() > 0)
+            {
+                // We expect the last table in the join sequence to have the container column
+                sql.append(_joinList.get(_joinList.size() - 1).getJoinTableAlias()).append(".");
+            }
+            return sql.append(CONTAINER);
+        }
+
+        public @Nullable FieldKey getContainerFieldKey()
+        {
+            if (_joinList.size() > 0)
+            {
+                var parts = _joinList.stream().map(InnerJoinClause::getJoinCol).collect(Collectors.toList());
+                parts.add(CONTAINER);
+                return FieldKey.fromParts(parts);
+            }
+            return null;
+        }
+    }
     
-    public static class InnerJoinClause
+    private static class InnerJoinClause
     {
         private final String _tableAlias;
         private final String _joinCol;
