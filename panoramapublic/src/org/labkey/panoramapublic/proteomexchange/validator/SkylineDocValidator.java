@@ -9,9 +9,7 @@ import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.targetedms.model.SampleFilePath;
 import org.labkey.panoramapublic.model.validation.DataFile;
-import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
-import org.labkey.panoramapublic.model.validation.Modification;
-import org.labkey.panoramapublic.model.validation.SkylineDocModification;
+import org.labkey.panoramapublic.model.validation.SkylineDocValidation;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 
 import java.nio.file.Path;
@@ -25,25 +23,21 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class ValidatorSkylineDoc extends GenericSkylineDoc<ValidatorSampleFile, ValidatorSkylineDocSpecLib>
+public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFile>
 {
     private final List<ValidatorSampleFile> _sampleFiles;
-    private final List<ValidatorSkylineDocSpecLib> _specLibraries;
-    private final List<SkylineDocModification> _modifications;
     private ITargetedMSRun _run;
 
     private static final String DOT_WIFF = ".wiff";
     private static final String DOT_WIFF2 = ".wiff2";
     private static final String DOT_SCAN = ".scan";
 
-    public ValidatorSkylineDoc()
+    public SkylineDocValidator()
     {
         _sampleFiles = new ArrayList<>();
-        _specLibraries = new ArrayList<>();
-        _modifications = new ArrayList<>();
     }
 
-    public ValidatorSkylineDoc(@NotNull ITargetedMSRun run)
+    public SkylineDocValidator(@NotNull ITargetedMSRun run)
     {
         this();
         _run = run;
@@ -52,16 +46,6 @@ public class ValidatorSkylineDoc extends GenericSkylineDoc<ValidatorSampleFile, 
     public void addSampleFile(ValidatorSampleFile sampleFile)
     {
         _sampleFiles.add(sampleFile);
-    }
-
-    public void addSpecLib(ValidatorSkylineDocSpecLib specLib)
-    {
-        _specLibraries.add(specLib);
-    }
-
-    public void addModification(Modification mod)
-    {
-        _modifications.add(new SkylineDocModification(getId(), mod.getId()));
     }
 
     public ITargetedMSRun getRun()
@@ -75,18 +59,6 @@ public class ValidatorSkylineDoc extends GenericSkylineDoc<ValidatorSampleFile, 
         return Collections.unmodifiableList(_sampleFiles);
     }
 
-    @Override
-    public List<ValidatorSkylineDocSpecLib> getSpecLibraries()
-    {
-        return Collections.unmodifiableList(_specLibraries);
-    }
-
-    @Override
-    public List<SkylineDocModification> getModifications()
-    {
-        return Collections.unmodifiableList(_modifications);
-    }
-
     void addSampleFiles(TargetedMSService svc)
     {
         List<ValidatorSampleFile> docSampleFile = getDocSampleFiles(svc.getSampleFiles(getRunId()));
@@ -95,7 +67,9 @@ public class ValidatorSkylineDoc extends GenericSkylineDoc<ValidatorSampleFile, 
 
     private static List<ValidatorSampleFile> getDocSampleFiles(List<? extends ISampleFile> sampleFiles)
     {
-        Set<String> pathsImported = new HashSet<>();
+        Set<String> pathsImported = new HashSet<>(); // File paths that were imported in the Skyline document
+                                                     // The same sample file may be imported into more than one replicate
+                                                     // in the same Skyline document.
         Set<String> sciexWiffFileNames = new HashSet<>();
 
         List<ValidatorSampleFile> docSampleFiles = new ArrayList<>();
@@ -190,6 +164,9 @@ public class ValidatorSkylineDoc extends GenericSkylineDoc<ValidatorSampleFile, 
         return filePath;
     }
 
+    /**
+     * Set the path on the sample files for this document, if the file is found on the server
+     */
     void validateSampleFiles(TargetedMSService svc)
     {
         List<ISampleFile> sampleFiles = getSampleFiles().stream().map(ValidatorSampleFile::getSampleFile).collect(Collectors.toList());
@@ -396,7 +373,7 @@ public class ValidatorSkylineDoc extends GenericSkylineDoc<ValidatorSampleFile, 
                 i++; j++;
             }
 
-            Set<String> duplicateNames = ValidatorSkylineDoc.getDuplicateSkylineSampleFileNames(docSampleFiles);
+            Set<String> duplicateNames = SkylineDocValidator.getDuplicateSkylineSampleFileNames(docSampleFiles);
             Set<String> expectedDuplicates = Set.of(file1.getFileName(),
                     wiff1.getFileName(), wiff1.getFileName() + DOT_SCAN,
                     multiInjectWiff1_0.getFileName(), multiInjectWiff1_0.getFileName() + DOT_SCAN);

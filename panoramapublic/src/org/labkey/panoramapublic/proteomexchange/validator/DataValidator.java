@@ -10,25 +10,23 @@ import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.UnexpectedException;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
-import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
+import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
+import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator.SpecLibKeyWithSize;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
-import org.labkey.panoramapublic.speclib.LibSourceFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class DataValidator
 {
@@ -68,7 +66,7 @@ public class DataValidator
         _listener.validatingSpectralLibraries();
         // sleep();
         FileContentService fcs = FileContentService.get();
-        for (ValidatorSpecLib specLib: status.getSpectralLibraries())
+        for (SpecLibValidator specLib: status.getSpectralLibraries())
         {
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
@@ -82,7 +80,7 @@ public class DataValidator
                     errors.forEach(_listener::error);
                 }
 
-                specLib.getDocumentLibraries().forEach(dl -> addSkylineDocSpecLib(specLib, user, dl));
+                specLib.getDocsWithLibrary().forEach(docLib -> saveSkylineDocSpecLib(docLib, specLib, user));
                 specLib.getSpectrumFiles().forEach(s -> DataValidationManager.saveSpecLibSourceFile(s, user));
                 specLib.getIdFiles().forEach(s -> DataValidationManager.saveSpecLibSourceFile(s, user));
 
@@ -93,13 +91,10 @@ public class DataValidator
         _listener.spectralLibrariesValidated(status);
     }
 
-    private void addSkylineDocSpecLib(ValidatorSpecLib specLib, User user, ValidatorSpecLib.DocLib docLib)
+    private void saveSkylineDocSpecLib(ValidatorSkylineDocSpecLib docLib, SpecLibValidator specLib, User user)
     {
-        ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.getLibrary());
-        docLibV.setSpeclibValidationId(specLib.getId());
-        docLibV.setSkylineDocValidationId(docLib.getDocument().getId());
-        docLibV.setIncluded(specLib.getSize() != null);
-        DataValidationManager.saveDocSpectrumLibrary(docLibV, user);
+        docLib.setSpeclibValidationId(specLib.getId());
+        DataValidationManager.saveDocSpectrumLibrary(docLib, user);
     }
 
     private void validateModifications(ValidatorStatus status, User user)
@@ -124,16 +119,19 @@ public class DataValidator
                 DataValidationManager.saveModification(mod, user);
                 status.addModification(mod);
 
-                Set<String> skylineDocsWithMod = pxMod.getSkylineDocs();
-                status.getSkylineDocs().forEach(doc ->
+                Set<Long> runIdsWithMod = pxMod.getRunIds();
+                List<SkylineDocModification> docModifications = new ArrayList<>();
+                for (Long runId: runIdsWithMod)
                 {
-                    if (skylineDocsWithMod.contains(doc.getName()))
+                    SkylineDocValidator doc = status.getSkylineDocForRunId(runId);
+                    if (doc != null)
                     {
-                        doc.addModification(mod);
+                        docModifications.add(new SkylineDocModification(doc.getId(), mod.getId()));
                     }
-                });
+                }
+                mod.setDocsWithModification(docModifications);
+                DataValidationManager.saveSkylineDocModifications(mod, user);
             }
-            DataValidationManager.saveSkylineDocModifications(status.getSkylineDocs(), user);
 
             transaction.commit();
         }
@@ -142,14 +140,13 @@ public class DataValidator
 
     private void validateSampleFiles(ValidatorStatus status, TargetedMSService svc, User user)
     {
-        for (ValidatorSkylineDoc skyDoc: status.getSkylineDocs())
+        for (SkylineDocValidator skyDoc: status.getSkylineDocs())
         {
             _listener.validatingDocument(skyDoc);
             // sleep();
+            skyDoc.validateSampleFiles(svc);
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
-                skyDoc.validateSampleFiles(svc);
-
                 DataValidationManager.updateSampleFileStatus(skyDoc, user);
                 transaction.commit();
             }
@@ -165,10 +162,8 @@ public class DataValidator
             ValidatorStatus status = new ValidatorStatus(validation);
             TargetedMSService targetedMsSvc = TargetedMSService.get();
             addSkylineDocs(status, targetedMsSvc);
+            DataValidationManager.saveSkylineDocStatus(status, user);
             addSpectralLibraries(status, targetedMsSvc);
-
-            DataValidationManager.saveStatus(status, user);
-
             transaction.commit();
             return status;
         }
@@ -181,7 +176,7 @@ public class DataValidator
 
         for(ITargetedMSRun run: runs)
         {
-            ValidatorSkylineDoc skyDoc = new ValidatorSkylineDoc(run);
+            SkylineDocValidator skyDoc = new SkylineDocValidator(run);
             skyDoc.setName(run.getFileName());
             skyDoc.setRunId(run.getId());
             skyDoc.setContainer(run.getContainer());
@@ -193,48 +188,45 @@ public class DataValidator
 
     private void addSpectralLibraries(ValidatorStatus status, TargetedMSService targetedMsSvc)
     {
-        Map<String, ValidatorSpecLib> spectralLibraries = new HashMap<>();
+        // A library can be used with more than one Skyline document.  Add it only once.
+        Map<SpecLibKeyWithSize, SpecLibValidator> spectralLibraries = new HashMap<>();
 
-        for (ValidatorSkylineDoc doc: status.getSkylineDocs())
+        for (SkylineDocValidator doc: status.getSkylineDocs())
         {
             List<? extends ISpectrumLibrary> allSpecLibs = targetedMsSvc.getLibraries(doc.getRun());
             for (ISpectrumLibrary lib: allSpecLibs)
             {
-                ValidatorSpecLib sLib = getSpectralLibrary(targetedMsSvc, doc, lib);
+                SpecLibValidator sLib = getSpectralLibrary(targetedMsSvc, doc, lib);
                 spectralLibraries.putIfAbsent(sLib.getKey(), sLib);
                 spectralLibraries.get(sLib.getKey()).addDocumentLibrary(doc, lib);
             }
         }
-        // A library can be used with more than one Skyline document.  Add it only once.
         spectralLibraries.values().forEach(status::addLibrary);
     }
 
-    private ValidatorSpecLib getSpectralLibrary(TargetedMSService targetedMsSvc, ValidatorSkylineDoc doc, ISpectrumLibrary lib)
+    private SpecLibValidator getSpectralLibrary(TargetedMSService targetedMsSvc, SkylineDocValidator doc, ISpectrumLibrary lib)
     {
-        ValidatorSpecLib sLib = new ValidatorSpecLib();
-        sLib.setLibName(lib.getName());
-        sLib.setFileName(lib.getFileNameHint());
-        sLib.setLibType(lib.getLibraryType());
         Path libPath = targetedMsSvc.getLibraryFilePath(doc.getRun(), lib);
+        Long librarySize = null;
         if(libPath != null && Files.exists(libPath))
         {
             try
             {
-                sLib.setSize(Files.size(libPath));
+                librarySize = Files.size(libPath);
             }
             catch (IOException e)
             {
                 throw UnexpectedException.wrap(e, "Error getting size of the library file '" + libPath + "'.");
             }
         }
-        return sLib;
+        return new SpecLibValidator(lib, librarySize);
     }
 
 //    private void sleep()
 //    {
 //        try
 //        {
-//            Thread.sleep(1*1000);
+//            Thread.sleep(1000);
 //        }
 //        catch (InterruptedException e)
 //        {

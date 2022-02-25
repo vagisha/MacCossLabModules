@@ -6,7 +6,7 @@ import javax.validation.constraints.NotNull;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public abstract class GenericSkylineDoc <S extends SkylineDocSampleFile, L extends SkylineDocSpecLib>
+public abstract class SkylineDocValidation<S extends SkylineDocSampleFile>
 {
     private int _id;
     private int _validationId;
@@ -15,8 +15,6 @@ public abstract class GenericSkylineDoc <S extends SkylineDocSampleFile, L exten
     private String _name; // Name of the .sky.zip file
 
     public abstract @NotNull List<S> getSampleFiles();
-    public abstract @NotNull List<L> getSpecLibraries();
-    public abstract @NotNull List<SkylineDocModification> getModifications();
 
     public int getId()
     {
@@ -70,17 +68,12 @@ public abstract class GenericSkylineDoc <S extends SkylineDocSampleFile, L exten
 
     public boolean isValid()
     {
-        return foundAllSampleFiles() && specLibrariesIncluded();
+        return foundAllSampleFiles();
     }
 
     public boolean foundAllSampleFiles()
     {
         return getSampleFiles().stream().allMatch(f -> !f.isPending() && f.found());
-    }
-
-    public boolean specLibrariesIncluded()
-    {
-        return getSpecLibraries().stream().allMatch(SkylineDocSpecLib::isIncluded);
     }
 
     public boolean isPending()
@@ -91,15 +84,5 @@ public abstract class GenericSkylineDoc <S extends SkylineDocSampleFile, L exten
     public List<String> getMissingSampleFileNames()
     {
         return getSampleFiles().stream().filter(f -> !f.found()).map(DataFile::getName).collect(Collectors.toList());
-    }
-
-    public boolean hasModification(Modification modification)
-    {
-        return getModifications().stream().anyMatch(mod -> mod.getModificationValidationId() == modification.getId());
-    }
-
-    public boolean hasLibrary(SpecLib library)
-    {
-        return getSpecLibraries().stream().anyMatch(lib -> lib.getSpeclibValidationId() == library.getId());
     }
 }

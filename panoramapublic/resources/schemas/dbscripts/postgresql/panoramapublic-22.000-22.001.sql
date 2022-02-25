@@ -38,7 +38,7 @@ CREATE TABLE panoramapublic.SkylineDocValidation
     Id                         SERIAL NOT NULL,
     ValidationId               INT NOT NULL,
     RunId                      BIGINT NOT NULL, -- targetedms.runs.Id
-    Container                  ENTITYID NOT NULL, -- Container where the run lives
+    Container                  ENTITYID NOT NULL, -- Container where the run lives. This could be a subfolder of the main experiment folder
     Name                       VARCHAR(300) NOT NULL, -- Name of the Skyline file
 
     CONSTRAINT PK_SkylineDocValidation PRIMARY KEY (Id),
@@ -130,6 +130,7 @@ CREATE TABLE panoramapublic.SkylineDocSpecLib
     SkylineDocValidationId     INT NOT NULL,
     SpecLibValidationId        INT NOT NULL,
     Included                   BOOLEAN NOT NULL, -- true if the library is included in the .sky.zip
+    SpectrumLibraryId          BIGINT NOT NULL, -- targetedms.SpectrumLibrary.Id
 
     CONSTRAINT PK_SkyDocSpecLib PRIMARY KEY (Id),
     CONSTRAINT FK_SkyDocSpecLib_SkylineDocValidation FOREIGN KEY (SkylineDocValidationId) REFERENCES panoramapublic.SkylineDocValidation(Id),
@@ -137,3 +138,4 @@ CREATE TABLE panoramapublic.SkylineDocSpecLib
 );
 CREATE INDEX IX_SkylineDocSpecLib_SkylineDocValidationId ON panoramapublic.SkylineDocSpecLib(SkylineDocValidationId);
 CREATE INDEX IX_SkylineDocSpecLib_SpecLibValidationId ON panoramapublic.SkylineDocSpecLib(SpecLibValidationId);
+CREATE INDEX IX_SkylineDocSpecLib_SpectrumLibraryId ON panoramapublic.SkylineDocSpecLib(SpectrumLibraryId);

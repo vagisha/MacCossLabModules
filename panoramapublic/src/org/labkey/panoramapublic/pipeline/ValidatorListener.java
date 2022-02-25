@@ -2,10 +2,11 @@ package org.labkey.panoramapublic.pipeline;
 
 import org.apache.logging.log4j.Logger;
 import org.labkey.api.pipeline.PipelineJob;
-import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
+import org.labkey.panoramapublic.model.validation.SkylineDocValidation;
 import org.labkey.panoramapublic.model.validation.Modification;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDoc;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSpecLib;
+import org.labkey.panoramapublic.model.validation.SkylineDocModification;
+import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
+import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.validator.DataValidatorListener;
 
@@ -29,17 +30,17 @@ public class ValidatorListener implements DataValidatorListener
     {
         _job.setStatus("Starting data validation");
         _log.info(String.format("Validating data for %d Skyline documents in %d folders", status.getSkylineDocs().size(),
-                status.getSkylineDocs().stream().map(GenericSkylineDoc::getContainer).distinct().count()));
+                status.getSkylineDocs().stream().map(SkylineDocValidation::getContainer).distinct().count()));
     }
 
     @Override
-    public void validatingDocument(ValidatorSkylineDoc document)
+    public void validatingDocument(SkylineDocValidator document)
     {
         _job.setStatus("Validating document " + document.getName());
     }
 
     @Override
-    public void sampleFilesValidated(ValidatorSkylineDoc document, ValidatorStatus status)
+    public void sampleFilesValidated(SkylineDocValidator document, ValidatorStatus status)
     {
         _log.info("Sample file validation for Skyline document: " + document.getName());
         if (document.foundAllSampleFiles())
@@ -73,14 +74,25 @@ public class ValidatorListener implements DataValidatorListener
             _log.info("VALID MODIFICATIONS:");
             for (Modification mod : modGroups.get(Boolean.TRUE))
             {
-                _log.info(mod.getId() + ": " + mod);
-                status.getSkylineDocs().stream().filter(doc -> doc.hasModification(mod)).forEach(doc -> _log.info("    " + doc.getName()));
+                logModInfo(status, mod);
             }
             _log.info("INVALID MODIFICATIONS (No Unimod ID):");
             for (Modification mod : modGroups.get(Boolean.FALSE))
             {
-                _log.info(mod.getId() + ": " + mod);
-                status.getSkylineDocs().stream().filter(doc -> doc.hasModification(mod)).forEach(doc -> _log.info("    " + doc.getName()));
+                logModInfo(status, mod);
+            }
+        }
+    }
+
+    private void logModInfo(ValidatorStatus status, Modification mod)
+    {
+        _log.info(mod.getId() + ": " + mod);
+        for (SkylineDocModification docMod: mod.getDocsWithModification())
+        {
+            SkylineDocValidator doc = status.getSkylineDocForId(docMod.getSkylineDocValidationId());
+            if (doc != null)
+            {
+                _log.info("    " + doc.getName());
             }
         }
     }
@@ -101,7 +113,7 @@ public class ValidatorListener implements DataValidatorListener
         }
         else
         {
-            for (ValidatorSpecLib specLib : status.getSpectralLibraries())
+            for (SpecLibValidator specLib : status.getSpectralLibraries())
             {
                 _log.info(specLib.toString());
                 if (specLib.hasMissingSpectrumFiles() || specLib.hasMissingIdFiles())

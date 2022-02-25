@@ -205,6 +205,10 @@ public class PanoramaPublicSchema extends UserSchema
                     PanoramaPublicManager.getTableInfoSpecLibSourceFile(), "SpecLibValidationId",
                     PanoramaPublicSchema.TABLE_SPEC_LIB_SOURCE_FILE, "SourceFiles", table.getContainerContext());
             table.addColumn(sourceFileCountCol);
+            var docCountCol = DataValidationTableInfo.createCountsColumn(table,
+                    PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), "SpecLibValidationId",
+                    PanoramaPublicSchema.TABLE_SKYLINE_DOC_SPEC_LIB, "DocumentCount", table.getContainerContext());
+            table.addColumn(docCountCol);
             var displayCols = new ArrayList<>(table.getDefaultVisibleColumns());
             displayCols.add(FieldKey.fromParts(sourceFileCountCol.getName()));
             table.setDefaultVisibleColumns(displayCols);
@@ -222,6 +226,11 @@ public class PanoramaPublicSchema extends UserSchema
             return table;
         }
 
+        if (TABLE_SKYLINE_DOC_SPEC_LIB.equalsIgnoreCase(name))
+        {
+            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), this, cf, ContainerJoinType.SpecLibValidationJoin);
+        }
+
         if (TABLE_MODIFICATION_VALIDATION.equalsIgnoreCase(name))
         {
             var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoModificationValidation(), this, cf, ContainerJoinType.DataValidationJoin);
@@ -230,7 +239,18 @@ public class PanoramaPublicSchema extends UserSchema
             {
                 modTypeCol.setFk(QueryForeignKey.from(this, cf).to(PanoramaPublicSchema.TABLE_MOD_TYPE, "RowId", null));
             }
+            var docCountCol = DataValidationTableInfo.createCountsColumn(table,
+                    PanoramaPublicManager.getTableInfoSkylineDocModification(), "ModificationValidationId",
+                    PanoramaPublicSchema.TABLE_SKYLINE_DOC_MODIFICATION, "DocumentCount", table.getContainerContext());
+            table.addColumn(docCountCol);
+            var displayCols = new ArrayList<>(table.getDefaultVisibleColumns());
+            displayCols.add(FieldKey.fromParts(docCountCol.getName()));
+            table.setDefaultVisibleColumns(displayCols);
             return table;
+        }
+        if (TABLE_SKYLINE_DOC_MODIFICATION.equalsIgnoreCase(name))
+        {
+            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocModification(), this, cf, ContainerJoinType.ModificationJoin);
         }
 
         if (TABLE_PX_STATUS.equalsIgnoreCase(name))
@@ -356,8 +376,10 @@ public class PanoramaPublicSchema extends UserSchema
         if (TABLE_SKYLINE_DOC_VALIDATION.equalsIgnoreCase(settings.getQueryName())
                 || TABLE_SKYLINE_DOC_SAMPLE_FILE.equalsIgnoreCase(settings.getQueryName())
                 || TABLE_MODIFICATION_VALIDATION.equalsIgnoreCase(settings.getQueryName())
+                || TABLE_SKYLINE_DOC_MODIFICATION.equalsIgnoreCase(settings.getQueryName())
                 || TABLE_SPEC_LIB_VALIDATION.equalsIgnoreCase(settings.getQueryName())
-                || TABLE_SPEC_LIB_SOURCE_FILE.equalsIgnoreCase(settings.getQueryName()))
+                || TABLE_SPEC_LIB_SOURCE_FILE.equalsIgnoreCase(settings.getQueryName())
+                || TABLE_SKYLINE_DOC_SPEC_LIB.equalsIgnoreCase(settings.getQueryName()))
         {
             view.disableContainerFilterSelection(); // No need for a container filter
         }
@@ -383,7 +405,7 @@ public class PanoramaPublicSchema extends UserSchema
     public enum ContainerJoinType
     {
         ExpAnnotJoin(List.of(
-                new InnerJoinClause(null, "experimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "Exp", "id"))),
+                new InnerJoinClause(null, "experimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
         DataValidationJoin(List.of(
                 new InnerJoinClause(null, "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
                 new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
@@ -393,6 +415,9 @@ public class PanoramaPublicSchema extends UserSchema
                 new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
         SkyDocValidationJoin(List.of(new InnerJoinClause(null, "SkylineDocValidationId", PanoramaPublicManager.getTableInfoSkylineDocValidation(), "doc", "id"),
                 new InnerJoinClause("doc", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
+                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
+        ModificationJoin(List.of(new InnerJoinClause(null, "ModificationValidationId", PanoramaPublicManager.getTableInfoModificationValidation(), "mod", "id"),
+                new InnerJoinClause("mod", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
                 new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id")))
         ;
 
@@ -406,10 +431,7 @@ public class PanoramaPublicSchema extends UserSchema
         public @NotNull SQLFragment getJoinSql()
         {
             SQLFragment sql = new SQLFragment();
-            for (var innerJoin: _joinList)
-            {
-                sql.append(innerJoin.toSql());
-            }
+            _joinList.stream().map(InnerJoinClause::toSql).forEach(sql::append);
             return sql;
         }
 
@@ -435,7 +457,7 @@ public class PanoramaPublicSchema extends UserSchema
             return null;
         }
     }
-    
+
     private static class InnerJoinClause
     {
         private final String _tableAlias;
@@ -453,7 +475,7 @@ public class PanoramaPublicSchema extends UserSchema
             _joinTableCol = joinTableCol;
         }
 
-        public SQLFragment toSql()
+        private SQLFragment toSql()
         {
             return new SQLFragment(" INNER JOIN ")
                     .append(_joinTable, _joinTableAlias)
@@ -464,12 +486,12 @@ public class PanoramaPublicSchema extends UserSchema
                     .append(" ");
         }
 
-        public String getJoinTableAlias()
+        private String getJoinTableAlias()
         {
             return _joinTableAlias;
         }
 
-        public String getJoinCol()
+        private String getJoinCol()
         {
             return _joinCol;
         }

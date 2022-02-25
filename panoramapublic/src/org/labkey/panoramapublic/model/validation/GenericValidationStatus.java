@@ -4,7 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
-public abstract class GenericValidationStatus <D extends GenericSkylineDoc, L extends SpecLib>
+public abstract class GenericValidationStatus <D extends SkylineDocValidation, L extends SpecLibValidation>
 {
     private DataValidation _validation;
 
@@ -26,9 +26,9 @@ public abstract class GenericValidationStatus <D extends GenericSkylineDoc, L ex
 
     public PxStatus getPxStatus()
     {
-        boolean allSampleFilesFound = getSkylineDocs().stream().allMatch(doc -> doc.foundAllSampleFiles());
-        boolean allModsValid = getModifications().stream().allMatch(mod -> mod.isValid());
-        boolean specLibsValid = getSpectralLibraries().stream().allMatch(lib -> lib.isValid());
+        boolean allSampleFilesFound = getSkylineDocs().stream().allMatch(SkylineDocValidation::foundAllSampleFiles);
+        boolean allModsValid = getModifications().stream().allMatch(Modification::isValid);
+        boolean specLibsValid = getSpectralLibraries().stream().allMatch(SpecLibValidation::isValid);
         if (allSampleFilesFound)
         {
             return (allModsValid && specLibsValid) ? PxStatus.Complete : PxStatus.IncompleteMetadata;

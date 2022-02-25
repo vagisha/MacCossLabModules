@@ -15,9 +15,10 @@ import org.labkey.api.util.JunitUtil;
 import org.labkey.api.util.UnexpectedException;
 import org.labkey.panoramapublic.PanoramaPublicModule;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.model.speclib.SpecLibKey;
 import org.labkey.panoramapublic.model.validation.DataFile;
-import org.labkey.panoramapublic.model.validation.SpecLib;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
+import org.labkey.panoramapublic.model.validation.SpecLibValidation;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
 import org.labkey.panoramapublic.speclib.LibraryType;
 import org.labkey.panoramapublic.speclib.SpecLibReader;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -38,101 +40,105 @@ import java.util.stream.Stream;
 import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.PEPTIDE_ID;
 import static org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType.SPECTRUM;
 
-public class ValidatorSpecLib extends SpecLib
+public class SpecLibValidator extends SpecLibValidation<ValidatorSkylineDocSpecLib>
 {
-    private final List<DocLib> _documentLibraries;
+    private List<ValidatorSkylineDocSpecLib> _docsWithLibrary;
+    private SpecLibKeyWithSize _key;
 
-    public ValidatorSpecLib()
+    public SpecLibValidator() {}
+
+    public SpecLibValidator(ISpectrumLibrary library, @Nullable Long fileSize)
     {
-        _documentLibraries = new ArrayList<>();
         setSpectrumFiles(new ArrayList<>());
         setIdFiles(new ArrayList<>());
+        setLibName(library.getName());
+        setFileName(library.getFileNameHint());
+        setLibType(library.getLibraryType());
+        setSize(fileSize);
+        _key = new SpecLibKeyWithSize(library, fileSize);
+        _docsWithLibrary = new ArrayList<>();
     }
 
-    public void addDocumentLibrary(ValidatorSkylineDoc doc, ISpectrumLibrary specLib)
+    @Override
+    public @NotNull List<ValidatorSkylineDocSpecLib> getDocsWithLibrary()
     {
-        _documentLibraries.add(new DocLib(doc, specLib));
+        return _docsWithLibrary;
     }
 
-    public List<DocLib> getDocumentLibraries()
+    public void addDocumentLibrary(SkylineDocValidator doc, ISpectrumLibrary specLib)
     {
-        return _documentLibraries;
+        ValidatorSkylineDocSpecLib docLib = new ValidatorSkylineDocSpecLib(specLib, doc.getRun());
+        docLib.setSpeclibValidationId(getId()); // TODO: id has not been set yet
+        docLib.setSkylineDocValidationId(doc.getId());
+        docLib.setIncluded(getSize() != null);
+        _docsWithLibrary.add(docLib);
     }
 
-    public void removeSkylineDoc(ValidatorSkylineDoc doc)
+    public SpecLibKeyWithSize getKey()
     {
-        _documentLibraries.removeIf(dl -> dl.getDocument().getRunId() == doc.getRunId());
-    }
-
-    public String getKey()
-    {
-        return String.format("%s;%s;%s;%s", getLibName(), getFileName(), getLibType(), getSize() == null ? "NOT_FOUND" : getSize().toString());
+        return _key;
     }
 
     @Override
     public String toString()
     {
         return String.format("'%s' (%s) library in %d Skyline documents was built with %d raw files; %d peptide Id files. Status: %s",
-                getLibName(), getFileName(), _documentLibraries.size(), getSpectrumFiles().size(), getIdFiles().size(), getStatusString());
+                getLibName(), getFileName(), _docsWithLibrary.size(), getSpectrumFiles().size(), getIdFiles().size(), getStatusString());
     }
 
+    /**
+     * Read the library file to get the names of the source files and get their paths on the server.
+     */
     List<String> validate(FileContentService fcs, ExperimentAnnotations expAnnotations)
     {
+        if (isMissingInSkyZip())
+        {
+            // Library file was not found. This library will be marked as incomplete.
+            return Collections.emptyList();
+        }
         List<String> errors = new ArrayList<>();
-        for (ValidatorSpecLib.DocLib docLib: getDocumentLibraries())
-        {
-            addSkylineDocSpecLib(docLib);
-        }
-        if (!isMissingInSkyZip())
-        {
-            List<LibSourceFile> libSources = null;
-            for (ValidatorSpecLib.DocLib docLib: getDocumentLibraries())
-            {
-                List<LibSourceFile> docLibSources = getLibrarySources(docLib);
 
-                if (libSources == null)
-                {
-                    libSources = docLibSources;
-                }
-                else if(!areSameSources(libSources, docLibSources))
-                {
-                    // We expect that libraries with the same library name, library file name, type and file size will have the same source
-                    // files. If we see this exception then we will have to include the source file name in determining unique libraries.
-                    errors.add(String.format("Expected library sources to match in all documents with the library '%s'"
-                            + ". But they did not match for the library in the document '%s'. Other documents that have this libary are %s.",
-                            getKey(),
-                            docLib.getDocument().getName(),
-                            StringUtils.join(getDocumentLibraries().stream().map(dl -> dl.getDocument().getName()).collect(Collectors.toSet()), ", ")));
-                }
+        List<LibSourceFile> libSources = null;
+        // Read the sources file names from the library file in each document that has the library.
+        for (ValidatorSkylineDocSpecLib docLib: getDocsWithLibrary())
+        {
+            List<LibSourceFile> docLibSources = getLibrarySources(docLib);
+
+            if (libSources == null)
+            {
+                libSources = docLibSources;
             }
-
-            // library sources will be null if the library is not supported, or e.g. the required table was not found in the .blib
-            if (errors.isEmpty() && libSources != null)
+            else if(!areSameSources(libSources, docLibSources))
             {
-                validateLibrarySources(libSources, fcs, expAnnotations);
+                // We expect that libraries with the same SpecLibKeyWithSize (library name, library file name, type, file size) will have the same source
+                // files. We don't expect to see this error but if we see this error then we will have to include the source file name in determining unique libraries.
+                errors.add(String.format("Expected library sources to match in all documents with the library '%s'"
+                        + ". But they did not match for the library in the document '%s'. Other documents that have this library are %s.",
+                        getKey().toString(),
+                        docLib.getRun().getFileName(),
+                        StringUtils.join(getDocsWithLibrary().stream().map(dl -> dl.getRun().getFileName()).collect(Collectors.toSet()), ", ")));
             }
         }
+
+        // library sources will be null if the library is not supported, or e.g. the required table was not found in the .blib
+        if (errors.isEmpty() && libSources != null)
+        {
+            validateLibrarySources(libSources, fcs, expAnnotations);
+        }
+
         return errors;
     }
 
-    private void addSkylineDocSpecLib(ValidatorSpecLib.DocLib docLib)
-    {
-        ValidatorSkylineDocSpecLib docLibV = new ValidatorSkylineDocSpecLib(docLib.getLibrary());
-        docLibV.setSpeclibValidationId(getId());
-        docLibV.setSkylineDocValidationId(docLib.getDocument().getId());
-        docLibV.setIncluded(getSize() != null);
-    }
-
     @Nullable
-    private List<LibSourceFile> getLibrarySources(ValidatorSpecLib.DocLib docLib)
+    private List<LibSourceFile> getLibrarySources(ValidatorSkylineDocSpecLib docLib)
     {
         ISpectrumLibrary isl = docLib.getLibrary();
         SpecLibReader libReader = SpecLibReader.getReader(isl);
 
         if (libReader != null)
         {
-            Path libFilePath = TargetedMSService.get().getLibraryFilePath(docLib.getDocument().getRun(), isl);
-            return getLibSources(libReader, isl, libFilePath, docLib.getDocument().getName());
+            Path libFilePath = TargetedMSService.get().getLibraryFilePath(docLib.getRun(), isl);
+            return getLibSources(libReader, isl, libFilePath, docLib.getRun().getFileName());
         }
         return null;
     }
@@ -184,7 +190,7 @@ public class ValidatorSpecLib extends SpecLib
         Set<String> checkedFiles = new HashSet<>();
         // Since a library can be used with multiple Skyline documents which could be in subfolders we will look for the source files in the main experiment
         // folder as well as any subfolders containing documents that have the library
-        Set<Container> containers = getDocumentLibraries().stream().map(dl -> dl.getDocument().getContainer()).collect(Collectors.toSet());
+        Set<Container> containers = getDocsWithLibrary().stream().map(dl -> dl.getRun().getContainer()).collect(Collectors.toSet());
         containers.add(expAnnotations.getContainer());
 
         List<SpecLibSourceFile> spectrumFiles = new ArrayList<>();
@@ -316,25 +322,35 @@ public class ValidatorSpecLib extends SpecLib
                 || (allowBasenameOnly && fileName.equals(FileUtil.getBaseName(uploadedFileName)));
     }
 
-    public static class DocLib
+    public static class SpecLibKeyWithSize
     {
-        private final ValidatorSkylineDoc _document;
-        private final ISpectrumLibrary _library;
+        private final SpecLibKey _key;
+        private final Long _size;
 
-        public DocLib(@NotNull ValidatorSkylineDoc document, @NotNull ISpectrumLibrary library)
+        public SpecLibKeyWithSize(ISpectrumLibrary library, @Nullable Long size)
         {
-            _document = document;
-            _library = library;
+            _size = size;
+            _key = SpecLibKey.fromLibrary(library);
         }
 
-        public ValidatorSkylineDoc getDocument()
+        @Override
+        public boolean equals(Object o)
         {
-            return _document;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SpecLibKeyWithSize that = (SpecLibKeyWithSize) o;
+            return _key.equals(that._key) && Objects.equals(_size, that._size);
         }
 
-        public ISpectrumLibrary getLibrary()
+        @Override
+        public int hashCode()
         {
-            return _library;
+            return Objects.hash(_key, _size);
+        }
+
+        public String toString()
+        {
+            return _key.toString() + _size == null ? ", NOT_FOUND" : ", size: " + _size;
         }
     }
 

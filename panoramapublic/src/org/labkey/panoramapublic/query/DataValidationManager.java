@@ -26,17 +26,17 @@ import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.GenericSkylineDoc;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSkylineDoc;
+import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile;
+import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
 import org.labkey.panoramapublic.model.validation.SpecLib;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSpecLib;
 import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
@@ -209,8 +209,6 @@ public class DataValidationManager
         {
             SimpleFilter skyDocFilter = new SimpleFilter(FieldKey.fromParts("SkylineDocValidationId"), doc.getId());
             doc.setSampleFiles(getSkylineDocSampleFiles(skyDocFilter));
-            doc.setModifications(getSkylineDocModifications(skyDocFilter));
-            doc.setSpecLibraries(getSkylineDocSpecLibs(skyDocFilter));
         }
         return docs;
     }
@@ -220,42 +218,55 @@ public class DataValidationManager
         return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), filter, null).getArrayList(SkylineDocSampleFile.class);
     }
 
-    private static List<SkylineDocModification> getSkylineDocModifications(SimpleFilter filter)
-    {
-        return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocModification(), filter, null).getArrayList(SkylineDocModification.class);
-    }
-
-    private static List<SkylineDocSpecLib> getSkylineDocSpecLibs(SimpleFilter filter)
-    {
-        return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), filter, null).getArrayList(SkylineDocSpecLib.class);
-    }
-
     private static List<Modification> getModifications(SimpleFilter filter)
     {
-        return new TableSelector(PanoramaPublicManager.getTableInfoModificationValidation(), filter, null).getArrayList(Modification.class);
+        List<Modification> modifications =  new TableSelector(PanoramaPublicManager.getTableInfoModificationValidation(), filter, null).getArrayList(Modification.class);
+        for (Modification mod: modifications)
+        {
+            mod.setDocsWithModification(getSkylineDocModifications(mod));
+        }
+        return modifications;
+    }
+
+    private static List<SkylineDocModification> getSkylineDocModifications(Modification modification)
+    {
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("ModificationValidationId"), modification.getId());
+        return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocModification(), filter, null).getArrayList(SkylineDocModification.class);
     }
 
     private static List<SpecLib> getSpectrumLibraries(SimpleFilter filter)
     {
         List<SpecLib> specLibs = new TableSelector(PanoramaPublicManager.getTableInfoSpecLibValidation(), filter, null).getArrayList(SpecLib.class);
-        for (SpecLib lib: specLibs)
+        for (SpecLib specLib: specLibs)
         {
-            lib.setSpectrumFiles(getSpectrumSourceFiles(new SimpleFilter(FieldKey.fromParts("SpecLibValidationId"), lib.getId())));
-            lib.setIdFiles(getIdSourceFiles(new SimpleFilter(FieldKey.fromParts("SpecLibValidationId"), lib.getId())));
+            specLib.setSpectrumFiles(getSpectrumSourceFiles(specLib));
+            specLib.setIdFiles(getIdSourceFiles(specLib));
+            specLib.setDocsWithLibrary(getSkylineDocSpecLibs(specLib));
         }
         return specLibs;
     }
 
-    private static List<SpecLibSourceFile> getSpectrumSourceFiles(SimpleFilter filter)
+    private static List<SpecLibSourceFile> getSpectrumSourceFiles(SpecLib specLib)
     {
-        filter.addCondition(FieldKey.fromParts("SourceType"), SPECTRUM.ordinal());
+        return getSourceFiles(specLib, SPECTRUM);
+    }
+
+    private static List<SpecLibSourceFile> getIdSourceFiles(SpecLib specLib)
+    {
+        return getSourceFiles(specLib, PEPTIDE_ID);
+    }
+
+    private static List<SpecLibSourceFile> getSourceFiles(SpecLib specLib, SpecLibSourceFile.LibrarySourceFileType type)
+    {
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("SpecLibValidationId"), specLib.getId());
+        filter.addCondition(FieldKey.fromParts("SourceType"), type.ordinal());
         return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), filter, null).getArrayList(SpecLibSourceFile.class);
     }
 
-    private static List<SpecLibSourceFile> getIdSourceFiles(SimpleFilter filter)
+    private static List<SkylineDocSpecLib> getSkylineDocSpecLibs(SpecLib specLib)
     {
-        filter.addCondition(FieldKey.fromParts("SourceType"), PEPTIDE_ID.ordinal());
-        return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), filter, null).getArrayList(SpecLibSourceFile.class);
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("SpecLibValidationId"), specLib.getId());
+        return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), filter, null).getArrayList(SkylineDocSpecLib.class);
     }
 
     public static @Nullable PxStatus getPxStatusForValidationId(int validationId)
@@ -274,10 +285,10 @@ public class DataValidationManager
         return Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
     }
 
-    public static void saveStatus(ValidatorStatus status, User user)
+    public static void saveSkylineDocStatus(ValidatorStatus status, User user)
     {
         DataValidation validation = status.getValidation();
-        for (ValidatorSkylineDoc doc : status.getSkylineDocs())
+        for (SkylineDocValidator doc : status.getSkylineDocs())
         {
             doc.setValidationId(validation.getId());
             doc = Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocValidation(), doc);
@@ -290,9 +301,9 @@ public class DataValidationManager
         }
     }
 
-    public static <S extends SkylineDocSampleFile, L extends SkylineDocSpecLib> void updateSampleFileStatus(GenericSkylineDoc<S, L> skyDoc, User user)
+    public static void updateSampleFileStatus(SkylineDocValidator skyDoc, User user)
     {
-        for (S sampleFile: skyDoc.getSampleFiles())
+        for (ValidatorSampleFile sampleFile: skyDoc.getSampleFiles())
         {
             Table.update(user, PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), sampleFile, sampleFile.getId());
         }
@@ -303,18 +314,15 @@ public class DataValidationManager
         Table.insert(user, PanoramaPublicManager.getTableInfoModificationValidation(), modification);
     }
 
-    public static void saveSkylineDocModifications(List<ValidatorSkylineDoc> skylineDocs, User user)
+    public static void saveSkylineDocModifications(Modification modification, User user)
     {
-        for (ValidatorSkylineDoc doc: skylineDocs)
+        for (SkylineDocModification skylineDocModification: modification.getDocsWithModification())
         {
-            for (SkylineDocModification mod: doc.getModifications())
-            {
-                Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocModification(), mod);
-            }
+            Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocModification(), skylineDocModification);
         }
     }
 
-    public static void saveSpectrumLibrary(ValidatorSpecLib specLib, User user)
+    public static void saveSpectrumLibrary(SpecLibValidator specLib, User user)
     {
         Table.insert(user, PanoramaPublicManager.getTableInfoSpecLibValidation(), specLib);
     }

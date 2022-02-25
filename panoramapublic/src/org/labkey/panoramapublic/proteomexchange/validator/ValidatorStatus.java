@@ -7,23 +7,24 @@ import org.labkey.panoramapublic.model.validation.Modification;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 
-public class ValidatorStatus extends GenericValidationStatus<ValidatorSkylineDoc, ValidatorSpecLib>
+public class ValidatorStatus extends GenericValidationStatus<SkylineDocValidator, SpecLibValidator>
 {
-    private final List<ValidatorSkylineDoc> _skylineDocs;
+    private final List<SkylineDocValidator> _skylineDocs;
     private final List<Modification> _modifications;
-    private final List<ValidatorSpecLib> _spectrumLibraries;
+    private final List<SpecLibValidator> _spectralLibraries;
 
     public ValidatorStatus(DataValidation validation)
     {
         setValidation(validation);
         _skylineDocs = new ArrayList<>();
         _modifications = new ArrayList<>();
-        _spectrumLibraries = new ArrayList<>();
+        _spectralLibraries = new ArrayList<>();
     }
 
-    public void addSkylineDoc(ValidatorSkylineDoc skylineDocValidation)
+    public void addSkylineDoc(SkylineDocValidator skylineDocValidation)
     {
         _skylineDocs.add(skylineDocValidation);
     }
@@ -33,26 +34,36 @@ public class ValidatorStatus extends GenericValidationStatus<ValidatorSkylineDoc
         _modifications.add(modification);
     }
 
-    public void addLibrary(ValidatorSpecLib specLib)
+    public void addLibrary(SpecLibValidator specLib)
     {
-        _spectrumLibraries.add(specLib);
+        _spectralLibraries.add(specLib);
     }
 
     @Override
-    public @NotNull List<ValidatorSpecLib> getSpectralLibraries()
+    public @NotNull List<SpecLibValidator> getSpectralLibraries()
     {
-        return Collections.unmodifiableList(_spectrumLibraries);
+        return Collections.unmodifiableList(_spectralLibraries);
     }
 
     @Override
-    public @NotNull List<ValidatorSkylineDoc> getSkylineDocs()
+    public @NotNull List<SkylineDocValidator> getSkylineDocs()
     {
-        return Collections.unmodifiableList(_skylineDocs);
+         return Collections.unmodifiableList(_skylineDocs);
     }
 
     @Override
     public @NotNull List<Modification> getModifications()
     {
         return Collections.unmodifiableList(_modifications);
+    }
+
+    public SkylineDocValidator getSkylineDocForRunId(Long runId)
+    {
+        return _skylineDocs.stream().filter(doc -> doc.getRunId() == runId).findFirst().orElse(null);
+    }
+
+    public SkylineDocValidator getSkylineDocForId(int skylineDocValidationId)
+    {
+        return _skylineDocs.stream().filter(doc -> doc.getId() == skylineDocValidationId).findFirst().orElse(null);
     }
 }

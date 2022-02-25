@@ -508,7 +508,7 @@
         </columns>
     </table>
     <table tableName="ModificationValidation" tableDbType="TABLE">
-        <titleColumn>SkylineDocModName</titleColumn>
+        <titleColumn>SkylineModName</titleColumn>
         <columns>
             <column columnName="Id"/>
             <column columnName="ValidationId">
@@ -518,14 +518,16 @@
                     <fkTable>DataValidation</fkTable>
                 </fk>
             </column>
-            <column columnName="SkylineDocModName">
+            <column columnName="SkylineModName">
                 <description>Name of the modification in the Skyline document</description>
             </column>
             <column columnName="DbModId"/>
             <column columnName="ModType">
                 <description>Structural / Isotopic</description>
             </column>
-            <column columnName="UnimodId"/>
+            <column columnName="UnimodId">
+                <url>https://www.unimod.org/modifications_view.php?editid1=${unimodid}</url>
+            </column>
             <column columnName="UnimodName">
                 <description>Name of the modification in unimod.xml, as expected by ProteomeXchange</description>
             </column>
@@ -617,6 +619,15 @@
                     <fkColumnName>Id</fkColumnName>
                     <fkDbSchema>panoramapublic</fkDbSchema>
                     <fkTable>SpecLibValidation</fkTable>
+                </fk>
+            </column>
+            <column columnName="Included"/>
+            <column columnName="SpectrumLibraryId">
+                <description>Row Id from targetedms.spectrumlibrary</description>
+                <fk>
+                    <fkColumnName>Id</fkColumnName>
+                    <fkDbSchema>targetedms</fkDbSchema>
+                    <fkTable>SpectrumLibrary</fkTable>
                 </fk>
             </column>
         </columns>

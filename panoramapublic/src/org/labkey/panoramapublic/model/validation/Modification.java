@@ -31,6 +31,8 @@ public class Modification
     private static final String MOD_INFO_SEPARATOR = ":::";
     private static final String ERROR = "ERROR";
 
+    private List<SkylineDocModification> _docsWithModification;
+
     public enum ModType {Structural, Isotopic}
 
     public Modification() {}
@@ -166,6 +168,16 @@ public class Modification
                     + m.getModSites())
                     .collect(Collectors.toList()), MOD_SEPARATOR);
         }
+    }
+
+    public @NotNull List<SkylineDocModification> getDocsWithModification()
+    {
+        return _docsWithModification != null ? Collections.unmodifiableList(_docsWithModification) : Collections.emptyList();
+    }
+
+    public void setDocsWithModification(@NotNull List<SkylineDocModification> docsWithModification)
+    {
+        _docsWithModification = docsWithModification;
     }
 
     @NotNull

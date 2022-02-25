@@ -5,8 +5,9 @@ public class SkylineDocSpecLib
 {
     private int _id;
     private int _skylineDocValidationId;
-    private Integer _speclibValidationId;
+    private int _speclibValidationId;
     private boolean _included; // true if the library file is included in the .sky.zip
+    private long _spectrumLibraryId; // targetedms.SpectrumLibrary.Id
 
     public int getId()
     {
@@ -28,7 +29,7 @@ public class SkylineDocSpecLib
         _skylineDocValidationId = skylineDocValidationId;
     }
 
-    public Integer getSpeclibValidationId()
+    public int getSpeclibValidationId()
     {
         return _speclibValidationId;
     }
@@ -46,5 +47,15 @@ public class SkylineDocSpecLib
     public void setIncluded(boolean included)
     {
         _included = included;
+    }
+
+    public long getSpectrumLibraryId()
+    {
+        return _spectrumLibraryId;
+    }
+
+    public void setSpectrumLibraryId(long spectrumLibraryId)
+    {
+        _spectrumLibraryId = spectrumLibraryId;
     }
 }

@@ -1,12 +1,10 @@
 package org.labkey.panoramapublic.model.validation;
 
-import org.apache.commons.io.FilenameUtils;
-
 // For table panoramapublic.skylinedocsamplefile
 public class SkylineDocSampleFile extends DataFile
 {
     private int _skylineDocValidationId;
-    private String _filePathImported; // path of the file imported into the Skyline document
+    private String _filePathImported;
 
     public SkylineDocSampleFile() {}
 
@@ -20,6 +18,9 @@ public class SkylineDocSampleFile extends DataFile
         _skylineDocValidationId = skylineDocValidationId;
     }
 
+    /**
+     * Path of the sample file imported into the Skyline document
+     */
     public String getFilePathImported()
     {
         return _filePathImported;

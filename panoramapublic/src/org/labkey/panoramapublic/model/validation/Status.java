@@ -3,10 +3,12 @@ package org.labkey.panoramapublic.model.validation;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.labkey.panoramapublic.query.DataValidationManager;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.labkey.panoramapublic.query.DataValidationManager.*;
 
@@ -36,7 +38,7 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
 
     public boolean foundAllSampleFiles()
     {
-        return getSkylineDocs().stream().allMatch(GenericSkylineDoc::foundAllSampleFiles);
+        return getSkylineDocs().stream().allMatch(SkylineDocValidation::foundAllSampleFiles);
     }
 
     public void setModifications(List<Modification> modifications)
@@ -97,8 +99,9 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
 
         jsonObject.put("validation", validationJson);
         jsonObject.put("skylineDocuments", getSkylineDocsJSON());
-        jsonObject.put("modifications", getModificationsJSON());
-        jsonObject.put("spectrumLibraries", getSpectralLibrariesJSON());
+        Map<Integer, SkylineDoc> docMap = getSkylineDocs().stream().collect(Collectors.toMap(SkylineDocValidation::getId, Function.identity()));
+        jsonObject.put("modifications", getModificationsJSON(docMap));
+        jsonObject.put("spectrumLibraries", getSpectralLibrariesJSON(docMap));
         return jsonObject;
     }
 
@@ -109,22 +112,19 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         return result;
     }
 
-    private JSONArray getModificationsJSON()
+    private JSONArray getModificationsJSON(Map<Integer, SkylineDoc> docMap)
     {
         JSONArray result = new JSONArray();
         for (Modification modification: getModifications())
         {
             JSONObject json = modification.toJSON();
             JSONArray docsJson = new JSONArray();
-            for (SkylineDoc doc: getSkylineDocs())
+            for (SkylineDocModification skyDocMod: modification.getDocsWithModification())
             {
-                if(doc.hasModification(modification))
+                SkylineDoc doc = docMap.get(skyDocMod.getSkylineDocValidationId());
+                if (doc != null)
                 {
-                    JSONObject docMod = new JSONObject();
-                    docMod.put("runId", doc.getRunId());
-                    docMod.put("container", doc.getContainer().getPath());
-                    docMod.put("name", doc.getName());
-                    docsJson.put(docMod);
+                    docsJson.put(getMemberDocJSON(doc));
                 }
             }
             json.put("documents", docsJson);
@@ -133,22 +133,29 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         return result;
     }
 
-    private JSONArray getSpectralLibrariesJSON()
+    @NotNull
+    private JSONObject getMemberDocJSON(SkylineDoc doc)
+    {
+        JSONObject docMod = new JSONObject();
+        docMod.put("runId", doc.getRunId());
+        docMod.put("container", doc.getContainer().getPath());
+        docMod.put("name", doc.getName());
+        return docMod;
+    }
+
+    private JSONArray getSpectralLibrariesJSON(Map<Integer, SkylineDoc> docMap)
     {
         JSONArray result = new JSONArray();
         for (SpecLib specLib: getSpectralLibraries())
         {
             JSONObject json = specLib.toJSON();
             JSONArray docsJson = new JSONArray();
-            for (SkylineDoc doc: getSkylineDocs())
+            for (SkylineDocSpecLib skyDocLib: specLib.getDocsWithLibrary())
             {
-                if(doc.hasLibrary(specLib))
+                SkylineDoc doc = docMap.get(skyDocLib.getSkylineDocValidationId());
+                if (doc != null)
                 {
-                    JSONObject docLib = new JSONObject();
-                    docLib.put("runId", doc.getRunId());
-                    docLib.put("container", doc.getContainer().getPath());
-                    docLib.put("name", doc.getName());
-                    docsJson.put(docLib);
+                    docsJson.put(getMemberDocJSON(doc));
                 }
             }
             json.put("documents", docsJson);

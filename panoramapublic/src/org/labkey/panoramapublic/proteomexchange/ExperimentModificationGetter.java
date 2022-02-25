@@ -46,6 +46,11 @@ public class ExperimentModificationGetter
 {
     private static final Logger LOG = LogHelper.getLogger(ExperimentModificationGetter.class, "Looks up the structural and isotopic modifications for documents associated with an experiment");
 
+    /**
+     * @param expAnnot
+     * @return a list of modifications for the runs in the given experiment.  If the Skyline modifications did not have a Unimod Id,
+     * an attempt is made to infer the Unimod Id based on the modification formula, modified sites and terminus.
+     */
     public static List<PxModification> getModifications(ExperimentAnnotations expAnnot)
     {
         List<ITargetedMSRun> runs = ExperimentAnnotationsManager.getTargetedMSRuns(expAnnot);
@@ -66,7 +71,7 @@ public class ExperimentModificationGetter
                     pxMod = getStructuralUnimodMod(mod, uMods);
                     strModMap.put(mod.getId(), pxMod);
                 }
-                pxMod.addSkylineDoc(run.getFileName());
+                pxMod.addSkylineDoc(run);
             }
 
             List<? extends IModification.IIsotopeModification> iMods = TargetedMSService.get().getIsotopeModificationsUsedInRun(run.getId());
@@ -78,7 +83,7 @@ public class ExperimentModificationGetter
                     pxMod = getIsotopicUnimodMod(mod, uMods, expAnnot.getContainer());
                     isoModMap.put(mod.getId(), pxMod);
                 }
-                pxMod.addSkylineDoc(run.getFileName());
+                pxMod.addSkylineDoc(run);
             }
         }
 
@@ -212,7 +217,7 @@ public class ExperimentModificationGetter
     public static abstract class PxModification
     {
         private final String _skylineName;
-        private final Set<String> _skylineDocs;
+        private final Set<Long> _runIds;
         private final long _dbModId; // database id from the IsotopeModification table if _isotopicMod is true, StructuralModification otherwise
         private final boolean _isotopicMod;
         private UnimodModification _match;
@@ -223,24 +228,24 @@ public class ExperimentModificationGetter
         {
             _skylineName = skylineName;
 
-            _skylineDocs = new HashSet<>();
+            _runIds = new HashSet<>();
             _isotopicMod = isIsotopic;
             _dbModId = dbModId;
 
             _unimodModifications = new ArrayList<>();
         }
 
-        public void addSkylineDoc(String skyDocName)
+        public void addSkylineDoc(ITargetedMSRun run)
         {
-            if(skyDocName != null)
+            if(run != null)
             {
-                _skylineDocs.add(skyDocName);
+                _runIds.add(run.getId());
             }
         }
 
-        public Set<String> getSkylineDocs()
+        public Set<Long> getRunIds()
         {
-            return _skylineDocs;
+            return _runIds;
         }
 
         public String getName()

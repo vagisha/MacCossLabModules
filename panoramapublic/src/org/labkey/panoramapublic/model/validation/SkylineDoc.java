@@ -8,11 +8,9 @@ import java.util.Collections;
 import java.util.List;
 
 // For table panoramapublic.skylinedocvalidation
-public class SkylineDoc extends GenericSkylineDoc<SkylineDocSampleFile, SkylineDocSpecLib>
+public class SkylineDoc extends SkylineDocValidation<SkylineDocSampleFile>
 {
     private List<SkylineDocSampleFile> _sampleFiles;
-    private List<SkylineDocSpecLib> _specLibraries;
-    private List<SkylineDocModification> _modifications;
 
     public void setSampleFiles(List<SkylineDocSampleFile> sampleFiles)
     {
@@ -23,28 +21,6 @@ public class SkylineDoc extends GenericSkylineDoc<SkylineDocSampleFile, SkylineD
     public @NotNull List<SkylineDocSampleFile> getSampleFiles()
     {
         return _sampleFiles != null ? Collections.unmodifiableList(_sampleFiles) : Collections.emptyList();
-    }
-
-    public void setSpecLibraries(List<SkylineDocSpecLib> specLibraries)
-    {
-        _specLibraries = specLibraries;
-    }
-
-    @Override
-    public @NotNull List<SkylineDocSpecLib> getSpecLibraries()
-    {
-        return _specLibraries != null ? Collections.unmodifiableList(_specLibraries) : Collections.emptyList();
-    }
-
-    public void setModifications(List<SkylineDocModification> modifications)
-    {
-        _modifications = modifications;
-    }
-
-    @Override
-    public @NotNull List<SkylineDocModification> getModifications()
-    {
-        return _modifications != null ? Collections.unmodifiableList(_modifications) : Collections.emptyList();
     }
 
     @NotNull
