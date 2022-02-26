@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.labkey.test.Locator;
+import org.labkey.test.TestFileUtils;
 import org.labkey.test.TestTimeoutException;
 import org.labkey.test.components.BodyWebPart;
 import org.labkey.test.components.SubfoldersWebPart;
@@ -15,12 +16,15 @@ import org.labkey.test.util.APIContainerHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.DataRegionTable;
 import org.labkey.test.util.Ext4Helper;
+import org.labkey.test.util.LogMethod;
+import org.labkey.test.util.LoggedParam;
 import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.PortalHelper;
 import org.labkey.test.util.PostgresOnlyTest;
 import org.labkey.test.util.TextSearcher;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.File;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -296,6 +300,23 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
         }
         String messageText = new BodyWebPart(getDriver(), "View Message").getComponentElement().getText();
         assertTextPresent(new TextSearcher(messageText), text);
+    }
+
+    @Override
+    @LogMethod
+    protected void importData(@LoggedParam String file, int jobCount)
+    {
+        importData(getSampleDataFolder() + file, jobCount, false);
+    }
+
+    public String getSampleDataFolder()
+    {
+        return "";
+    }
+
+    public File getSampleDataPath(String file)
+    {
+        return TestFileUtils.getSampleData("TargetedMS/" + getSampleDataFolder() + file);
     }
 
     @Override

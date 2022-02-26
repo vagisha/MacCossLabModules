@@ -363,6 +363,7 @@
 
             return {
                 xtype:  'panel',
+                cls: 'pxv-summary-panel',
                 layout: {type: 'anchor', align: 'left'},
                 style:  {margin: '10px'},
                 items:  [
@@ -444,6 +445,7 @@
             var grid = Ext4.create('Ext.grid.Panel', {
                 store:    modificationsStore,
                 storeId: 'modificationsStore',
+                cls: 'pxv-modifications-panel',
                 padding:  '0 10 10 10',
                 disableSelection: true,
                 collapsible: true,
@@ -597,6 +599,7 @@
             return Ext4.create('Ext.grid.Panel', {
                 store: skylineDocsStore,
                 storeId: 'skylineDocsStore',
+                cls: 'pxv-skydocs-panel',
                 padding: 10,
                 disableSelection: true,
                 viewConfig: {enableTextSelection: true},
@@ -709,6 +712,7 @@
             return Ext4.create('Ext.grid.Panel', {
                 store: specLibStore,
                 storeId: 'specLibStore',
+                cls: 'pxv-speclibs-panel',
                 padding: 10,
                 disableSelection: true,
                 viewConfig: {enableTextSelection: true},

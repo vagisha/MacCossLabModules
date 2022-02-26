@@ -5,7 +5,6 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.labkey.test.BaseWebDriverTest;
 import org.labkey.test.Locator;
-import org.labkey.test.TestFileUtils;
 import org.labkey.test.TestTimeoutException;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
@@ -16,12 +15,9 @@ import org.labkey.test.util.APIContainerHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.DataRegionTable;
 import org.labkey.test.util.Ext4Helper;
-import org.labkey.test.util.LogMethod;
-import org.labkey.test.util.LoggedParam;
 import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.PortalHelper;
 
-import java.io.File;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -46,9 +42,10 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
     private static final String INCLUDE_SUBFOLDERS_AND_SUBMIT = "Include Subfolders And Continue";
     private static final String EXCLUDE_SUBFOLDERS_AND_SUBMIT = "Skip Subfolders And Continue";
 
-    protected File getSampleDataPath(String file)
+    @Override
+    public String getSampleDataFolder()
     {
-        return TestFileUtils.getSampleData("TargetedMS/" + SAMPLEDATA_FOLDER + file);
+        return SAMPLEDATA_FOLDER;
     }
 
     @Test
@@ -333,14 +330,14 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
     private String testSubmitWithMissingRawFiles(PortalHelper portal, TargetedMsExperimentWebPart expWebPart)
     {
         var validationPage = submitValidationJob();
-        validationPage.checkSampleFileStatus(List.of(), List.of(RAW_FILE_WIFF, RAW_FILE_WIFF_SCAN));
+        validationPage.verifySampleFileStatus(SKY_FILE_1, List.of(), List.of(RAW_FILE_WIFF, RAW_FILE_WIFF_SCAN));
 
         portal.click(Locator.folderTab("Raw Data"));
         _fileBrowserHelper.uploadFile(getSampleDataPath(RAW_FILE_WIFF));
         _fileBrowserHelper.fileIsPresent(RAW_FILE_WIFF);
 
         validationPage = submitValidationJob();
-        validationPage.checkSampleFileStatus(List.of(RAW_FILE_WIFF), List.of(RAW_FILE_WIFF_SCAN));
+        validationPage.verifySampleFileStatus(SKY_FILE_1, List.of(RAW_FILE_WIFF), List.of(RAW_FILE_WIFF_SCAN));
 
         submitWithoutPxIdButton();
 
@@ -361,7 +358,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
                 "Validate Data for ProteomeXchange",
                 "Submit without a ProteomeXchange ID");
         clickButton("Validate Data for ProteomeXchange");
-        return new DataValidationPage(getDriver());
+        return new DataValidationPage(this);
     }
 
     private void testSubmitWithSubfolders(TargetedMsExperimentWebPart expWebPart)
@@ -381,7 +378,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         assertTextPresent("Copy Pending!");
     }
 
-    public void resubmitWithoutPxd()
+    private void resubmitWithoutPxd()
     {
         clickButton("Submit without a ProteomeXchange ID");
         waitForText("Resubmit Request to ");
@@ -392,7 +389,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         click(Locator.linkWithText("Back to Experiment Details")); // Navigate to the experiment details page.
     }
 
-    public void verifyVersionCount(String experimentTitle, int count)
+    private void verifyVersionCount(String experimentTitle, int count)
     {
         goToProjectHome(PANORAMA_PUBLIC);
         var expListTable = DataRegionTable.findDataRegionWithinWebpart(this, "Targeted MS Experiment List");
@@ -403,12 +400,6 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         {
             assertEquals("Unexpected VersionCount", String.valueOf(count), expListTable.getRowDataAsText(row, "VersionCount").get(0).trim());
         }
-    }
-
-    @LogMethod
-    protected void importData(@LoggedParam String file, int jobCount)
-    {
-        importData(SAMPLEDATA_FOLDER + file, jobCount, false);
     }
 
     @Override
