@@ -11,7 +11,6 @@ import org.labkey.api.query.FilteredTable;
 import org.labkey.api.query.QueryForeignKey;
 import org.labkey.api.query.UserIdQueryForeignKey;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
-import org.labkey.panoramapublic.PanoramaPublicSchema.ContainerJoinType;
 
 public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
 {
@@ -19,7 +18,7 @@ public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
     private final SQLFragment _containerSql;
     private final FieldKey _containerFieldKey;
 
-    public PanoramaPublicTable(TableInfo table, PanoramaPublicSchema schema, ContainerFilter cf, @NotNull ContainerJoinType joinType)
+    public PanoramaPublicTable(TableInfo table, PanoramaPublicSchema schema, ContainerFilter cf, @NotNull ContainerJoin joinType)
     {
         super(table, schema, cf);
         _joinSql = joinType.getJoinSql();

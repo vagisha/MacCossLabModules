@@ -44,6 +44,7 @@ import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
 import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile.LibrarySourceFileType;
+import org.labkey.panoramapublic.query.ContainerJoin;
 import org.labkey.panoramapublic.query.DataValidationTableInfo;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
@@ -53,9 +54,7 @@ import org.labkey.panoramapublic.query.speclib.SpecLibInfoTableInfo;
 import org.springframework.validation.BindException;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class PanoramaPublicSchema extends UserSchema
 {
@@ -182,7 +181,7 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SKYLINE_DOC_VALIDATION.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocValidation(), this, cf, ContainerJoinType.DataValidationJoin);
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocValidation(), this, cf, ContainerJoin.DataValidatoinJoin);
             var sampleFileCountsCol = DataValidationTableInfo.createCountsColumn(table,
                     PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), "SkylineDocValidationId",
                     PanoramaPublicSchema.TABLE_SKYLINE_DOC_SAMPLE_FILE, "SampleFiles", table.getContainerContext());
@@ -195,12 +194,12 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SKYLINE_DOC_SAMPLE_FILE.equalsIgnoreCase(name))
         {
-            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), this, cf, ContainerJoinType.SkyDocValidationJoin);
+            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocSampleFile(), this, cf, ContainerJoin.SkyDocValidationJoin);
         }
 
         if (TABLE_SPEC_LIB_VALIDATION.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibValidation(), this, cf, ContainerJoinType.DataValidationJoin);
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibValidation(), this, cf, ContainerJoin.DataValidatoinJoin);
             var sourceFileCountCol = DataValidationTableInfo.createCountsColumn(table,
                     PanoramaPublicManager.getTableInfoSpecLibSourceFile(), "SpecLibValidationId",
                     PanoramaPublicSchema.TABLE_SPEC_LIB_SOURCE_FILE, "SourceFiles", table.getContainerContext());
@@ -217,7 +216,7 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SPEC_LIB_SOURCE_FILE.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), this, cf, ContainerJoinType.SpecLibValidationJoin);
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSpecLibSourceFile(), this, cf, ContainerJoin.SpecLibValidationJoin);
             var sourceTypeCol = table.getMutableColumn("SourceType");
             if (sourceTypeCol != null)
             {
@@ -228,12 +227,12 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_SKYLINE_DOC_SPEC_LIB.equalsIgnoreCase(name))
         {
-            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), this, cf, ContainerJoinType.SpecLibValidationJoin);
+            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), this, cf, ContainerJoin.SpecLibValidationJoin);
         }
 
         if (TABLE_MODIFICATION_VALIDATION.equalsIgnoreCase(name))
         {
-            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoModificationValidation(), this, cf, ContainerJoinType.DataValidationJoin);
+            var table = new PanoramaPublicTable(PanoramaPublicManager.getTableInfoModificationValidation(), this, cf, ContainerJoin.DataValidatoinJoin);
             var modTypeCol = table.getMutableColumn("ModType");
             if (modTypeCol != null)
             {
@@ -250,7 +249,7 @@ public class PanoramaPublicSchema extends UserSchema
         }
         if (TABLE_SKYLINE_DOC_MODIFICATION.equalsIgnoreCase(name))
         {
-            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocModification(), this, cf, ContainerJoinType.ModificationJoin);
+            return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoSkylineDocModification(), this, cf, ContainerJoin.ModificationJoin);
         }
 
         if (TABLE_PX_STATUS.equalsIgnoreCase(name))
@@ -381,7 +380,7 @@ public class PanoramaPublicSchema extends UserSchema
                 || TABLE_SPEC_LIB_SOURCE_FILE.equalsIgnoreCase(settings.getQueryName())
                 || TABLE_SKYLINE_DOC_SPEC_LIB.equalsIgnoreCase(settings.getQueryName()))
         {
-            view.disableContainerFilterSelection(); // No need for a container filter
+            view.disableContainerFilterSelection(); // No need for a container filter on these tables
         }
         return view;
     }
@@ -398,102 +397,5 @@ public class PanoramaPublicSchema extends UserSchema
         hs.add(TABLE_SPEC_LIB_INFO);
         hs.add(TABLE_DATA_VALIDATION);
         return hs;
-    }
-
-    private static final String CONTAINER = "Container";
-
-    public enum ContainerJoinType
-    {
-        ExpAnnotJoin(List.of(
-                new InnerJoinClause(null, "experimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
-        DataValidationJoin(List.of(
-                new InnerJoinClause(null, "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
-                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
-        SpecLibValidationJoin(List.of(
-                new InnerJoinClause(null, "SpecLibValidationId", PanoramaPublicManager.getTableInfoSpecLibValidation(), "l", "id"),
-                new InnerJoinClause("l", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
-                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
-        SkyDocValidationJoin(List.of(new InnerJoinClause(null, "SkylineDocValidationId", PanoramaPublicManager.getTableInfoSkylineDocValidation(), "doc", "id"),
-                new InnerJoinClause("doc", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
-                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id"))),
-        ModificationJoin(List.of(new InnerJoinClause(null, "ModificationValidationId", PanoramaPublicManager.getTableInfoModificationValidation(), "mod", "id"),
-                new InnerJoinClause("mod", "ValidationId", PanoramaPublicManager.getTableInfoDataValidation(), "v", "id"),
-                new InnerJoinClause("v", "ExperimentAnnotationsId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "exp", "id")))
-        ;
-
-        private final List<InnerJoinClause> _joinList;
-
-        ContainerJoinType(List<InnerJoinClause> joinList)
-        {
-            _joinList = joinList;
-        }
-
-        public @NotNull SQLFragment getJoinSql()
-        {
-            SQLFragment sql = new SQLFragment();
-            _joinList.stream().map(InnerJoinClause::toSql).forEach(sql::append);
-            return sql;
-        }
-
-        public @NotNull SQLFragment getContainerSql()
-        {
-            SQLFragment sql = new SQLFragment();
-            if (_joinList.size() > 0)
-            {
-                // We expect the last table in the join sequence to have the container column
-                sql.append(_joinList.get(_joinList.size() - 1).getJoinTableAlias()).append(".");
-            }
-            return sql.append(CONTAINER);
-        }
-
-        public @Nullable FieldKey getContainerFieldKey()
-        {
-            if (_joinList.size() > 0)
-            {
-                var parts = _joinList.stream().map(InnerJoinClause::getJoinCol).collect(Collectors.toList());
-                parts.add(CONTAINER);
-                return FieldKey.fromParts(parts);
-            }
-            return null;
-        }
-    }
-
-    private static class InnerJoinClause
-    {
-        private final String _tableAlias;
-        private final String _joinCol;
-        private final TableInfo _joinTable;
-        private final String _joinTableAlias;
-        private final String _joinTableCol;
-
-        public InnerJoinClause(@Nullable String tableAlias, @NotNull String joinCol, @NotNull TableInfo joinTable, @NotNull String joinTableAlias, @NotNull String joinTableCol)
-        {
-            _tableAlias = tableAlias;
-            _joinCol = joinCol;
-            _joinTable = joinTable;
-            _joinTableAlias = joinTableAlias;
-            _joinTableCol = joinTableCol;
-        }
-
-        private SQLFragment toSql()
-        {
-            return new SQLFragment(" INNER JOIN ")
-                    .append(_joinTable, _joinTableAlias)
-                    .append(" ON ")
-                    .append(_joinTableAlias).append(".").append(_joinTableCol)
-                    .append(" = ")
-                    .append(_tableAlias != null ? _tableAlias + "." : "").append(_joinCol)
-                    .append(" ");
-        }
-
-        private String getJoinTableAlias()
-        {
-            return _joinTableAlias;
-        }
-
-        private String getJoinCol()
-        {
-            return _joinCol;
-        }
     }
 }

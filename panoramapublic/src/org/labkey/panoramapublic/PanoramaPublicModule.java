@@ -47,6 +47,7 @@ import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.proteomexchange.SkylineVersion;
 import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
+import org.labkey.panoramapublic.query.ContainerJoin;
 import org.labkey.panoramapublic.query.ExperimentTitleDisplayColumn;
 import org.labkey.panoramapublic.query.JournalManager;
 import org.labkey.panoramapublic.query.speclib.SpecLibView;
@@ -321,6 +322,7 @@ public class PanoramaPublicModule extends SpringModule
         set.add(SkylineDocValidator.TestCase.class);
         set.add(SpecLibValidator.TestCase.class);
         set.add(ExperimentModificationGetter.TestCase.class);
+        set.add(ContainerJoin.TestCase.class);
         return set;
 
     }
