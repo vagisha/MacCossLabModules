@@ -24,7 +24,7 @@ public class ExperimentIsotopicModInfoTableInfo extends PanoramaPublicTable
         if (unimodCol != null)
         {
             unimodCol.setTextAlign("left");
-            unimodCol.setDisplayColumnFactory(new UnimodIdDisplayColumnFactory(true));
+            unimodCol.setDisplayColumnFactory(new UnimodIdDisplayColumnFactory());
         }
     }
 }

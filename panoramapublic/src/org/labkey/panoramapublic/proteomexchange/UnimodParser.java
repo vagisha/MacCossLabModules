@@ -15,6 +15,7 @@
  */
 package org.labkey.panoramapublic.proteomexchange;
 
+import org.jetbrains.annotations.NotNull;
 import org.labkey.api.module.Module;
 import org.labkey.api.module.ModuleLoader;
 import org.labkey.api.resource.FileResource;
@@ -149,7 +150,7 @@ public class UnimodParser
             String site = specEl.getAttribute("site");
             String cls = specEl.getAttribute("classification");
             String pos = specEl.getAttribute("position");
-            Position position = Position.forName(pos);
+            Position position = Position.forLabel(pos);
             if(site.equalsIgnoreCase("N-term"))
             {
                 uMod.setNterm(position);
@@ -298,7 +299,7 @@ public class UnimodParser
         private final Terminus _term;
         private final Position _position;
 
-        public TermSpecificity(Terminus term, Position position)
+        public TermSpecificity(@NotNull Terminus term, @NotNull Position position)
         {
             _term = term;
             _position = position;
@@ -313,6 +314,11 @@ public class UnimodParser
         {
             return _position;
         }
+
+        public String toString()
+        {
+            return getTerm().getFullName() + " (" + getPosition().getLabel() + ")";
+        }
     }
 
     enum Position {
@@ -323,23 +329,29 @@ public class UnimodParser
         ProteinNTerm("Protein N-term", false),
         ProteinCTerm("Protein C-term", false);
 
-        private final String _name;
+        private final String _label;
         private final boolean _anywhere;
-        Position(String name, boolean anywhere)
+        Position(String label, boolean anywhere)
         {
-            _name = name;
+            _label = label;
             _anywhere = anywhere;
         }
-        static Position forName(String name) throws PxException
+
+        public String getLabel()
+        {
+            return _label;
+        }
+
+        static Position forLabel(String label) throws PxException
         {
             for (Position p: values())
             {
-                if (p._name.matches(name))
+                if (p._label.matches(label))
                 {
                     return p;
                 }
             }
-            throw new PxException("Cannot find a match for specificity position seen in Unimod.xml: " + name);
+            throw new PxException("Cannot find a match for specificity position seen in Unimod.xml: " + label);
         }
 
         public boolean isAnywhere()

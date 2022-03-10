@@ -93,18 +93,40 @@
                     value: <%=q(modification.getTerminus())%>
                 },
                 {
+                    xtype: 'label',
+                    text: '--- Modification matches the following Unimod modification ---',
+                    style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
+                },
+                {
                     xtype: 'displayfield',
                     fieldCls: 'display-value',
-                    fieldLabel: "Unimod Match",
+                    fieldLabel: "Name",
                     value: '<div>' + "<%=h(unimod.getName())%>" + ', '
-                            + "<%=h(unimod.getNormalizedFormula())%>" + ', '
                             + '<%=unimod.getLink().getHtmlString()%>' + '</div>'
+                },
+                {
+                    xtype: 'displayfield',
+                    fieldCls: 'display-value',
+                    fieldLabel: "Formula",
+                    value: <%=q(unimod.getNormalizedFormula())%>
+                },
+                {
+                    xtype: 'displayfield',
+                    fieldCls: 'display-value',
+                    fieldLabel: "Sites",
+                    value: <%=q(unimod.getModSites())%>
+                },
+                {
+                    xtype: 'displayfield',
+                    fieldCls: 'display-value',
+                    fieldLabel: "Terminus",
+                    value: <%=q(unimod.getTerminus())%>
                 }
             ],
             buttonAlign: 'left',
             buttons: [
                 {
-                    text: "Save",
+                    text: "Save Match",
                     cls: 'labkey-button primary',
                     handler: function(button) {
                         button.setDisabled(true);

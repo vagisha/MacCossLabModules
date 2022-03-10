@@ -22,12 +22,12 @@ public class ExperimentStructuralModInfoTableInfo extends PanoramaPublicTable
     {
         super(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), schema, cf, ContainerJoin.ExpAnnotJoin);
 
-        var unimodCol = addColumn(wrapColumn("Unimod", getRealTable().getColumn("UnimodId")));
-        unimodCol.setDisplayColumnFactory(new UnimodIdDisplayColumnFactory(true));
-
-        var assignedModCol = addColumn(wrapColumn("UnimodAssignment", getRealTable().getColumn("UnimodId")));
-        assignedModCol.setLabel("Unimod Assignment");
-        assignedModCol.setDisplayColumnFactory(new AssignedUnimodDisplayColumnFactory());
+//        getMutableColumn("UnimodId").setDisplayColumnFactory(new UnimodIdDisplayColumnFactory());
+//        getMutableColumn("UnimodId2").setDisplayColumnFactory(new UnimodIdDisplayColumnFactory());
+//
+//        var assignedModCol = addColumn(wrapColumn("AssignedUnimod", getRealTable().getColumn("Id")));
+//        assignedModCol.setLabel("Unimod Assignment");
+//        assignedModCol.setDisplayColumnFactory(new AssignedUnimodDisplayColumnFactory());
     }
 
     @Override

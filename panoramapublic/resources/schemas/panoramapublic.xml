@@ -526,7 +526,9 @@
                 <description>Structural / Isotopic</description>
             </column>
             <column columnName="UnimodId">
-                <url>https://www.unimod.org/modifications_view.php?editid1=${unimodid}</url>
+                <displayColumnFactory>
+                    <className>org.labkey.panoramapublic.query.modification.ModificationDocsDisplayColumnFactory$StructuralModDocsColumn</className>
+                </displayColumnFactory>
             </column>
             <column columnName="UnimodName">
                 <description>Name of the modification in unimod.xml, as expected by ProteomeXchange</description>
@@ -675,9 +677,17 @@
                 </fk>
             </column>
             <column columnName="CombinationMod"/>
-            <column columnName="UnimodId" />
+            <column columnName="UnimodId">
+                <displayColumnFactory>
+                    <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
+                </displayColumnFactory>
+            </column>
             <column columnName="UnimodName" />
-            <column columnName="UnimodId2" />
+            <column columnName="UnimodId2">
+                <displayColumnFactory>
+                    <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
+                </displayColumnFactory>
+            </column>
             <column columnName="UnimodName2" />
         </columns>
     </table>

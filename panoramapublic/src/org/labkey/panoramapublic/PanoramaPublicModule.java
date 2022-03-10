@@ -52,7 +52,7 @@ import org.labkey.panoramapublic.query.ContainerJoin;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.ExperimentTitleDisplayColumn;
 import org.labkey.panoramapublic.query.JournalManager;
-import org.labkey.panoramapublic.query.modification.ExperimentStructuralModsView;
+import org.labkey.panoramapublic.query.modification.StructuralModsView;
 import org.labkey.panoramapublic.query.speclib.SpecLibView;
 import org.labkey.panoramapublic.security.CopyTargetedMSExperimentRole;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentWebPart;
@@ -229,12 +229,12 @@ public class PanoramaPublicModule extends SpringModule
             }
         };
 
-        BaseWebPartFactory experimentStructuralModsFactory = new BaseWebPartFactory("Experiment Structural Modifications")
+        BaseWebPartFactory experimentStructuralModsFactory = new BaseWebPartFactory("Structural Modifications")
         {
             @Override
             public WebPartView getWebPartView(@NotNull ViewContext portalCtx, @NotNull Portal.WebPart webPart)
             {
-                return new ExperimentStructuralModsView(portalCtx);
+                return new StructuralModsView(portalCtx);
             }
             @Override
             public boolean isAvailable(Container c, String scope, String location)

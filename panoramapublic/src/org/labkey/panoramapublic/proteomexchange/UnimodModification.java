@@ -21,7 +21,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.labkey.api.util.Link;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -336,6 +335,21 @@ public class UnimodModification
             return StringUtils.join(_modSites.stream().map(s -> s.getSite()).collect(Collectors.toSet()), ":");
         }
         return "";
+    }
+
+    public String getTerminus()
+    {
+        String terminus = "";
+        if (_nTerm != null)
+        {
+            terminus += _nTerm.toString();
+        }
+        if (_cTerm != null)
+        {
+            terminus = terminus.length() > 0 ? ", " : "";
+            terminus += _cTerm.toString();
+        }
+        return terminus;
     }
 
     public Link getLink()

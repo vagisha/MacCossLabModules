@@ -165,6 +165,7 @@ import org.labkey.panoramapublic.query.PxXmlManager;
 import org.labkey.panoramapublic.query.SpecLibInfoManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
+import org.labkey.panoramapublic.query.modification.StructuralModsView;
 import org.labkey.panoramapublic.query.speclib.SpecLibView;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
 import org.labkey.panoramapublic.speclib.SpecLibReader;
@@ -5296,6 +5297,13 @@ public class PanoramaPublicController extends SpringActionController
                 result.addView(new SpecLibView(getViewContext(), exptAnnotations));
             }
 
+            // Structural modifications
+            List<Long> runIds = runs.stream().map(ITargetedMSRun::getId).collect(Collectors.toList());
+            if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideStructuralModification(), getUser(), getContainer()))
+            {
+                result.addView(new StructuralModsView(getViewContext(), exptAnnotations));
+            }
+
             // If the data has been validated for a ProteomeXchange submission, show the summary of the last validation
             var latestValidation = DataValidationManager.getLatestValidation(exptAnnotations.getId(), getContainer());
             if (latestValidation != null && getContainer().hasPermission(getUser(), AdminPermission.class))
@@ -7214,19 +7222,6 @@ public class PanoramaPublicController extends SpringActionController
                 view.setFrame(WebPartView.FrameType.PORTAL);
                 view.setTitle("Unimod Match");
                 return view;
-//                var view = new HtmlView(DIV(TABLE(cl("lk-fields-table"),
-//                        row("Name: ", mod.getName()),
-//                        row("Formula: ", mod.getFormula()),
-//                        row("Sites: ", mod.getAminoAcid()),
-//                        row("Terminus: ", mod.getTerminus()),
-//                        row("Unimod match: ", DIV(
-//                                matchedMod.getUnimodMatch().getName(), ", ",
-//                                matchedMod.getUnimodMatch().getNormalizedFormula(), ", ",
-//                                matchedMod.getUnimodMatch().getLink()))),
-//                        DIV(at(style, "margin-top:15px;"), new Button.ButtonBuilder("Use Unimod Match").build())));
-//                view.setTitle("Unimod Match");
-//                view.setFrame(WebPartView.FrameType.PORTAL);
-//                return view;
             }
             else if (matchedMod.hasPossibleUnimods())
             {
@@ -7235,7 +7230,7 @@ public class PanoramaPublicController extends SpringActionController
             }
             else
             {
-                errors.reject(ERROR_MSG, "No Unimod matches were found for the modification.  Please post to the support board");
+                errors.reject(ERROR_MSG, "No Unimod matches were found for the modification.");
                 return new SimpleErrorView(errors);
             }
         }
@@ -7423,18 +7418,23 @@ public class PanoramaPublicController extends SpringActionController
                 errors.reject(ERROR_MSG, "Please select two modifications that this modification combines.");
                 return;
             }
+        }
+
+        @Override
+        public boolean handlePost(CombinationModificationFrom form, BindException errors) throws Exception
+        {
             UnimodModification mod1 = _unimodModifications.getById(form.getUnimodId1());
             if (mod1 == null)
             {
                 errors.reject(ERROR_MSG, "Cannot find a Unimod modification for Unimod Id: " + form.getUnimodId1());
-                return;
+                return false;
             }
 
             UnimodModification mod2 = _unimodModifications.getById(form.getUnimodId2());
             if (mod2 == null)
             {
                 errors.reject(ERROR_MSG, "Cannot find a Unimod modification for Unimod Id: " + form.getUnimodId2());
-                return;
+                return false;
             }
 
             String combinedFormula = UnimodModification.combineAndNormalize(mod1,mod2);
@@ -7442,15 +7442,20 @@ public class PanoramaPublicController extends SpringActionController
             {
                 errors.reject(ERROR_MSG, "Selected Unimod modification formulas do not add up to the formula of the modification. " +
                         "Combined formula is " + combinedFormula);
-                return;
+                return false;
             }
-        }
 
-        @Override
-        public boolean handlePost(CombinationModificationFrom combinationModificationFrom, BindException errors) throws Exception
-        {
+            ExperimentStructuralModInfo modInfo = new ExperimentStructuralModInfo();
+            modInfo.setUnimodId(mod1.getId());
+            modInfo.setUnimodName(mod1.getName());
+            modInfo.setStructuralModId(form.getModificationId());
+            modInfo.setExperimentAnnotationsId(form.getId());
+            modInfo.setCombinationMod(true);
+            modInfo.setUnimodId2(mod2.getId());
+            modInfo.setUnimodName2(mod2.getName());
+            ModificationInfoManager.save(modInfo, getUser());
 
-            return false;
+            return true;
         }
 
         @Override

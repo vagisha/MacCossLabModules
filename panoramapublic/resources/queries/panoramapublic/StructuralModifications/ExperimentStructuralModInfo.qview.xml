@@ -1,6 +1,5 @@
 <customView xmlns="http://labkey.org/data/xml/queryCustomView" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            canOverride="true"
-            containerFilter="CurrentAndSubfolders">
+            canOverride="true">
     <columns>
         <column name="ModId/Name" />
         <column name="ModId/Formula" />
@@ -10,12 +9,12 @@
             </properties>
         </column>
         <column name="ModId/Terminus" />
-        <column name="UnimodId">
+        <column name="GivenUnimodId">
             <properties>
                 <property name="columnTitle" value="Unimod Id"/>
             </properties>
         </column>
+        <column name="ModInfoId" />
         <column name="RunIds" />
-        <column name="ExperimentAnnotationsId" />
     </columns>
 </customView>

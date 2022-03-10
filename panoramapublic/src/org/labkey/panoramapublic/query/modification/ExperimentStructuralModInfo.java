@@ -9,7 +9,7 @@ public class ExperimentStructuralModInfo extends DbEntity
     private boolean _combinationMod;
     private int _unimodId;
     private String _unimodName;
-    private int _unimodId2;
+    private Integer _unimodId2;
     private String _unimodName2;
 
     public int getExperimentAnnotationsId()
@@ -62,12 +62,12 @@ public class ExperimentStructuralModInfo extends DbEntity
         _unimodName = unimodName;
     }
 
-    public int getUnimodId2()
+    public Integer getUnimodId2()
     {
         return _unimodId2;
     }
 
-    public void setUnimodId2(int unimodId2)
+    public void setUnimodId2(Integer unimodId2)
     {
         _unimodId2 = unimodId2;
     }
