@@ -105,6 +105,7 @@ import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.security.roles.ProjectAdminRole;
 import org.labkey.api.security.roles.ReaderRole;
+import org.labkey.api.targetedms.IModification;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.targetedms.TargetedMSUrls;
@@ -144,6 +145,7 @@ import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxDataValidationPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxValidationPipelineProvider;
+import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.proteomexchange.NcbiUtils;
 import org.labkey.panoramapublic.proteomexchange.ProteomeXchangeService;
 import org.labkey.panoramapublic.proteomexchange.ProteomeXchangeServiceException;
@@ -151,13 +153,18 @@ import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
 import org.labkey.panoramapublic.proteomexchange.PxException;
 import org.labkey.panoramapublic.proteomexchange.PxHtmlWriter;
 import org.labkey.panoramapublic.proteomexchange.PxXmlWriter;
+import org.labkey.panoramapublic.proteomexchange.UnimodModification;
+import org.labkey.panoramapublic.proteomexchange.UnimodModifications;
+import org.labkey.panoramapublic.proteomexchange.UnimodParser;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.DataValidationManager.MissingMetadata;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.JournalManager;
+import org.labkey.panoramapublic.query.ModificationInfoManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
 import org.labkey.panoramapublic.query.SpecLibInfoManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
+import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
 import org.labkey.panoramapublic.query.speclib.SpecLibView;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
 import org.labkey.panoramapublic.speclib.SpecLibReader;
@@ -7159,6 +7166,402 @@ public class PanoramaPublicController extends SpringActionController
         public void setAllSpecLibIds(String allSpecLibIds)
         {
             _allSpecLibIds = allSpecLibIds;
+        }
+    }
+
+    @RequiresPermission(UpdatePermission.class)
+    public static class MatchToUnimodAction extends PanoramaPublicExperimentAction<UnimodMatchForm>
+    {
+        @Override
+        public ModelAndView getModelAndView(UnimodMatchForm form, boolean reshow, BindException errors)
+        {
+            if (reshow)
+            {
+                errors.reject(ERROR_MSG, "An error occurred while saving the Unimod match.");
+                return new SimpleErrorView(errors);
+            }
+
+            var mod = form.isStructural() ? TargetedMSService.get().getStructuralModification(form.getModificationId()) :
+                    TargetedMSService.get().getIsotopeModification(form.getModificationId());
+            if (mod.getUnimodId() != null)
+            {
+                errors.reject(ERROR_MSG, "Modification already has a Unimod Id");
+                return new SimpleErrorView(errors);
+            }
+
+            var modInfo = ModificationInfoManager.getStructuralModInfo(mod.getId(), form.getId());
+            if (modInfo != null)
+            {
+                errors.reject(ERROR_MSG, "Modification is already assigned the Unimod Id " + modInfo.getUnimodId());
+                return new SimpleErrorView(errors);
+            }
+
+            UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the UNIMOD modifications
+            ExperimentModificationGetter.PxModification matchedMod;
+            if (form.isStructural())
+            {
+                matchedMod = ExperimentModificationGetter.getStructuralUnimodMod(mod, uMods);
+            }
+            else
+            {
+                matchedMod = ExperimentModificationGetter.getIsotopicUnimodMod((IModification.IIsotopeModification) mod, uMods);
+            }
+            if (matchedMod.hasUnimodId())
+            {
+                form.setUnimodId( matchedMod.getUnimodMatch().getId());
+                UnimodMatchBean bean = new UnimodMatchBean(form, mod, matchedMod.getUnimodMatch());
+                JspView view = new JspView<>("/org/labkey/panoramapublic/view/unimodMatchInfo.jsp", bean, errors);
+                view.setFrame(WebPartView.FrameType.PORTAL);
+                view.setTitle("Unimod Match");
+                return view;
+//                var view = new HtmlView(DIV(TABLE(cl("lk-fields-table"),
+//                        row("Name: ", mod.getName()),
+//                        row("Formula: ", mod.getFormula()),
+//                        row("Sites: ", mod.getAminoAcid()),
+//                        row("Terminus: ", mod.getTerminus()),
+//                        row("Unimod match: ", DIV(
+//                                matchedMod.getUnimodMatch().getName(), ", ",
+//                                matchedMod.getUnimodMatch().getNormalizedFormula(), ", ",
+//                                matchedMod.getUnimodMatch().getLink()))),
+//                        DIV(at(style, "margin-top:15px;"), new Button.ButtonBuilder("Use Unimod Match").build())));
+//                view.setTitle("Unimod Match");
+//                view.setFrame(WebPartView.FrameType.PORTAL);
+//                return view;
+            }
+            else if (matchedMod.hasPossibleUnimods())
+            {
+                errors.reject(ERROR_MSG, "More than one match was found.");
+                return new SimpleErrorView(errors);
+            }
+            else
+            {
+                errors.reject(ERROR_MSG, "No Unimod matches were found for the modification.  Please post to the support board");
+                return new SimpleErrorView(errors);
+            }
+        }
+
+        @Override
+        protected void validatePostCommand(UnimodMatchForm form, Errors errors)
+        {
+            if (form.getUnimodId() == null)
+            {
+                errors.reject(ERROR_MSG, "Request does not contain a Unimod match Id.");
+            }
+        }
+
+        @Override
+        public boolean handlePost(UnimodMatchForm form, BindException errors) throws Exception
+        {
+            UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the UNIMOD modifications
+            UnimodModification matchedMod = uMods.getById(form.getUnimodId());
+            if (matchedMod == null)
+            {
+                errors.reject(ERROR_MSG, "Did not find a Unimod modification for Unimod Id " + form.getUnimodId());
+                return false;
+            }
+
+            ExperimentStructuralModInfo modInfo = new ExperimentStructuralModInfo();
+            modInfo.setUnimodId(matchedMod.getId());
+            modInfo.setUnimodName(matchedMod.getName());
+            modInfo.setStructuralModId(form.getModificationId());
+            modInfo.setExperimentAnnotationsId(form.getId());
+            modInfo.setCombinationMod(false);
+            ModificationInfoManager.save(modInfo, getUser());
+
+            return true;
+        }
+
+        @Override
+        public URLHelper getSuccessURL(UnimodMatchForm form)
+        {
+            return form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer()));
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Find Unimod Match");
+        }
+    }
+
+    public static class UnimodMatchBean
+    {
+        private final UnimodMatchForm _form;
+        private final IModification _modification;
+        private final UnimodModification _unimodMatch;
+
+        public UnimodMatchBean(UnimodMatchForm form, IModification modification, UnimodModification unimodMatch)
+        {
+            _form = form;
+            _modification = modification;
+            _unimodMatch = unimodMatch;
+        }
+
+        public UnimodMatchForm getForm()
+        {
+            return _form;
+        }
+
+        public IModification getModification()
+        {
+            return _modification;
+        }
+
+        public UnimodModification getUnimodMatch()
+        {
+            return _unimodMatch;
+        }
+    }
+
+    public static class UnimodMatchForm extends ExperimentIdForm
+    {
+        private long _modificationId;
+        private boolean _structural;
+        private Integer _unimodId;
+
+        public long getModificationId()
+        {
+            return _modificationId;
+        }
+
+        public void setModificationId(long modificationId)
+        {
+            _modificationId = modificationId;
+        }
+
+        public boolean isStructural()
+        {
+            return _structural;
+        }
+
+        public void setStructural(boolean structural)
+        {
+            _structural = structural;
+        }
+
+        public Integer getUnimodId()
+        {
+            return _unimodId;
+        }
+
+        public void setUnimodId(Integer unimodId)
+        {
+            _unimodId = unimodId;
+        }
+    }
+
+
+    @RequiresPermission(UpdatePermission.class)
+    public static class CombinationModificationAction extends PanoramaPublicExperimentAction<CombinationModificationFrom>
+    {
+        private UnimodModifications _unimodModifications;
+        private IModification.IStructuralModification _modification;
+
+        @Override
+        protected ModelAndView getModelAndView(CombinationModificationFrom form, boolean reshow, BindException errors)
+        {
+            if (!reshow)
+            {
+                initModifications(form, errors);
+                if (errors.hasErrors())
+                {
+                    return new SimpleErrorView(errors);
+                }
+            }
+
+            CombinationModifiationBean bean = new CombinationModifiationBean(form, _modification, _unimodModifications.getModifications());
+            JspView view = new JspView<>("/org/labkey/panoramapublic/view/combinationModInfo.jsp", bean, errors);
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            view.setTitle("Combination Modification");
+            return view;
+        }
+
+        private void initModifications(CombinationModificationFrom form, Errors errors)
+        {
+            _modification = TargetedMSService.get().getStructuralModification(form.getModificationId());
+            if (_modification == null)
+            {
+                errors.reject(ERROR_MSG, "Did not find a structural modification with Id: " + form.getModificationId());
+                return;
+            }
+            if (StringUtils.isBlank(_modification.getFormula()))
+            {
+                errors.reject(ERROR_MSG, "Modification '" + _modification.getName() + "' does not have a formula. " +
+                        "To define a modification as a combination of two Unimod modifications it must have a formula.");
+                return;
+            }
+            if (StringUtils.isBlank(_modification.getAminoAcid()) && StringUtils.isBlank(_modification.getTerminus()))
+            {
+                errors.reject(ERROR_MSG, "Modification '" + _modification.getName() + "' does not have a formula. " +
+                        "To define a modification as a combination of two Unimod modifications it must include the amino acid(s) or the terminus where the modification occurs.");
+                return;
+            }
+            try
+            {
+                _unimodModifications = new UnimodParser().parse();
+            }
+            catch (Exception e)
+            {
+                LOG.error("There was an error parsing Unimod modifications.", e);
+                errors.reject(ERROR_MSG, "There was an error parsing Unimod modifications. The error was: " + e.getMessage()
+                        + ". Please try again. If you continue to see this error please contact the server administrator.");
+            }
+        }
+
+        @Override
+        protected void validatePostCommand(CombinationModificationFrom form, Errors errors)
+        {
+            initModifications(form, errors);
+
+            if (errors.hasErrors())
+            {
+                return;
+            }
+
+            if (form.getUnimodId1() == null || form.getUnimodId2() == null)
+            {
+                errors.reject(ERROR_MSG, "Please select two modifications that this modification combines.");
+                return;
+            }
+            UnimodModification mod1 = _unimodModifications.getById(form.getUnimodId1());
+            if (mod1 == null)
+            {
+                errors.reject(ERROR_MSG, "Cannot find a Unimod modification for Unimod Id: " + form.getUnimodId1());
+                return;
+            }
+
+            UnimodModification mod2 = _unimodModifications.getById(form.getUnimodId2());
+            if (mod2 == null)
+            {
+                errors.reject(ERROR_MSG, "Cannot find a Unimod modification for Unimod Id: " + form.getUnimodId2());
+                return;
+            }
+
+            String combinedFormula = UnimodModification.combineAndNormalize(mod1,mod2);
+            if (!combinedFormula.equals(UnimodModification.normalizeFormula(_modification.getFormula())))
+            {
+                errors.reject(ERROR_MSG, "Selected Unimod modification formulas do not add up to the formula of the modification. " +
+                        "Combined formula is " + combinedFormula);
+                return;
+            }
+        }
+
+        @Override
+        public boolean handlePost(CombinationModificationFrom combinationModificationFrom, BindException errors) throws Exception
+        {
+
+            return false;
+        }
+
+        @Override
+        public URLHelper getSuccessURL(CombinationModificationFrom combinationModificationFrom)
+        {
+            return null;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Define Combination Modification");
+        }
+    }
+
+    public static class CombinationModifiationBean
+    {
+        private final CombinationModificationFrom _form;
+        private final IModification.IStructuralModification _modification;
+        private final List<UnimodModification> _unimodModificationList;
+
+        public CombinationModifiationBean(CombinationModificationFrom form, IModification.IStructuralModification modification, List<UnimodModification> unimodList)
+        {
+            _form = form;
+            _modification = modification;
+            _unimodModificationList = unimodList;
+        }
+
+        public CombinationModificationFrom getForm()
+        {
+            return _form;
+        }
+
+        public IModification.IStructuralModification getModification()
+        {
+            return _modification;
+        }
+
+        public List<UnimodModification> getUnimodModificationList()
+        {
+            return _unimodModificationList;
+        }
+    }
+
+    public static class CombinationModificationFrom extends ExperimentIdForm
+    {
+        private long _modificationId;
+        private Integer _unimodId1;
+        private String _unimodName1;
+        private Integer _unimodId2;
+        private String _unimodName2;
+        private Integer _structuralModInfoId;
+
+        public long getModificationId()
+        {
+            return _modificationId;
+        }
+
+        public void setModificationId(long modificationId)
+        {
+            _modificationId = modificationId;
+        }
+
+        public Integer getUnimodId1()
+        {
+            return _unimodId1;
+        }
+
+        public void setUnimodId1(Integer unimodId1)
+        {
+            _unimodId1 = unimodId1;
+        }
+
+        public String getUnimodName1()
+        {
+            return _unimodName1;
+        }
+
+        public void setUnimodName1(String unimodName1)
+        {
+            _unimodName1 = unimodName1;
+        }
+
+        public Integer getUnimodId2()
+        {
+            return _unimodId2;
+        }
+
+        public void setUnimodId2(Integer unimodId2)
+        {
+            _unimodId2 = unimodId2;
+        }
+
+        public String getUnimodName2()
+        {
+            return _unimodName2;
+        }
+
+        public void setUnimodName2(String unimodName2)
+        {
+            _unimodName2 = unimodName2;
+        }
+
+        public Integer getStructuralModInfoId()
+        {
+            return _structuralModInfoId;
+        }
+
+        public void setStructuralModInfoId(Integer structuralModInfoId)
+        {
+            _structuralModInfoId = structuralModInfoId;
         }
     }
 

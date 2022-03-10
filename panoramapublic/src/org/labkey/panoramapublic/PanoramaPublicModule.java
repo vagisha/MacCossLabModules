@@ -45,11 +45,14 @@ import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineProvider;
 import org.labkey.panoramapublic.pipeline.PxValidationPipelineProvider;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.proteomexchange.SkylineVersion;
+import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
 import org.labkey.panoramapublic.query.ContainerJoin;
+import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.ExperimentTitleDisplayColumn;
 import org.labkey.panoramapublic.query.JournalManager;
+import org.labkey.panoramapublic.query.modification.ExperimentStructuralModsView;
 import org.labkey.panoramapublic.query.speclib.SpecLibView;
 import org.labkey.panoramapublic.security.CopyTargetedMSExperimentRole;
 import org.labkey.panoramapublic.view.expannotations.TargetedMSExperimentWebPart;
@@ -226,6 +229,20 @@ public class PanoramaPublicModule extends SpringModule
             }
         };
 
+        BaseWebPartFactory experimentStructuralModsFactory = new BaseWebPartFactory("Experiment Structural Modifications")
+        {
+            @Override
+            public WebPartView getWebPartView(@NotNull ViewContext portalCtx, @NotNull Portal.WebPart webPart)
+            {
+                return new ExperimentStructuralModsView(portalCtx);
+            }
+            @Override
+            public boolean isAvailable(Container c, String scope, String location)
+            {
+                return ExperimentAnnotationsManager.getExperimentInContainer(c) != null;
+            }
+        };
+
         List<WebPartFactory> webpartFactoryList = new ArrayList<>();
         webpartFactoryList.add(experimentAnnotationsListFactory);
         webpartFactoryList.add(containerExperimentFactory);
@@ -233,6 +250,7 @@ public class PanoramaPublicModule extends SpringModule
         webpartFactoryList.add(peptideSearchFactory);
         webpartFactoryList.add(dataDownloadInfoFactory);
         webpartFactoryList.add(spectralLibrariesFactory);
+        webpartFactoryList.add(experimentStructuralModsFactory);
         return webpartFactoryList;
     }
 
@@ -323,6 +341,7 @@ public class PanoramaPublicModule extends SpringModule
         set.add(SpecLibValidator.TestCase.class);
         set.add(ExperimentModificationGetter.TestCase.class);
         set.add(ContainerJoin.TestCase.class);
+        set.add(UnimodModification.TestCase.class);
         return set;
 
     }

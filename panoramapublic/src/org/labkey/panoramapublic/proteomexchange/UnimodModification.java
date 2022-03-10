@@ -17,7 +17,11 @@ package org.labkey.panoramapublic.proteomexchange;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.junit.Assert;
+import org.junit.Test;
+import org.labkey.api.util.Link;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -158,6 +162,31 @@ public class UnimodModification
         return _normFormula.equals(normFormula);
     }
 
+    public static String combineAndNormalize(UnimodModification mod1, UnimodModification mod2)
+    {
+        String positive = "";
+        String negative = "";
+        if (!StringUtils.isBlank(mod1.getNormalizedFormula()))
+        {
+            String[] parts = getFormulaParts(mod1.getNormalizedFormula());
+            positive += parts[0];
+            if (parts.length > 1)
+            {
+                negative += parts[1];
+            }
+        }
+        if (!StringUtils.isBlank(mod2.getNormalizedFormula()))
+        {
+            String[] parts = getFormulaParts(mod2.getNormalizedFormula());
+            positive += parts[0];
+            if (parts.length > 1)
+            {
+                negative += parts[1];
+            }
+        }
+        return normalizeFormula(positive + " - " + negative);
+    }
+
     public static String normalizeFormula(String formula)
     {
         if(StringUtils.isBlank(formula))
@@ -168,11 +197,7 @@ public class UnimodModification
         // Assume formulas are of the form H'6C'8N'4 - H2C6N4.
         // The part of the formula following ' - ' are the element masses that will be subtracted
         // from the total mass.  Only one negative part is allowed. We will parse the positive and negative parts separately.
-        String[] parts = formula.split("-");
-        if(parts.length > 2)
-        {
-            throw new IllegalArgumentException("Formula inconsistent with required form: " + formula);
-        }
+        String[] parts = getFormulaParts(formula);
 
         Map<String, Integer> composition = getComposition(parts[0]);
         if(parts.length > 1)
@@ -215,6 +240,20 @@ public class UnimodModification
             totalFormula = totalFormula + (totalFormula.length() > 0 ? " - " : "-") + negForm.toString();
         }
         return totalFormula;
+    }
+
+    @NotNull
+    private static String[] getFormulaParts(String formula)
+    {
+        // Assume formulas are of the form H'6C'8N'4 - H2C6N4.
+        // The part of the formula following ' - ' are the element masses that will be subtracted
+        // from the total mass.  Only one negative part is allowed. We will parse the positive and negative parts separately.
+        String[] parts = formula.split("-");
+        if(parts.length > 2)
+        {
+            throw new IllegalArgumentException("Formula inconsistent with required form: " + formula);
+        }
+        return parts;
     }
 
     private static Map<String, Integer> getComposition(String formula)
@@ -297,5 +336,36 @@ public class UnimodModification
             return StringUtils.join(_modSites.stream().map(s -> s.getSite()).collect(Collectors.toSet()), ":");
         }
         return "";
+    }
+
+    public Link getLink()
+    {
+       return getLink(_id);
+    }
+
+    public static Link getLink(int unimodId)
+    {
+        return new Link.LinkBuilder("UNIMOD:" + unimodId)
+                .href("https://www.unimod.org/modifications_view.php?editid1=" + unimodId)
+                .target("_blank")
+                .build();
+    }
+
+    public static class TestCase extends Assert
+    {
+        @Test
+        public void testNormalizeFormula()
+        {
+            String formula = "H'6C'8N'4 - H2C6N4";
+            String[] parts = formula.split("-");
+
+            formula = "";
+            parts = formula.split("-");
+
+            formula = "- H2C6N4";
+            parts = formula.split("-");
+
+
+        }
     }
 }

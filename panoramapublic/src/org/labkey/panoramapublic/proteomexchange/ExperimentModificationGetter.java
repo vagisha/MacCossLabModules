@@ -20,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
-import org.labkey.api.data.Container;
 import org.labkey.api.targetedms.IModification;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
@@ -79,7 +78,7 @@ public class ExperimentModificationGetter
                 PxModification pxMod = isoModMap.get(mod.getId());
                 if(pxMod == null)
                 {
-                    pxMod = getIsotopicUnimodMod(mod, uMods, expAnnot.getContainer());
+                    pxMod = getIsotopicUnimodMod(mod, uMods);
                     isoModMap.put(mod.getId(), pxMod);
                 }
                 pxMod.addSkylineDoc(run);
@@ -139,7 +138,7 @@ public class ExperimentModificationGetter
         }
     }
 
-    private static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods, Container container)
+    public static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods)
     {
         if(mod.getUnimodId() != null)
         {
@@ -157,7 +156,7 @@ public class ExperimentModificationGetter
                 }
                 catch (PxException e)
                 {
-                    LOG.error("Error building formula for isotopic mod (" + mod.getName() + ") in container " + container, e);
+                    LOG.error("Error building formula for isotopic mod (Id: " + mod.getId() + ", " + mod.getName() + ")", e);
                 }
             }
             PxIsotopicMod pxMod = new PxIsotopicMod(mod.getName(), mod.getId());
@@ -275,6 +274,11 @@ public class ExperimentModificationGetter
         public boolean hasUnimodId()
         {
             return _match != null;
+        }
+
+        public UnimodModification getUnimodMatch()
+        {
+            return _match;
         }
 
         public boolean isIsotopicMod()
@@ -839,7 +843,7 @@ public class ExperimentModificationGetter
             for(int i = 0; i < mods.size(); i++)
             {
                 IsotopeModification mod = mods.get(i);
-                PxModification pxMod = getIsotopicUnimodMod(mod, uMods, null);
+                PxModification pxMod = getIsotopicUnimodMod(mod, uMods);
 
                 assertFalse("Unexpected multiple matches for isotopic modificaiton " + mod.getName(), pxMod.hasPossibleUnimods());
 

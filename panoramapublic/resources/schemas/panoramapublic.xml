@@ -632,4 +632,99 @@
             </column>
         </columns>
     </table>
+    <table tableName="ExperimentStructuralModInfo" tableDbType="TABLE">
+        <columns>
+            <column columnName="_ts">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Created">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="CreatedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Modified">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="ModifiedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Id"/>
+            <column columnName="ExperimentAnnotationsId">
+                <fk>
+                    <fkColumnName>Id</fkColumnName>
+                    <fkDbSchema>panoramapublic</fkDbSchema>
+                    <fkTable>ExperimentAnnotations</fkTable>
+                </fk>
+            </column>
+            <column columnName="StructuralModId">
+                <fk>
+                    <fkColumnName>Id</fkColumnName>
+                    <fkDbSchema>targetedms</fkDbSchema>
+                    <fkTable>StructuralModification</fkTable>
+                </fk>
+            </column>
+            <column columnName="CombinationMod"/>
+            <column columnName="UnimodId" />
+            <column columnName="UnimodName" />
+            <column columnName="UnimodId2" />
+            <column columnName="UnimodName2" />
+        </columns>
+    </table>
+    <table tableName="ExperimentIsotopicModInfo" tableDbType="TABLE">
+        <columns>
+            <column columnName="_ts">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Created">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="CreatedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Modified">
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="ModifiedBy">
+                <fk>
+                    <fkColumnName>UserId</fkColumnName>
+                    <fkDbSchema>core</fkDbSchema>
+                    <fkTable>UsersData</fkTable>
+                </fk>
+                <isHidden>true</isHidden>
+            </column>
+            <column columnName="Id"/>
+            <column columnName="ExperimentAnnotationsId">
+                <fk>
+                    <fkColumnName>Id</fkColumnName>
+                    <fkDbSchema>panoramapublic</fkDbSchema>
+                    <fkTable>ExperimentAnnotations</fkTable>
+                </fk>
+            </column>
+            <column columnName="IsotopicModId">
+                <fk>
+                    <fkColumnName>Id</fkColumnName>
+                    <fkDbSchema>targetedms</fkDbSchema>
+                    <fkTable>IsotopicModification</fkTable>
+                </fk>
+            </column>
+            <column columnName="UnimodId" />
+            <column columnName="UnimodName" />
+        </columns>
+    </table>
 </tables>
