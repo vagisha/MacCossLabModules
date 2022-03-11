@@ -13,6 +13,7 @@ import org.labkey.api.query.QueryService;
 import org.labkey.api.security.User;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.panoramapublic.PanoramaPublicManager;
+import org.labkey.panoramapublic.query.modification.ExperimentIsotopeModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
 
 import java.util.Collections;
@@ -30,9 +31,22 @@ public class ModificationInfoManager
         return new TableSelector(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), filter, null).getObject(ExperimentStructuralModInfo.class);
     }
 
-    public static ExperimentStructuralModInfo save(ExperimentStructuralModInfo modInfo, User user)
+    public static ExperimentIsotopeModInfo getIsotopeModInfo(long modificationId, int experimentAnnotationsId)
+    {
+        var filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
+        filter.addCondition(FieldKey.fromParts("IsotopeModId"), modificationId);
+
+        return new TableSelector(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), filter, null).getObject(ExperimentIsotopeModInfo.class);
+    }
+
+    public static ExperimentStructuralModInfo saveStructuralModInfo(ExperimentStructuralModInfo modInfo, User user)
     {
         return Table.insert(user, PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), modInfo);
+    }
+
+    public static ExperimentIsotopeModInfo saveIsotopeModInfo(ExperimentIsotopeModInfo modInfo, User user)
+    {
+        return Table.insert(user, PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), modInfo);
     }
 
     public static ExperimentStructuralModInfo update(ExperimentStructuralModInfo modInfo, User user)

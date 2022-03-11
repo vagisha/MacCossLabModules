@@ -164,8 +164,9 @@ import org.labkey.panoramapublic.query.ModificationInfoManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
 import org.labkey.panoramapublic.query.SpecLibInfoManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
+import org.labkey.panoramapublic.query.modification.ExperimentIsotopeModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
-import org.labkey.panoramapublic.query.modification.StructuralModsView;
+import org.labkey.panoramapublic.query.modification.ModificationsView;
 import org.labkey.panoramapublic.query.speclib.SpecLibView;
 import org.labkey.panoramapublic.speclib.LibSourceFile;
 import org.labkey.panoramapublic.speclib.SpecLibReader;
@@ -5301,7 +5302,11 @@ public class PanoramaPublicController extends SpringActionController
             List<Long> runIds = runs.stream().map(ITargetedMSRun::getId).collect(Collectors.toList());
             if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideStructuralModification(), getUser(), getContainer()))
             {
-                result.addView(new StructuralModsView(getViewContext(), exptAnnotations));
+                result.addView(new ModificationsView.StructuralModificationView(getViewContext(), exptAnnotations));
+            }
+            if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideIsotopeModification(), getUser(), getContainer()))
+            {
+                result.addView(new ModificationsView.IsotopeModificationView(getViewContext(), exptAnnotations));
             }
 
             // If the data has been validated for a ProteomeXchange submission, show the summary of the last validation
@@ -7189,22 +7194,13 @@ public class PanoramaPublicController extends SpringActionController
                 return new SimpleErrorView(errors);
             }
 
-            var mod = form.isStructural() ? TargetedMSService.get().getStructuralModification(form.getModificationId()) :
-                    TargetedMSService.get().getIsotopeModification(form.getModificationId());
-            if (mod.getUnimodId() != null)
+            IModification mod = getValidModification(form, errors);
+            if (mod == null)
             {
-                errors.reject(ERROR_MSG, "Modification already has a Unimod Id");
                 return new SimpleErrorView(errors);
             }
 
-            var modInfo = ModificationInfoManager.getStructuralModInfo(mod.getId(), form.getId());
-            if (modInfo != null)
-            {
-                errors.reject(ERROR_MSG, "Modification is already assigned the Unimod Id " + modInfo.getUnimodId());
-                return new SimpleErrorView(errors);
-            }
-
-            UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the UNIMOD modifications
+            UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the Unimod modifications
             ExperimentModificationGetter.PxModification matchedMod;
             if (form.isStructural())
             {
@@ -7214,30 +7210,85 @@ public class PanoramaPublicController extends SpringActionController
             {
                 matchedMod = ExperimentModificationGetter.getIsotopicUnimodMod((IModification.IIsotopeModification) mod, uMods);
             }
-            if (matchedMod.hasUnimodId())
+
+            if (matchedMod.hasUnimodId() || matchedMod.hasPossibleUnimods())
             {
-                form.setUnimodId( matchedMod.getUnimodMatch().getId());
-                UnimodMatchBean bean = new UnimodMatchBean(form, mod, matchedMod.getUnimodMatch());
+                UnimodMatchBean bean = new UnimodMatchBean(form, mod, matchedMod);
                 JspView view = new JspView<>("/org/labkey/panoramapublic/view/unimodMatchInfo.jsp", bean, errors);
                 view.setFrame(WebPartView.FrameType.PORTAL);
                 view.setTitle("Unimod Match");
                 return view;
             }
-            else if (matchedMod.hasPossibleUnimods())
+
+            else
             {
-                errors.reject(ERROR_MSG, "More than one match was found.");
+                errors.reject(ERROR_MSG, String.format("No Unimod matches were found for the modification '%s'.", mod.getName()));
                 return new SimpleErrorView(errors);
+            }
+        }
+
+        private IModification getValidModification(UnimodMatchForm form, Errors errors)
+        {
+            IModification mod = form.isStructural() ? TargetedMSService.get().getStructuralModification(form.getModificationId()) :
+                    TargetedMSService.get().getIsotopeModification(form.getModificationId());
+
+            if (mod != null)
+            {
+                if (mod.getUnimodId() != null)
+                {
+                    errors.reject(ERROR_MSG, "Modification already has a Unimod Id");
+                    return null;
+                }
+                if (hasModInfo(form, mod, errors))
+                {
+                    return null;
+                }
             }
             else
             {
-                errors.reject(ERROR_MSG, "No Unimod matches were found for the modification.");
-                return new SimpleErrorView(errors);
+                errors.reject(ERROR_MSG, String.format("Could not find a %s modification with Id %d", form.isStructural() ? "structural" : "isotope", form.getModificationId()));
             }
+
+            return mod;
+        }
+
+        @Nullable
+        private boolean hasModInfo(UnimodMatchForm form, IModification mod, Errors errors)
+        {
+            if (form.isStructural())
+            {
+                var modInfo = ModificationInfoManager.getStructuralModInfo(mod.getId(), form.getId());
+                if (modInfo != null)
+                {
+                    errors.reject(ERROR_MSG, modInfo.isCombinationMod() ?
+                            String.format("Modification '%s' is a already defined as a combination of Unimod Id %d (%s) and Unimod Id %d (%s)",
+                                    mod.getName(), modInfo.getUnimodId(), modInfo.getUnimodName(), modInfo.getUnimodId2(), modInfo.getUnimodName2()) :
+                            String.format("Modification '%s' is already assigned the Unimod Id %d (%s).",
+                                    mod.getName(), modInfo.getUnimodId(), modInfo.getUnimodName()));
+                    return true;
+                }
+            }
+            else
+            {
+                var modInfo = ModificationInfoManager.getIsotopeModInfo(mod.getId(), form.getId());
+                if (modInfo != null)
+                {
+                    errors.reject(ERROR_MSG, String.format("Modification '%s' is already assigned the Unimod Id %d (%s).",
+                            mod.getName(), modInfo.getUnimodId(), modInfo.getUnimodName()));
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
         protected void validatePostCommand(UnimodMatchForm form, Errors errors)
         {
+            if (getValidModification(form, errors) == null)
+            {
+                return;
+            }
+
             if (form.getUnimodId() == null)
             {
                 errors.reject(ERROR_MSG, "Request does not contain a Unimod match Id.");
@@ -7251,17 +7302,29 @@ public class PanoramaPublicController extends SpringActionController
             UnimodModification matchedMod = uMods.getById(form.getUnimodId());
             if (matchedMod == null)
             {
-                errors.reject(ERROR_MSG, "Did not find a Unimod modification for Unimod Id " + form.getUnimodId());
+                errors.reject(ERROR_MSG, "Did not find a Unimod modification for the selected Unimod Id " + form.getUnimodId());
                 return false;
             }
 
-            ExperimentStructuralModInfo modInfo = new ExperimentStructuralModInfo();
-            modInfo.setUnimodId(matchedMod.getId());
-            modInfo.setUnimodName(matchedMod.getName());
-            modInfo.setStructuralModId(form.getModificationId());
-            modInfo.setExperimentAnnotationsId(form.getId());
-            modInfo.setCombinationMod(false);
-            ModificationInfoManager.save(modInfo, getUser());
+            if (form.isStructural())
+            {
+                ExperimentStructuralModInfo modInfo = new ExperimentStructuralModInfo();
+                modInfo.setUnimodId(matchedMod.getId());
+                modInfo.setUnimodName(matchedMod.getName());
+                modInfo.setStructuralModId(form.getModificationId());
+                modInfo.setExperimentAnnotationsId(form.getId());
+                modInfo.setCombinationMod(false);
+                ModificationInfoManager.saveStructuralModInfo(modInfo, getUser());
+            }
+            else
+            {
+                ExperimentIsotopeModInfo modInfo = new ExperimentIsotopeModInfo();
+                modInfo.setUnimodId(matchedMod.getId());
+                modInfo.setUnimodName(matchedMod.getName());
+                modInfo.setIsotopeModId(form.getModificationId());
+                modInfo.setExperimentAnnotationsId(form.getId());
+                ModificationInfoManager.saveIsotopeModInfo(modInfo, getUser());
+            }
 
             return true;
         }
@@ -7283,13 +7346,13 @@ public class PanoramaPublicController extends SpringActionController
     {
         private final UnimodMatchForm _form;
         private final IModification _modification;
-        private final UnimodModification _unimodMatch;
+        private final ExperimentModificationGetter.PxModification _matchedMod;
 
-        public UnimodMatchBean(UnimodMatchForm form, IModification modification, UnimodModification unimodMatch)
+        public UnimodMatchBean(UnimodMatchForm form, IModification modification, ExperimentModificationGetter.PxModification matchedMod)
         {
             _form = form;
             _modification = modification;
-            _unimodMatch = unimodMatch;
+            _matchedMod = matchedMod;
         }
 
         public UnimodMatchForm getForm()
@@ -7302,9 +7365,34 @@ public class PanoramaPublicController extends SpringActionController
             return _modification;
         }
 
-        public UnimodModification getUnimodMatch()
+        public ExperimentModificationGetter.PxModification getMatchedMod()
         {
-            return _unimodMatch;
+            return _matchedMod;
+        }
+
+        public List<UnimodModification> getUnimodMatches()
+        {
+            return _matchedMod.hasUnimodId() ? List.of(_matchedMod.getUnimodMatch())
+                    : _matchedMod.getPossibleUnimodMatches();
+        }
+
+        public String getLabels()
+        {
+            String labels = "";
+            if (isIsotopicMod())
+            {
+                var iMod = (IModification.IIsotopeModification) _modification;
+                if (Boolean.TRUE.equals(iMod.getLabel13C())) labels += "13C ";
+                if (Boolean.TRUE.equals(iMod.getLabel15N())) labels += "15N ";
+                if (Boolean.TRUE.equals(iMod.getLabel18O())) labels += "18O ";
+                if (Boolean.TRUE.equals(iMod.getLabel2H())) labels += "2H ";
+            }
+            return labels.trim();
+        }
+
+        public boolean isIsotopicMod()
+        {
+            return _modification instanceof IModification.IIsotopeModification;
         }
     }
 
@@ -7347,7 +7435,7 @@ public class PanoramaPublicController extends SpringActionController
 
 
     @RequiresPermission(UpdatePermission.class)
-    public static class CombinationModificationAction extends PanoramaPublicExperimentAction<CombinationModificationFrom>
+    public static class DefineCombinationModificationAction extends PanoramaPublicExperimentAction<CombinationModificationFrom>
     {
         private UnimodModifications _unimodModifications;
         private IModification.IStructuralModification _modification;
@@ -7364,7 +7452,8 @@ public class PanoramaPublicController extends SpringActionController
                 }
             }
 
-            CombinationModifiationBean bean = new CombinationModifiationBean(form, _modification, _unimodModifications.getModifications());
+            CombinationModifiationBean bean = new CombinationModifiationBean(form, _modification,
+                    _unimodModifications.getStructuralModifications());
             JspView view = new JspView<>("/org/labkey/panoramapublic/view/combinationModInfo.jsp", bean, errors);
             view.setFrame(WebPartView.FrameType.PORTAL);
             view.setTitle("Combination Modification");
@@ -7387,7 +7476,7 @@ public class PanoramaPublicController extends SpringActionController
             }
             if (StringUtils.isBlank(_modification.getAminoAcid()) && StringUtils.isBlank(_modification.getTerminus()))
             {
-                errors.reject(ERROR_MSG, "Modification '" + _modification.getName() + "' does not have a formula. " +
+                errors.reject(ERROR_MSG, "Modification '" + _modification.getName() + "' does not have modified amino acids or the modified terminus. " +
                         "To define a modification as a combination of two Unimod modifications it must include the amino acid(s) or the terminus where the modification occurs.");
                 return;
             }
@@ -7453,15 +7542,15 @@ public class PanoramaPublicController extends SpringActionController
             modInfo.setCombinationMod(true);
             modInfo.setUnimodId2(mod2.getId());
             modInfo.setUnimodName2(mod2.getName());
-            ModificationInfoManager.save(modInfo, getUser());
+            ModificationInfoManager.saveStructuralModInfo(modInfo, getUser());
 
             return true;
         }
 
         @Override
-        public URLHelper getSuccessURL(CombinationModificationFrom combinationModificationFrom)
+        public URLHelper getSuccessURL(CombinationModificationFrom form)
         {
-            return null;
+            return form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer()));
         }
 
         @Override

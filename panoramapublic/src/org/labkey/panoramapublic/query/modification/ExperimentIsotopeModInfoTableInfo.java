@@ -15,11 +15,11 @@ import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.query.ContainerJoin;
 import org.labkey.panoramapublic.query.PanoramaPublicTable;
 
-public class ExperimentStructuralModInfoTableInfo extends PanoramaPublicTable
+public class ExperimentIsotopeModInfoTableInfo extends PanoramaPublicTable
 {
-    public ExperimentStructuralModInfoTableInfo(PanoramaPublicSchema schema, ContainerFilter cf)
+    public ExperimentIsotopeModInfoTableInfo(PanoramaPublicSchema schema, ContainerFilter cf)
     {
-        super(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), schema, cf, ContainerJoin.ExpAnnotJoin);
+        super(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), schema, cf, ContainerJoin.ExpAnnotJoin);
     }
 
     @Override
@@ -31,34 +31,34 @@ public class ExperimentStructuralModInfoTableInfo extends PanoramaPublicTable
     @Override
     public QueryUpdateService getUpdateService()
     {
-        return new RowIdQueryUpdateService<ExperimentStructuralModInfo>(this)
+        return new RowIdQueryUpdateService<ExperimentIsotopeModInfo>(this)
         {
             @Override
-            protected ExperimentStructuralModInfo createNewBean()
+            protected ExperimentIsotopeModInfo createNewBean()
             {
-                return new ExperimentStructuralModInfo();
+                return new ExperimentIsotopeModInfo();
             }
 
             @Override
-            public ExperimentStructuralModInfo get(User user, Container container, int key)
+            public ExperimentIsotopeModInfo get(User user, Container container, int key)
             {
-                return new TableSelector(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo()).getObject(key, ExperimentStructuralModInfo.class);
+                return new TableSelector(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo()).getObject(key, ExperimentIsotopeModInfo.class);
             }
 
             @Override
             public void delete(User user, Container container, int key)
             {
-                Table.delete(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), key);
+                Table.delete(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), key);
             }
 
             @Override
-            protected ExperimentStructuralModInfo insert(User user, Container container, ExperimentStructuralModInfo bean)
+            protected ExperimentIsotopeModInfo insert(User user, Container container, ExperimentIsotopeModInfo bean)
             {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            protected ExperimentStructuralModInfo update(User user, Container container, ExperimentStructuralModInfo bean, Integer oldKey)
+            protected ExperimentIsotopeModInfo update(User user, Container container, ExperimentIsotopeModInfo bean, Integer oldKey)
             {
                 throw new UnsupportedOperationException();
             }

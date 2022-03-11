@@ -3,6 +3,8 @@
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.api.view.ActionURL" %>
+<%@ page import="org.labkey.panoramapublic.proteomexchange.UnimodModification" %>
+<%@ page import="org.labkey.api.targetedms.IModification" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -18,7 +20,7 @@
     var bean = view.getModelBean();
     var form = bean.getForm();
     var modification = bean.getModification();
-    var unimod = bean.getUnimodMatch();
+    var unimodMatches = bean.getUnimodMatches();
     var returnUrl = form.getReturnURLHelper(getContainer().getStartURL(getUser()));
 %>
 <labkey:errors/>
@@ -30,14 +32,82 @@
     }
 </style>
 
-<div id="unimodMatchForm"/>
+<div id="unimodMatchDiv"/>
 
 <script type="text/javascript">
 
     Ext4.onReady(function(){
 
+        var items = [
+            {
+                xtype: 'displayfield',
+                fieldCls: 'display-value',
+                fieldLabel: "Name",
+                value: <%=q(modification.getName())%>
+            },
+            {
+                xtype: 'displayfield',
+                fieldCls: 'display-value',
+                fieldLabel: "Formula",
+                value: <%=q(modification.getFormula())%>
+            },
+            <% if (bean.isIsotopicMod()) { %>
+            {
+                xtype: 'displayfield',
+                fieldCls: 'display-value',
+                fieldLabel: "Label",
+                value: <%=q(bean.getLabels())%>
+            },
+            <% } %>
+            {
+                xtype: 'displayfield',
+                fieldCls: 'display-value',
+                fieldLabel: "Amino Acid(s)",
+                value: <%=q(modification.getAminoAcid())%>
+            },
+            {
+                xtype: 'displayfield',
+                fieldCls: 'display-value',
+                fieldLabel: "Terminus",
+                value: <%=q(modification.getTerminus())%>
+            },
+        ];
+
+        <% for (UnimodModification unimodMod: unimodMatches) { %>
+            items.push(createForm(<%=unimodMod.getId()%>,
+                    <%=q(unimodMod.getLink().getHtmlString())%>,
+                    <%=q(unimodMod.getName())%>,
+                    <%=q(unimodMod.getNormalizedFormula())%>,
+                    <%=q(unimodMod.getModSitesWithPosition())%>,
+                    <%=q(unimodMod.getTerminus())%>));
+        <% } %>
+
+        Ext4.create('Ext.panel.Panel', {
+            renderTo: "unimodMatchDiv",
+            standardSubmit: true,
+            border: false,
+            frame: false,
+            defaults: {
+                labelWidth: 160,
+                width: 500,
+                labelStyle: 'background-color: #E0E6EA; padding: 5px;'
+            },
+            items: items,
+            buttonAlign: 'left',
+            buttons: [
+                {
+                    text: 'Cancel',
+                    cls: 'labkey-button',
+                    style: { marginTop: '20px' },
+                    handler: function(btn) {
+                        window.location = <%= q(returnUrl) %>;
+                    }
+                }]
+        });
+    });
+    function createForm(unimodId, unimodLink, name, formula, sites, terminus)
+    {
         var form = Ext4.create('Ext.form.Panel', {
-            renderTo: "unimodMatchForm",
             standardSubmit: true,
             border: false,
             frame: false,
@@ -48,6 +118,11 @@
             },
             items: [
                 { xtype: 'hidden', name: 'X-LABKEY-CSRF', value: LABKEY.CSRF },
+                {
+                    xtype: 'label',
+                    text: '--- Modification matches the following Unimod modification ---',
+                    style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
+                },
                 {
                     xtype: 'hidden',
                     name: 'id', // ExperimentAnnotationsId
@@ -65,62 +140,38 @@
                 },
                 {
                     xtype: 'hidden',
+                    name: 'structural',
+                    value: <%=form.isStructural()%>
+                },
+                {
+                    xtype: 'hidden',
                     name: 'unimodId',
-                    value: <%=form.getUnimodId()%>
+                    value: unimodId
                 },
+
                 {
                     xtype: 'displayfield',
                     fieldCls: 'display-value',
                     fieldLabel: "Name",
-                    value: <%=q(modification.getName())%>
+                    value: '<div>' + name + ', ' + unimodLink + '</div>'
                 },
                 {
                     xtype: 'displayfield',
                     fieldCls: 'display-value',
                     fieldLabel: "Formula",
-                    value: <%=q(modification.getFormula())%>
-                },
-                {
-                    xtype: 'displayfield',
-                    fieldCls: 'display-value',
-                    fieldLabel: "Amino Acid(s)",
-                    value: <%=q(modification.getAminoAcid())%>
-                },
-                {
-                    xtype: 'displayfield',
-                    fieldCls: 'display-value',
-                    fieldLabel: "Terminus",
-                    value: <%=q(modification.getTerminus())%>
-                },
-                {
-                    xtype: 'label',
-                    text: '--- Modification matches the following Unimod modification ---',
-                    style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
-                },
-                {
-                    xtype: 'displayfield',
-                    fieldCls: 'display-value',
-                    fieldLabel: "Name",
-                    value: '<div>' + "<%=h(unimod.getName())%>" + ', '
-                            + '<%=unimod.getLink().getHtmlString()%>' + '</div>'
-                },
-                {
-                    xtype: 'displayfield',
-                    fieldCls: 'display-value',
-                    fieldLabel: "Formula",
-                    value: <%=q(unimod.getNormalizedFormula())%>
+                    value: formula
                 },
                 {
                     xtype: 'displayfield',
                     fieldCls: 'display-value',
                     fieldLabel: "Sites",
-                    value: <%=q(unimod.getModSites())%>
+                    value: sites
                 },
                 {
                     xtype: 'displayfield',
                     fieldCls: 'display-value',
                     fieldLabel: "Terminus",
-                    value: <%=q(unimod.getTerminus())%>
+                    value: terminus
                 }
             ],
             buttonAlign: 'left',
@@ -135,14 +186,8 @@
                             method: 'POST'
                         });
                     }
-                },
-                {
-                    text: 'Cancel',
-                    cls: 'labkey-button',
-                    handler: function(btn) {
-                        window.location = <%= q(returnUrl) %>;
-                    }
                 }]
         });
-    });
+        return form;
+    }
 </script>

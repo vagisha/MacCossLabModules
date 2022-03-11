@@ -691,7 +691,7 @@
             <column columnName="UnimodName2" />
         </columns>
     </table>
-    <table tableName="ExperimentIsotopicModInfo" tableDbType="TABLE">
+    <table tableName="ExperimentIsotopeModInfo" tableDbType="TABLE">
         <columns>
             <column columnName="_ts">
                 <isHidden>true</isHidden>
@@ -726,11 +726,11 @@
                     <fkTable>ExperimentAnnotations</fkTable>
                 </fk>
             </column>
-            <column columnName="IsotopicModId">
+            <column columnName="IsotopeModId">
                 <fk>
                     <fkColumnName>Id</fkColumnName>
                     <fkDbSchema>targetedms</fkDbSchema>
-                    <fkTable>IsotopicModification</fkTable>
+                    <fkTable>IsotopeModification</fkTable>
                 </fk>
             </column>
             <column columnName="UnimodId" />

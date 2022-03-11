@@ -337,6 +337,15 @@ public class UnimodModification
         return "";
     }
 
+    public String getModSitesWithPosition()
+    {
+        if(_modSites.size() > 0)
+        {
+            return StringUtils.join(_modSites.stream().map(s -> s.toString()).collect(Collectors.toSet()), ":");
+        }
+        return "";
+    }
+
     public String getTerminus()
     {
         String terminus = "";
@@ -346,8 +355,7 @@ public class UnimodModification
         }
         if (_cTerm != null)
         {
-            terminus = terminus.length() > 0 ? ", " : "";
-            terminus += _cTerm.toString();
+            terminus = terminus + (terminus.length() > 0 ? ", " : "") + _cTerm.toString();
         }
         return terminus;
     }

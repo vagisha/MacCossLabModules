@@ -292,6 +292,11 @@ public class UnimodParser
         {
             return Objects.hash(getSite(), getPosition());
         }
+
+        public String toString()
+        {
+            return _site + (_position != null && Position.Anywhere != _position ? "(" + getPosition().getLabel() + ")" : "");
+        }
     }
 
     static class TermSpecificity

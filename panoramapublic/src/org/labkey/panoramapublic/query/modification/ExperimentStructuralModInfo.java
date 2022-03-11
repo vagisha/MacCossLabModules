@@ -34,7 +34,7 @@ public class ExperimentStructuralModInfo extends DbEntity
 
     public boolean isCombinationMod()
     {
-        return _combinationMod;
+        return _unimodId2 != null;
     }
 
     public void setCombinationMod(boolean combinationMod)

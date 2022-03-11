@@ -112,7 +112,7 @@
                     value: <%=form.getUnimodId1() != null ? form.getUnimodId1() : null%>,
                     store: [
                         <% for (UnimodModification mod: unimodMods) { %>
-                        [ <%= mod.getId() %>, <%= q(mod.getName() + ", " + mod.getNormalizedFormula()) %> ],
+                        [ <%= mod.getId() %>, <%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %> ],
                         <% } %>
                     ]
                 },
@@ -145,7 +145,7 @@
                     handler: function(button) {
                         button.setDisabled(true);
                         form.submit({
-                            url: <%=q(urlFor(PanoramaPublicController.CombinationModificationAction.class))%>,
+                            url: <%=q(urlFor(PanoramaPublicController.DefineCombinationModificationAction.class))%>,
                             method: 'POST'
                         });
                     }

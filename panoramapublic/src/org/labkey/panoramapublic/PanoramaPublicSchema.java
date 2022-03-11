@@ -50,7 +50,7 @@ import org.labkey.panoramapublic.query.ExperimentAnnotationsTableInfo;
 import org.labkey.panoramapublic.query.JournalExperimentTableInfo;
 import org.labkey.panoramapublic.query.PanoramaPublicTable;
 import org.labkey.panoramapublic.query.SubmissionTableInfo;
-import org.labkey.panoramapublic.query.modification.ExperimentIsotopicModInfoTableInfo;
+import org.labkey.panoramapublic.query.modification.ExperimentIsotopeModInfoTableInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfoTableInfo;
 import org.labkey.panoramapublic.query.speclib.SpecLibInfoTableInfo;
 import org.springframework.validation.BindException;
@@ -81,7 +81,7 @@ public class PanoramaPublicSchema extends UserSchema
     public static final String TABLE_MOD_TYPE = "ModType";
     public static final String TABLE_SPEC_LIB_INFO = "SpecLibInfo";
     public static final String TABLE_EXPT_STRUCTURAL_MOD_INFO = "ExperimentStructuralModInfo";
-    public static final String TABLE_EXPT_ISOTOPIC_MOD_INFO = "ExprerimentIsotopicModInfo";
+    public static final String TABLE_EXPT_ISOTOPE_MOD_INFO = "ExperimentIsotopeModInfo";
 
     public static final String TABLE_LIB_DEPENDENCY_TYPE = "SpecLibDependencyType";
     public static final String TABLE_LIB_SOURCE_TYPE = "SpecLibSourceType";
@@ -293,9 +293,9 @@ public class PanoramaPublicSchema extends UserSchema
         {
             return new ExperimentStructuralModInfoTableInfo(this, cf);
         }
-        if(TABLE_EXPT_STRUCTURAL_MOD_INFO.equalsIgnoreCase(name))
+        if(TABLE_EXPT_ISOTOPE_MOD_INFO.equalsIgnoreCase(name))
         {
-            return new ExperimentIsotopicModInfoTableInfo(this, cf);
+            return new ExperimentIsotopeModInfoTableInfo(this, cf);
         }
 
         return null;
@@ -350,6 +350,7 @@ public class PanoramaPublicSchema extends UserSchema
     {
         if (TABLE_SPEC_LIB_INFO.equalsIgnoreCase(settings.getQueryName())
                 || TABLE_EXPT_STRUCTURAL_MOD_INFO.equals(settings.getQueryName())
+                || TABLE_EXPT_ISOTOPE_MOD_INFO.equalsIgnoreCase(settings.getQueryName())
                 || TABLE_DATA_VALIDATION.equalsIgnoreCase(settings.getQueryName()))
         {
             // Show the delete icon in the toolbar but not the insert or update icons
@@ -396,6 +397,7 @@ public class PanoramaPublicSchema extends UserSchema
         hs.add(TABLE_SPEC_LIB_INFO);
         hs.add(TABLE_DATA_VALIDATION);
         hs.add(TABLE_EXPT_STRUCTURAL_MOD_INFO);
+        hs.add(TABLE_EXPT_ISOTOPE_MOD_INFO);
         return hs;
     }
 }
