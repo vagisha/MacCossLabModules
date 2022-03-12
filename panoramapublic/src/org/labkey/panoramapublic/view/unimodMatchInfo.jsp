@@ -4,7 +4,6 @@
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.UnimodModification" %>
-<%@ page import="org.labkey.api.targetedms.IModification" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -140,11 +139,6 @@
                 },
                 {
                     xtype: 'hidden',
-                    name: 'structural',
-                    value: <%=form.isStructural()%>
-                },
-                {
-                    xtype: 'hidden',
                     name: 'unimodId',
                     value: unimodId
                 },
@@ -182,7 +176,9 @@
                     handler: function(button) {
                         button.setDisabled(true);
                         form.submit({
-                            url: <%=q(urlFor(PanoramaPublicController.MatchToUnimodAction.class))%>,
+                            url: <%=q(urlFor(bean.isIsotopicMod()
+                            ? PanoramaPublicController.MatchToUnimodIsotopeAction.class
+                            : PanoramaPublicController.MatchToUnimodStructuralAction.class))%>,
                             method: 'POST'
                         });
                     }

@@ -8,6 +8,7 @@ import org.labkey.api.query.QueryUrls;
 import org.labkey.api.query.QueryView;
 import org.labkey.api.query.UserSchema;
 import org.labkey.api.security.permissions.AdminPermission;
+import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
@@ -54,8 +55,7 @@ public class ModificationsView extends QueryView
 
         setTitleHref(PageFlowUtil.urlProvider(QueryUrls.class).urlExecuteQuery(portalCtx.getContainer(), PanoramaPublicSchema.SCHEMA_NAME, _queryName));
 
-        // Allow only folder admins to customize the view
-        settings.setAllowCustomizeView(portalCtx.getContainer().hasPermission(portalCtx.getUser(), AdminPermission.class));
+        settings.setAllowCustomizeView(portalCtx.getContainer().hasPermission(portalCtx.getUser(), UpdatePermission.class));
 
         return settings;
     }

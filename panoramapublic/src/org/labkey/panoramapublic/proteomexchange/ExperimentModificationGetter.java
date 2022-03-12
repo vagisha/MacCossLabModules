@@ -103,6 +103,11 @@ public class ExperimentModificationGetter
 
     public static PxModification getStructuralUnimodMod(IModification mod, UnimodModifications uMods)
     {
+        return getStructuralUnimodMod(mod, uMods, false);
+    }
+
+    public static PxModification getStructuralUnimodMod(IModification mod, UnimodModifications uMods, boolean lookupUnimod)
+    {
         if(mod.getUnimodId() != null)
         {
             UnimodModification uMod = uMods.getById(mod.getUnimodId());
@@ -112,7 +117,7 @@ public class ExperimentModificationGetter
         {
             PxStructuralMod pxMod = new PxStructuralMod(mod.getName(), mod.getId());
             String normFormula = UnimodModification.normalizeFormula(mod.getFormula());
-            if(normFormula != null)
+            if(normFormula != null && lookupUnimod)
             {
                 addMatches(mod, uMods, pxMod, normFormula, true);
             }
@@ -140,6 +145,11 @@ public class ExperimentModificationGetter
 
     public static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods)
     {
+        return getIsotopicUnimodMod(mod, uMods, false);
+    }
+
+    public static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods, boolean lookupUnimod)
+    {
         if(mod.getUnimodId() != null)
         {
             UnimodModification uMod = uMods.getById(mod.getUnimodId());
@@ -161,7 +171,7 @@ public class ExperimentModificationGetter
             }
             PxIsotopicMod pxMod = new PxIsotopicMod(mod.getName(), mod.getId());
             String normFormula = UnimodModification.normalizeFormula(formula);
-            if(normFormula != null)
+            if(normFormula != null && lookupUnimod)
             {
                 addMatches(mod, uMods, pxMod, normFormula, false);
             }

@@ -20,8 +20,10 @@ import java.util.Set;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
 import static org.labkey.api.util.DOM.EM;
+import static org.labkey.api.util.DOM.at;
+import static org.labkey.api.util.DOM.cl;
 
-public class AssignedUnimodDisplayColumnFactory implements DisplayColumnFactory
+public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColumnFactory
 {
     private static final FieldKey MOD_ID = FieldKey.fromParts("ModId");
     private static final FieldKey GIVEN_UNIMOD_ID = FieldKey.fromParts("GivenUnimodId");
@@ -29,13 +31,11 @@ public class AssignedUnimodDisplayColumnFactory implements DisplayColumnFactory
     private static final FieldKey UNIMOD_NAME = FieldKey.fromParts("ModInfoId", "UnimodName");
     private static final FieldKey UNIMOD_ID2 = FieldKey.fromParts("ModInfoId", "UnimodId2");
     private static final FieldKey UNIMOD_NAME2 = FieldKey.fromParts("ModInfoId", "UnimodName2");
+    private static final FieldKey EXPT_ID = FieldKey.fromParts("ModInfoId", "ExperimentAnnotationsId");
 
-    private final boolean _structural;
-
-    public AssignedUnimodDisplayColumnFactory(boolean structural)
-    {
-        _structural = structural;
-    }
+    abstract boolean allowCombinationModification();
+    abstract ActionURL getMatchToUnimodAction(RenderContext ctx);
+    abstract ActionURL getDeleteAction(RenderContext ctx);
 
     @Override
     public DisplayColumn createRenderer(ColumnInfo colInfo)
@@ -58,14 +58,11 @@ public class AssignedUnimodDisplayColumnFactory implements DisplayColumnFactory
 
                         if (modId != null && exptId != null)
                         {
-                            var url = new ActionURL(PanoramaPublicController.MatchToUnimodAction.class, ctx.getContainer())
-                                    .addParameter("id", exptId)
-                                    .addParameter("modificationId", modId)
-                                    .addParameter("structural", _structural);
+                            var url = getMatchToUnimodAction(ctx).addParameter("id", exptId).addParameter("modificationId", modId);
                             url.addReturnURL(ctx.getViewContext().getActionURL());
                             var findMatchLink = new Link.LinkBuilder("Find Match").href(url);
-                            findMatchLink.appendTo(out);
-                            if (_structural)
+                            DIV(cl("alert-info"), findMatchLink).appendTo(out);
+                            if (allowCombinationModification())
                             {
                                 DIV(EM("OR")).appendTo(out);
                                 var comboModUrl = new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, ctx.getContainer())
@@ -96,6 +93,18 @@ public class AssignedUnimodDisplayColumnFactory implements DisplayColumnFactory
                             DIV(EM("and"), BR()).appendTo(out);
                             DIV(unimodName2 != null ? unimodName2 + ", " : HtmlString.EMPTY_STRING, UnimodModification.getLink(unimodId2)).appendTo(out);
                         }
+
+                        Integer exptId = ctx.get(EXPT_ID, Integer.class);
+                        if (exptId != null)
+                        {
+                            ActionURL deleteUrl = getDeleteAction(ctx).addParameter("id", exptId).addParameter("modInfoId", modInfoId);
+                            DIV(new Link.LinkBuilder("[Delete]")
+                                    .href(deleteUrl)
+                                    .addClass("labkey-error")
+                                    .usePost("Are you sure you want to delete the saved Unimod information?")
+                                    .clearClasses().build())
+                                    .appendTo(out);
+                        }
                     }
                 }
             }
@@ -110,23 +119,50 @@ public class AssignedUnimodDisplayColumnFactory implements DisplayColumnFactory
                 keys.add(UNIMOD_NAME);
                 keys.add(UNIMOD_ID2);
                 keys.add(UNIMOD_NAME2);
+                keys.add(EXPT_ID);
             }
         };
     }
 
     public static class AssignedStructuralUnimod extends AssignedUnimodDisplayColumnFactory
     {
-        public AssignedStructuralUnimod()
+        @Override
+        boolean allowCombinationModification()
         {
-            super(true);
+            return true;
+        }
+
+        @Override
+        ActionURL getMatchToUnimodAction(RenderContext ctx)
+        {
+            return new ActionURL(PanoramaPublicController.MatchToUnimodStructuralAction.class, ctx.getContainer());
+        }
+
+        @Override
+        ActionURL getDeleteAction(RenderContext ctx)
+        {
+            return new ActionURL(PanoramaPublicController.DeleteStructuralModInfoAction.class, ctx.getContainer());
         }
     }
 
     public static class AssignedIsotopeUnimod extends AssignedUnimodDisplayColumnFactory
     {
-        public AssignedIsotopeUnimod()
+        @Override
+        boolean allowCombinationModification()
         {
-            super(false);
+            return false;
+        }
+
+        @Override
+        ActionURL getMatchToUnimodAction(RenderContext ctx)
+        {
+            return new ActionURL(PanoramaPublicController.MatchToUnimodIsotopeAction.class, ctx.getContainer());
+        }
+
+        @Override
+        ActionURL getDeleteAction(RenderContext ctx)
+        {
+            return new ActionURL(PanoramaPublicController.DeleteIsotopeModInfoAction.class, ctx.getContainer());
         }
     }
 }

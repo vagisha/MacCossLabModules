@@ -26,7 +26,7 @@
                     </column>
                     <column columnName="modInfoId">
                         <columnTitle>Unimod Match</columnTitle>
-                        <description>Unimod Id assigned from a Unimod lookup if the Skyline document did not have a Unimod Id, or a combination of two Unimod Ids</description>
+                        <description>Unimod Id assigned from a Unimod lookup, or a combination of two Unimod Ids if the Skyline document did not have a Unimod Id</description>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.modification.AssignedUnimodDisplayColumnFactory$AssignedStructuralUnimod</className>
                         </displayColumnFactory>

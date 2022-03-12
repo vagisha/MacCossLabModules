@@ -2,10 +2,10 @@ package org.labkey.panoramapublic.query.modification;
 
 import org.labkey.panoramapublic.model.DbEntity;
 
-public class ExperimentIsotopeModInfo extends DbEntity
+public class ExperimentModInfo extends DbEntity
 {
     private int _experimentAnnotationsId;
-    private long _isotopeModId;
+    private long _modId;
     private int _unimodId;
     private String _unimodName;
 
@@ -17,16 +17,6 @@ public class ExperimentIsotopeModInfo extends DbEntity
     public void setExperimentAnnotationsId(int experimentAnnotationsId)
     {
         _experimentAnnotationsId = experimentAnnotationsId;
-    }
-
-    public long getIsotopeModId()
-    {
-        return _isotopeModId;
-    }
-
-    public void setIsotopeModId(long isotopeModId)
-    {
-        _isotopeModId = isotopeModId;
     }
 
     public int getUnimodId()
@@ -47,5 +37,15 @@ public class ExperimentIsotopeModInfo extends DbEntity
     public void setUnimodName(String unimodName)
     {
         _unimodName = unimodName;
+    }
+
+    public long getModId()
+    {
+        return _modId;
+    }
+
+    public void setModId(long modId)
+    {
+        _modId = modId;
     }
 }

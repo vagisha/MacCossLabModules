@@ -23,7 +23,7 @@ CREATE TABLE panoramapublic.ExperimentStructuralModInfo
     Modified          TIMESTAMP,
 
     ExperimentAnnotationsId   INT NOT NULL,
-    StructuralModId           BIGINT NOT NULL,
+    ModId                     BIGINT NOT NULL,
     UnimodId                  INT NOT NULL,
     UnimodName                VARCHAR NOT NULL,
     UnimodId2                 INT,
@@ -32,11 +32,11 @@ CREATE TABLE panoramapublic.ExperimentStructuralModInfo
 
     CONSTRAINT PK_ExperimentStructuralModInfo PRIMARY KEY (Id),
     CONSTRAINT FK_ExperimentStructuralModInfo_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id),
-    CONSTRAINT FK_ExperimentStructuralModInfo_StructuralModification FOREIGN KEY (StructuralModId) REFERENCES targetedms.StructuralModification(Id),
-    CONSTRAINT UQ_ExperimentStructuralModInfo UNIQUE (ExperimentAnnotationsId, StructuralModId)
+    CONSTRAINT FK_ExperimentStructuralModInfo_StructuralModification FOREIGN KEY (ModId) REFERENCES targetedms.StructuralModification(Id),
+    CONSTRAINT UQ_ExperimentStructuralModInfo UNIQUE (ExperimentAnnotationsId, ModId)
 );
 CREATE INDEX IX_ExperimentStructuralModInfo_ExperimentAnnotationsId ON panoramapublic.ExperimentStructuralModInfo(experimentAnnotationsId);
-CREATE INDEX IX_ExperimentStructuralModInfo_StructuralModId ON panoramapublic.ExperimentStructuralModInfo(StructuralModId);
+CREATE INDEX IX_ExperimentStructuralModInfo_ModId ON panoramapublic.ExperimentStructuralModInfo(ModId);
 
 CREATE TABLE panoramapublic.ExperimentIsotopeModInfo
 (
@@ -48,15 +48,15 @@ CREATE TABLE panoramapublic.ExperimentIsotopeModInfo
     Modified          TIMESTAMP,
 
     ExperimentAnnotationsId   INT NOT NULL,
-    IsotopeModId              BIGINT NOT NULL,
+    ModId                     BIGINT NOT NULL, -- targetedms.structuralmodification.Id
     UnimodId                  INT NOT NULL,
     UnimodName                VARCHAR NOT NULL,
 
     CONSTRAINT PK_ExperimentIsotopeModInfo PRIMARY KEY (Id),
     CONSTRAINT FK_ExperimentIsotopeModInfo_ExperimentAnnotations FOREIGN KEY (ExperimentAnnotationsId) REFERENCES panoramapublic.ExperimentAnnotations(Id),
-    CONSTRAINT FK_ExperimentIsotopeModInfo_IsotopeModId FOREIGN KEY (IsotopeModId) REFERENCES targetedms.IsotopeModification(Id),
-    CONSTRAINT UQ_ExperimentIsotopeModInfo UNIQUE (ExperimentAnnotationsId, IsotopeModId)
+    CONSTRAINT FK_ExperimentIsotopeModInfo_IsotopeModification FOREIGN KEY (ModId) REFERENCES targetedms.IsotopeModification(Id),
+    CONSTRAINT UQ_ExperimentIsotopeModInfo UNIQUE (ExperimentAnnotationsId, ModId)
 );
 CREATE INDEX IX_ExperimentIsotopeModInfo_ExperimentAnnotationsId ON panoramapublic.ExperimentIsotopeModInfo(experimentAnnotationsId);
-CREATE INDEX IX_ExperimentIsotopeModInfo_IsotopicModId ON panoramapublic.ExperimentIsotopeModInfo(IsotopeModId);
+CREATE INDEX IX_ExperimentIsotopeModInfo_ModId ON panoramapublic.ExperimentIsotopeModInfo(ModId);
 

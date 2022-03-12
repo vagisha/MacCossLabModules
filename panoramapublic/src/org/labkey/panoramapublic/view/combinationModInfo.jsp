@@ -132,7 +132,7 @@
                     value: <%=form.getUnimodId2() != null ? form.getUnimodId2() : null%>,
                     store: [
                         <% for (UnimodModification mod: unimodMods) { %>
-                        [ <%= mod.getId() %>, <%= q(mod.getName() + ", " + mod.getNormalizedFormula()) %> ],
+                        [ <%= mod.getId() %>, <%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %> ],
                         <% } %>
                     ]
                 }

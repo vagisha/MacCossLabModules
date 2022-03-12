@@ -31,18 +31,18 @@ public class ExperimentIsotopeModInfoTableInfo extends PanoramaPublicTable
     @Override
     public QueryUpdateService getUpdateService()
     {
-        return new RowIdQueryUpdateService<ExperimentIsotopeModInfo>(this)
+        return new RowIdQueryUpdateService<ExperimentModInfo>(this)
         {
             @Override
-            protected ExperimentIsotopeModInfo createNewBean()
+            protected ExperimentModInfo createNewBean()
             {
-                return new ExperimentIsotopeModInfo();
+                return new ExperimentModInfo();
             }
 
             @Override
-            public ExperimentIsotopeModInfo get(User user, Container container, int key)
+            public ExperimentModInfo get(User user, Container container, int key)
             {
-                return new TableSelector(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo()).getObject(key, ExperimentIsotopeModInfo.class);
+                return new TableSelector(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo()).getObject(key, ExperimentModInfo.class);
             }
 
             @Override
@@ -52,13 +52,13 @@ public class ExperimentIsotopeModInfoTableInfo extends PanoramaPublicTable
             }
 
             @Override
-            protected ExperimentIsotopeModInfo insert(User user, Container container, ExperimentIsotopeModInfo bean)
+            protected ExperimentModInfo insert(User user, Container container, ExperimentModInfo bean)
             {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            protected ExperimentIsotopeModInfo update(User user, Container container, ExperimentIsotopeModInfo bean, Integer oldKey)
+            protected ExperimentModInfo update(User user, Container container, ExperimentModInfo bean, Integer oldKey)
             {
                 throw new UnsupportedOperationException();
             }

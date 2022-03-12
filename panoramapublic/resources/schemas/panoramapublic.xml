@@ -527,7 +527,7 @@
             </column>
             <column columnName="UnimodId">
                 <displayColumnFactory>
-                    <className>org.labkey.panoramapublic.query.modification.ModificationDocsDisplayColumnFactory$StructuralModDocsColumn</className>
+                    <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
                 </displayColumnFactory>
             </column>
             <column columnName="UnimodName">
@@ -676,7 +676,6 @@
                     <fkTable>StructuralModification</fkTable>
                 </fk>
             </column>
-            <column columnName="CombinationMod"/>
             <column columnName="UnimodId">
                 <displayColumnFactory>
                     <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
