@@ -92,7 +92,7 @@
     table.pxv-tpl-table td,
     table.pxv-tpl-table th
     {
-        border:1px solid black; padding:8px;
+        border:1px solid slategray; padding:8px;
     }
 
 </style>
@@ -391,9 +391,10 @@
         return {xtype: 'label', text: 'Missing JSON property "validation"'};
     }
 
-    function link(text, href, cssCls) {
+    function link(text, href, cssCls, sameTab) {
         const cls = cssCls ? ' class="' + cssCls + '" ' : '';
-        return '<a ' + cls + ' href="' + htmlEncode(href) + '" target="_blank">' + htmlEncode(text) + '</a>';
+        const target = sameTab && sameTab === true ? '' : ' target="_blank" ';
+        return '<a ' + cls + ' href="' + htmlEncode(href) + '" ' + target + ' >' + htmlEncode(text) + '</a>';
     }
 
     function documentLink(documentName, containerPath, runId) {
@@ -406,6 +407,21 @@
 
     function missing() {
         return '<span class="pxv-invalid">MISSING</span>';
+    }
+
+    function assignUnimodLink(dbModId, modType, experimentAnnotationsId) {
+        if (!modType) return;
+        const modTypeUpper = modType.toUpperCase();
+        const action = modTypeUpper === 'STRUCTURAL' ? 'matchToUnimodStructural' : 'matchToUnimodIsotope';
+        const params = {
+            'id': experimentAnnotationsId,
+            'modificationId': dbModId,
+            'returnUrl': LABKEY.ActionURL.buildURL(LABKEY.ActionURL.getController(), LABKEY.ActionURL.getAction(),
+                    LABKEY.ActionURL.getContainer(), LABKEY.ActionURL.getParameters())
+        };
+
+        var href = LABKEY.ActionURL.buildURL('panoramapublic', action, LABKEY.ActionURL.getContainer(), params);
+        return '<span style="margin-left:5px;">'  + link("Find Match", href, 'labkey-text-link', true) + '</span>';
     }
 
     // -----------------------------------------------------------
@@ -482,7 +498,7 @@
                                 }
                                 return ret;
                             }
-                            else return missing();
+                            else return missing() + assignUnimodLink(record.data['dbModId'], record.data['modType'], <%=experimentAnnotationsId%>);
                         }
                     },
                     {
@@ -507,7 +523,7 @@
                         text: 'Type',
                         flex: 2,
                         dataIndex: 'modType',
-                        renderer: function (v) { console.log("Mod type: " + v); return htmlEncode(v); }
+                        renderer: function (v) { return htmlEncode(v); }
                     },
                     {
                         text: 'Document Count',
@@ -525,18 +541,6 @@
                     rowBodyTpl: new Ext4.XTemplate(
 
                             '<div class="pxv-grid-expanded-row">',
-
-                            // Possible Unimod matches
-                            '<tpl if="possibleUnimodMatches.length &gt; 0">',
-                            '<div class="pxv-tpl-table-title">Possible Unimod Matches</div>',
-                            '<table class="pxv-tpl-table">',
-                            headerRowTpl.apply(["Unimod Id", "Name", "Composition", "Sites"]),
-                            '<tbody>',
-                            '<tpl for="possibleUnimodMatches">',
-                            '<tr> <td>{[this.unimodLink(values)]}</td> <td>{name}</td> <td>{formula}</td> <td>{sites}</td> </tr>',
-                            '</tpl>',
-                            '</tbody></table>',
-                            '</tpl>',
 
                             // Skyline documents with this modification
                             '<div class="pxv-tpl-table-title">Skyline documents with the modification</div>',

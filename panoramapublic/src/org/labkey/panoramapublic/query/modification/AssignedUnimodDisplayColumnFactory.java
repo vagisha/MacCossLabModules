@@ -6,6 +6,7 @@ import org.labkey.api.data.DisplayColumn;
 import org.labkey.api.data.DisplayColumnFactory;
 import org.labkey.api.data.RenderContext;
 import org.labkey.api.query.FieldKey;
+import org.labkey.api.util.DOM;
 import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.Link;
 import org.labkey.api.view.ActionURL;
@@ -18,9 +19,12 @@ import org.labkey.panoramapublic.query.ModificationInfoManager;
 import java.io.Writer;
 import java.util.Set;
 
+import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
 import static org.labkey.api.util.DOM.EM;
+import static org.labkey.api.util.DOM.SPAN;
+import static org.labkey.api.util.DOM.at;
 import static org.labkey.api.util.DOM.cl;
 
 public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentModInfo> implements DisplayColumnFactory
@@ -50,7 +54,11 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
                 if (modInfoId == null)
                 {
                     Integer givenUnimodId = ctx.get(GIVEN_UNIMOD_ID, Integer.class);
-                    if (givenUnimodId == null)
+                    if (givenUnimodId != null)
+                    {
+                        UnimodModification.getLink(givenUnimodId).appendTo(out);
+                    }
+                    else
                     {
                         ExperimentAnnotations exptAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(ctx.getContainer());
                         Integer exptId = exptAnnotations != null ? exptAnnotations.getId() : null;
@@ -62,7 +70,7 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
                             var url = getMatchToUnimodAction(ctx).addParameter("id", exptId).addParameter("modificationId", modId);
                             url.addReturnURL(ctx.getViewContext().getActionURL());
                             var findMatchLink = new Link.LinkBuilder("Find Match").href(url);
-                            DIV(cl("alert-info"), findMatchLink).appendTo(out);
+                            DIV(cl("alert-warning"), findMatchLink).appendTo(out);
                             if (allowCombinationModification())
                             {
                                 DIV(EM("OR")).appendTo(out);
@@ -70,7 +78,7 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
                                         .addParameter("id", exptId)
                                         .addParameter("modificationId", modId);
                                 comboModUrl.addReturnURL(ctx.getViewContext().getActionURL());
-                                DIV(new Link.LinkBuilder("Combination Modification").href(comboModUrl)).appendTo(out);
+                                DIV(cl("alert-warning"), new Link.LinkBuilder("Combination Modification").href(comboModUrl)).appendTo(out);
                             }
                         }
                     }
@@ -87,24 +95,26 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
                     {
                         if (unimodId2 != null)
                         {
-                            DIV(EM("Combination of: ")).appendTo(out);
+                            DIV(EM("Combination of: "),
+                                DIV(unimodName + ", ", UnimodModification.getLink(unimodId),
+                                    SPAN(EM(" and "),
+                                    unimodName2 + ", ", UnimodModification.getLink(unimodId2))))
+                            .appendTo(out);
                         }
-                        DIV(unimodName != null ? unimodName + ", " : HtmlString.EMPTY_STRING, UnimodModification.getLink(unimodId)).appendTo(out);
-                        if (unimodId2 != null)
+                        else
                         {
-                            DIV(EM("and"), BR()).appendTo(out);
-                            DIV(unimodName2 != null ? unimodName2 + ", " : HtmlString.EMPTY_STRING, UnimodModification.getLink(unimodId2)).appendTo(out);
+                            DIV("**" + unimodName + ", ", UnimodModification.getLink(unimodId)).appendTo(out);
                         }
 
                         Integer exptId = ctx.get(EXPT_ID, Integer.class);
                         if (exptId != null)
                         {
                             ActionURL deleteUrl = getDeleteAction(ctx).addParameter("id", exptId).addParameter("modInfoId", modInfoId);
-                            DIV(new Link.LinkBuilder("[Delete]")
+                            DIV(at(style, "margin-top:5px;"), new Link.LinkBuilder("[Delete]")
                                     .href(deleteUrl)
-                                    .addClass("labkey-error")
+                                    .clearClasses().addClass("labkey-error")
                                     .usePost("Are you sure you want to delete the saved Unimod information for modification FILL IN THE NAME!!!!")
-                                    .clearClasses().build())
+                                    .build())
                                     .appendTo(out);
                         }
                     }

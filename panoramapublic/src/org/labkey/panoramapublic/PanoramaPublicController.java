@@ -136,6 +136,7 @@ import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
 import org.labkey.panoramapublic.model.Submission;
 import org.labkey.panoramapublic.model.validation.DataValidation;
+import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
@@ -215,6 +216,7 @@ import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.Attribute.type;
 import static org.labkey.api.util.DOM.Attribute.valign;
 import static org.labkey.api.util.DOM.Attribute.value;
+import static org.labkey.api.util.DOM.B;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
 import static org.labkey.api.util.DOM.INPUT;
@@ -3277,6 +3279,7 @@ public class PanoramaPublicController extends SpringActionController
         User createdByUser = UserManager.getUser(validation.getCreatedBy());
         String pxStatus = validation.getStatus() != null ? validation.getStatus().getLabel() : "Incomplete";
         ActionURL validationDetailsUrl = getPxValidationStatusUrl(exptAnnotations.getId(), validation.getId(), container);
+        var color = PxStatus.Complete.equals(pxStatus) ? "darkgreen" : PxStatus.IncompleteMetadata.equals(pxStatus) ? "darkorange" : "firebrick";
         return new HtmlView(TABLE(cl("lk-fields-table"),
                 row("Last Validation Date: ", validation.getFormattedDate()),
                 createdByUser != null ?
@@ -3284,7 +3287,7 @@ public class PanoramaPublicController extends SpringActionController
                                 .href(PageFlowUtil.urlProvider(UserUrls.class).getUserDetailsURL(container, user.getUserId(), null))
                                 .clearClasses().build()) :
                         row("Created By: ", "Unknown User " + validation.getCreatedBy()),
-                row("ProteomeXchange Status:", SPAN(pxStatus, HtmlString.NBSP, new Link.LinkBuilder("[Details]").href(validationDetailsUrl).build())),
+                row("ProteomeXchange Status:", SPAN(B(pxStatus), HtmlString.NBSP, new Link.LinkBuilder("[Details]").href(validationDetailsUrl).build())),
                 row("Pipeline Job Status:", statusFile != null ?
                         new Link.LinkBuilder(statusFile.getStatus()).href(PageFlowUtil.urlProvider(PipelineStatusUrls.class)
                                 .urlDetails(container, validation.getJobId())).clearClasses().build()

@@ -237,10 +237,11 @@ public class DataValidationManager
         return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocModification(), filter, null).getArrayList(SkylineDocModification.class);
     }
 
-    public static Modification getModification(int dataValidationId, long dbModId)
+    private static Modification getModification(int dataValidationId, long dbModId, Modification.ModType modType)
     {
         SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("ValidationId"), dataValidationId);
         filter.addCondition(FieldKey.fromParts("DbModId"), dbModId);
+        filter.addCondition(FieldKey.fromParts("modType"), modType.ordinal());
         return new TableSelector(PanoramaPublicManager.getTableInfoModificationValidation(), filter, null).getObject(Modification.class);
     }
 
@@ -300,7 +301,8 @@ public class DataValidationManager
         var latestValidation = DataValidationManager.getLatestValidation(expAnnotations.getId(), expAnnotations.getContainer());
         if (latestValidation != null)
         {
-            var modification = DataValidationManager.getModification(latestValidation.getId(), modInfo.getModId());
+            var modType = modInfo instanceof ExperimentStructuralModInfo ? Modification.ModType.Structural : Modification.ModType.Isotopic;
+            var modification = DataValidationManager.getModification(latestValidation.getId(), modInfo.getModId(), modType);
             if (modification != null)
             {
                 if (modInfo instanceof ExperimentStructuralModInfo strMod && strMod.isCombinationMod())
@@ -317,8 +319,12 @@ public class DataValidationManager
                     modification.setPossibleUnimodMatches(null);
                 }
 
-                Table.update(user, PanoramaPublicManager.getTableInfoModificationValidation(), modification, modification.getId());
-                recalculateStatusForMods(latestValidation, user);
+                try(DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+                {
+                    Table.update(user, PanoramaPublicManager.getTableInfoModificationValidation(), modification, modification.getId());
+                    recalculateStatusForMods(latestValidation, user);
+                    transaction.commit();
+                }
             }
         }
     }
@@ -332,6 +338,11 @@ public class DataValidationManager
             // In this case any changes to modification validation will not change the final status.
             // Update the status only if the current status is PxStatus.IncompleteMetadata or PxStatus.Complete
             SimpleFilter validationIdFilter = new SimpleFilter(FieldKey.fromParts("ValidationId"), validation.getId());
+            var specLibs = getSpectrumLibraries(validationIdFilter);
+            if (specLibs.stream().anyMatch(lib -> !lib.isValid()))
+            {
+                return; // If there are any incomplete spectral libraries then status will remain PxStatus.IncompleteMetadata
+            }
             var validationMods = getModifications(validationIdFilter);
             PxStatus modsStatus = validationMods.stream().anyMatch(mod -> !mod.isValid()) ? PxStatus.IncompleteMetadata : PxStatus.Complete;
             if (!status.equals(modsStatus))
