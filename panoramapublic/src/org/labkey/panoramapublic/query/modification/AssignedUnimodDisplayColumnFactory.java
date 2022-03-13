@@ -13,6 +13,7 @@ import org.labkey.panoramapublic.PanoramaPublicController;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
+import org.labkey.panoramapublic.query.ModificationInfoManager;
 
 import java.io.Writer;
 import java.util.Set;
@@ -20,10 +21,9 @@ import java.util.Set;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
 import static org.labkey.api.util.DOM.EM;
-import static org.labkey.api.util.DOM.at;
 import static org.labkey.api.util.DOM.cl;
 
-public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColumnFactory
+public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentModInfo> implements DisplayColumnFactory
 {
     private static final FieldKey MOD_ID = FieldKey.fromParts("ModId");
     private static final FieldKey GIVEN_UNIMOD_ID = FieldKey.fromParts("GivenUnimodId");
@@ -36,6 +36,7 @@ public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColum
     abstract boolean allowCombinationModification();
     abstract ActionURL getMatchToUnimodAction(RenderContext ctx);
     abstract ActionURL getDeleteAction(RenderContext ctx);
+    abstract T getModInfo(int modInfoId);
 
     @Override
     public DisplayColumn createRenderer(ColumnInfo colInfo)
@@ -76,6 +77,7 @@ public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColum
                 }
                 else
                 {
+//                    var modInfo = getModInfo(modInfoId);
                     Integer unimodId = ctx.get(UNIMOD_ID, Integer.class);
                     String unimodName = ctx.get(UNIMOD_NAME, String.class);
                     Integer unimodId2 = ctx.get(UNIMOD_ID2, Integer.class);
@@ -101,7 +103,7 @@ public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColum
                             DIV(new Link.LinkBuilder("[Delete]")
                                     .href(deleteUrl)
                                     .addClass("labkey-error")
-                                    .usePost("Are you sure you want to delete the saved Unimod information?")
+                                    .usePost("Are you sure you want to delete the saved Unimod information for modification FILL IN THE NAME!!!!")
                                     .clearClasses().build())
                                     .appendTo(out);
                         }
@@ -124,7 +126,7 @@ public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColum
         };
     }
 
-    public static class AssignedStructuralUnimod extends AssignedUnimodDisplayColumnFactory
+    public static class AssignedStructuralUnimod extends AssignedUnimodDisplayColumnFactory<ExperimentStructuralModInfo>
     {
         @Override
         boolean allowCombinationModification()
@@ -143,9 +145,15 @@ public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColum
         {
             return new ActionURL(PanoramaPublicController.DeleteStructuralModInfoAction.class, ctx.getContainer());
         }
+
+        @Override
+        ExperimentStructuralModInfo getModInfo(int modInfoId)
+        {
+            return ModificationInfoManager.getStructuralModInfo(modInfoId);
+        }
     }
 
-    public static class AssignedIsotopeUnimod extends AssignedUnimodDisplayColumnFactory
+    public static class AssignedIsotopeUnimod extends AssignedUnimodDisplayColumnFactory<ExperimentModInfo>
     {
         @Override
         boolean allowCombinationModification()
@@ -163,6 +171,12 @@ public abstract class AssignedUnimodDisplayColumnFactory implements DisplayColum
         ActionURL getDeleteAction(RenderContext ctx)
         {
             return new ActionURL(PanoramaPublicController.DeleteIsotopeModInfoAction.class, ctx.getContainer());
+        }
+
+        @Override
+        ExperimentModInfo getModInfo(int modInfoId)
+        {
+            return ModificationInfoManager.getIsotopeModInfo(modInfoId);
         }
     }
 }

@@ -32,6 +32,7 @@ import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
+import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile;
 import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
@@ -41,6 +42,8 @@ import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
 import org.labkey.panoramapublic.proteomexchange.PxException;
+import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
+import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -234,6 +237,13 @@ public class DataValidationManager
         return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocModification(), filter, null).getArrayList(SkylineDocModification.class);
     }
 
+    public static Modification getModification(int dataValidationId, long dbModId)
+    {
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("ValidationId"), dataValidationId);
+        filter.addCondition(FieldKey.fromParts("DbModId"), dbModId);
+        return new TableSelector(PanoramaPublicManager.getTableInfoModificationValidation(), filter, null).getObject(Modification.class);
+    }
+
     private static List<SpecLib> getSpectrumLibraries(SimpleFilter filter)
     {
         List<SpecLib> specLibs = new TableSelector(PanoramaPublicManager.getTableInfoSpecLibValidation(), filter, null).getArrayList(SpecLib.class);
@@ -283,6 +293,53 @@ public class DataValidationManager
     public static DataValidation updateDataValidation(DataValidation validation, User user)
     {
         return Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
+    }
+
+    public static void updateValidationModification(@NotNull ExperimentAnnotations expAnnotations, @NotNull ExperimentModInfo modInfo, User user)
+    {
+        var latestValidation = DataValidationManager.getLatestValidation(expAnnotations.getId(), expAnnotations.getContainer());
+        if (latestValidation != null)
+        {
+            var modification = DataValidationManager.getModification(latestValidation.getId(), modInfo.getModId());
+            if (modification != null)
+            {
+                if (modInfo instanceof ExperimentStructuralModInfo strMod && strMod.isCombinationMod())
+                {
+                    modification.setUnimodId(null);
+                    modification.setUnimodName(null);
+                    modification.setPossibleUnimodMatches(List.of(new UnimodModification(strMod.getUnimodId(), strMod.getUnimodName(), null),
+                            new UnimodModification(strMod.getUnimodId2(), strMod.getUnimodName2(), null)));
+                }
+                else
+                {
+                    modification.setUnimodId(modInfo.getUnimodId() != 0 ? modInfo.getUnimodId() : null);
+                    modification.setUnimodName(modInfo.getUnimodName());
+                    modification.setPossibleUnimodMatches(null);
+                }
+
+                Table.update(user, PanoramaPublicManager.getTableInfoModificationValidation(), modification, modification.getId());
+                recalculateStatusForMods(latestValidation, user);
+            }
+        }
+    }
+
+    private static void recalculateStatusForMods(DataValidation validation, User user)
+    {
+        PxStatus status = validation.getStatus();
+        if (status != null && status.ordinal() >= PxStatus.IncompleteMetadata.ordinal())
+        {
+            // If the current status is < PxStatus.IncompleteMetadata it means that there are missing raw data files.
+            // In this case any changes to modification validation will not change the final status.
+            // Update the status only if the current status is PxStatus.IncompleteMetadata or PxStatus.Complete
+            SimpleFilter validationIdFilter = new SimpleFilter(FieldKey.fromParts("ValidationId"), validation.getId());
+            var validationMods = getModifications(validationIdFilter);
+            PxStatus modsStatus = validationMods.stream().anyMatch(mod -> !mod.isValid()) ? PxStatus.IncompleteMetadata : PxStatus.Complete;
+            if (!status.equals(modsStatus))
+            {
+                validation.setStatus(modsStatus);
+                updateValidationStatus(validation, user);
+            }
+        }
     }
 
     public static void saveSkylineDocStatus(ValidatorStatus status, User user)

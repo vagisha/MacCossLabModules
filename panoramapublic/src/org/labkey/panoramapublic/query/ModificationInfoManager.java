@@ -15,6 +15,7 @@ import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
 
+import java.util.Collections;
 import java.util.List;
 
 public class ModificationInfoManager
@@ -68,21 +69,26 @@ public class ModificationInfoManager
         Table.delete(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), modInfo.getId());
     }
 
-//    public static ExperimentStructuralModInfo update(ExperimentStructuralModInfo modInfo, User user)
-//    {
-//        return Table.update(user, PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), modInfo, modInfo.getId());
-//    }
-//
-//    public static List<ExperimentStructuralModInfo> getStructuralModsForExperiment(int experimentAnnotationsId, Container container)
-//    {
-//        var expAnnotations = ExperimentAnnotationsManager.get(experimentAnnotationsId);
-//        if (expAnnotations != null && expAnnotations.getContainer().equals(container))
-//        {
-//            var filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
-//            return new TableSelector(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), filter, null).getArrayList(ExperimentStructuralModInfo.class);
-//        }
-//        return Collections.emptyList();
-//    }
+    public static List<ExperimentStructuralModInfo> getStructuralModInfosForExperiment(int experimentAnnotationsId, Container container)
+    {
+        return getModInfosForExperiment(experimentAnnotationsId, container, PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), ExperimentStructuralModInfo.class);
+    }
+
+    public static List<ExperimentModInfo> getIsotopeModInfosForExperiment(int experimentAnnotationsId, Container container)
+    {
+        return getModInfosForExperiment(experimentAnnotationsId, container, PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), ExperimentModInfo.class);
+    }
+
+    private static <T extends ExperimentModInfo> List<T> getModInfosForExperiment(int experimentAnnotationsId, Container container, TableInfo tableInfo, Class<T> cls)
+    {
+        var expAnnotations = ExperimentAnnotationsManager.get(experimentAnnotationsId);
+        if (expAnnotations != null && expAnnotations.getContainer().equals(container))
+        {
+            var filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), experimentAnnotationsId);
+            return new TableSelector(tableInfo, filter, null).getArrayList(cls);
+        }
+        return Collections.emptyList();
+    }
 
     public static boolean runsHaveModifications(List<Long> runIds, TableInfo tableInfo, User user, Container container)
     {

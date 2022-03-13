@@ -3284,7 +3284,7 @@ public class PanoramaPublicController extends SpringActionController
                                 .href(PageFlowUtil.urlProvider(UserUrls.class).getUserDetailsURL(container, user.getUserId(), null))
                                 .clearClasses().build()) :
                         row("Created By: ", "Unknown User " + validation.getCreatedBy()),
-                row("Status:", new Link.LinkBuilder(pxStatus).href(validationDetailsUrl).clearClasses().build()),
+                row("ProteomeXchange Status:", SPAN(pxStatus, HtmlString.NBSP, new Link.LinkBuilder("[Details]").href(validationDetailsUrl).build())),
                 row("Pipeline Job Status:", statusFile != null ?
                         new Link.LinkBuilder(statusFile.getStatus()).href(PageFlowUtil.urlProvider(PipelineStatusUrls.class)
                                 .urlDetails(container, validation.getJobId())).clearClasses().build()
@@ -7183,12 +7183,13 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(UpdatePermission.class)
-    public abstract static class AbstractMatchToUnimodAction extends PanoramaPublicExperimentAction<UnimodMatchForm>
+    public abstract static class AbstractMatchToUnimodAction<T extends ExperimentModInfo> extends PanoramaPublicExperimentAction<UnimodMatchForm>
     {
-        abstract IModification getModification(UnimodMatchForm form, Errors errors);
-        abstract boolean hasModInfo(UnimodMatchForm form, IModification modification, Errors errors);
-        abstract ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications);
-        abstract void saveModInfo(UnimodMatchForm form, UnimodModification matchedMod);
+        protected abstract IModification getModification(UnimodMatchForm form, Errors errors);
+        protected abstract boolean hasModInfo(UnimodMatchForm form, IModification modification, Errors errors);
+        protected abstract ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications);
+        protected abstract T saveModInfo(UnimodMatchForm form, UnimodModification matchedMod);
+        protected abstract void updateValidationModification(T modInfo);
 
         @Override
         public ModelAndView getModelAndView(UnimodMatchForm form, boolean reshow, BindException errors)
@@ -7268,7 +7269,12 @@ public class PanoramaPublicController extends SpringActionController
                 return false;
             }
 
-            saveModInfo(form, matchedMod);
+            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+            {
+                var modInfo = saveModInfo(form, matchedMod);
+                updateValidationModification(modInfo);
+                transaction.commit();
+            }
             return true;
         }
 
@@ -7286,10 +7292,10 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(UpdatePermission.class)
-    public static class MatchToUnimodStructuralAction extends AbstractMatchToUnimodAction
+    public static class MatchToUnimodStructuralAction extends AbstractMatchToUnimodAction<ExperimentStructuralModInfo>
     {
         @Override
-        IModification getModification(UnimodMatchForm form, Errors errors)
+        protected IModification getModification(UnimodMatchForm form, Errors errors)
         {
             var modification = TargetedMSService.get().getStructuralModification(form.getModificationId());
             if (modification == null)
@@ -7300,7 +7306,7 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        boolean hasModInfo(UnimodMatchForm form, IModification mod, Errors errors)
+        protected boolean hasModInfo(UnimodMatchForm form, IModification mod, Errors errors)
         {
             var modInfo = ModificationInfoManager.getStructuralModInfo(mod.getId(), form.getId());
             if (modInfo != null)
@@ -7317,28 +7323,34 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications)
+        protected ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications)
         {
             return ExperimentModificationGetter.getStructuralUnimodMod(modification, unimodModifications, true);
         }
 
         @Override
-        void saveModInfo(UnimodMatchForm form, UnimodModification matchedMod)
+        protected ExperimentStructuralModInfo saveModInfo(UnimodMatchForm form, UnimodModification matchedMod)
         {
             ExperimentStructuralModInfo modInfo = new ExperimentStructuralModInfo();
             modInfo.setExperimentAnnotationsId(form.getId());
             modInfo.setModId(form.getModificationId());
             modInfo.setUnimodId(matchedMod.getId());
             modInfo.setUnimodName(matchedMod.getName());
-            ModificationInfoManager.saveStructuralModInfo(modInfo, getUser());
+            return ModificationInfoManager.saveStructuralModInfo(modInfo, getUser());
+        }
+
+        @Override
+        protected void updateValidationModification(ExperimentStructuralModInfo modInfo)
+        {
+            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
         }
     }
 
     @RequiresPermission(UpdatePermission.class)
-    public static class MatchToUnimodIsotopeAction extends AbstractMatchToUnimodAction
+    public static class MatchToUnimodIsotopeAction extends AbstractMatchToUnimodAction<ExperimentModInfo>
     {
         @Override
-        IModification getModification(UnimodMatchForm form, Errors errors)
+        protected IModification getModification(UnimodMatchForm form, Errors errors)
         {
             var modification = TargetedMSService.get().getIsotopeModification(form.getModificationId());
             if (modification == null)
@@ -7349,7 +7361,7 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        boolean hasModInfo(UnimodMatchForm form, IModification mod, Errors errors)
+        protected boolean hasModInfo(UnimodMatchForm form, IModification mod, Errors errors)
         {
             var modInfo = ModificationInfoManager.getIsotopeModInfo(mod.getId(), form.getId());
             if (modInfo != null)
@@ -7362,20 +7374,26 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications)
+        protected ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications)
         {
             return ExperimentModificationGetter.getIsotopicUnimodMod((IModification.IIsotopeModification) modification, unimodModifications, true);
         }
 
         @Override
-        void saveModInfo(UnimodMatchForm form, UnimodModification matchedMod)
+        protected ExperimentModInfo saveModInfo(UnimodMatchForm form, UnimodModification matchedMod)
         {
             ExperimentModInfo modInfo = new ExperimentModInfo();
             modInfo.setExperimentAnnotationsId(form.getId());
             modInfo.setModId(form.getModificationId());
             modInfo.setUnimodId(matchedMod.getId());
             modInfo.setUnimodName(matchedMod.getName());
-            ModificationInfoManager.saveIsotopeModInfo(modInfo, getUser());
+            return ModificationInfoManager.saveIsotopeModInfo(modInfo, getUser());
+        }
+
+        @Override
+        protected void updateValidationModification(ExperimentModInfo modInfo)
+        {
+            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
         }
     }
 
@@ -7685,8 +7703,14 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(UpdatePermission.class)
-    public static abstract class DeleteModInfoAction extends PanoramaPublicExperimentAction<DeleteModInfoForm>
+    public static abstract class DeleteModInfoAction<T extends ExperimentModInfo> extends PanoramaPublicExperimentAction<DeleteModInfoForm>
     {
+        T _modInfo;
+
+        protected abstract T getModInfo(int modInfoId);
+        protected abstract void deleteModInfo(T modInfo);
+        protected abstract void updateValidationModification(T modInfo);
+
         @Override
         protected ModelAndView getModelAndView(DeleteModInfoForm form, boolean reshow, BindException errors)
         {
@@ -7702,6 +7726,32 @@ public class PanoramaPublicController extends SpringActionController
         protected void validatePostCommand(DeleteModInfoForm form, Errors errors) {}
 
         @Override
+        public boolean handlePost(DeleteModInfoForm form, BindException errors) throws Exception
+        {
+            _modInfo = getModInfo(form.getModInfoId());
+            if (_modInfo == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find saved modification information for Id " + form.getModInfoId());
+                return false;
+            }
+            if (_modInfo.getExperimentAnnotationsId() != form.getId())
+            {
+                // It is enough to check that the experimentAnnotationsId in the form matches the id saved with the mod info.
+                // The container check on the ExperimentAnnotations has already happened in the super class - PanoramaPublicExperimentAction.validateCommand()
+                errors.reject(ERROR_MSG, "Modification information with Id %d does not belong to experiment Id %d " + form.getModInfoId());
+                return false;
+            }
+
+            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+            {
+                deleteModInfo(_modInfo);
+                updateValidationModification(_modInfo);
+                transaction.commit();
+            }
+            return true;
+        }
+
+        @Override
         public URLHelper getSuccessURL(DeleteModInfoForm form)
         {
             return form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer()));
@@ -7715,43 +7765,58 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(UpdatePermission.class)
-    public static class DeleteStructuralModInfoAction extends DeleteModInfoAction
+    public static class DeleteStructuralModInfoAction extends DeleteModInfoAction<ExperimentStructuralModInfo>
     {
         @Override
-        public boolean handlePost(DeleteModInfoForm form, BindException errors) throws Exception
+        protected ExperimentStructuralModInfo getModInfo(int modInfoId)
         {
-            var modInfo = ModificationInfoManager.getStructuralModInfo(form.getModInfoId());
-            if (modInfo == null)
-            {
-                errors.reject(ERROR_MSG, "Could not find saved structural modification information for Id " + form.getModInfoId());
-                return false;
-            }
+            return ModificationInfoManager.getStructuralModInfo(modInfoId);
+        }
+
+        @Override
+        protected void deleteModInfo(ExperimentStructuralModInfo modInfo)
+        {
             ModificationInfoManager.deleteStructuralModInfo(modInfo);
-            return true;
+        }
+
+        @Override
+        protected void updateValidationModification(ExperimentStructuralModInfo modInfo)
+        {
+            modInfo.setUnimodId(0);
+            modInfo.setUnimodName(null);
+            modInfo.setUnimodId2(null);
+            modInfo.setUnimodName2(null);
+            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
         }
     }
 
     @RequiresPermission(UpdatePermission.class)
-    public static class DeleteIsotopeModInfoAction extends DeleteModInfoAction
+    public static class DeleteIsotopeModInfoAction extends DeleteModInfoAction<ExperimentModInfo>
     {
         @Override
-        public boolean handlePost(DeleteModInfoForm form, BindException errors) throws Exception
+        protected ExperimentModInfo getModInfo(int modInfoId)
         {
-            var modInfo = ModificationInfoManager.getIsotopeModInfo(form.getModInfoId());
-            if (modInfo == null)
-            {
-                errors.reject(ERROR_MSG, "Could not find saved isotope modification information for Id " + form.getModInfoId());
-                return false;
-            }
+            return ModificationInfoManager.getIsotopeModInfo(modInfoId);
+        }
+
+        @Override
+        protected void deleteModInfo(ExperimentModInfo modInfo)
+        {
             ModificationInfoManager.deleteIsotopeModInfo(modInfo);
-            return true;
+        }
+
+        @Override
+        protected void updateValidationModification(ExperimentModInfo modInfo)
+        {
+            modInfo.setUnimodId(0);
+            modInfo.setUnimodName(null);
+            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
         }
     }
 
     public static class DeleteModInfoForm extends ExperimentIdForm
     {
         private int _modInfoId;
-        private boolean _struturalMod;
 
         public int getModInfoId()
         {
@@ -7762,17 +7827,8 @@ public class PanoramaPublicController extends SpringActionController
         {
             _modInfoId = modInfoId;
         }
-
-        public boolean isStruturalMod()
-        {
-            return _struturalMod;
-        }
-
-        public void setStruturalMod(boolean struturalMod)
-        {
-            _struturalMod = struturalMod;
-        }
     }
+
     // ------------------------------------------------------------------------
     // BEGIN Add the PanoramaPublic module to existing TargetedMS containers
     // ------------------------------------------------------------------------

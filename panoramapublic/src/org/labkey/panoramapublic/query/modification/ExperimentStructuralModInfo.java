@@ -6,11 +6,6 @@ public class ExperimentStructuralModInfo extends ExperimentModInfo
     private Integer _unimodId2;
     private String _unimodName2;
 
-    public boolean isCombinationMod()
-    {
-        return _unimodId2 != null;
-    }
-
     public Integer getUnimodId2()
     {
         return _unimodId2;
@@ -29,5 +24,11 @@ public class ExperimentStructuralModInfo extends ExperimentModInfo
     public void setUnimodName2(String unimodName2)
     {
         _unimodName2 = unimodName2;
+    }
+
+    @Override
+    public boolean isCombinationMod()
+    {
+        return _unimodId2 != null;
     }
 }

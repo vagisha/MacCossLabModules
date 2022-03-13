@@ -421,16 +421,20 @@
                 proxy:   { type: 'memory', reader: { type: 'json', root: 'modifications' }},
                 sorters: [
                     {
-                        property: 'valid',
-                        direction: 'ASC'
-                    },
-                    {
                         property: 'modType',
                         direction: 'DESC' // Structural modifications first
                     },
                     {
+                        property: 'valid',
+                        direction: 'DESC'
+                    },
+                    {
                         property: 'unimodId',
-                        direction: 'ASC'
+                        direction: 'DESC'
+                    },
+                    {
+                        property: 'possibleUnimodMatches',
+                        direction: 'DESC'
                     }
                 ]
             });
@@ -467,9 +471,17 @@
                         text: 'Unimod Id',
                         dataIndex: 'unimodId',
                         flex: 2,
-                        renderer: function (value) {
-                            // Can do metadata.style = "color:green;" or metadata.tdCls = 'green'
+                        renderer: function (value, metadata, record) {
                             if (value) return unimodLink(value, 'pxv-valid');
+                            else if (record.data['possibleUnimodMatches']) {
+                                var ret = ''; var sep = '';
+                                var comboMods = record.data['possibleUnimodMatches'];
+                                for (var i = 0; i < comboMods.length; i++) {
+                                    ret += sep + unimodLink(comboMods[i]['unimodId'], 'pxv-valid');
+                                    sep = ' + ';
+                                }
+                                return ret;
+                            }
                             else return missing();
                         }
                     },
@@ -477,13 +489,25 @@
                         text: 'Unimod Name',
                         dataIndex: 'unimodName',
                         flex: 3,
-                        renderer: function (v) { return htmlEncode(v); }
+                        renderer: function (value, metadata, record) {
+                            if (value) return htmlEncode(value);
+                            else if (record.data['possibleUnimodMatches']) {
+                                var ret = ''; var sep = '';
+                                var comboMods = record.data['possibleUnimodMatches'];
+                                for (var i = 0; i < comboMods.length; i++) {
+                                    ret += sep + htmlEncode(comboMods[i]['name']);
+                                    sep = ' + ';
+                                }
+                                return ret;
+                            }
+                            else return '';
+                        }
                     },
                     {
                         text: 'Type',
                         flex: 2,
                         dataIndex: 'modType',
-                        renderer: function (v) { return htmlEncode(v); }
+                        renderer: function (v) { console.log("Mod type: " + v); return htmlEncode(v); }
                     },
                     {
                         text: 'Document Count',
@@ -549,10 +573,8 @@
             });
             if (hasInferred) {
                 var noteHtml = "Modifications ending with <strong>**</strong> in the Name column did not have a Unimod Id in the Skyline document."
-                        + " A Unimod Id was inferred based on the formula, modification site(s) and terminus in the modification definition."
-                        + " If any of the inferred Unimod Ids is incorrect, please choose a modification with a Unimod Id in Skyline and re-upload the document."
-                        + " If you cannot find the modification in Skyline's built-in modification list, please"
-                        + " <a class=\"alert-link\" href=\"https://panoramaweb.org/support.url\" target=\"_blank\">contact the Skyline / Panorama support team</a>.";
+                        + " A Unimod match was was inferred based on the formula, modification site(s) and terminus in the modification definition"
+                        + ", or a combination modification was defined.";
                 var note = {
                     xtype: 'component',
                     padding: 10,

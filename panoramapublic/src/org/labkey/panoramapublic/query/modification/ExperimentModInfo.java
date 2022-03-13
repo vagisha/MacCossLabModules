@@ -48,4 +48,9 @@ public class ExperimentModInfo extends DbEntity
     {
         _modId = modId;
     }
+
+    public boolean isCombinationMod()
+    {
+        return false;
+    }
 }

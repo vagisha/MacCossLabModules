@@ -15,9 +15,11 @@ import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
+import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator.SpecLibKeyWithSize;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
+import org.labkey.panoramapublic.query.ModificationInfoManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -111,11 +113,45 @@ public class DataValidator
                         pxMod.isMatchInferred(),
                         pxMod.getName(),
                         pxMod.isIsotopicMod() ? ModType.Isotopic : ModType.Structural);
-                if (pxMod.hasPossibleUnimods())
-                {
-                    mod.setPossibleUnimodMatches(pxMod.getPossibleUnimodMatches());
-                }
+//                if (pxMod.hasPossibleUnimods())
+//                {
+//                    mod.setPossibleUnimodMatches(pxMod.getPossibleUnimodMatches());
+//                }
                 mod.setValidationId(status.getValidation().getId());
+                if (mod.getUnimodId() == null)
+                {
+                    if (ModType.Isotopic == mod.getModType())
+                    {
+                        var modInfo = ModificationInfoManager.getIsotopeModInfo(mod.getDbModId(), _expAnnotations.getId());
+                        if (modInfo != null)
+                        {
+                            mod.setUnimodId(modInfo.getUnimodId());
+                            mod.setUnimodName(modInfo.getUnimodName());
+                            mod.setInferred(true);
+                        }
+                    }
+                    else
+                    {
+                        var modInfo = ModificationInfoManager.getStructuralModInfo(mod.getDbModId(), _expAnnotations.getId());
+                        if (modInfo != null)
+                        {
+                            if (modInfo.isCombinationMod())
+                            {
+                                List<UnimodModification> comboMods = new ArrayList<>();
+                                comboMods.add(new UnimodModification(modInfo.getUnimodId(), modInfo.getUnimodName(), ""));
+                                comboMods.add(new UnimodModification(modInfo.getUnimodId2(), modInfo.getUnimodName2(), ""));
+                                mod.setPossibleUnimodMatches(comboMods);
+                            }
+                            else
+                            {
+                                mod.setUnimodId(modInfo.getUnimodId());
+                                mod.setUnimodName(modInfo.getUnimodName());
+                            }
+                            mod.setInferred(true);
+                        }
+                    }
+                }
+
                 DataValidationManager.saveModification(mod, user);
                 status.addModification(mod);
 

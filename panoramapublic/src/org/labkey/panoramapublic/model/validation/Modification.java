@@ -129,7 +129,7 @@ public class Modification
 
     public boolean isValid()
     {
-        return _unimodId != null;
+        return _unimodId != null || _unimodMatches != null;
     }
 
     public String toString()
@@ -209,37 +209,37 @@ public class Modification
         {
             return getSkylineModName();
         }
-        String info = "";
-        if(ModType.Structural == getModType())
-        {
-            IModification.IStructuralModification mod = TargetedMSService.get().getStructuralModification(getDbModId());
-            if (mod.getFormula() != null) info += mod.getFormula();
-            if (mod.getAminoAcid() != null) info += ", at: " + mod.getAminoAcid();
-            if (mod.getTerminus() != null) info += ", " + mod.getTerminus() + "-term";
-            if (info.startsWith(",")) info = info.substring(1).trim();
-        }
-        else if (ModType.Isotopic == getModType())
-        {
-            IModification.IIsotopeModification mod = TargetedMSService.get().getIsotopeModification(getDbModId());
-            if (mod.getFormula() != null) info += mod.getFormula();
-            else
-            {
-                String labels = "";
-                if (mod.getLabel2H() != null) labels += "2H ";
-                if (mod.getLabel13C() != null) labels += "13C ";
-                if (mod.getLabel15N() != null) labels += "15N ";
-                if (mod.getLabel18O() != null) labels += "18O";
-                if (labels.length() > 0)
-                {
-                    info += "label: " + labels.trim();
-                }
-            }
-            if (mod.getAminoAcid() != null) info += ", at: " + mod.getAminoAcid();
-            if (mod.getTerminus() != null) info += ", " + mod.getTerminus() + "-term";
-
-            if (info.startsWith(",")) info = info.substring(1).trim();
-        }
-        return getSkylineModName() + " (" + info + ")" + (isInferred() ? "**" : "");
+//        String info = "";
+//        if(ModType.Structural == getModType())
+//        {
+//            IModification.IStructuralModification mod = TargetedMSService.get().getStructuralModification(getDbModId());
+//            if (mod.getFormula() != null) info += mod.getFormula();
+//            if (mod.getAminoAcid() != null) info += ", at: " + mod.getAminoAcid();
+//            if (mod.getTerminus() != null) info += ", " + mod.getTerminus() + "-term";
+//            if (info.startsWith(",")) info = info.substring(1).trim();
+//        }
+//        else if (ModType.Isotopic == getModType())
+//        {
+//            IModification.IIsotopeModification mod = TargetedMSService.get().getIsotopeModification(getDbModId());
+//            if (mod.getFormula() != null) info += mod.getFormula();
+//            else
+//            {
+//                String labels = "";
+//                if (mod.getLabel2H() != null) labels += "2H ";
+//                if (mod.getLabel13C() != null) labels += "13C ";
+//                if (mod.getLabel15N() != null) labels += "15N ";
+//                if (mod.getLabel18O() != null) labels += "18O";
+//                if (labels.length() > 0)
+//                {
+//                    info += "label: " + labels.trim();
+//                }
+//            }
+//            if (mod.getAminoAcid() != null) info += ", at: " + mod.getAminoAcid();
+//            if (mod.getTerminus() != null) info += ", " + mod.getTerminus() + "-term";
+//
+//            if (info.startsWith(",")) info = info.substring(1).trim();
+//        }
+        return getSkylineModName() + (isInferred() ? "**" : "");
     }
 
     private JSONArray getPossibleUnimodMatchesJSON(List<List<String>> unimodMatches)
