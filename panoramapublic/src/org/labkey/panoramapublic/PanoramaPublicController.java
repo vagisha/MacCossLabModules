@@ -205,7 +205,7 @@ import static org.labkey.api.targetedms.TargetedMSService.FolderType.Library;
 import static org.labkey.api.targetedms.TargetedMSService.FolderType.LibraryProtein;
 import static org.labkey.api.targetedms.TargetedMSService.FolderType.Undefined;
 import static org.labkey.api.targetedms.TargetedMSService.RAW_FILES_TAB;
-import static org.labkey.api.util.DOM.A;
+import static org.labkey.api.util.DOM.*;
 import static org.labkey.api.util.DOM.Attribute.action;
 import static org.labkey.api.util.DOM.Attribute.border;
 import static org.labkey.api.util.DOM.Attribute.colspan;
@@ -216,27 +216,9 @@ import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.Attribute.type;
 import static org.labkey.api.util.DOM.Attribute.valign;
 import static org.labkey.api.util.DOM.Attribute.value;
-import static org.labkey.api.util.DOM.B;
-import static org.labkey.api.util.DOM.BR;
-import static org.labkey.api.util.DOM.DIV;
-import static org.labkey.api.util.DOM.INPUT;
-import static org.labkey.api.util.DOM.LABEL;
-import static org.labkey.api.util.DOM.LI;
 import static org.labkey.api.util.DOM.LK.CHECKBOX;
 import static org.labkey.api.util.DOM.LK.ERRORS;
 import static org.labkey.api.util.DOM.LK.FORM;
-import static org.labkey.api.util.DOM.SPAN;
-import static org.labkey.api.util.DOM.STRONG;
-import static org.labkey.api.util.DOM.TABLE;
-import static org.labkey.api.util.DOM.TBODY;
-import static org.labkey.api.util.DOM.TD;
-import static org.labkey.api.util.DOM.TH;
-import static org.labkey.api.util.DOM.THEAD;
-import static org.labkey.api.util.DOM.TR;
-import static org.labkey.api.util.DOM.UL;
-import static org.labkey.api.util.DOM.at;
-import static org.labkey.api.util.DOM.cl;
-import static org.labkey.api.util.DOM.createHtmlFragment;
 import static org.labkey.panoramapublic.proteomexchange.NcbiUtils.PUBMED_ID;
 
 /**
@@ -7480,6 +7462,49 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
+    @RequiresPermission(UpdatePermission.class)
+    public static class MatchStructuralModToUnimodAction extends SimpleViewAction<UnimodMatchForm>
+    {
+        @Override
+        public ModelAndView getView(UnimodMatchForm form, BindException errors) throws Exception
+        {
+            var modification = TargetedMSService.get().getStructuralModification(form.getModificationId());
+            if (modification == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find a structural modification with Id " + form.getModificationId());
+                return new SimpleErrorView(errors);
+            }
+
+            var findMatchUrl = new ActionURL(MatchToUnimodStructuralAction.class, getContainer())
+                    .addParameter("id", form.getId())
+                    .addParameter("modificationId", form.getModificationId())
+                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
+
+            var comboModUrl = new ActionURL(DefineCombinationModificationAction.class, getContainer())
+                    .addParameter("id", form.getId())
+                    .addParameter("modificationId", form.getModificationId())
+                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
+
+            var view = new HtmlView(DIV(at(style, "margin:20px;"),
+                    DIV(at(style, "margin:15px;"),
+                            SPAN(at(style, "margin-right: 10px;"),"Find a"),
+                            SPAN(new Button.ButtonBuilder("Unimod Match").href(findMatchUrl).build()),
+                            SPAN(at(style, "margin-left: 10px;"), "for modification ", B(modification.getName()))),
+                    DIV(at(style, "margin:15px;"), "OR"),
+                    DIV(at(style, "margin:15px;"),
+                            SPAN(at(style, "margin-right:10px;"), "Define a custom"),
+                            SPAN(new Button.ButtonBuilder("Combination Modification").href(comboModUrl).build()))));
+            view.setTitle("Unimod Match Options");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Unimod Match for Structural Modification");
+        }
+    }
 
     @RequiresPermission(UpdatePermission.class)
     public static class DefineCombinationModificationAction extends PanoramaPublicExperimentAction<CombinationModificationFrom>

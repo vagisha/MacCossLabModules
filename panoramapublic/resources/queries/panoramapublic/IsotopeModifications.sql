@@ -1,4 +1,4 @@
-SELECT mod.modId, mod.unimodId AS givenUnimodId, mod.runIds, modinfo.Id as modInfoId FROM
+SELECT mod.modId, mod.unimodId AS givenUnimodId, mod.runIds, modinfo.Id as modInfoId, COALESCE(mod.unimodId, modInfo.unimodId) as unimodMatch FROM
     (SELECT
          imod.Id AS modId,
          imod.unimodId AS unimodId,
@@ -11,4 +11,4 @@ SELECT mod.modId, mod.unimodId AS givenUnimodId, mod.runIds, modinfo.Id as modIn
      GROUP BY imod.Id, imod.unimodId
     ) mod
     LEFT OUTER JOIN panoramapublic.ExperimentIsotopeModInfo modinfo
-                        ON mod.modId = modinfo.modId
+    ON mod.modId = modinfo.modId

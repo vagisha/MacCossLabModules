@@ -23,6 +23,7 @@ import org.labkey.api.util.Link;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -186,6 +187,52 @@ public class UnimodModification
         return normalizeFormula(positive + " - " + negative);
     }
 
+    private static Map<String, Double> elementMap = new HashMap<>();
+    static
+    {
+        elementMap.put("H", 1.007825035);
+        elementMap.put("H'", 2.014101779);
+        // elementMap.put("2H", 2.014101779);
+        elementMap.put("Li", 7.016003);
+        elementMap.put("C", 12.0);
+        elementMap.put("C'", 13.00335483);
+        elementMap.put("N", 14.003074);
+        elementMap.put("N'", 15.00010897);
+        elementMap.put("O", 15.99491463);
+        elementMap.put("O'", 17.9991603);
+        elementMap.put("F", 18.99840322);
+        elementMap.put("Na", 22.9897677);
+        elementMap.put("P", 30.973762);
+        elementMap.put("S", 31.9720707);
+        elementMap.put("Cl", 34.96885272);
+        elementMap.put("K", 38.9637074);
+        elementMap.put("Ca", 39.9625906);
+        elementMap.put("Fe", 55.9349393);
+        elementMap.put("Ni", 57.9353462);
+        elementMap.put("Zn", 63.9291448);
+        elementMap.put("Se", 79.9165196);
+        elementMap.put("Br", 78.9183361);
+        elementMap.put("Ag", 106.905092);
+        elementMap.put("Hg", 201.970617);
+        elementMap.put("Au", 196.966543);
+        elementMap.put("I", 126.904473);
+        elementMap.put("Mo", 97.9054073);
+        elementMap.put("Cu", 62.9295989);
+        elementMap.put("e", 0.000549);
+        elementMap.put("B", 11.0093055);
+        elementMap.put("As", 74.9215942);
+        elementMap.put("Cd", 113.903357);
+        elementMap.put("Cr", 51.9405098);
+        elementMap.put("Co", 58.9331976);
+        elementMap.put("Mn", 54.9380471);
+        elementMap.put("Mg", 23.9850423);
+        elementMap.put("Pd", 105.903478);
+        elementMap.put("Al", 26.9815386);
+        elementMap.put("Pt", 194.964766);
+        elementMap.put("Ru", 101.9043485);
+        elementMap.put("Si", 27.9769271);
+    }
+
     public static String normalizeFormula(String formula)
     {
         if(StringUtils.isBlank(formula))
@@ -218,7 +265,8 @@ public class UnimodModification
         }
 
         List<String> sortedElements = new ArrayList<>(composition.keySet());
-        Collections.sort(sortedElements);
+        Collections.sort(sortedElements, Comparator.comparing(el -> elementMap.get(el)));
+
         StringBuilder posForm = new StringBuilder();
         StringBuilder negForm = new StringBuilder();
         for(String element: sortedElements)
@@ -226,11 +274,12 @@ public class UnimodModification
             Integer count = composition.get(element);
             if(count > 0)
             {
-                posForm.append(element).append(composition.get(element));
+                posForm.append(element).append(count > 1 ? count : "");
             }
             else
             {
-                negForm.append(element).append(-(composition.get(element)));
+                // negForm.append(element).append(-(composition.get(element)));
+                negForm.append(element).append(count < -1 ? -count : "");
             }
         }
         String totalFormula = posForm.toString();
@@ -337,6 +386,16 @@ public class UnimodModification
         return "";
     }
 
+    public TermSpecificity getNterm()
+    {
+        return _nTerm;
+    }
+
+    public TermSpecificity getcTerm()
+    {
+        return _cTerm;
+    }
+
     public String getModSitesWithPosition()
     {
         if(_modSites.size() > 0)
@@ -344,6 +403,11 @@ public class UnimodModification
             return StringUtils.join(_modSites.stream().map(s -> s.toString()).collect(Collectors.toSet()), ":");
         }
         return "";
+    }
+
+    public Set<Specificity> getModSpecificities()
+    {
+        return Collections.unmodifiableSet(_modSites);
     }
 
     public String getTerminus()
@@ -367,10 +431,21 @@ public class UnimodModification
 
     public static Link getLink(int unimodId)
     {
-        return new Link.LinkBuilder("UNIMOD:" + unimodId)
+        return getLink(unimodId, false);
+    }
+
+    public static Link getLink(int unimodId, boolean clearClasses)
+    {
+        var link = new Link.LinkBuilder("UNIMOD:" + unimodId)
                 .href("https://www.unimod.org/modifications_view.php?editid1=" + unimodId)
-                .target("_blank")
-                .build();
+                .target("_blank");
+        if (clearClasses)
+        {
+            link = link.clearClasses();
+//                    .addClass("labkey-text-link-noarrow")
+//                    .style("margin:.1em 0 .5em 0; padding:.3em 2px 2px 0;");
+        }
+        return link.build();
     }
 
     public static class TestCase extends Assert

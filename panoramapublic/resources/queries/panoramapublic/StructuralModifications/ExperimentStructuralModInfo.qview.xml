@@ -9,12 +9,10 @@
             </properties>
         </column>
         <column name="ModId/Terminus" />
-        <column name="GivenUnimodId">
-            <properties>
-                <property name="columnTitle" value="Unimod Id"/>
-            </properties>
-        </column>
-        <column name="ModInfoId" />
+        <column name="UnimodMatch" />
         <column name="RunIds" />
     </columns>
+    <sorts>
+        <sort column="UnimodMatch" descending="false" />
+    </sorts>
 </customView>

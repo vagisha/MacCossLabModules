@@ -35,7 +35,6 @@
             </properties>
         </column>
         <column name="RunIds" />
-        <column name="ExperimentAnnotationsId" />
     </columns>
 </customView>
 

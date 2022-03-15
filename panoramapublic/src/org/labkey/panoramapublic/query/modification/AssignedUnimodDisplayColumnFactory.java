@@ -6,6 +6,8 @@ import org.labkey.api.data.DisplayColumn;
 import org.labkey.api.data.DisplayColumnFactory;
 import org.labkey.api.data.RenderContext;
 import org.labkey.api.query.FieldKey;
+import org.labkey.api.targetedms.IModification;
+import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.DOM;
 import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.Link;
@@ -17,12 +19,13 @@ import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.ModificationInfoManager;
 
 import java.io.Writer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.labkey.api.util.DOM.Attribute.style;
-import static org.labkey.api.util.DOM.BR;
+import static org.labkey.api.util.DOM.B;
 import static org.labkey.api.util.DOM.DIV;
-import static org.labkey.api.util.DOM.EM;
 import static org.labkey.api.util.DOM.SPAN;
 import static org.labkey.api.util.DOM.at;
 import static org.labkey.api.util.DOM.cl;
@@ -30,17 +33,12 @@ import static org.labkey.api.util.DOM.cl;
 public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentModInfo> implements DisplayColumnFactory
 {
     private static final FieldKey MOD_ID = FieldKey.fromParts("ModId");
-    private static final FieldKey GIVEN_UNIMOD_ID = FieldKey.fromParts("GivenUnimodId");
-    private static final FieldKey UNIMOD_ID = FieldKey.fromParts("ModInfoId", "UnimodId");
-    private static final FieldKey UNIMOD_NAME = FieldKey.fromParts("ModInfoId", "UnimodName");
-    private static final FieldKey UNIMOD_ID2 = FieldKey.fromParts("ModInfoId", "UnimodId2");
-    private static final FieldKey UNIMOD_NAME2 = FieldKey.fromParts("ModInfoId", "UnimodName2");
-    private static final FieldKey EXPT_ID = FieldKey.fromParts("ModInfoId", "ExperimentAnnotationsId");
+    private static final FieldKey MOD_INFO_ID = FieldKey.fromParts("ModInfoId");
 
-    abstract boolean allowCombinationModification();
     abstract ActionURL getMatchToUnimodAction(RenderContext ctx);
     abstract ActionURL getDeleteAction(RenderContext ctx);
     abstract T getModInfo(int modInfoId);
+    abstract IModification getModification(long dbModId);
 
     @Override
     public DisplayColumn createRenderer(ColumnInfo colInfo)
@@ -50,73 +48,45 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
             @Override
             public void renderGridCellContents(RenderContext ctx, Writer out)
             {
-                Integer modInfoId = ctx.get(colInfo.getFieldKey(), Integer.class);
-                if (modInfoId == null)
+                Integer unimodId = ctx.get(colInfo.getFieldKey(), Integer.class);
+
+                if (unimodId != null)
                 {
-                    Integer givenUnimodId = ctx.get(GIVEN_UNIMOD_ID, Integer.class);
-                    if (givenUnimodId != null)
+                    Integer modInfoId = ctx.get(MOD_INFO_ID, Integer.class);
+                    if (modInfoId == null)
                     {
-                        UnimodModification.getLink(givenUnimodId).appendTo(out);
+                        // This is the Unimod Id from the Skyline document
+                        UnimodModification.getLink(unimodId).appendTo(out);
                     }
                     else
                     {
-                        ExperimentAnnotations exptAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(ctx.getContainer());
-                        Integer exptId = exptAnnotations != null ? exptAnnotations.getId() : null;
+                        var modInfo = getModInfo(modInfoId);
+                        DIV(getUnimodDetails(modInfo)).appendTo(out);
 
-                        Long modId = ctx.get(MOD_ID, Long.class);
-
-                        if (modId != null && exptId != null)
-                        {
-                            var url = getMatchToUnimodAction(ctx).addParameter("id", exptId).addParameter("modificationId", modId);
-                            url.addReturnURL(ctx.getViewContext().getActionURL());
-                            var findMatchLink = new Link.LinkBuilder("Find Match").href(url);
-                            DIV(cl("alert-warning"), findMatchLink).appendTo(out);
-                            if (allowCombinationModification())
-                            {
-                                DIV(EM("OR")).appendTo(out);
-                                var comboModUrl = new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, ctx.getContainer())
-                                        .addParameter("id", exptId)
-                                        .addParameter("modificationId", modId);
-                                comboModUrl.addReturnURL(ctx.getViewContext().getActionURL());
-                                DIV(cl("alert-warning"), new Link.LinkBuilder("Combination Modification").href(comboModUrl)).appendTo(out);
-                            }
-                        }
+                        int exptId = modInfo.getExperimentAnnotationsId();
+                        var dbMod = getModification(modInfo.getModId());
+                        ActionURL deleteUrl = getDeleteAction(ctx).addParameter("id", exptId).addParameter("modInfoId", modInfoId);
+                        DIV(at(style, "margin-top:5px;"), new Link.LinkBuilder("[Delete]")
+                                .href(deleteUrl)
+                                .clearClasses().addClass("labkey-error")
+                                .usePost("Are you sure you want to delete the saved Unimod information for modification " + dbMod.getName() + "?")
+                                .build())
+                                .appendTo(out);
                     }
                 }
                 else
                 {
-//                    var modInfo = getModInfo(modInfoId);
-                    Integer unimodId = ctx.get(UNIMOD_ID, Integer.class);
-                    String unimodName = ctx.get(UNIMOD_NAME, String.class);
-                    Integer unimodId2 = ctx.get(UNIMOD_ID2, Integer.class);
-                    String unimodName2 = ctx.get(UNIMOD_NAME2, String.class);
+                    ExperimentAnnotations exptAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(ctx.getContainer());
+                    Integer exptId = exptAnnotations != null ? exptAnnotations.getId() : null;
 
-                    if (unimodId != null)
+                    Long modId = ctx.get(MOD_ID, Long.class);
+
+                    if (modId != null && exptId != null)
                     {
-                        if (unimodId2 != null)
-                        {
-                            DIV(EM("Combination of: "),
-                                DIV(unimodName + ", ", UnimodModification.getLink(unimodId),
-                                    SPAN(EM(" and "),
-                                    unimodName2 + ", ", UnimodModification.getLink(unimodId2))))
-                            .appendTo(out);
-                        }
-                        else
-                        {
-                            DIV("**" + unimodName + ", ", UnimodModification.getLink(unimodId)).appendTo(out);
-                        }
-
-                        Integer exptId = ctx.get(EXPT_ID, Integer.class);
-                        if (exptId != null)
-                        {
-                            ActionURL deleteUrl = getDeleteAction(ctx).addParameter("id", exptId).addParameter("modInfoId", modInfoId);
-                            DIV(at(style, "margin-top:5px;"), new Link.LinkBuilder("[Delete]")
-                                    .href(deleteUrl)
-                                    .clearClasses().addClass("labkey-error")
-                                    .usePost("Are you sure you want to delete the saved Unimod information for modification FILL IN THE NAME!!!!")
-                                    .build())
-                                    .appendTo(out);
-                        }
+                        var url = getMatchToUnimodAction(ctx).addParameter("id", exptId).addParameter("modificationId", modId);
+                        url.addReturnURL(ctx.getViewContext().getActionURL());
+                        var findMatchLink = new Link.LinkBuilder("Find Match").href(url);
+                        DIV(cl("alert-warning"), findMatchLink).appendTo(out);
                     }
                 }
             }
@@ -126,28 +96,23 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
             {
                 super.addQueryFieldKeys(keys);
                 keys.add(MOD_ID);
-                keys.add(GIVEN_UNIMOD_ID);
-                keys.add(UNIMOD_ID);
-                keys.add(UNIMOD_NAME);
-                keys.add(UNIMOD_ID2);
-                keys.add(UNIMOD_NAME2);
-                keys.add(EXPT_ID);
+                keys.add(MOD_INFO_ID);
             }
         };
+    }
+
+    protected List<DOM.Renderable> getUnimodDetails(T modInfo)
+    {
+        return List.of(SPAN("**"), UnimodModification.getLink(modInfo.getUnimodId(), true), HtmlString.NBSP, SPAN("(" + modInfo.getUnimodName() + ")"));
     }
 
     public static class AssignedStructuralUnimod extends AssignedUnimodDisplayColumnFactory<ExperimentStructuralModInfo>
     {
         @Override
-        boolean allowCombinationModification()
-        {
-            return true;
-        }
-
-        @Override
         ActionURL getMatchToUnimodAction(RenderContext ctx)
         {
-            return new ActionURL(PanoramaPublicController.MatchToUnimodStructuralAction.class, ctx.getContainer());
+            return new ActionURL(PanoramaPublicController.MatchStructuralModToUnimodAction.class, ctx.getContainer());
+            // return new ActionURL(PanoramaPublicController.MatchToUnimodStructuralAction.class, ctx.getContainer());
         }
 
         @Override
@@ -161,16 +126,30 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
         {
             return ModificationInfoManager.getStructuralModInfo(modInfoId);
         }
+
+        @Override
+        IModification getModification(long dbModId)
+        {
+            return TargetedMSService.get().getStructuralModification(dbModId);
+        }
+
+        @Override
+        protected List<DOM.Renderable> getUnimodDetails(ExperimentStructuralModInfo modInfo)
+        {
+            List<DOM.Renderable> list = new ArrayList<>(super.getUnimodDetails(modInfo));
+            if (modInfo.isCombinationMod())
+            {
+                list.add(SPAN(at(style, "margin:0 10px 0 10px;"), B("+")));
+                list.add(UnimodModification.getLink(modInfo.getUnimodId2(), true));
+                list.add(HtmlString.NBSP);
+                list.add(SPAN("(" + modInfo.getUnimodName2() + ")"));
+            }
+            return list;
+        }
     }
 
     public static class AssignedIsotopeUnimod extends AssignedUnimodDisplayColumnFactory<ExperimentModInfo>
     {
-        @Override
-        boolean allowCombinationModification()
-        {
-            return false;
-        }
-
         @Override
         ActionURL getMatchToUnimodAction(RenderContext ctx)
         {
@@ -187,6 +166,12 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
         ExperimentModInfo getModInfo(int modInfoId)
         {
             return ModificationInfoManager.getIsotopeModInfo(modInfoId);
+        }
+
+        @Override
+        IModification getModification(long dbModId)
+        {
+            return TargetedMSService.get().getStructuralModification(dbModId);
         }
     }
 }

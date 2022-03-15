@@ -257,7 +257,7 @@ public class UnimodParser
         return UnimodModification.normalizeFormula(formula);
     }
 
-    static class Specificity
+    public static class Specificity
     {
         private final String _site;
         private final Position _position;
@@ -299,7 +299,7 @@ public class UnimodParser
         }
     }
 
-    static class TermSpecificity
+    public static class TermSpecificity
     {
         private final Terminus _term;
         private final Position _position;
@@ -326,7 +326,7 @@ public class UnimodParser
         }
     }
 
-    enum Position {
+    public enum Position {
 
         Anywhere("Anywhere", true),
         AnyNterm("Any N-term", true),
@@ -365,7 +365,7 @@ public class UnimodParser
         }
     }
 
-    enum Terminus
+    public enum Terminus
     {
         N("N-term"), C("C-term");
 

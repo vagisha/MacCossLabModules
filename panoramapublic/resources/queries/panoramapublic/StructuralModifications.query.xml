@@ -24,12 +24,14 @@
                             <className>org.labkey.panoramapublic.query.modification.ModificationDocsDisplayColumnFactory$StructuralModDocsColumn</className>
                         </displayColumnFactory>
                     </column>
-                    <column columnName="modInfoId">
-                        <columnTitle>Unimod Match</columnTitle>
-                        <description>Unimod Id assigned from a Unimod lookup, or a combination of two Unimod Ids if the Skyline document did not have a Unimod Id</description>
+                    <column columnName="UnimodMatch">
+                        <columnTitle>UnimodMatch</columnTitle>
+                        <textAlign>left</textAlign>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.modification.AssignedUnimodDisplayColumnFactory$AssignedStructuralUnimod</className>
                         </displayColumnFactory>
+                    </column>
+                    <column columnName="ModInfoId">
                         <fk>
                             <fkDbSchema>panoramapublic</fkDbSchema>
                             <fkTable>ExperimentStructuralModInfo</fkTable>

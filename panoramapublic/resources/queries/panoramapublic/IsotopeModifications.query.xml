@@ -24,12 +24,14 @@
                             <className>org.labkey.panoramapublic.query.modification.ModificationDocsDisplayColumnFactory$IsotopicModDocsColumn</className>
                         </displayColumnFactory>
                     </column>
-                    <column columnName="modInfoId">
-                        <columnTitle>Unimod Match</columnTitle>
-                        <description>Unimod Id assigned from a Unimod lookup if the Skyline document did not have a Unimod Id</description>
+                    <column columnName="UnimodMatch">
+                        <columnTitle>UnimodMatch</columnTitle>
+                        <textAlign>left</textAlign>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.modification.AssignedUnimodDisplayColumnFactory$AssignedIsotopeUnimod</className>
                         </displayColumnFactory>
+                    </column>
+                    <column columnName="modInfoId">
                         <fk>
                             <fkDbSchema>panoramapublic</fkDbSchema>
                             <fkTable>ExperimentIsotopeModInfo</fkTable>

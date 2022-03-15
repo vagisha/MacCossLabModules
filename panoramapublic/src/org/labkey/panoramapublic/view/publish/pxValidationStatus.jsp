@@ -412,7 +412,7 @@
     function assignUnimodLink(dbModId, modType, experimentAnnotationsId) {
         if (!modType) return;
         const modTypeUpper = modType.toUpperCase();
-        const action = modTypeUpper === 'STRUCTURAL' ? 'matchToUnimodStructural' : 'matchToUnimodIsotope';
+        const action = modTypeUpper === 'STRUCTURAL' ? 'matchStructuralModToUnimod' : 'matchToUnimodIsotope';
         const params = {
             'id': experimentAnnotationsId,
             'modificationId': dbModId,
