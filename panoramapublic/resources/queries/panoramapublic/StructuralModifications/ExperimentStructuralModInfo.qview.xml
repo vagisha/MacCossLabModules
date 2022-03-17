@@ -3,6 +3,11 @@
     <columns>
         <column name="ModId/Name" />
         <column name="ModId/Formula" />
+        <column name="GivenFormula">
+            <properties>
+                <property name="columnTitle" value="NormalizedFormula"/>
+            </properties>
+        </column>
         <column name="ModId/AminoAcid">
             <properties>
                 <property name="columnTitle" value="Sites"/>

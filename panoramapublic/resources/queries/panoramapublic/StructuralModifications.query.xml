@@ -17,6 +17,12 @@
                             <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
                         </displayColumnFactory>
                     </column>
+                    <column columnName="GivenFormula">
+                        <description>Modification formula from the Skyline document</description>
+                        <displayColumnFactory>
+                            <className>org.labkey.panoramapublic.query.modification.NormalizedFormulaDisplayColumnFactory</className>
+                        </displayColumnFactory>
+                    </column>
                     <column columnName="RunIds">
                         <columnTitle>Skyline Documents</columnTitle>
                         <description>Skyline documents with this modification</description>

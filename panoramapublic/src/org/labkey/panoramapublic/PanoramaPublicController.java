@@ -7194,20 +7194,20 @@ public class PanoramaPublicController extends SpringActionController
             UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the Unimod modifications
             ExperimentModificationGetter.PxModification matchedMod = getModificationMatch(mod, uMods);
 
-            if (matchedMod.hasUnimodId() || matchedMod.hasPossibleUnimods())
-            {
+//            if (matchedMod.hasUnimodId() || matchedMod.hasPossibleUnimods())
+//            {
                 UnimodMatchBean bean = new UnimodMatchBean(form, mod, matchedMod);
                 JspView view = new JspView<>("/org/labkey/panoramapublic/view/unimodMatchInfo.jsp", bean, errors);
                 view.setFrame(WebPartView.FrameType.PORTAL);
                 view.setTitle("Unimod Match");
                 return view;
-            }
-
-            else
-            {
-                errors.reject(ERROR_MSG, String.format("No Unimod matches were found for the modification '%s'.", mod.getName()));
-                return new SimpleErrorView(errors);
-            }
+//            }
+//
+//            else
+//            {
+//                errors.reject(ERROR_MSG, String.format("No Unimod matches were found for the modification '%s'.", mod.getName()));
+//                return new SimpleErrorView(errors);
+//            }
         }
 
         private IModification getValidModification(UnimodMatchForm form, Errors errors)
@@ -7459,50 +7459,6 @@ public class PanoramaPublicController extends SpringActionController
         public void setUnimodId(Integer unimodId)
         {
             _unimodId = unimodId;
-        }
-    }
-
-    @RequiresPermission(UpdatePermission.class)
-    public static class MatchStructuralModToUnimodAction extends SimpleViewAction<UnimodMatchForm>
-    {
-        @Override
-        public ModelAndView getView(UnimodMatchForm form, BindException errors) throws Exception
-        {
-            var modification = TargetedMSService.get().getStructuralModification(form.getModificationId());
-            if (modification == null)
-            {
-                errors.reject(ERROR_MSG, "Could not find a structural modification with Id " + form.getModificationId());
-                return new SimpleErrorView(errors);
-            }
-
-            var findMatchUrl = new ActionURL(MatchToUnimodStructuralAction.class, getContainer())
-                    .addParameter("id", form.getId())
-                    .addParameter("modificationId", form.getModificationId())
-                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
-
-            var comboModUrl = new ActionURL(DefineCombinationModificationAction.class, getContainer())
-                    .addParameter("id", form.getId())
-                    .addParameter("modificationId", form.getModificationId())
-                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
-
-            var view = new HtmlView(DIV(at(style, "margin:20px;"),
-                    DIV(at(style, "margin:15px;"),
-                            SPAN(at(style, "margin-right: 10px;"),"Find a"),
-                            SPAN(new Button.ButtonBuilder("Unimod Match").href(findMatchUrl).build()),
-                            SPAN(at(style, "margin-left: 10px;"), "for modification ", B(modification.getName()))),
-                    DIV(at(style, "margin:15px;"), "OR"),
-                    DIV(at(style, "margin:15px;"),
-                            SPAN(at(style, "margin-right:10px;"), "Define a custom"),
-                            SPAN(new Button.ButtonBuilder("Combination Modification").href(comboModUrl).build()))));
-            view.setTitle("Unimod Match Options");
-            view.setFrame(WebPartView.FrameType.PORTAL);
-            return view;
-        }
-
-        @Override
-        public void addNavTrail(NavTree root)
-        {
-            root.addChild("Unimod Match for Structural Modification");
         }
     }
 

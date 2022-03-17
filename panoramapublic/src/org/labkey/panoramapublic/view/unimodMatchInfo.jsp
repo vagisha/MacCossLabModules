@@ -4,6 +4,8 @@
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.UnimodModification" %>
+<%@ page import="org.labkey.api.util.StringUtilsLabKey" %>
+<%@ page import="org.labkey.api.util.HtmlString" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -20,7 +22,18 @@
     var form = bean.getForm();
     var modification = bean.getModification();
     var unimodMatches = bean.getUnimodMatches();
-    var returnUrl = form.getReturnURLHelper(getContainer().getStartURL(getUser()));
+    var returnUrl = form.getReturnURLHelper(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()));
+
+    var modMatchesTxt = unimodMatches.size() == 0 ?
+            "No Unimod matches were found for the modification." :
+            "The modification matches " + StringUtilsLabKey.pluralize(unimodMatches.size(), "Unimod modification") +
+                    ". To view the Unimod definition click the link next to the Unimod name. " +
+                    " Click the \"Save Match\" button to associate the Unimod Id with the modification.";
+    var defineComboModButton = button("Combination Modification")
+            .href(new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, getContainer())
+                    .addParameter("id", form.getId()).addParameter("modificationId", form.getModificationId())
+            .addReturnURL(getActionURL())).build();
+
 %>
 <labkey:errors/>
 
@@ -31,6 +44,7 @@
     }
 </style>
 
+<div id="cancelButtonDiv"/>
 <div id="unimodMatchDiv"/>
 
 <script type="text/javascript">
@@ -48,7 +62,7 @@
                 xtype: 'displayfield',
                 fieldCls: 'display-value',
                 fieldLabel: "Formula",
-                value: <%=q(modification.getFormula())%>
+                value: <%=q(UnimodModification.normalizeFormula(modification.getFormula()))%>
             },
             <% if (bean.isIsotopicMod()) { %>
             {
@@ -70,28 +84,57 @@
                 fieldLabel: "Terminus",
                 value: <%=q(modification.getTerminus())%>
             },
+            {
+                xtype: 'component',
+                cls: <%=unimodMatches.size() == 0 ? qh("labkey-error alert-warning") : qh("alert")%>,
+                html: '<div>' + <%=qh(modMatchesTxt)%> + '</div>'
+            },
         ];
 
-        <% for (UnimodModification unimodMod: unimodMatches) { %>
-            items.push(createForm(<%=unimodMod.getId()%>,
-                    <%=q(unimodMod.getLink().getHtmlString())%>,
-                    <%=q(unimodMod.getName())%>,
-                    <%=q(unimodMod.getNormalizedFormula())%>,
-                    <%=q(unimodMod.getModSitesWithPosition())%>,
-                    <%=q(unimodMod.getTerminus())%>));
+        <% for (int i = 0; i < unimodMatches.size(); i++) {
+            UnimodModification unimodMatch = unimodMatches.get(i);
+        %>
+            items.push(createForm(<%=unimodMatches.size() > 1 ? i : -1%>,
+                    <%=unimodMatch.getId()%>,
+                    <%=q(unimodMatch.getLink().getHtmlString())%>,
+                    <%=q(unimodMatch.getName())%>,
+                    <%=q(unimodMatch.getNormalizedFormula())%>,
+                    <%=q(unimodMatch.getModSitesWithPosition())%>,
+                    <%=q(unimodMatch.getTerminus())%>));
         <% } %>
 
         Ext4.create('Ext.panel.Panel', {
             renderTo: "unimodMatchDiv",
-            standardSubmit: true,
             border: false,
             frame: false,
             defaults: {
                 labelWidth: 160,
-                width: 500,
+                width: 800,
                 labelStyle: 'background-color: #E0E6EA; padding: 5px;'
             },
-            items: items,
+            items: items
+        });
+
+
+        Ext4.create('Ext.panel.Panel', {
+            renderTo: "cancelButtonDiv",
+            border: false,
+            frame: false,
+            defaults: {
+                width: 800
+            },
+            <%if (!bean.isIsotopicMod()) { %> // Combination modifications can only de defined for structural modifications.
+            items: [
+                {
+                    xtype: 'component',
+                    cls: 'alert-info alert',
+                    style: 'margin-top:10px;',
+                    html: '<div>If this modification is a combination of two modifications then you can define a custom '
+                            + '<%=defineComboModButton%>'
+                            + '</div>'
+                }
+            ],
+            <% } %>
             buttonAlign: 'left',
             buttons: [
                 {
@@ -104,7 +147,7 @@
                 }]
         });
     });
-    function createForm(unimodId, unimodLink, name, formula, sites, terminus)
+    function createForm(index, unimodId, unimodLink, name, formula, sites, terminus)
     {
         var form = Ext4.create('Ext.form.Panel', {
             standardSubmit: true,
@@ -113,14 +156,14 @@
             defaults: {
                 labelWidth: 160,
                 width: 500,
-                labelStyle: 'background-color: #E0E6EA; padding: 5px;'
+                labelStyle: 'background-color: #C0C6CA; padding: 5px;'
             },
             items: [
                 { xtype: 'hidden', name: 'X-LABKEY-CSRF', value: LABKEY.CSRF },
                 {
                     xtype: 'label',
-                    text: '--- Modification matches the following Unimod modification ---',
-                    style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
+                    text: '---------------- Unimod Match ' + (index > -1 ? index + 1 : '') + ' ----------------',
+                    style: {'text-align': 'left', 'margin': '10px 0 10px 0'}
                 },
                 {
                     xtype: 'hidden',

@@ -35,9 +35,16 @@
 
 <script type="text/javascript">
 
+    var selectedUnimod1;
+    var selectedUnimod2;
+    var formPanel;
+
     Ext4.onReady(function(){
 
-        var form = Ext4.create('Ext.form.Panel', {
+        var combo1 = createUnimodCb(1);
+        var combo2 = createUnimodCb(2);
+
+        formPanel = Ext4.create('Ext.form.Panel', {
             renderTo: "combinationModInfoForm",
             standardSubmit: true,
             border: false,
@@ -82,7 +89,7 @@
                     xtype: 'displayfield',
                     fieldCls: 'display-value',
                     fieldLabel: "Formula",
-                    value: <%=q(modification.getFormula())%>
+                    value: <%=q(UnimodModification.normalizeFormula(modification.getFormula()))%>
                 },
                 {
                     xtype: 'displayfield',
@@ -101,40 +108,17 @@
                     text: 'This modification is a combination of',
                     style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
                 },
-                {
-                    xtype: 'combo',
-                    name: 'unimodId1',
-                    itemId: 'unimodId1',
-                    fieldLabel: "Unimod Modification 1",
-                    allowBlank: false,
-                    editable : true,
-                    queryMode : 'local',
-                    value: <%=form.getUnimodId1() != null ? form.getUnimodId1() : null%>,
-                    store: [
-                        <% for (UnimodModification mod: unimodMods) { %>
-                        [ <%= mod.getId() %>, <%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %> ],
-                        <% } %>
-                    ]
-                },
+                combo1,
                 {
                     xtype: 'label',
                     text: '--- AND ---',
                     style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
                 },
+                combo2,
                 {
-                    xtype: 'combo',
-                    name: 'unimodId2',
-                    itemId: 'unimodId2',
-                    fieldLabel: "Unimod Modification 2",
-                    allowBlank: false,
-                    editable: true,
-                    queryMode : 'local',
-                    value: <%=form.getUnimodId2() != null ? form.getUnimodId2() : null%>,
-                    store: [
-                        <% for (UnimodModification mod: unimodMods) { %>
-                        [ <%= mod.getId() %>, <%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %> ],
-                        <% } %>
-                    ]
+                    xtype: 'component',
+                    itemId: 'formulaSum',
+                    style: {'text-align': 'left', 'margin': '10px 0 10px 0'}
                 }
             ],
             buttonAlign: 'left',
@@ -143,8 +127,8 @@
                     text: "Save",
                     cls: 'labkey-button primary',
                     handler: function(button) {
-                        button.setDisabled(true);
-                        form.submit({
+                        // button.setDisabled(true);
+                        formPanel.submit({
                             url: <%=q(urlFor(PanoramaPublicController.DefineCombinationModificationAction.class))%>,
                             method: 'POST'
                         });
@@ -159,4 +143,64 @@
                 }]
         });
     });
+
+    function createUnimodCb(cbIdx)
+    {
+        return Ext4.create('Ext.form.field.ComboBox', {
+            xtype: 'combo',
+            name: 'unimodId' + cbIdx,
+            itemId: 'unimodId' + cbIdx,
+            fieldLabel: "Unimod Modification " + cbIdx,
+            allowBlank: false,
+            editable : true,
+            queryMode : 'local',
+            displayField: 'displayName',
+            valueField: 'unimodId',
+            value: cbIdx === 1 ? <%=form.getUnimodId1() != null ? form.getUnimodId1() : null %> :
+                                 <%=form.getUnimodId2() != null ? form.getUnimodId2() : null %>,
+            store: createStore(),
+            labelWidth: 160,
+            width: 500,
+            labelStyle: 'background-color: #E0E6EA; padding: 5px;',
+            listeners: {
+                select: function (combo, records, eOpts){
+                    const record = records[0];
+                    if (cbIdx === 1) selectedUnimod1 = record.data;
+                    else selectedUnimod2 = record.data;
+                    updateFormulaTotal();
+                }
+            }
+        });
+    }
+    function updateFormulaTotal()
+    {
+        var total = <%= qh(modification.getFormula()) %>;
+        var text = '';
+        text += selectedUnimod1 ? selectedUnimod1["formula"] : "---";
+        text += "   +    ";
+        text += selectedUnimod2 ? selectedUnimod2["formula"] : "---";
+        text += "   =   " + total;
+        console.log(text);
+        var el = formPanel.getComponent("formulaSum");
+        if (el != null)
+        {
+            el.addCls('alert alert-info');
+            el.update(text);
+        }
+    }
+    function createStore()
+    {
+        return Ext4.create('Ext.data.Store', {
+            fields: ['unimodId','displayName', 'formula'],
+            data:   [
+                <% for(UnimodModification mod: unimodMods){ %>
+                {
+                    "unimodId":<%=mod.getId()%>,
+                    "displayName":<%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %>,
+                    "formula": <%= q(mod.getNormalizedFormula()) %>
+                },
+                <% } %>
+            ]
+        });
+    }
 </script>
