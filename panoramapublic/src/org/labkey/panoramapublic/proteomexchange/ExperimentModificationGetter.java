@@ -49,7 +49,7 @@ public class ExperimentModificationGetter
      * @return a list of modifications for the runs in the given experiment.  If the Skyline modifications did not have a Unimod Id,
      * an attempt is made to infer the Unimod Id based on the modification formula, modified sites and terminus.
      */
-    public static List<PxModification> getModifications(ExperimentAnnotations expAnnot)
+    public static List<PxModification> getModifications(ExperimentAnnotations expAnnot, boolean lookupUnimod)
     {
         List<ITargetedMSRun> runs = ExperimentAnnotationsManager.getTargetedMSRuns(expAnnot);
 
@@ -66,7 +66,7 @@ public class ExperimentModificationGetter
                 PxModification pxMod = strModMap.get(mod.getId());
                 if(pxMod == null)
                 {
-                    pxMod = getStructuralUnimodMod(mod, uMods);
+                    pxMod = getStructuralUnimodMod(mod, uMods, lookupUnimod);
                     strModMap.put(mod.getId(), pxMod);
                 }
                 pxMod.addSkylineDoc(run);
@@ -78,7 +78,7 @@ public class ExperimentModificationGetter
                 PxModification pxMod = isoModMap.get(mod.getId());
                 if(pxMod == null)
                 {
-                    pxMod = getIsotopicUnimodMod(mod, uMods);
+                    pxMod = getIsotopicUnimodMod(mod, uMods, lookupUnimod);
                     isoModMap.put(mod.getId(), pxMod);
                 }
                 pxMod.addSkylineDoc(run);
@@ -103,7 +103,7 @@ public class ExperimentModificationGetter
 
     public static PxModification getStructuralUnimodMod(IModification mod, UnimodModifications uMods)
     {
-        return getStructuralUnimodMod(mod, uMods, false);
+        return getStructuralUnimodMod(mod, uMods, true);
     }
 
     public static PxModification getStructuralUnimodMod(IModification mod, UnimodModifications uMods, boolean lookupUnimod)
@@ -145,7 +145,7 @@ public class ExperimentModificationGetter
 
     public static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods)
     {
-        return getIsotopicUnimodMod(mod, uMods, false);
+        return getIsotopicUnimodMod(mod, uMods, true);
     }
 
     public static PxModification getIsotopicUnimodMod(IModification.IIsotopeModification mod, UnimodModifications uMods, boolean lookupUnimod)

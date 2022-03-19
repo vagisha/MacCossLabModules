@@ -105,7 +105,7 @@ public class DataValidator
         // sleep();
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
-            List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations);
+            List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations, false);
             for (ExperimentModificationGetter.PxModification pxMod : mods)
             {
                 Modification mod = new Modification(pxMod.getSkylineName(), pxMod.getDbModId(),

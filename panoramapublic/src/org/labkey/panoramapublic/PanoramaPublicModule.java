@@ -44,6 +44,7 @@ import org.labkey.panoramapublic.model.speclib.SpecLibKey;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineProvider;
 import org.labkey.panoramapublic.pipeline.PxValidationPipelineProvider;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
+import org.labkey.panoramapublic.proteomexchange.Formula;
 import org.labkey.panoramapublic.proteomexchange.SkylineVersion;
 import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
@@ -346,6 +347,7 @@ public class PanoramaPublicModule extends SpringModule
         set.add(ExperimentModificationGetter.TestCase.class);
         set.add(ContainerJoin.TestCase.class);
         set.add(UnimodModification.TestCase.class);
+        set.add(Formula.TestCase.class);
         // set.add(UniModDataCsParser.TestCase.class);
         return set;
 

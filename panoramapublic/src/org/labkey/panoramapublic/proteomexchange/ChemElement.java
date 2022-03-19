@@ -5,7 +5,7 @@ import java.util.Map;
 
 public enum ChemElement
 {
-    // Source: unimod.xml
+    // Source: Unimod
     H("H",1.007825035),
     H2("2H", "H'", 2.014101779),
     Li("Li",7.016003),

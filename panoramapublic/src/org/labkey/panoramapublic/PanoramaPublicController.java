@@ -7482,7 +7482,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             CombinationModifiationBean bean = new CombinationModifiationBean(form, _modification,
-                    Formula.parseFormula(_modification.getFormula()),
+                    Formula.parse(_modification.getFormula()),
                     _unimodModifications.getStructuralModifications());
             JspView view = new JspView<>("/org/labkey/panoramapublic/view/combinationModInfo.jsp", bean, errors);
             view.setFrame(WebPartView.FrameType.PORTAL);
@@ -7556,7 +7556,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             Formula combinedFormula = UnimodModification.combineFormula(mod1,mod2);
-            Formula modFormula = Formula.parseFormula(_modification.getFormula());
+            Formula modFormula = Formula.parse(_modification.getFormula());
             Formula diff = modFormula.subtractFormula(combinedFormula);
             if (!diff.isEmpty())
             {
