@@ -53,6 +53,16 @@
         var combo1 = createUnimodCb(1);
         var combo2 = createUnimodCb(2);
 
+        <% if (form.getUnimodId1() != null) { %>
+        var record1 = combo1.getStore().getById(<%=form.getUnimodId1()%>);
+        if (record1) selectedUnimod1 = record1.data;
+        <% } %>
+
+        <% if (form.getUnimodId2() != null) { %>
+        var record2 = combo2.getStore().getById(<%=form.getUnimodId2()%>);
+        if (record2) selectedUnimod2 = record2.data;
+        <% } %>
+
         formPanel = Ext4.create('Ext.form.Panel', {
             renderTo: "combinationModInfoForm",
             standardSubmit: true,
@@ -147,7 +157,7 @@
                     text: 'Cancel',
                     cls: 'labkey-button',
                     handler: function(btn) {
-                        window.location = <%= q(returnUrl) %>;
+                        window.history.back();
                     }
                 }]
         });
@@ -217,6 +227,7 @@
             allowBlank: false,
             editable : true,
             queryMode : 'local',
+            anyMatch: true, // allow match at any position in the valueField's value
             displayField: 'displayName',
             valueField: 'unimodId',
             value: cbIdx === 1 ? <%=form.getUnimodId1() != null ? form.getUnimodId1() : null %> :
@@ -239,6 +250,7 @@
     const alertCls = 'alert';
     const alertInfoCls = 'alert-info';
     const alertWarnCls = 'alert-warning';
+    const plusSpan = '<span style="margin: 0 10px 0 10px;font-weight:bold;">+</span>';
 
     function updateFormulaDiff() {
 
@@ -248,12 +260,20 @@
         const diffFormula = modFormula.subtractFormula(totalFormula);
         const formulaBalanced = diffFormula.isEmpty();
 
-        var total = '(' + <%= qh(modification.getName()) %> + ') ' + <%= qh(modFormula.getFormula()) %>;
-        var html = total;
-        html += selectedUnimod1 ? '<span style="margin: 0 10px 0 10px;font-weight:bold;">-</span>' + selectedUnimod1["formula"] /*+ ' (' + selectedUnimod1['name'] + ')'*/ : "";
-        html += selectedUnimod2 ? '<span style="margin: 0 10px 0 10px;font-weight:bold;">-</span>' + selectedUnimod2["formula"] /*+ ' (' + selectedUnimod2['name'] + ')'*/ : "";
-        html += '<span style="margin: 0 10px 0 10px;font-weight:bold;">=</span>' + (formulaBalanced ? '<span style="color:green;" class="fa fa-check-circle"></span>'
-                : diffFormula.getFormula() + '<span style="color:red;margin-left:10px;" class="fa fa-times-circle"></span>');
+        // var total = '(' + <%= qh(modification.getName()) %> + ') ' + <%= qh(modFormula.getFormula()) %>;
+        var html = '';
+        html += selectedUnimod1 ? selectedUnimod1["formula"] : getSpan('---');
+        html += getSpan('+');
+        html += selectedUnimod2 ? selectedUnimod2["formula"] : getSpan('---');
+        html += getSpan('=');
+        html += totalFormula.getFormula();
+        if (formulaBalanced) {
+            html += '<span style="color:green;margin-left:10px;" class="fa fa-check-circle"></span>';
+        }
+        else {
+            html += getSpan(' (Difference: ' + diffFormula.getFormula() + ')');
+            html += '<span style="color:red;" class="fa fa-times-circle"></span>';
+        }
 
         var el = formPanel.getComponent("formulaDiff");
         if (el != null)
@@ -272,6 +292,10 @@
         }
     }
 
+    function getSpan(str) {
+        return '<span style="margin: 0 10px 0 10px;font-weight:bold;">' + str + '</span>';
+    }
+
     function addUnimod(formula, unimodRecord) {
         if (unimodRecord) {
             var composition = unimodRecord['composition'];
@@ -284,10 +308,11 @@
 
     function createStore() {
         return Ext4.create('Ext.data.Store', {
-            fields: ['unimodId', 'name', 'displayName', 'formula', 'composition'],
+            fields: ['id', 'unimodId', 'name', 'displayName', 'formula', 'composition'],
             data:   [
                 <% for(UnimodModification mod: unimodMods){ %>
                 {
+                    "id":<%=mod.getId()%>,
                     "unimodId":<%=mod.getId()%>,
                     "name":<%=q(mod.getName())%>,
                     "displayName":<%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %>,
