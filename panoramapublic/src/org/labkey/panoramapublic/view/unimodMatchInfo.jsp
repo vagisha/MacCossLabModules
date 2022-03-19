@@ -5,7 +5,7 @@
 <%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.UnimodModification" %>
 <%@ page import="org.labkey.api.util.StringUtilsLabKey" %>
-<%@ page import="org.labkey.api.util.HtmlString" %>
+<%@ page import="org.labkey.panoramapublic.proteomexchange.Formula" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -62,7 +62,7 @@
                 xtype: 'displayfield',
                 fieldCls: 'display-value',
                 fieldLabel: "Formula",
-                value: <%=q(UnimodModification.normalizeFormula(modification.getFormula()))%>
+                value: <%=q(Formula.normalizeFormula(modification.getFormula()))%>
             },
             <% if (bean.isIsotopicMod()) { %>
             {
@@ -127,10 +127,10 @@
             items: [
                 {
                     xtype: 'component',
-                    cls: 'alert-info alert',
+                    cls: 'alert-warning alert',
                     style: 'margin-top:10px;',
-                    html: '<div>If this modification is a combination of two modifications then you can define a custom '
-                            + '<%=defineComboModButton%>'
+                    html: '<div>Define a custom ' + '<%=defineComboModButton%>'
+                            + ' if this modification is a combination of two modifications.'
                             + '</div>'
                 }
             ],

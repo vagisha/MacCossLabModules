@@ -138,8 +138,8 @@ public class DataValidator
                             if (modInfo.isCombinationMod())
                             {
                                 List<UnimodModification> comboMods = new ArrayList<>();
-                                comboMods.add(new UnimodModification(modInfo.getUnimodId(), modInfo.getUnimodName(), ""));
-                                comboMods.add(new UnimodModification(modInfo.getUnimodId2(), modInfo.getUnimodName2(), ""));
+                                comboMods.add(new UnimodModification(modInfo.getUnimodId(), modInfo.getUnimodName(), null));
+                                comboMods.add(new UnimodModification(modInfo.getUnimodId2(), modInfo.getUnimodName2(),  null));
                                 mod.setPossibleUnimodMatches(comboMods);
                             }
                             else

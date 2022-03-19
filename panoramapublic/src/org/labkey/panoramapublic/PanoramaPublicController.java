@@ -147,6 +147,7 @@ import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxDataValidationPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxValidationPipelineProvider;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
+import org.labkey.panoramapublic.proteomexchange.Formula;
 import org.labkey.panoramapublic.proteomexchange.NcbiUtils;
 import org.labkey.panoramapublic.proteomexchange.ProteomeXchangeService;
 import org.labkey.panoramapublic.proteomexchange.ProteomeXchangeServiceException;
@@ -7297,7 +7298,7 @@ public class PanoramaPublicController extends SpringActionController
             if (modInfo != null)
             {
                 errors.reject(ERROR_MSG, modInfo.isCombinationMod() ?
-                        String.format("Structural modification Id (%s) is a already defined as a combination of Unimod Id %d (%s) and Unimod Id %d (%s)",
+                        String.format("Structural modification Id %d (%s) is a already defined as a combination of Unimod Id %d (%s) and Unimod Id %d (%s)",
                                 mod.getId(), mod.getName(), modInfo.getUnimodId(), modInfo.getUnimodName(), modInfo.getUnimodId2(), modInfo.getUnimodName2()) :
                         String.format("Structural modification Id %d (%s) is already assigned the Unimod Id %d (%s).",
                                 mod.getId(), mod.getName(), modInfo.getUnimodId(), modInfo.getUnimodName()));
@@ -7481,6 +7482,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             CombinationModifiationBean bean = new CombinationModifiationBean(form, _modification,
+                    Formula.parseFormula(_modification.getFormula()),
                     _unimodModifications.getStructuralModifications());
             JspView view = new JspView<>("/org/labkey/panoramapublic/view/combinationModInfo.jsp", bean, errors);
             view.setFrame(WebPartView.FrameType.PORTAL);
@@ -7514,7 +7516,6 @@ public class PanoramaPublicController extends SpringActionController
             }
             catch (Exception e)
             {
-                LOG.error("There was an error parsing Unimod modifications.", e);
                 errors.reject(ERROR_MSG, "There was an error parsing Unimod modifications. The error was: " + e.getMessage()
                         + ". Please try again. If you continue to see this error please contact the server administrator.");
             }
@@ -7554,11 +7555,14 @@ public class PanoramaPublicController extends SpringActionController
                 return false;
             }
 
-            String combinedFormula = UnimodModification.combineAndNormalize(mod1,mod2);
-            if (!combinedFormula.equals(UnimodModification.normalizeFormula(_modification.getFormula())))
+            Formula combinedFormula = UnimodModification.combineFormula(mod1,mod2);
+            Formula modFormula = Formula.parseFormula(_modification.getFormula());
+            Formula diff = modFormula.subtractFormula(combinedFormula);
+            if (!diff.isEmpty())
             {
                 errors.reject(ERROR_MSG, "Selected Unimod modification formulas do not add up to the formula of the modification. " +
-                        "Combined formula is " + combinedFormula);
+                        "Combined formula is " + combinedFormula.getFormula() +
+                        " Difference is " + diff.getFormula());
                 return false;
             }
 
@@ -7591,12 +7595,14 @@ public class PanoramaPublicController extends SpringActionController
     {
         private final CombinationModificationFrom _form;
         private final IModification.IStructuralModification _modification;
+        private final Formula _modFormula;
         private final List<UnimodModification> _unimodModificationList;
 
-        public CombinationModifiationBean(CombinationModificationFrom form, IModification.IStructuralModification modification, List<UnimodModification> unimodList)
+        public CombinationModifiationBean(CombinationModificationFrom form, IModification.IStructuralModification modification, Formula modFormula, List<UnimodModification> unimodList)
         {
             _form = form;
             _modification = modification;
+            _modFormula = modFormula;
             _unimodModificationList = unimodList;
         }
 
@@ -7608,6 +7614,11 @@ public class PanoramaPublicController extends SpringActionController
         public IModification.IStructuralModification getModification()
         {
             return _modification;
+        }
+
+        public Formula getModFormula()
+        {
+            return _modFormula;
         }
 
         public List<UnimodModification> getUnimodModificationList()

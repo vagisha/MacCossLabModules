@@ -116,7 +116,7 @@ public class ExperimentModificationGetter
         else
         {
             PxStructuralMod pxMod = new PxStructuralMod(mod.getName(), mod.getId());
-            String normFormula = UnimodModification.normalizeFormula(mod.getFormula());
+            String normFormula = Formula.normalizeFormula(mod.getFormula());
             if(normFormula != null && lookupUnimod)
             {
                 addMatches(mod, uMods, pxMod, normFormula, true);
@@ -170,7 +170,7 @@ public class ExperimentModificationGetter
                 }
             }
             PxIsotopicMod pxMod = new PxIsotopicMod(mod.getName(), mod.getId());
-            String normFormula = UnimodModification.normalizeFormula(formula);
+            String normFormula = Formula.normalizeFormula(formula);
             if(normFormula != null && lookupUnimod)
             {
                 addMatches(mod, uMods, pxMod, normFormula, false);
@@ -720,14 +720,14 @@ public class ExperimentModificationGetter
             if (pxMod.hasUnimodId())
             {
                 String term = mod.getTerminus() == null ? "" : (mod.getTerminus().equals("N") ? "N-term" : "C-term");
-                String modInfo = pxMod.getSkylineName() + ", " + UnimodModification.normalizeFormula(mod.getFormula()) + ", " + mod.getAminoAcid() + ", TERM: " + term;
+                String modInfo = pxMod.getSkylineName() + ", " + Formula.normalizeFormula(mod.getFormula()) + ", " + mod.getAminoAcid() + ", TERM: " + term;
                 System.out.print("Skyline: " + modInfo);
                 System.out.println(" --- " + pxMod.getUnimodId() + ", " + pxMod.getName());
             }
             if (pxMod.hasPossibleUnimods())
             {
                 String term = mod.getTerminus() == null ? "" : (mod.getTerminus().equals("N") ? "N-term" : "C-term");
-                String modInfo = pxMod.getSkylineName() + ", " + UnimodModification.normalizeFormula(mod.getFormula()) + ", " + mod.getAminoAcid() + ", TERM: " + term;
+                String modInfo = pxMod.getSkylineName() + ", " + Formula.normalizeFormula(mod.getFormula()) + ", " + mod.getAminoAcid() + ", TERM: " + term;
                 System.out.println("Skyline: " + modInfo);
                 for (UnimodModification umod: pxMod.getPossibleUnimodMatches())
                 {
@@ -881,7 +881,7 @@ public class ExperimentModificationGetter
             if (debug && pxMod.hasUnimodId())
             {
                 String term = mod.getTerminus() == null ? "" : (mod.getTerminus().equals("N") ? "N-term" : "C-term");
-                String modInfo = pxMod.getSkylineName() + ", " + UnimodModification.normalizeFormula(mod.getFormula()) + ", " + mod.getAminoAcid() + ", TERM: " + term;
+                String modInfo = pxMod.getSkylineName() + ", " + Formula.normalizeFormula(mod.getFormula()) + ", " + mod.getAminoAcid() + ", TERM: " + term;
                 System.out.print("Skyline: " + modInfo);
                 System.out.println(" --- " + pxMod.getUnimodId() + ", " + pxMod.getName());
             }

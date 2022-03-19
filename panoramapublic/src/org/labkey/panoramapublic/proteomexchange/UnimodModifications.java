@@ -170,7 +170,7 @@ public class UnimodModifications
                 }
             }
         }
-        return UnimodModification.normalizeFormula(formulaPos.append(formulaNeg.length() > 3 ? formulaNeg : "").toString());
+        return Formula.normalizeFormula(formulaPos.append(formulaNeg.length() > 3 ? formulaNeg : "").toString());
     }
 
     private void addElementAndCount(String element, int count, StringBuilder formulaPos, StringBuilder formulaNeg)

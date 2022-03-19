@@ -5,7 +5,7 @@ import org.labkey.api.data.DataColumn;
 import org.labkey.api.data.DisplayColumn;
 import org.labkey.api.data.DisplayColumnFactory;
 import org.labkey.api.data.RenderContext;
-import org.labkey.panoramapublic.proteomexchange.UnimodModification;
+import org.labkey.panoramapublic.proteomexchange.Formula;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -23,7 +23,7 @@ public class NormalizedFormulaDisplayColumnFactory implements DisplayColumnFacto
                 String formula = ctx.get(colInfo.getFieldKey(), String.class);
                 if (formula != null)
                 {
-                    out.write(UnimodModification.normalizeFormula(formula));
+                    out.write(Formula.normalizeFormula(formula));
                 }
             }
         };
