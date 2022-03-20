@@ -15,7 +15,6 @@ import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
-import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator.SpecLibKeyWithSize;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
@@ -105,7 +104,8 @@ public class DataValidator
         // sleep();
         try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
-            List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations, false);
+            List<ExperimentModificationGetter.PxModification> mods = ExperimentModificationGetter.getModifications(_expAnnotations,
+                    false); // Do not look up Unimod to find a match if the modification does not have a Unimod Id in the Skyline document.
             for (ExperimentModificationGetter.PxModification pxMod : mods)
             {
                 Modification mod = new Modification(pxMod.getSkylineName(), pxMod.getDbModId(),
@@ -113,42 +113,15 @@ public class DataValidator
                         pxMod.isMatchInferred(),
                         pxMod.getName(),
                         pxMod.isIsotopicMod() ? ModType.Isotopic : ModType.Structural);
-//                if (pxMod.hasPossibleUnimods())
-//                {
-//                    mod.setPossibleUnimodMatches(pxMod.getPossibleUnimodMatches());
-//                }
                 mod.setValidationId(status.getValidation().getId());
                 if (mod.getUnimodId() == null)
                 {
-                    if (ModType.Isotopic == mod.getModType())
+                    var modInfo = ModType.Isotopic == mod.getModType() ? ModificationInfoManager.getIsotopeModInfo(mod.getDbModId(), _expAnnotations.getId())
+                            : ModificationInfoManager.getStructuralModInfo(mod.getDbModId(), _expAnnotations.getId());
+                    if (modInfo != null)
                     {
-                        var modInfo = ModificationInfoManager.getIsotopeModInfo(mod.getDbModId(), _expAnnotations.getId());
-                        if (modInfo != null)
-                        {
-                            mod.setUnimodId(modInfo.getUnimodId());
-                            mod.setUnimodName(modInfo.getUnimodName());
-                            mod.setInferred(true);
-                        }
-                    }
-                    else
-                    {
-                        var modInfo = ModificationInfoManager.getStructuralModInfo(mod.getDbModId(), _expAnnotations.getId());
-                        if (modInfo != null)
-                        {
-                            if (modInfo.isCombinationMod())
-                            {
-                                List<UnimodModification> comboMods = new ArrayList<>();
-                                comboMods.add(new UnimodModification(modInfo.getUnimodId(), modInfo.getUnimodName(), null));
-                                comboMods.add(new UnimodModification(modInfo.getUnimodId2(), modInfo.getUnimodName2(),  null));
-                                mod.setPossibleUnimodMatches(comboMods);
-                            }
-                            else
-                            {
-                                mod.setUnimodId(modInfo.getUnimodId());
-                                mod.setUnimodName(modInfo.getUnimodName());
-                            }
-                            mod.setInferred(true);
-                        }
+                        mod.setModInfoId(modInfo.getId());
+                        mod.setInferred(true);
                     }
                 }
 

@@ -136,6 +136,7 @@ import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
 import org.labkey.panoramapublic.model.Submission;
 import org.labkey.panoramapublic.model.validation.DataValidation;
+import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.PxStatus;
 import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
@@ -146,6 +147,7 @@ import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxDataValidationPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxValidationPipelineProvider;
+import org.labkey.panoramapublic.proteomexchange.ChemElement;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.proteomexchange.Formula;
 import org.labkey.panoramapublic.proteomexchange.NcbiUtils;
@@ -7195,20 +7197,11 @@ public class PanoramaPublicController extends SpringActionController
             UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the Unimod modifications
             ExperimentModificationGetter.PxModification matchedMod = getModificationMatch(mod, uMods);
 
-//            if (matchedMod.hasUnimodId() || matchedMod.hasPossibleUnimods())
-//            {
-                UnimodMatchBean bean = new UnimodMatchBean(form, mod, matchedMod);
-                JspView view = new JspView<>("/org/labkey/panoramapublic/view/unimodMatchInfo.jsp", bean, errors);
-                view.setFrame(WebPartView.FrameType.PORTAL);
-                view.setTitle("Unimod Match");
-                return view;
-//            }
-//
-//            else
-//            {
-//                errors.reject(ERROR_MSG, String.format("No Unimod matches were found for the modification '%s'.", mod.getName()));
-//                return new SimpleErrorView(errors);
-//            }
+            UnimodMatchBean bean = new UnimodMatchBean(form, mod, matchedMod);
+            JspView view = new JspView<>("/org/labkey/panoramapublic/view/unimodMatchInfo.jsp", bean, errors);
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            view.setTitle("Unimod Match");
+            return view;
         }
 
         private IModification getValidModification(UnimodMatchForm form, Errors errors)
@@ -7328,7 +7321,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected void updateValidationModification(ExperimentStructuralModInfo modInfo)
         {
-            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
+            DataValidationManager.addModInfo(_expAnnot, modInfo, Modification.ModType.Structural, getUser());
         }
     }
 
@@ -7379,7 +7372,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected void updateValidationModification(ExperimentModInfo modInfo)
         {
-            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
+            DataValidationManager.addModInfo(_expAnnot, modInfo, Modification.ModType.Isotopic, getUser());
         }
     }
 
@@ -7481,9 +7474,19 @@ public class PanoramaPublicController extends SpringActionController
                 }
             }
 
-            CombinationModifiationBean bean = new CombinationModifiationBean(form, _modification,
-                    Formula.parse(_modification.getFormula()),
-                    _unimodModifications.getStructuralModifications());
+            List<String> parseErrors = new ArrayList<>(); // TODO: single error
+            Formula modFormula = Formula.tryParse(_modification.getFormula(), parseErrors);
+            if (modFormula == null)
+            {
+                errors.reject(ERROR_MSG, parseErrors.get(0));
+                return new SimpleErrorView(errors);
+            }
+
+            CombinationModificationBean bean = new CombinationModificationBean(form, _modification,
+                    modFormula,
+                    _unimodModifications.getStructuralModifications(),
+                    Arrays.stream(ChemElement.values()).map(el -> el.getSymbol()).collect(Collectors.toList())
+                    );
             JspView view = new JspView<>("/org/labkey/panoramapublic/view/combinationModInfo.jsp", bean, errors);
             view.setFrame(WebPartView.FrameType.PORTAL);
             view.setTitle("Combination Modification");
@@ -7562,7 +7565,7 @@ public class PanoramaPublicController extends SpringActionController
             {
                 errors.reject(ERROR_MSG, "Selected Unimod modification formulas do not add up to the formula of the modification. " +
                         "Combined formula is " + combinedFormula.getFormula() +
-                        " Difference is " + diff.getFormula());
+                        " Difference from the modification formula is " + diff.getFormula());
                 return false;
             }
 
@@ -7573,7 +7576,13 @@ public class PanoramaPublicController extends SpringActionController
             modInfo.setExperimentAnnotationsId(form.getId());
             modInfo.setUnimodId2(mod2.getId());
             modInfo.setUnimodName2(mod2.getName());
-            ModificationInfoManager.saveStructuralModInfo(modInfo, getUser());
+
+            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+            {
+                modInfo = ModificationInfoManager.saveStructuralModInfo(modInfo, getUser());
+                DataValidationManager.addModInfo(_expAnnot, modInfo, Modification.ModType.Structural, getUser());
+                transaction.commit();
+            }
 
             return true;
         }
@@ -7591,19 +7600,22 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
-    public static class CombinationModifiationBean
+    public static class CombinationModificationBean
     {
         private final CombinationModificationFrom _form;
         private final IModification.IStructuralModification _modification;
         private final Formula _modFormula;
         private final List<UnimodModification> _unimodModificationList;
+        private final List<String> _elementOrder;
 
-        public CombinationModifiationBean(CombinationModificationFrom form, IModification.IStructuralModification modification, Formula modFormula, List<UnimodModification> unimodList)
+        public CombinationModificationBean(CombinationModificationFrom form, IModification.IStructuralModification modification,
+                                           Formula modFormula, List<UnimodModification> unimodList, List<String> elementOrder)
         {
             _form = form;
             _modification = modification;
             _modFormula = modFormula;
             _unimodModificationList = unimodList;
+            _elementOrder = elementOrder;
         }
 
         public CombinationModificationFrom getForm()
@@ -7625,6 +7637,11 @@ public class PanoramaPublicController extends SpringActionController
         {
             return _unimodModificationList;
         }
+
+        public List<String> getElementOrder()
+        {
+            return _elementOrder;
+        }
     }
 
     public static class CombinationModificationFrom extends ExperimentIdForm
@@ -7634,7 +7651,6 @@ public class PanoramaPublicController extends SpringActionController
         private String _unimodName1;
         private Integer _unimodId2;
         private String _unimodName2;
-        private Integer _structuralModInfoId;
 
         public long getModificationId()
         {
@@ -7684,16 +7700,6 @@ public class PanoramaPublicController extends SpringActionController
         public void setUnimodName2(String unimodName2)
         {
             _unimodName2 = unimodName2;
-        }
-
-        public Integer getStructuralModInfoId()
-        {
-            return _structuralModInfoId;
-        }
-
-        public void setStructuralModInfoId(Integer structuralModInfoId)
-        {
-            _structuralModInfoId = structuralModInfoId;
         }
     }
 
@@ -7777,11 +7783,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected void updateValidationModification(ExperimentStructuralModInfo modInfo)
         {
-            modInfo.setUnimodId(0);
-            modInfo.setUnimodName(null);
-            modInfo.setUnimodId2(null);
-            modInfo.setUnimodName2(null);
-            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
+            DataValidationManager.removeModInfo(_expAnnot, modInfo.getModId(), Modification.ModType.Structural, getUser());
         }
     }
 
@@ -7803,9 +7805,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected void updateValidationModification(ExperimentModInfo modInfo)
         {
-            modInfo.setUnimodId(0);
-            modInfo.setUnimodName(null);
-            DataValidationManager.updateValidationModification(_expAnnot, modInfo, getUser());
+            DataValidationManager.removeModInfo(_expAnnot, modInfo.getModId(), Modification.ModType.Isotopic, getUser());
         }
     }
 

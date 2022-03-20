@@ -234,6 +234,16 @@ public class Formula
             assertEquals("-Cl", Formula.parse(" - Cl1").getFormula());
             assertEquals("C6N2 - C'6N'2", Formula.parse("C5NNC - C'N'C'5N'").getFormula());
             assertEquals("C7N2Cl - C'6N'2", Formula.parse("C5NNCClC - C'N'C'5N'").getFormula());
+
+
+            Formula formula1 = new Formula();
+            formula1.addElement(ChemElement.C, 3);
+            formula1.addElement(ChemElement.H, 8);
+            formula1.addElement(ChemElement.O, 2);
+            formula1.addElement(ChemElement.C13, 3);
+            assertEquals("H8C3C'3O2", formula1.getFormula());
+            // H4C3O + H4C'3O = H8C3C'3O2
+            assertEquals(formula1.getFormula(), Formula.parse("H4C3O").addFormula(Formula.parse("H4C'3O")).getFormula());
         }
     }
 }

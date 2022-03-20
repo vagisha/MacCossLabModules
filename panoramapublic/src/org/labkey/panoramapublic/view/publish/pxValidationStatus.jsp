@@ -371,6 +371,7 @@
                 style:  {margin: '10px'},
                 items:  [
                             {xtype: 'component', padding: '10, 5, 0, 5', html: 'Folder: ' + htmlEncode(validationJson["folder"])},
+                            {xtype: 'component', padding: '0, 5, 0, 5', html: experimentLink()},
                             {xtype: 'component', padding: '0, 5, 10, 5', html: 'Date: ' + htmlEncode(validationJson["date"])},
                             {
                                 xtype:   'component',
@@ -398,7 +399,12 @@
     }
 
     function documentLink(documentName, containerPath, runId) {
-        return link(documentName, LABKEY.ActionURL.buildURL('targetedms', 'showPrecursorList.view', containerPath, {id: runId}));
+        return link(documentName, LABKEY.ActionURL.buildURL('targetedms', 'showPrecursorList', containerPath, {id: runId}));
+    }
+
+    function experimentLink() {
+        return link("[View experiment details]", LABKEY.ActionURL.buildURL('panoramapublic', 'showExperimentAnnotations',
+                LABKEY.ActionURL.getContainer(), {id: <%=experimentAnnotationsId%>}), 'labkey-text-link', true);
     }
 
     function unimodLink(unimodId, cls) {
@@ -412,7 +418,7 @@
     function assignUnimodLink(dbModId, modType, experimentAnnotationsId) {
         if (!modType) return;
         const modTypeUpper = modType.toUpperCase();
-        const action = modTypeUpper === 'STRUCTURAL' ? 'matchStructuralModToUnimod' : 'matchToUnimodIsotope';
+        const action = modTypeUpper === 'STRUCTURAL' ? 'matchToUnimodStructural' : 'matchToUnimodIsotope';
         const params = {
             'id': experimentAnnotationsId,
             'modificationId': dbModId,
@@ -432,7 +438,7 @@
         if (json["modifications"]) {
             const modificationsStore = Ext4.create('Ext.data.Store', {
                 storeId: 'modificationsStore',
-                fields:  ['id', 'skylineModInfo', 'unimodId', 'unimodName', 'inferred', 'valid', 'modType', 'dbModId', 'documents', 'possibleUnimodMatches'],
+                fields:  ['id', 'skylineModInfo', 'unimodId', 'unimodName', 'inferred', 'valid', 'modType', 'dbModId', 'documents', 'unimodMatches'],
                 data:    json,
                 proxy:   { type: 'memory', reader: { type: 'json', root: 'modifications' }},
                 sorters: [
@@ -449,7 +455,7 @@
                         direction: 'DESC'
                     },
                     {
-                        property: 'possibleUnimodMatches',
+                        property: 'unimodMatches',
                         direction: 'DESC'
                     }
                 ]
@@ -489,11 +495,11 @@
                         flex: 2,
                         renderer: function (value, metadata, record) {
                             if (value) return unimodLink(value, 'pxv-valid');
-                            else if (record.data['possibleUnimodMatches']) {
+                            else if (record.data['unimodMatches']) {
                                 var ret = ''; var sep = '';
-                                var comboMods = record.data['possibleUnimodMatches'];
-                                for (var i = 0; i < comboMods.length; i++) {
-                                    ret += sep + unimodLink(comboMods[i]['unimodId'], 'pxv-valid');
+                                var matches = record.data['unimodMatches'];
+                                for (var i = 0; i < matches.length; i++) {
+                                    ret += sep + unimodLink(matches[i]['unimodId'], 'pxv-valid');
                                     sep = ' + ';
                                 }
                                 return ret;
@@ -507,11 +513,11 @@
                         flex: 3,
                         renderer: function (value, metadata, record) {
                             if (value) return htmlEncode(value);
-                            else if (record.data['possibleUnimodMatches']) {
+                            else if (record.data['unimodMatches']) {
                                 var ret = ''; var sep = '';
-                                var comboMods = record.data['possibleUnimodMatches'];
-                                for (var i = 0; i < comboMods.length; i++) {
-                                    ret += sep + htmlEncode(comboMods[i]['name']);
+                                var matches = record.data['unimodMatches'];
+                                for (var i = 0; i < matches.length; i++) {
+                                    ret += sep + htmlEncode(matches[i]['name']);
                                     sep = ' + ';
                                 }
                                 return ret;

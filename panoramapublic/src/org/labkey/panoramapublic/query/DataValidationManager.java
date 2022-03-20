@@ -32,7 +32,6 @@ import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
-import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile;
 import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
@@ -296,40 +295,40 @@ public class DataValidationManager
         return Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
     }
 
-    public static void updateValidationModification(@NotNull ExperimentAnnotations expAnnotations, @NotNull ExperimentModInfo modInfo, User user)
+    public static void removeModInfo(@NotNull ExperimentAnnotations expAnnotations, long modId, Modification.ModType modType, User user)
+    {
+        updateModInfo(expAnnotations, modId, modType, null, user);
+    }
+
+    public static void addModInfo(@NotNull ExperimentAnnotations expAnnotations, @NotNull ExperimentModInfo modInfo, Modification.ModType modType, User user)
+    {
+        updateModInfo(expAnnotations, modInfo.getModId(), modType, modInfo.getId(), user);
+    }
+
+    private static void updateModInfo(ExperimentAnnotations expAnnotations, long modId, Modification.ModType modType, Integer modInfoId, User user)
     {
         var latestValidation = DataValidationManager.getLatestValidation(expAnnotations.getId(), expAnnotations.getContainer());
         if (latestValidation != null)
         {
-            var modType = modInfo instanceof ExperimentStructuralModInfo ? Modification.ModType.Structural : Modification.ModType.Isotopic;
-            var modification = DataValidationManager.getModification(latestValidation.getId(), modInfo.getModId(), modType);
+            var modification = DataValidationManager.getModification(latestValidation.getId(), modId, modType);
             if (modification != null)
             {
-                if (modInfo instanceof ExperimentStructuralModInfo strMod && strMod.isCombinationMod())
+                if (modInfoId != null || (modInfoId == null && modification.getModInfoId() != null))
                 {
-                    modification.setUnimodId(null);
-                    modification.setUnimodName(null);
-                    modification.setPossibleUnimodMatches(List.of(new UnimodModification(strMod.getUnimodId(), strMod.getUnimodName(), null),
-                            new UnimodModification(strMod.getUnimodId2(), strMod.getUnimodName2(), null)));
+                    modification.setModInfoId(modInfoId);
+                    modification.setInferred(modInfoId != null);
                 }
-                else
-                {
-                    modification.setUnimodId(modInfo.getUnimodId() != 0 ? modInfo.getUnimodId() : null);
-                    modification.setUnimodName(modInfo.getUnimodName());
-                    modification.setPossibleUnimodMatches(null);
-                }
-
-                try(DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+                try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
                 {
                     Table.update(user, PanoramaPublicManager.getTableInfoModificationValidation(), modification, modification.getId());
-                    recalculateStatusForMods(latestValidation, user);
+                    modsChangedRecalculateStatus(latestValidation, user);
                     transaction.commit();
                 }
             }
         }
     }
 
-    private static void recalculateStatusForMods(DataValidation validation, User user)
+    private static void modsChangedRecalculateStatus(DataValidation validation, User user)
     {
         PxStatus status = validation.getStatus();
         if (status != null && status.ordinal() >= PxStatus.IncompleteMetadata.ordinal())

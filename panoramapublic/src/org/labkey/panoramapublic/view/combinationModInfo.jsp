@@ -6,6 +6,7 @@
 <%@ page import="org.labkey.panoramapublic.proteomexchange.UnimodModification" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.ChemElement" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.Formula" %>
+<%@ page import="java.util.Map" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 
@@ -17,17 +18,17 @@
     }
 %>
 <%
-    JspView<PanoramaPublicController.CombinationModifiationBean> view = (JspView<PanoramaPublicController.CombinationModifiationBean>) HttpView.currentView();
+    JspView<PanoramaPublicController.CombinationModificationBean> view = (JspView<PanoramaPublicController.CombinationModificationBean>) HttpView.currentView();
     var bean = view.getModelBean();
     var form = bean.getForm();
     var modification = bean.getModification();
     var modFormula = bean.getModFormula();
     var unimodMods = bean.getUnimodModificationList();
-    var returnUrl = form.getReturnURLHelper(getContainer().getStartURL(getUser()));
+    var returnUrl = form.getReturnURLHelper(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()));
 %>
 <labkey:errors/>
 
-<style type="text/css">
+<style>
     .display-value {
         font-size: 14px;
         margin-top: 10px;
@@ -38,10 +39,11 @@
 
 <script type="text/javascript">
 
-    var modFormula;
-    var selectedUnimod1;
-    var selectedUnimod2;
-    var formPanel;
+    let modFormula = undefined;
+    let selectedUnimod1 = undefined;
+    let selectedUnimod2 = undefined;
+    const elementOrder = {};
+    let formPanel, combo1, combo2;
 
     Ext4.onReady(function(){
 
@@ -50,17 +52,22 @@
         modFormula.addElement(<%=q(entry.getKey().getSymbol())%>, <%=entry.getValue()%>);
         <% } %>
 
-        var combo1 = createUnimodCb(1);
-        var combo2 = createUnimodCb(2);
+        let idx = 0;
+        <% for (var el: bean.getElementOrder()) { %>
+            elementOrder[<%=q(el)%>] = idx++;
+        <% } %>
+
+        const combo1 = createUnimodCb(1);
+        const combo2 = createUnimodCb(2);
 
         <% if (form.getUnimodId1() != null) { %>
-        var record1 = combo1.getStore().getById(<%=form.getUnimodId1()%>);
-        if (record1) selectedUnimod1 = record1.data;
+            const record1 = combo1.getStore().getById(<%=form.getUnimodId1()%>);
+            if (record1) selectedUnimod1 = record1.data;
         <% } %>
 
         <% if (form.getUnimodId2() != null) { %>
-        var record2 = combo2.getStore().getById(<%=form.getUnimodId2()%>);
-        if (record2) selectedUnimod2 = record2.data;
+            const record2 = combo2.getStore().getById(<%=form.getUnimodId2()%>);
+            if (record2) selectedUnimod2 = record2.data;
         <% } %>
 
         formPanel = Ext4.create('Ext.form.Panel', {
@@ -81,7 +88,6 @@
                     value: <%=form.getId()%>
                 },
                 {
-                    // instead of generateReturnUrlFormField(returnUrl)
                     xtype: 'hidden',
                     name: <%=q(ActionURL.Param.returnUrl.name())%>,
                     value: <%=q(returnUrl)%>
@@ -91,13 +97,6 @@
                     name: 'modificationId',
                     value: <%=form.getModificationId()%>
                 },
-                <% if(form.getStructuralModInfoId() != null){ %>
-                {
-                    xtype: 'hidden',
-                    name: 'structuralModInfoId', // panoramapublic.ExperimentStructuralModInfo.id
-                    value: <%=form.getStructuralModInfoId()%>
-                },
-                <% } %>
                 {
                     xtype: 'displayfield',
                     fieldCls: 'display-value',
@@ -145,8 +144,7 @@
                 {
                     text: "Save",
                     cls: 'labkey-button primary',
-                    handler: function(button) {
-                        // button.setDisabled(true);
+                    handler: function() {
                         formPanel.submit({
                             url: <%=q(urlFor(PanoramaPublicController.DefineCombinationModificationAction.class))%>,
                             method: 'POST'
@@ -156,54 +154,49 @@
                 {
                     text: 'Cancel',
                     cls: 'labkey-button',
-                    handler: function(btn) {
-                        window.history.back();
+                    handler: function() {
+                        window.location = <%= q(returnUrl) %>;
                     }
                 }]
         });
+
+        if (selectedUnimod1 && selectedUnimod2) {
+            updateFormulaDiff();
+        }
     });
 
     class Formula {
-        constructor(){ this.elementCounts = {}; }
+
+        constructor() {
+            this.elementCounts = {};
+        }
+        subtractElement(el, count) {
+            this.addElement(el, count * -1);
+        }
         addElement(element, count) {
-            var currentCount = this.elementCounts[element];
+            const currentCount = this.elementCounts[element];
             if (currentCount) {
                 count = currentCount + count;
             }
             this.elementCounts[element] = count;
         }
-        addFormula(otherFormula) {
-            const newFormula = new Formula();
-            for (const elem in this.elementCounts) {
-                newFormula.addElement(elem, this.elementCounts[elem]);
-            }
-            for (const elem in otherFormula.elementCounts) {
-                newFormula.addElement(elem, otherFormula.elementCounts[elem]);
-            }
-            return newFormula;
-        }
         subtractFormula(otherFormula) {
             const newFormula = new Formula();
-            for (const elem in this.elementCounts) {
-                newFormula.addElement(elem, this.elementCounts[elem]);
-            }
-            for (const elem in otherFormula.elementCounts) {
-                newFormula.addElement(elem, otherFormula.elementCounts[elem] * -1);
-            }
+            Object.keys(this.elementCounts).forEach(el => newFormula.addElement(el, this.elementCounts[el]));
+            Object.keys(otherFormula.elementCounts).forEach(el => newFormula.subtractElement(el, otherFormula.elementCounts[el]));
+
             return newFormula;
         }
         isEmpty() {
-            for (const elem in this.elementCounts) {
-                if (this.elementCounts[elem] != 0) return false;
-            }
-            return true;
+            return !Object.keys(this.elementCounts).find(el => this.elementCounts[el] !== 0);
         }
         getFormula() {
             let posForm = '';
             let negForm = '';
-            for (const elem in this.elementCounts) {
-                // console.log(elem + " -> " + this.elementCounts[elem]);
-                var cnt = this.elementCounts[elem];
+
+            const sortedKeys = Object.keys(this.elementCounts).sort((a,b) => elementOrder[a] - elementOrder[b]);
+            for (const elem of sortedKeys) {
+                let cnt = this.elementCounts[elem];
                 if (cnt > 0) {
                     posForm += elem + (cnt > 1 ? cnt : '');
                 }
@@ -237,7 +230,7 @@
             width: 800,
             labelStyle: 'background-color: #E0E6EA; padding: 5px;',
             listeners: {
-                select: function (combo, records, eOpts){
+                select: function (combo, records){
                     const record = records[0];
                     if (cbIdx === 1) selectedUnimod1 = record.data;
                     else selectedUnimod2 = record.data;
@@ -250,7 +243,6 @@
     const alertCls = 'alert';
     const alertInfoCls = 'alert-info';
     const alertWarnCls = 'alert-warning';
-    const plusSpan = '<span style="margin: 0 10px 0 10px;font-weight:bold;">+</span>';
 
     function updateFormulaDiff() {
 
@@ -260,8 +252,7 @@
         const diffFormula = modFormula.subtractFormula(totalFormula);
         const formulaBalanced = diffFormula.isEmpty();
 
-        // var total = '(' + <%= qh(modification.getName()) %> + ') ' + <%= qh(modFormula.getFormula()) %>;
-        var html = '';
+        let html = '';
         html += selectedUnimod1 ? selectedUnimod1["formula"] : getSpan('---');
         html += getSpan('+');
         html += selectedUnimod2 ? selectedUnimod2["formula"] : getSpan('---');
@@ -275,19 +266,13 @@
             html += '<span style="color:red;" class="fa fa-times-circle"></span>';
         }
 
-        var el = formPanel.getComponent("formulaDiff");
+        const el = formPanel.getComponent("formulaDiff");
         if (el != null)
         {
             if (!el.hasCls(alertCls)) el.addCls(alertCls);
 
-            if (formulaBalanced) {
-                el.removeCls(alertWarnCls);
-                el.addCls(alertInfoCls);
-            }
-            else {
-                el.removeCls(alertInfoCls);
-                el.addCls(alertWarnCls);
-            }
+            el.removeCls(formulaBalanced ? alertWarnCls : alertInfoCls);
+            el.addCls(formulaBalanced ? alertInfoCls : alertWarnCls);
             el.update(html);
         }
     }
@@ -298,10 +283,8 @@
 
     function addUnimod(formula, unimodRecord) {
         if (unimodRecord) {
-            var composition = unimodRecord['composition'];
-            for (const el in composition) {
-                formula.addElement(el, composition[el]);
-            }
+            const composition = unimodRecord['composition'];
+            Object.keys(composition).forEach(el => formula.addElement(el, composition[el]));
         }
         return formula;
     }
@@ -318,8 +301,8 @@
                     "displayName":<%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %>,
                     "formula": <%= q(mod.getNormalizedFormula()) %>,
                     "composition": {
-                        <% for (ChemElement el: mod.getFormula().getElementCounts().keySet()) { %>
-                            <%=q(el.getSymbol())%>:  <%=mod.getFormula().getElementCounts().get(el)%> ,
+                        <% for (Map.Entry<ChemElement, Integer> entry: mod.getFormula().getElementCounts().entrySet()) { %>
+                            <%=q(entry.getKey().getSymbol())%>:  <%=entry.getValue()%> ,
                         <% } %>
                         }
                 },

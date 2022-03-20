@@ -536,10 +536,7 @@
             <column columnName="Inferred">
                 <description>True if the Unimod Id was inferred</description>
             </column>
-            <column columnName="UnimodMatches">
-                <isHidden>true</isHidden>
-                <description>Possible Unimod matches if a single match was not found</description>
-            </column>
+            <column columnName="ModInfoId"/>
         </columns>
     </table>
     <table tableName="SkylineDocModification" tableDbType="TABLE">

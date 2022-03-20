@@ -60,3 +60,5 @@ CREATE TABLE panoramapublic.ExperimentIsotopeModInfo
 CREATE INDEX IX_ExperimentIsotopeModInfo_ExperimentAnnotationsId ON panoramapublic.ExperimentIsotopeModInfo(experimentAnnotationsId);
 CREATE INDEX IX_ExperimentIsotopeModInfo_ModId ON panoramapublic.ExperimentIsotopeModInfo(ModId);
 
+ALTER TABLE panoramapublic.ModificationValidation DROP COLUMN UnimodMatches;
+ALTER TABLE panoramapublic.ModificationValidation ADD COLUMN ModInfoId INT; -- panoramapublic.ExperimentStructuralModInfo.Id OR panoramapublic.ExperimentIsotopeModInfo.Id

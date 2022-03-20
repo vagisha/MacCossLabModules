@@ -1,6 +1,9 @@
 package org.labkey.panoramapublic.query.modification;
 
+import org.labkey.api.util.Pair;
 import org.labkey.panoramapublic.model.DbEntity;
+
+import java.util.List;
 
 public class ExperimentModInfo extends DbEntity
 {
@@ -47,6 +50,16 @@ public class ExperimentModInfo extends DbEntity
     public void setModId(long modId)
     {
         _modId = modId;
+    }
+
+    public List<Integer> getUnimodIds()
+    {
+        return List.of(_unimodId);
+    }
+
+    public List<Pair<Integer, String>> getUnimodIdsAndNames()
+    {
+        return List.of(new Pair(_unimodId, _unimodName));
     }
 
     public boolean isCombinationMod()

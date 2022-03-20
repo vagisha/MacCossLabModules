@@ -32,7 +32,7 @@
     var defineComboModButton = button("Combination Modification")
             .href(new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, getContainer())
                     .addParameter("id", form.getId()).addParameter("modificationId", form.getModificationId())
-            .addReturnURL(form.getReturnActionURL(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer())))).build();
+            .addReturnURL(getActionURL())).build();
 
 %>
 <labkey:errors/>
@@ -127,7 +127,7 @@
             items: [
                 {
                     xtype: 'component',
-                    cls: 'alert-warning alert',
+                    cls: 'alert-info alert',
                     style: 'margin-top:10px;',
                     html: '<div>Define a custom ' + '<%=defineComboModButton%>'
                             + ' if this modification is a combination of two modifications.'
