@@ -34,7 +34,7 @@
                         <columnTitle>UnimodMatch</columnTitle>
                         <textAlign>left</textAlign>
                         <displayColumnFactory>
-                            <className>org.labkey.panoramapublic.query.modification.AssignedUnimodDisplayColumnFactory$AssignedStructuralUnimod</className>
+                            <className>org.labkey.panoramapublic.query.modification.UnimodMatchDisplayColumnFactory$StructuralUnimodMatch</className>
                         </displayColumnFactory>
                     </column>
                     <column columnName="ModInfoId">

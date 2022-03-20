@@ -32,8 +32,9 @@
     var defineComboModButton = button("Combination Modification")
             .href(new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, getContainer())
                     .addParameter("id", form.getId()).addParameter("modificationId", form.getModificationId())
-            .addReturnURL(getActionURL())).build();
-
+                    .addCancelURL(getActionURL())
+                    .addReturnURL(form.getReturnActionURL(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()))))
+            .build();
 %>
 <labkey:errors/>
 

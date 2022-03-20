@@ -30,7 +30,7 @@ import static org.labkey.api.util.DOM.SPAN;
 import static org.labkey.api.util.DOM.at;
 import static org.labkey.api.util.DOM.cl;
 
-public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentModInfo> implements DisplayColumnFactory
+public abstract class UnimodMatchDisplayColumnFactory<T extends ExperimentModInfo> implements DisplayColumnFactory
 {
     private static final FieldKey MOD_ID = FieldKey.fromParts("ModId");
     private static final FieldKey MOD_INFO_ID = FieldKey.fromParts("ModInfoId");
@@ -106,7 +106,7 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
         return List.of(SPAN("**"), UnimodModification.getLink(modInfo.getUnimodId(), true), HtmlString.NBSP, SPAN("(" + modInfo.getUnimodName() + ")"));
     }
 
-    public static class AssignedStructuralUnimod extends AssignedUnimodDisplayColumnFactory<ExperimentStructuralModInfo>
+    public static class StructuralUnimodMatch extends UnimodMatchDisplayColumnFactory<ExperimentStructuralModInfo>
     {
         @Override
         ActionURL getMatchToUnimodAction(RenderContext ctx)
@@ -147,7 +147,7 @@ public abstract class AssignedUnimodDisplayColumnFactory<T extends ExperimentMod
         }
     }
 
-    public static class AssignedIsotopeUnimod extends AssignedUnimodDisplayColumnFactory<ExperimentModInfo>
+    public static class IsotopeUnimodMatch extends UnimodMatchDisplayColumnFactory<ExperimentModInfo>
     {
         @Override
         ActionURL getMatchToUnimodAction(RenderContext ctx)

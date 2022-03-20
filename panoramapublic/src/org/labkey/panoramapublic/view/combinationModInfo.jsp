@@ -123,6 +123,7 @@
                 },
                 {
                     xtype: 'label',
+                    width: 600,
                     text: 'This modification is a combination of',
                     style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
                 },
@@ -135,6 +136,7 @@
                 {
                     xtype: 'label',
                     text: '--- AND ---',
+                    width: 600,
                     style: {'text-align': 'center', 'margin': '10px 0 10px 0'}
                 },
                 combo2
@@ -151,11 +153,10 @@
                         });
                     }
                 },
-                {
-                    text: 'Cancel',
+                {text: 'Cancel',
                     cls: 'labkey-button',
                     handler: function() {
-                        window.location = <%= q(returnUrl) %>;
+                        window.location = <%= q(form.getCancelActionURL()) %>;
                     }
                 }]
         });
@@ -165,32 +166,31 @@
         }
     });
 
-    class Formula {
+    function Formula() {
 
-        constructor() {
-            this.elementCounts = {};
-        }
-        subtractElement(el, count) {
+        this.elementCounts = {};
+
+        this.subtractElement = function _subtractElement(el, count) {
             this.addElement(el, count * -1);
         }
-        addElement(element, count) {
+        this.addElement = function _addElement(element, count) {
             const currentCount = this.elementCounts[element];
             if (currentCount) {
                 count = currentCount + count;
             }
             this.elementCounts[element] = count;
         }
-        subtractFormula(otherFormula) {
+        this.subtractFormula = function _subtractFormula(otherFormula) {
             const newFormula = new Formula();
             Object.keys(this.elementCounts).forEach(el => newFormula.addElement(el, this.elementCounts[el]));
             Object.keys(otherFormula.elementCounts).forEach(el => newFormula.subtractElement(el, otherFormula.elementCounts[el]));
 
             return newFormula;
         }
-        isEmpty() {
+        this.isEmpty = function _isEmpty() {
             return !Object.keys(this.elementCounts).find(el => this.elementCounts[el] !== 0);
         }
-        getFormula() {
+        this.getFormula = function _getFormula() {
             let posForm = '';
             let negForm = '';
 
@@ -219,6 +219,7 @@
             fieldLabel: "Unimod Modification " + cbIdx,
             allowBlank: false,
             editable : true,
+            forceSelection: true, // restrict the selected value to one of the values in the list
             queryMode : 'local',
             anyMatch: true, // allow match at any position in the valueField's value
             displayField: 'displayName',
@@ -227,7 +228,7 @@
                                  <%=form.getUnimodId2() != null ? form.getUnimodId2() : null %>,
             store: createStore(),
             labelWidth: 160,
-            width: 800,
+            width: 600,
             labelStyle: 'background-color: #E0E6EA; padding: 5px;',
             listeners: {
                 select: function (combo, records){

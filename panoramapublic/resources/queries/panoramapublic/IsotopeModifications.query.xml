@@ -28,7 +28,7 @@
                         <columnTitle>UnimodMatch</columnTitle>
                         <textAlign>left</textAlign>
                         <displayColumnFactory>
-                            <className>org.labkey.panoramapublic.query.modification.AssignedUnimodDisplayColumnFactory$AssignedIsotopeUnimod</className>
+                            <className>org.labkey.panoramapublic.query.modification.UnimodMatchDisplayColumnFactory$IsotopeUnimodMatch</className>
                         </displayColumnFactory>
                     </column>
                     <column columnName="modInfoId">
