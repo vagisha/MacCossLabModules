@@ -156,7 +156,7 @@
                 {text: 'Cancel',
                     cls: 'labkey-button',
                     handler: function() {
-                        window.location = <%= q(form.getCancelActionURL()) %>;
+                        window.location = <%= q(returnUrl) %>;
                     }
                 }]
         });

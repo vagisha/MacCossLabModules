@@ -32,7 +32,6 @@
     var defineComboModButton = button("Combination Modification")
             .href(new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, getContainer())
                     .addParameter("id", form.getId()).addParameter("modificationId", form.getModificationId())
-                    .addCancelURL(getActionURL())
                     .addReturnURL(form.getReturnActionURL(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()))))
             .build();
 %>
@@ -87,7 +86,9 @@
             },
             {
                 xtype: 'component',
-                cls: <%=unimodMatches.size() == 0 ? qh("labkey-error alert-warning") : qh("alert")%>,
+                <% if (unimodMatches.size() == 0) { %>
+                cls: 'alert labkey-error alert-warning',
+                <% } %>
                 html: '<div>' + <%=qh(modMatchesTxt)%> + '</div>'
             },
         ];
@@ -124,7 +125,8 @@
             defaults: {
                 width: 800
             },
-            <%if (!bean.isIsotopicMod()) { %> // Combination modifications can only de defined for structural modifications.
+            <%if (bean.getUnimodMatches().size() == 0 && !bean.isIsotopicMod()) { %>
+            // Offer the option to define a combination modification if no modification matches were found for a structural modification
             items: [
                 {
                     xtype: 'component',

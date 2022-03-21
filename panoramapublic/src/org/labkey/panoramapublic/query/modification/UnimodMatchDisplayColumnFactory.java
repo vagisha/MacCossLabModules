@@ -111,7 +111,7 @@ public abstract class UnimodMatchDisplayColumnFactory<T extends ExperimentModInf
         @Override
         ActionURL getMatchToUnimodAction(RenderContext ctx)
         {
-            return new ActionURL(PanoramaPublicController.MatchToUnimodStructuralAction.class, ctx.getContainer());
+            return new ActionURL(PanoramaPublicController.StructuralModToUnimodOptionsAction.class, ctx.getContainer());
         }
 
         @Override

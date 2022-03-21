@@ -7326,6 +7326,50 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(UpdatePermission.class)
+    public static class StructuralModToUnimodOptionsAction extends SimpleViewAction<UnimodMatchForm>
+    {
+        @Override
+        public ModelAndView getView(UnimodMatchForm form, BindException errors) throws Exception
+        {
+            var modification = TargetedMSService.get().getStructuralModification(form.getModificationId());
+            if (modification == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find a structural modification with Id " + form.getModificationId());
+                return new SimpleErrorView(errors);
+            }
+
+            var findMatchUrl = new ActionURL(MatchToUnimodStructuralAction.class, getContainer())
+                    .addParameter("id", form.getId())
+                    .addParameter("modificationId", form.getModificationId())
+                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
+
+            var comboModUrl = new ActionURL(DefineCombinationModificationAction.class, getContainer())
+                    .addParameter("id", form.getId())
+                    .addParameter("modificationId", form.getModificationId())
+                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
+
+            var view = new HtmlView(DIV(at(style, "margin:20px;"),
+                    DIV(at(style, "margin:15px;"),
+                            SPAN(at(style, "margin-right: 10px;"),"Find a"),
+                            SPAN(new Button.ButtonBuilder("Unimod Match").href(findMatchUrl).build()),
+                            SPAN(at(style, "margin-left: 10px;"), "for modification ", B(modification.getName()))),
+                    DIV(at(style, "margin:15px;"), "OR"),
+                    DIV(at(style, "margin:15px;"),
+                            SPAN(at(style, "margin-right:10px;"), "Define a custom"),
+                            SPAN(new Button.ButtonBuilder("Combination Modification").href(comboModUrl).build()))));
+            view.setTitle("Unimod Match Options");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Unimod Match for Structural Modification");
+        }
+    }
+
+    @RequiresPermission(UpdatePermission.class)
     public static class MatchToUnimodIsotopeAction extends AbstractMatchToUnimodAction<ExperimentModInfo>
     {
         @Override
@@ -7565,7 +7609,7 @@ public class PanoramaPublicController extends SpringActionController
             {
                 errors.reject(ERROR_MSG, "Selected Unimod modification formulas do not add up to the formula of the modification. " +
                         "Combined formula is " + combinedFormula.getFormula() +
-                        " Difference from the modification formula is " + diff.getFormula());
+                        ". Difference from the modification formula is " + diff.getFormula() + ".");
                 return false;
             }
 
