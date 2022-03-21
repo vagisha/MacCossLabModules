@@ -3264,7 +3264,7 @@ public class PanoramaPublicController extends SpringActionController
         User createdByUser = UserManager.getUser(validation.getCreatedBy());
         String pxStatus = validation.getStatus() != null ? validation.getStatus().getLabel() : "Incomplete";
         ActionURL validationDetailsUrl = getPxValidationStatusUrl(exptAnnotations.getId(), validation.getId(), container);
-        var color = PxStatus.Complete.equals(pxStatus) ? "darkgreen" : PxStatus.IncompleteMetadata.equals(pxStatus) ? "darkorange" : "firebrick";
+        var color = PxStatus.Complete == validation.getStatus() ? "darkgreen" : PxStatus.IncompleteMetadata == validation.getStatus() ? "darkorange" : "firebrick";
         return new HtmlView(TABLE(cl("lk-fields-table"),
                 row("Last Validation Date: ", validation.getFormattedDate()),
                 createdByUser != null ?
@@ -3272,7 +3272,7 @@ public class PanoramaPublicController extends SpringActionController
                                 .href(PageFlowUtil.urlProvider(UserUrls.class).getUserDetailsURL(container, user.getUserId(), null))
                                 .clearClasses().build()) :
                         row("Created By: ", "Unknown User " + validation.getCreatedBy()),
-                row("ProteomeXchange Status:", SPAN(B(pxStatus), HtmlString.NBSP, new Link.LinkBuilder("[Details]").href(validationDetailsUrl).build())),
+                row("ProteomeXchange Status:", SPAN(at(style, "color:" + color), B(pxStatus), HtmlString.NBSP, new Link.LinkBuilder("[Details]").href(validationDetailsUrl).build())),
                 row("Pipeline Job Status:", statusFile != null ?
                         new Link.LinkBuilder(statusFile.getStatus()).href(PageFlowUtil.urlProvider(PipelineStatusUrls.class)
                                 .urlDetails(container, validation.getJobId())).clearClasses().build()
@@ -5290,11 +5290,12 @@ public class PanoramaPublicController extends SpringActionController
             List<Long> runIds = runs.stream().map(ITargetedMSRun::getId).collect(Collectors.toList());
             if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideStructuralModification(), getUser(), getContainer()))
             {
-                result.addView(new ModificationsView.StructuralModificationView(getViewContext(), exptAnnotations));
+                result.addView(new ModificationsView.StructuralModsView(getViewContext(), exptAnnotations));
             }
+            // Isotopic modifications
             if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideIsotopeModification(), getUser(), getContainer()))
             {
-                result.addView(new ModificationsView.IsotopeModificationView(getViewContext(), exptAnnotations));
+                result.addView(new ModificationsView.IsotopeModsView(getViewContext(), exptAnnotations));
             }
 
             // If the data has been validated for a ProteomeXchange submission, show the summary of the last validation
@@ -7194,7 +7195,12 @@ public class PanoramaPublicController extends SpringActionController
                 return new SimpleErrorView(errors);
             }
 
-            UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the Unimod modifications
+            UnimodModifications uMods = readUnimod(errors); // Read the Unimod modifications
+            if (uMods == null)
+            {
+                return new SimpleErrorView(errors);
+            }
+
             ExperimentModificationGetter.PxModification matchedMod = getModificationMatch(mod, uMods);
 
             UnimodMatchBean bean = new UnimodMatchBean(form, mod, matchedMod);
@@ -7215,7 +7221,7 @@ public class PanoramaPublicController extends SpringActionController
                     errors.reject(ERROR_MSG, "Modification already has a Unimod Id");
                     return null;
                 }
-                if (hasModInfo(form, mod, errors))
+                if (hasModInfo(form, mod, errors)) // A Unimod match has already been saved for this modification
                 {
                     return null;
                 }
@@ -7240,7 +7246,9 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         public boolean handlePost(UnimodMatchForm form, BindException errors) throws Exception
         {
-            UnimodModifications uMods = ExperimentModificationGetter.getUnimodMods(); // Read the UNIMOD modifications
+            UnimodModifications uMods = readUnimod(errors); // Read the Unimod modifications
+            if (uMods == null) return false;
+
             UnimodModification matchedMod = uMods.getById(form.getUnimodId());
             if (matchedMod == null)
             {
@@ -7291,7 +7299,7 @@ public class PanoramaPublicController extends SpringActionController
             if (modInfo != null)
             {
                 errors.reject(ERROR_MSG, modInfo.isCombinationMod() ?
-                        String.format("Structural modification Id %d (%s) is a already defined as a combination of Unimod Id %d (%s) and Unimod Id %d (%s)",
+                        String.format("Structural modification Id %d (%s) is already defined as a combination of Unimod Id %d (%s) and Unimod Id %d (%s)",
                                 mod.getId(), mod.getName(), modInfo.getUnimodId(), modInfo.getUnimodName(), modInfo.getUnimodId2(), modInfo.getUnimodName2()) :
                         String.format("Structural modification Id %d (%s) is already assigned the Unimod Id %d (%s).",
                                 mod.getId(), mod.getName(), modInfo.getUnimodId(), modInfo.getUnimodName()));
@@ -7304,7 +7312,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications)
         {
-            return ExperimentModificationGetter.getStructuralUnimodMod(modification, unimodModifications, true);
+            return ExperimentModificationGetter.getStructuralUnimodMod(modification, unimodModifications);
         }
 
         @Override
@@ -7322,50 +7330,6 @@ public class PanoramaPublicController extends SpringActionController
         protected void updateValidationModification(ExperimentStructuralModInfo modInfo)
         {
             DataValidationManager.addModInfo(_expAnnot, modInfo, Modification.ModType.Structural, getUser());
-        }
-    }
-
-    @RequiresPermission(UpdatePermission.class)
-    public static class StructuralModToUnimodOptionsAction extends SimpleViewAction<UnimodMatchForm>
-    {
-        @Override
-        public ModelAndView getView(UnimodMatchForm form, BindException errors) throws Exception
-        {
-            var modification = TargetedMSService.get().getStructuralModification(form.getModificationId());
-            if (modification == null)
-            {
-                errors.reject(ERROR_MSG, "Could not find a structural modification with Id " + form.getModificationId());
-                return new SimpleErrorView(errors);
-            }
-
-            var findMatchUrl = new ActionURL(MatchToUnimodStructuralAction.class, getContainer())
-                    .addParameter("id", form.getId())
-                    .addParameter("modificationId", form.getModificationId())
-                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
-
-            var comboModUrl = new ActionURL(DefineCombinationModificationAction.class, getContainer())
-                    .addParameter("id", form.getId())
-                    .addParameter("modificationId", form.getModificationId())
-                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
-
-            var view = new HtmlView(DIV(at(style, "margin:20px;"),
-                    DIV(at(style, "margin:15px;"),
-                            SPAN(at(style, "margin-right: 10px;"),"Find a"),
-                            SPAN(new Button.ButtonBuilder("Unimod Match").href(findMatchUrl).build()),
-                            SPAN(at(style, "margin-left: 10px;"), "for modification ", B(modification.getName()))),
-                    DIV(at(style, "margin:15px;"), "OR"),
-                    DIV(at(style, "margin:15px;"),
-                            SPAN(at(style, "margin-right:10px;"), "Define a custom"),
-                            SPAN(new Button.ButtonBuilder("Combination Modification").href(comboModUrl).build()))));
-            view.setTitle("Unimod Match Options");
-            view.setFrame(WebPartView.FrameType.PORTAL);
-            return view;
-        }
-
-        @Override
-        public void addNavTrail(NavTree root)
-        {
-            root.addChild("Unimod Match for Structural Modification");
         }
     }
 
@@ -7399,7 +7363,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications)
         {
-            return ExperimentModificationGetter.getIsotopicUnimodMod((IModification.IIsotopeModification) modification, unimodModifications, true);
+            return ExperimentModificationGetter.getIsotopicUnimodMod((IModification.IIsotopeModification) modification, unimodModifications);
         }
 
         @Override
@@ -7441,11 +7405,6 @@ public class PanoramaPublicController extends SpringActionController
         public IModification getModification()
         {
             return _modification;
-        }
-
-        public ExperimentModificationGetter.PxModification getMatchedMod()
-        {
-            return _matchedMod;
         }
 
         public List<UnimodModification> getUnimodMatches()
@@ -7500,6 +7459,55 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
+    /*
+    Present two options to associate a structural modification with Unimod modifications:
+    1. Find a match in Unimod for the modification's formula, modified site(s) and terminus
+    2. Create a custom modification that combines two Unimod modifications
+     */
+    @RequiresPermission(UpdatePermission.class)
+    public static class StructuralModToUnimodOptionsAction extends SimpleViewAction<UnimodMatchForm>
+    {
+        @Override
+        public ModelAndView getView(UnimodMatchForm form, BindException errors) throws Exception
+        {
+            var modification = TargetedMSService.get().getStructuralModification(form.getModificationId());
+            if (modification == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find a structural modification with Id " + form.getModificationId());
+                return new SimpleErrorView(errors);
+            }
+
+            var findMatchUrl = new ActionURL(MatchToUnimodStructuralAction.class, getContainer())
+                    .addParameter("id", form.getId())
+                    .addParameter("modificationId", form.getModificationId())
+                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
+
+            var comboModUrl = new ActionURL(DefineCombinationModificationAction.class, getContainer())
+                    .addParameter("id", form.getId())
+                    .addParameter("modificationId", form.getModificationId())
+                    .addReturnURL(form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer())));
+
+            var view = new HtmlView(DIV(at(style, "margin:20px;"),
+                    DIV(at(style, "margin:15px;"),
+                            SPAN(at(style, "margin-right: 10px;"),"Find a"),
+                            SPAN(new Button.ButtonBuilder("Unimod Match").href(findMatchUrl).build()),
+                            SPAN(at(style, "margin-left: 10px;"), "for modification ", B(modification.getName()))),
+                    DIV(at(style, "margin:15px;"), "OR"),
+                    DIV(at(style, "margin:15px;"),
+                            SPAN(at(style, "margin-right:10px;"), "Define a custom"),
+                            SPAN(new Button.ButtonBuilder("Combination Modification").href(comboModUrl).build()))));
+            view.setTitle("Unimod Match Options");
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Unimod Match Options for Structural Modification");
+        }
+    }
+
     @RequiresPermission(UpdatePermission.class)
     public static class DefineCombinationModificationAction extends PanoramaPublicExperimentAction<CombinationModificationFrom>
     {
@@ -7518,15 +7526,17 @@ public class PanoramaPublicController extends SpringActionController
                 }
             }
 
-            List<String> parseErrors = new ArrayList<>(); // TODO: single error
+            List<String> parseErrors = new ArrayList<>();
             Formula modFormula = Formula.tryParse(_modification.getFormula(), parseErrors);
             if (modFormula == null)
             {
-                errors.reject(ERROR_MSG, parseErrors.get(0));
+                parseErrors.forEach(err -> errors.reject(ERROR_MSG, err));
                 return new SimpleErrorView(errors);
             }
 
-            CombinationModificationBean bean = new CombinationModificationBean(form, _modification,
+            CombinationModificationBean bean = new CombinationModificationBean(
+                    form,
+                    _modification,
                     modFormula,
                     _unimodModifications.getStructuralModifications(),
                     Arrays.stream(ChemElement.values()).map(el -> el.getSymbol()).collect(Collectors.toList())
@@ -7553,19 +7563,11 @@ public class PanoramaPublicController extends SpringActionController
             }
             if (StringUtils.isBlank(_modification.getAminoAcid()) && StringUtils.isBlank(_modification.getTerminus()))
             {
-                errors.reject(ERROR_MSG, "Modification '" + _modification.getName() + "' does not have modified amino acids or the modified terminus. " +
+                errors.reject(ERROR_MSG, "Modification '" + _modification.getName() + "' does not have any modified amino acids or a modified terminus. " +
                         "To define a modification as a combination of two Unimod modifications it must include the amino acid(s) or the terminus where the modification occurs.");
                 return;
             }
-            try
-            {
-                _unimodModifications = new UnimodParser().parse();
-            }
-            catch (Exception e)
-            {
-                errors.reject(ERROR_MSG, "There was an error parsing Unimod modifications. The error was: " + e.getMessage()
-                        + ". Please try again. If you continue to see this error please contact the server administrator.");
-            }
+            _unimodModifications = readUnimod(errors);
         }
 
         @Override
@@ -7580,7 +7582,7 @@ public class PanoramaPublicController extends SpringActionController
 
             if (form.getUnimodId1() == null || form.getUnimodId2() == null)
             {
-                errors.reject(ERROR_MSG, "Please select two modifications that this modification combines.");
+                errors.reject(ERROR_MSG, "Please select two Unimod modifications to define a combination modification.");
                 return;
             }
         }
@@ -7602,8 +7604,14 @@ public class PanoramaPublicController extends SpringActionController
                 return false;
             }
 
-            Formula combinedFormula = UnimodModification.combineFormula(mod1,mod2);
-            Formula modFormula = Formula.parse(_modification.getFormula());
+            Formula combinedFormula = UnimodModification.getCombinedFormula(mod1,mod2);
+            List<String> parseErrors = new ArrayList<>();
+            Formula modFormula = Formula.tryParse(_modification.getFormula(), parseErrors);
+            if (modFormula == null)
+            {
+                parseErrors.forEach(err -> errors.reject(ERROR_MSG, err));
+                return false;
+            }
             Formula diff = modFormula.subtractFormula(combinedFormula);
             if (!diff.isEmpty())
             {
@@ -7614,10 +7622,10 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             ExperimentStructuralModInfo modInfo = new ExperimentStructuralModInfo();
-            modInfo.setUnimodId(mod1.getId());
-            modInfo.setUnimodName(mod1.getName());
             modInfo.setModId(form.getModificationId());
             modInfo.setExperimentAnnotationsId(form.getId());
+            modInfo.setUnimodId(mod1.getId());
+            modInfo.setUnimodName(mod1.getName());
             modInfo.setUnimodId2(mod2.getId());
             modInfo.setUnimodName2(mod2.getName());
 
@@ -7747,6 +7755,20 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
+    private static UnimodModifications readUnimod(Errors errors)
+    {
+        try
+        {
+            return new UnimodParser().parse();
+        }
+        catch (Exception e)
+        {
+            errors.reject(ERROR_MSG, "There was an error parsing Unimod modifications. The error was: " + e.getMessage()
+                    + ". Please try again. If you continue to see this error please contact the server administrator.");
+        }
+        return null;
+    }
+
     @RequiresPermission(UpdatePermission.class)
     public static abstract class DeleteModInfoAction<T extends ExperimentModInfo> extends PanoramaPublicExperimentAction<DeleteModInfoForm>
     {
@@ -7783,7 +7805,8 @@ public class PanoramaPublicController extends SpringActionController
             {
                 // It is enough to check that the experimentAnnotationsId in the form matches the id saved with the mod info.
                 // The container check on the ExperimentAnnotations has already happened in the super class - PanoramaPublicExperimentAction.validateCommand()
-                errors.reject(ERROR_MSG, "Modification information with Id %d does not belong to experiment Id %d " + form.getModInfoId());
+                errors.reject(ERROR_MSG, String.format("Modification information with Id %d does not belong to experiment Id %d ",
+                        form.getModInfoId(), form.getId()));
                 return false;
             }
 

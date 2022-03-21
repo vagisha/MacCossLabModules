@@ -234,7 +234,7 @@ public class PanoramaPublicModule extends SpringModule
             @Override
             public WebPartView getWebPartView(@NotNull ViewContext portalCtx, @NotNull Portal.WebPart webPart)
             {
-                return new ModificationsView.StructuralModificationView(portalCtx);
+                return new ModificationsView.StructuralModsView(portalCtx);
             }
         };
 
@@ -243,7 +243,7 @@ public class PanoramaPublicModule extends SpringModule
             @Override
             public WebPartView getWebPartView(@NotNull ViewContext portalCtx, @NotNull Portal.WebPart webPart)
             {
-                return new ModificationsView.IsotopeModificationView(portalCtx);
+                return new ModificationsView.IsotopeModsView(portalCtx);
             }
         };
 
@@ -346,9 +346,7 @@ public class PanoramaPublicModule extends SpringModule
         set.add(SpecLibValidator.TestCase.class);
         set.add(ExperimentModificationGetter.TestCase.class);
         set.add(ContainerJoin.TestCase.class);
-        set.add(UnimodModification.TestCase.class);
         set.add(Formula.TestCase.class);
-        // set.add(UniModDataCsParser.TestCase.class);
         return set;
 
     }

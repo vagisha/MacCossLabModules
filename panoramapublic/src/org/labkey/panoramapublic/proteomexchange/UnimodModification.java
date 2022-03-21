@@ -21,24 +21,21 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.labkey.api.util.Link;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.labkey.panoramapublic.proteomexchange.UnimodParser.*;
+import static org.labkey.panoramapublic.proteomexchange.UnimodParser.Position;
+import static org.labkey.panoramapublic.proteomexchange.UnimodParser.Specificity;
+import static org.labkey.panoramapublic.proteomexchange.UnimodParser.TermSpecificity;
+import static org.labkey.panoramapublic.proteomexchange.UnimodParser.Terminus;
 
 public class UnimodModification
 {
     private final int _id;
     private final String _name;
-    private Formula _formula;
-//    private final String _normFormula;
+    private final Formula _formula;
     private final Set<Specificity> _modSites;
     private TermSpecificity _nTerm;
     private TermSpecificity _cTerm;
@@ -168,153 +165,10 @@ public class UnimodModification
         return _formula.getFormula().equals(normFormula);
     }
 
-    public static Formula combineFormula(UnimodModification mod1, UnimodModification mod2)
+    public static Formula getCombinedFormula(UnimodModification mod1, UnimodModification mod2)
     {
         return mod1.getFormula().addFormula(mod2.getFormula());
-//        String positive = "";
-//        String negative = "";
-//        if (!StringUtils.isBlank(mod1.getNormalizedFormula()))
-//        {
-//            String[] parts = getFormulaParts(mod1.getNormalizedFormula());
-//            positive += parts[0];
-//            if (parts.length > 1)
-//            {
-//                negative += parts[1];
-//            }
-//        }
-//        if (!StringUtils.isBlank(mod2.getNormalizedFormula()))
-//        {
-//            String[] parts = getFormulaParts(mod2.getNormalizedFormula());
-//            positive += parts[0];
-//            if (parts.length > 1)
-//            {
-//                negative += parts[1];
-//            }
-//        }
-//        return normalizeFormula(positive + " - " + negative);
     }
-
-//    public static String normalizeFormula(String formula)
-//    {
-//        if(StringUtils.isBlank(formula))
-//        {
-//            return formula;
-//        }
-//
-//        // Assume formulas are of the form H'6C'8N'4 - H2C6N4.
-//        // The part of the formula following ' - ' are the element masses that will be subtracted
-//        // from the total mass.  Only one negative part is allowed. We will parse the positive and negative parts separately.
-//        String[] parts = getFormulaParts(formula);
-//
-//        Map<String, Integer> composition = getComposition(parts[0]);
-//        if(parts.length > 1)
-//        {
-//            Map<String, Integer> negComposition = getComposition(parts[1]);
-//            for(String element: negComposition.keySet())
-//            {
-//                int posCount = composition.get(element) == null ? 0 : composition.get(element);
-//                int totalCount = posCount - negComposition.get(element);
-//                if(totalCount != 0)
-//                {
-//                    composition.put(element, totalCount);
-//                }
-//                else
-//                {
-//                    composition.remove(element);
-//                }
-//            }
-//        }
-//
-//        List<String> sortedElements = new ArrayList<>(composition.keySet());
-//        Collections.sort(sortedElements, Comparator.comparing(el -> elementMap.get(el)));
-//
-//        StringBuilder posForm = new StringBuilder();
-//        StringBuilder negForm = new StringBuilder();
-//        for(String element: sortedElements)
-//        {
-//            Integer count = composition.get(element);
-//            if(count > 0)
-//            {
-//                posForm.append(element).append(count > 1 ? count : "");
-//            }
-//            else
-//            {
-//                // negForm.append(element).append(-(composition.get(element)));
-//                negForm.append(element).append(count < -1 ? -count : "");
-//            }
-//        }
-//        String totalFormula = posForm.toString();
-//        if(negForm.length() > 0)
-//        {
-//            totalFormula = totalFormula + (totalFormula.length() > 0 ? " - " : "-") + negForm.toString();
-//        }
-//        return totalFormula;
-//    }
-//
-//    @NotNull
-//    private static String[] getFormulaParts(String formula)
-//    {
-//        // Assume formulas are of the form H'6C'8N'4 - H2C6N4.
-//        // The part of the formula following ' - ' are the element masses that will be subtracted
-//        // from the total mass.  Only one negative part is allowed. We will parse the positive and negative parts separately.
-//        String[] parts = formula.split("-");
-//        if(parts.length > 2)
-//        {
-//            throw new IllegalArgumentException("Formula inconsistent with required form: " + formula);
-//        }
-//        return parts;
-//    }
-//
-//    private static Map<String, Integer> getComposition(String formula)
-//    {
-//        Map<String, Integer> composition = new HashMap<>();
-//
-//        String currElem = null;
-//        Integer currCount = null;
-//        char[] chars = formula.toCharArray();
-//        for (char c : chars)
-//        {
-//            if (Character.isDigit(c))
-//            {
-//                currCount = ((currCount == null ? 0 : currCount) * 10 + (c - '0'));
-//            }
-//            else if (Character.isUpperCase(c))
-//            {
-//                if (currElem != null)
-//                {
-//                    updateElementCount(composition, currElem, currCount);
-//                }
-//                currElem = "" + c;
-//                currCount = null;
-//            }
-//            else if (!Character.isWhitespace(c)) // e.g. Na, C'
-//            {
-//                currElem += c;
-//            }
-//        }
-//
-//        // last one
-//        if(currElem != null)
-//        {
-//            updateElementCount(composition, currElem, currCount);
-//        }
-//
-//        return composition;
-//    }
-//
-//    private static void updateElementCount(Map<String, Integer> composition, String currElem, Integer currCount)
-//    {
-//        int oldCount = composition.get(currElem) == null ? 0 : composition.get(currElem);
-//        Integer newCount = oldCount + (currCount == null ? 1 : currCount);
-//        if(newCount == 0)
-//        {
-//            composition.remove(currElem);
-//        }
-//        else
-//        {
-//            composition.put(currElem, newCount);
-//        }
-//    }
 
     public String toString()
     {
@@ -407,23 +261,5 @@ public class UnimodModification
 //                    .style("margin:.1em 0 .5em 0; padding:.3em 2px 2px 0;");
         }
         return link.build();
-    }
-
-    public static class TestCase extends Assert
-    {
-        @Test
-        public void testNormalizeFormula()
-        {
-            String formula = "H'6C'8N'4 - H2C6N4";
-            String[] parts = formula.split("-");
-
-            formula = "";
-            parts = formula.split("-");
-
-            formula = "- H2C6N4";
-            parts = formula.split("-");
-
-
-        }
     }
 }

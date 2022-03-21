@@ -6,15 +6,11 @@ import org.labkey.api.data.DataRegion;
 import org.labkey.api.query.QuerySettings;
 import org.labkey.api.query.QueryUrls;
 import org.labkey.api.query.QueryView;
-import org.labkey.api.query.UserSchema;
-import org.labkey.api.security.permissions.AdminPermission;
 import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-
-import javax.validation.constraints.Null;
 
 public class ModificationsView extends QueryView
 {
@@ -60,27 +56,27 @@ public class ModificationsView extends QueryView
         return settings;
     }
 
-    public static class StructuralModificationView extends ModificationsView
+    public static class StructuralModsView extends ModificationsView
     {
-        public StructuralModificationView(ViewContext portalCtx)
+        public StructuralModsView(ViewContext portalCtx)
         {
             this(portalCtx, null);
         }
 
-        public StructuralModificationView(ViewContext portalCtx, @Nullable ExperimentAnnotations exptAnnotations)
+        public StructuralModsView(ViewContext portalCtx, @Nullable ExperimentAnnotations exptAnnotations)
         {
             super(portalCtx, "StructuralModifications", "Structural Modifications", "ExperimentStructuralModInfo", exptAnnotations);
         }
     }
 
-    public static class IsotopeModificationView extends ModificationsView
+    public static class IsotopeModsView extends ModificationsView
     {
-        public IsotopeModificationView(ViewContext portalCtx)
+        public IsotopeModsView(ViewContext portalCtx)
         {
             this(portalCtx, null);
         }
 
-        public IsotopeModificationView(ViewContext portalCtx, @Nullable ExperimentAnnotations exptAnnotations)
+        public IsotopeModsView(ViewContext portalCtx, @Nullable ExperimentAnnotations exptAnnotations)
         {
             super(portalCtx, "IsotopeModifications", "Isotope Modifications", "ExperimentIsotopeModInfo", exptAnnotations);
         }

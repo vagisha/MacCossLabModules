@@ -35,7 +35,7 @@
     }
 </style>
 
-<div id="combinationModInfoForm"/>
+<div id="combinationModInfoForm"></div>
 
 <script type="text/javascript">
 
@@ -212,6 +212,15 @@
 
     function createUnimodCb(cbIdx) {
 
+        const createDataSourceFilter = function(value) {
+            return Ext4.create('Ext.util.Filter', {
+                filterFn: function(item) {
+                    // Filter on modification name or formula
+                    return item.data.name.startsWith(value) || item.data.formula.startsWith(value);
+                }
+            });
+        };
+
         return Ext4.create('Ext.form.field.ComboBox', {
             xtype: 'combo',
             name: 'unimodId' + cbIdx,
@@ -219,11 +228,10 @@
             fieldLabel: "Unimod Modification " + cbIdx,
             allowBlank: false,
             editable : true,
-            forceSelection: true, // restrict the selected value to one of the values in the list
             queryMode : 'local',
-            anyMatch: true, // allow match at any position in the valueField's value
+            forceSelection: true, // restrict the selected value to one of the values in the list
             displayField: 'displayName',
-            valueField: 'unimodId',
+            valueField: 'id',
             value: cbIdx === 1 ? <%=form.getUnimodId1() != null ? form.getUnimodId1() : null %> :
                                  <%=form.getUnimodId2() != null ? form.getUnimodId2() : null %>,
             store: createStore(),
@@ -231,11 +239,17 @@
             width: 600,
             labelStyle: 'background-color: #E0E6EA; padding: 5px;',
             listeners: {
+                scope: this,
                 select: function (combo, records){
                     const record = records[0];
                     if (cbIdx === 1) selectedUnimod1 = record.data;
                     else selectedUnimod2 = record.data;
                     updateFormulaDiff();
+                },
+                change: function(combo, newValue) {
+                    const store = combo.getStore();
+                    store.clearFilter(true);
+                    store.addFilter(createDataSourceFilter(newValue));
                 }
             }
         });
@@ -292,15 +306,14 @@
 
     function createStore() {
         return Ext4.create('Ext.data.Store', {
-            fields: ['id', 'unimodId', 'name', 'displayName', 'formula', 'composition'],
+            fields: ['id', 'name', 'displayName', 'formula', 'composition'],
             data:   [
                 <% for(UnimodModification mod: unimodMods){ %>
                 {
                     "id":<%=mod.getId()%>,
-                    "unimodId":<%=mod.getId()%>,
                     "name":<%=q(mod.getName())%>,
-                    "displayName":<%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %>,
                     "formula": <%= q(mod.getNormalizedFormula()) %>,
+                    "displayName":<%= q(mod.getName() + ", " + mod.getNormalizedFormula() + ", Unimod:" + mod.getId()) %>,
                     "composition": {
                         <% for (Map.Entry<ChemElement, Integer> entry: mod.getFormula().getElementCounts().entrySet()) { %>
                             <%=q(entry.getKey().getSymbol())%>:  <%=entry.getValue()%> ,

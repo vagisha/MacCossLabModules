@@ -4,7 +4,6 @@
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.UnimodModification" %>
-<%@ page import="org.labkey.api.util.StringUtilsLabKey" %>
 <%@ page import="org.labkey.panoramapublic.proteomexchange.Formula" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
@@ -24,28 +23,28 @@
     var unimodMatches = bean.getUnimodMatches();
     var returnUrl = form.getReturnURLHelper(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()));
 
-    var modMatchesTxt = unimodMatches.size() == 0 ?
-            "No Unimod matches were found for the modification." :
-            "The modification matches " + StringUtilsLabKey.pluralize(unimodMatches.size(), "Unimod modification") +
-                    ". To view the Unimod definition click the link next to the Unimod name. " +
-                    " Click the \"Save Match\" button to associate the Unimod Id with the modification.";
-    var defineComboModButton = button("Combination Modification")
-            .href(new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, getContainer())
-                    .addParameter("id", form.getId()).addParameter("modificationId", form.getModificationId())
-                    .addReturnURL(form.getReturnActionURL(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer()))))
-            .build();
+    var defineCombinationModUrl = new ActionURL(PanoramaPublicController.DefineCombinationModificationAction.class, getContainer())
+            .addParameter("id", form.getId())
+            .addParameter("modificationId", form.getModificationId())
+            .addReturnURL(form.getReturnActionURL(PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), getContainer())));
 %>
 <labkey:errors/>
 
-<style type="text/css">
+<style>
     .display-value {
         font-size: 14px;
         margin-top: 10px;
     }
 </style>
 
-<div id="cancelButtonDiv"/>
-<div id="unimodMatchDiv"/>
+
+<div id="unimodMatchDiv"></div>
+<%if (bean.getUnimodMatches().size() == 0 && !bean.isIsotopicMod()) { %>
+<div class="alert alert-info" style="width:800px;">
+    Define a custom <%=button("Combination Modification").href(defineCombinationModUrl)%> if this modification is a combination of two modifications.
+</div>
+<% } %>
+<div style="width:800px;margin-top:30px; margin-left:8px;"><%=button("Cancel").href(returnUrl).style("padding:4px 15px")%></div>
 
 <script type="text/javascript">
 
@@ -89,7 +88,7 @@
                 <% if (unimodMatches.size() == 0) { %>
                 cls: 'alert labkey-error alert-warning',
                 <% } %>
-                html: '<div>' + <%=qh(modMatchesTxt)%> + '</div>'
+                html: unimodMatchesHtml()
             },
         ];
 
@@ -116,40 +115,8 @@
             },
             items: items
         });
-
-
-        Ext4.create('Ext.panel.Panel', {
-            renderTo: "cancelButtonDiv",
-            border: false,
-            frame: false,
-            defaults: {
-                width: 800
-            },
-            <%if (bean.getUnimodMatches().size() == 0 && !bean.isIsotopicMod()) { %>
-            // Offer the option to define a combination modification if no modification matches were found for a structural modification
-            items: [
-                {
-                    xtype: 'component',
-                    cls: 'alert-info alert',
-                    style: 'margin-top:10px;',
-                    html: '<div>Define a custom ' + '<%=defineComboModButton%>'
-                            + ' if this modification is a combination of two modifications.'
-                            + '</div>'
-                }
-            ],
-            <% } %>
-            buttonAlign: 'left',
-            buttons: [
-                {
-                    text: 'Cancel',
-                    cls: 'labkey-button',
-                    style: { marginTop: '20px' },
-                    handler: function(btn) {
-                        window.location = <%= q(returnUrl) %>;
-                    }
-                }]
-        });
     });
+
     function createForm(index, unimodId, unimodLink, name, formula, sites, terminus)
     {
         var form = Ext4.create('Ext.form.Panel', {
@@ -231,5 +198,16 @@
                 }]
         });
         return form;
+    }
+
+    function unimodMatchesHtml() {
+        let html = '<div>';
+        const modMatchCount = <%=unimodMatches.size()%>;
+        html += modMatchCount === 0 ? 'No Unimod matches were found for the modification.'
+                : 'The modification matches ' + modMatchCount + ' Unimod modification' + (modMatchCount > 1 ? 's' : '')
+        + '. Click the link next to the Unimod name to view the modification page on the Unimod website.'
+        + ' Click the "Save Match" button to associate the Unimod Id with the modification.';
+        html += '</div>';
+        return html;
     }
 </script>
