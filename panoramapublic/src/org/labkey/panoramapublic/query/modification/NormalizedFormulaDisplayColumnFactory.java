@@ -9,6 +9,7 @@ import org.labkey.panoramapublic.proteomexchange.Formula;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.ArrayList;
 
 public class NormalizedFormulaDisplayColumnFactory implements DisplayColumnFactory
 {
@@ -23,7 +24,8 @@ public class NormalizedFormulaDisplayColumnFactory implements DisplayColumnFacto
                 String formula = ctx.get(colInfo.getFieldKey(), String.class);
                 if (formula != null)
                 {
-                    out.write(Formula.normalizeFormula(formula));
+                    Formula normalizedFormula = Formula.tryParse(formula, new ArrayList<>());
+                    out.write(normalizedFormula != null ? normalizedFormula.getFormula() : formula);
                 }
             }
         };

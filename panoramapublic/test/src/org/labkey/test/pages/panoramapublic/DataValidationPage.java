@@ -9,7 +9,13 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -142,6 +148,24 @@ public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCac
         expander.click();
     }
 
+    public void verifyModificationStatus(int row, String modName, String unimodId, String unimodName)
+    {
+        var cells = elementCache().getModificationRowCells(row);
+        Set<String> cellValues = new HashSet<>();
+        cells.forEach(cell -> cellValues.add(cell.getText()));
+        assertTrue(modName + " was not found in modification row " + row, cellValues.contains(modName));
+
+        if (unimodId == null)
+        {
+            assertTrue(cellValues.stream().anyMatch(v -> v.startsWith("MISSING")));
+        }
+        else
+        {
+            assertTrue(cellValues.contains(unimodId));
+            assertTrue(cellValues.contains(unimodName));
+        }
+    }
+
     private void verifyLibrarySourceFiles(String libraryName, List<String> files, List<String> filesMissing, WebElement specLibsPanel, String tblCls)
     {
         if (files.size() > 0 || filesMissing.size() > 0)
@@ -177,5 +201,28 @@ public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCac
         protected final WebElement skyDocsPanel = Locator.tagWithClass("div", "pxv-skydocs-panel").findWhenNeeded(this);
         protected final WebElement modificationsPanel = Locator.tagWithClass("div", "pxv-modifications-panel").findWhenNeeded(this);
         protected final WebElement specLibsPanel = Locator.tagWithClass("div", "pxv-speclibs-panel").findWhenNeeded(this);
+        private List<WebElement> modificationRows;
+        private Map<Integer, List<WebElement>> modificationRowCells;
+
+        private List<WebElement> getModificationRows()
+        {
+            if (modificationRows == null)
+            {
+                var panel = elementCache().modificationsPanel;
+                scrollIntoView(panel);
+                modificationRows = panel.findElements(Locator.XPathLocator.tag("tr").withClass("x4-grid-data-row"));
+            }
+            return modificationRows;
+        }
+
+        protected WebElement getModificationRow(int row)
+        {
+            return getModificationRows().get(row);
+        }
+
+        protected List<WebElement> getModificationRowCells(int row)
+        {
+            return Collections.unmodifiableList(Locator.xpath("td").findElements(getModificationRow(row)));
+        }
     }
 }

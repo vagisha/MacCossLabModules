@@ -5286,16 +5286,19 @@ public class PanoramaPublicController extends SpringActionController
                 result.addView(new SpecLibView(getViewContext(), exptAnnotations));
             }
 
-            // Structural modifications
-            List<Long> runIds = runs.stream().map(ITargetedMSRun::getId).collect(Collectors.toList());
-            if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideStructuralModification(), getUser(), getContainer()))
+            if (runs.size() > 0)
             {
-                result.addView(new ModificationsView.StructuralModsView(getViewContext(), exptAnnotations));
-            }
-            // Isotopic modifications
-            if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideIsotopeModification(), getUser(), getContainer()))
-            {
-                result.addView(new ModificationsView.IsotopeModsView(getViewContext(), exptAnnotations));
+                // Structural modifications
+                List<Long> runIds = runs.stream().map(ITargetedMSRun::getId).collect(Collectors.toList());
+                if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideStructuralModification(), getUser(), getContainer()))
+                {
+                    result.addView(new ModificationsView.StructuralModsView(getViewContext(), exptAnnotations));
+                }
+                // Isotopic modifications
+                if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideIsotopeModification(), getUser(), getContainer()))
+                {
+                    result.addView(new ModificationsView.IsotopeModsView(getViewContext(), exptAnnotations));
+                }
             }
 
             // If the data has been validated for a ProteomeXchange submission, show the summary of the last validation

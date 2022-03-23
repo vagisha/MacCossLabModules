@@ -33,15 +33,12 @@ import static org.labkey.api.util.DOM.TD;
 import static org.labkey.api.util.DOM.TR;
 import static org.labkey.api.util.DOM.at;
 
-public class ModificationDocsDisplayColumnFactory implements DisplayColumnFactory
+public abstract class ModificationDocsDisplayColumnFactory implements DisplayColumnFactory
 {
     private static final FieldKey MOD_ID = FieldKey.fromParts("ModId");
-    private final boolean _structural;
 
-    public ModificationDocsDisplayColumnFactory(boolean structural)
-    {
-        _structural = structural;
-    }
+    protected abstract String getPeptideModTableName();
+    protected abstract String getModIdQueryParam();
 
     @Override
     public DisplayColumn createRenderer(ColumnInfo colInfo)
@@ -106,26 +103,40 @@ public class ModificationDocsDisplayColumnFactory implements DisplayColumnFactor
 
     private @NotNull DOM.Renderable peptidesLink(ITargetedMSRun run, Long modId)
     {
-        String query = _structural ? "PeptideStructuralModification" : "PeptideIsotopeModification";
+        String query = getPeptideModTableName();
         var peptidesLink = PageFlowUtil.urlProvider(QueryUrls.class).urlExecuteQuery(run.getContainer(), "targetedms", query);
         peptidesLink.addParameter("query.PeptideId/PeptideGroupId/RunId~eq", run.getId());
-        peptidesLink.addParameter(_structural ? "query.StructuralModId/Id~eq" : "query.IsotopeModId/Id~eq", modId);
+        peptidesLink.addParameter(getModIdQueryParam(), modId);
         return new Link.LinkBuilder("[PEPTIDES]").href(peptidesLink).build();
     }
 
     public static class StructuralModDocsColumn extends ModificationDocsDisplayColumnFactory
     {
-        public StructuralModDocsColumn()
+        @Override
+        protected String getPeptideModTableName()
         {
-            super(true);
+            return "PeptideStructuralModification";
+        }
+
+        @Override
+        protected String getModIdQueryParam()
+        {
+            return "query.StructuralModId/Id~eq";
         }
     }
 
     public static class IsotopicModDocsColumn extends ModificationDocsDisplayColumnFactory
     {
-        public IsotopicModDocsColumn()
+        @Override
+        protected String getPeptideModTableName()
         {
-            super(false);
+            return "PeptideIsotopeModification";
+        }
+
+        @Override
+        protected String getModIdQueryParam()
+        {
+            return "query.IsotopeModId/Id~eq";
         }
     }
 }

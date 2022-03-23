@@ -92,6 +92,8 @@ public class ModificationInfoManager
 
     public static boolean runsHaveModifications(List<Long> runIds, TableInfo tableInfo, User user, Container container)
     {
+        if (runIds.size() == 0) return false;
+
         TargetedMSService svc = TargetedMSService.get();
         SQLFragment sql = new SQLFragment("SELECT mod.Id FROM ")
                 .append(tableInfo, "mod")

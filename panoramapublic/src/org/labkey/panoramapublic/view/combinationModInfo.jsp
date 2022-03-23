@@ -215,8 +215,8 @@
         const createDataSourceFilter = function(value) {
             return Ext4.create('Ext.util.Filter', {
                 filterFn: function(item) {
-                    // Filter on modification name or formula
-                    return item.data.name.startsWith(value) || item.data.formula.startsWith(value);
+                    // Filter on display name or formula
+                    return item.data.displayName.startsWith(value) || item.data.formula.startsWith(value);
                 }
             });
         };
@@ -268,16 +268,16 @@
         const formulaBalanced = diffFormula.isEmpty();
 
         let html = '';
-        html += selectedUnimod1 ? selectedUnimod1["formula"] : getSpan('---');
-        html += getSpan('+');
-        html += selectedUnimod2 ? selectedUnimod2["formula"] : getSpan('---');
-        html += getSpan('=');
+        html += selectedUnimod1 ? selectedUnimod1["formula"] : span('---');
+        html += span('+');
+        html += selectedUnimod2 ? selectedUnimod2["formula"] : span('---');
+        html += span('=');
         html += totalFormula.getFormula();
         if (formulaBalanced) {
             html += '<span style="color:green;margin-left:10px;" class="fa fa-check-circle"></span>';
         }
         else {
-            html += getSpan(' (Difference: ' + diffFormula.getFormula() + ')');
+            html += span(' (Difference: ' + diffFormula.getFormula() + ')');
             html += '<span style="color:red;" class="fa fa-times-circle"></span>';
         }
 
@@ -292,7 +292,7 @@
         }
     }
 
-    function getSpan(str) {
+    function span(str) {
         return '<span style="margin: 0 10px 0 10px;font-weight:bold;">' + str + '</span>';
     }
 
