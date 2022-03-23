@@ -10,12 +10,11 @@ import org.openqa.selenium.WebElement;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -148,7 +147,22 @@ public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCac
         expander.click();
     }
 
+    public int getRowIndexForModification(String modification)
+    {
+        var rowCount = elementCache().getModificationRows().size();
+        for (int i = 0; i < rowCount; i++)
+        {
+            if (elementCache().getModificationRowCells(i).get(1).getText().equals(modification)) return i;
+        }
+        return -1;
+    }
+
     public void verifyModificationStatus(int row, String modName, String unimodId, String unimodName)
+    {
+        verifyModificationStatus(row, modName, unimodId, unimodName, null, null);
+    }
+
+    public void verifyModificationStatus(int row, String modName, String unimodId, String unimodName, String unimodId2, String unimodName2)
     {
         var cells = elementCache().getModificationRowCells(row);
         Set<String> cellValues = new HashSet<>();
@@ -161,8 +175,8 @@ public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCac
         }
         else
         {
-            assertTrue(cellValues.contains(unimodId));
-            assertTrue(cellValues.contains(unimodName));
+            assertTrue(cellValues.contains(unimodId + (unimodId2 != null ? " + " +unimodId2 : "")));
+            assertTrue(cellValues.contains(unimodName + (unimodName2 != null ? " + " +unimodName2 : "")));
         }
     }
 
@@ -222,7 +236,11 @@ public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCac
 
         protected List<WebElement> getModificationRowCells(int row)
         {
-            return Collections.unmodifiableList(Locator.xpath("td").findElements(getModificationRow(row)));
+            if (modificationRowCells == null)
+            {
+                modificationRowCells = new HashMap<>();
+            }
+            return modificationRowCells.computeIfAbsent(row, r -> Collections.unmodifiableList(Locator.xpath("td").findElements(getModificationRow(r))));
         }
     }
 }

@@ -14,7 +14,6 @@ import org.labkey.test.util.TextSearcher;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -30,9 +29,11 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
 
     private final Unimod methyl = new Unimod(34, "Methyl", "H2C");
     private final Unimod propionyl = new Unimod(58, "Propionyl", "H4C3O");
+    private final String methylPropionyl = "MethylPropionyl";
+    private final String propionylation = "Propionylation";
 
     @Test
-    public void testValidation()
+    public void testAddModInfo()
     {
         String projectName = getProjectName();
         String folderName = "ModificationsTest";
@@ -59,13 +60,12 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
         testCustomizeGrid(STRUCTURAL_MOD, true);
         testCustomizeGrid(ISOTOPE_MOD, true);
 
-        testSaveMatchForStructuralMod("Propionylation", List.of(propionyl, new Unimod(206, "Delta:H(4)C(3)O(1)", propionyl.getFormula())),
+        testSaveMatchForStructuralMod(propionylation, List.of(propionyl, new Unimod(206, "Delta:H(4)C(3)O(1)", propionyl.getFormula())),
                 0);
 
-        var modificationName = "MethylPropionyl";
-        var modFormula = "H6C4O";
-        testDefineCombinationMod(modificationName, modFormula, methyl, methyl, "H4C2", "H4C3O", "H2C2O", false);
-        testDefineCombinationMod(modificationName, modFormula, methyl, propionyl, modFormula, "H4C3O", "", true);
+        String methylPropionylFormula = "H6C4O";
+        testDefineCombinationMod(methylPropionyl, methylPropionylFormula, methyl, methyl, "H4C2", "H4C3O", "H2C2O", false);
+        testDefineCombinationMod(methylPropionyl, methylPropionylFormula, methyl, propionyl, methylPropionylFormula, "H4C3O", "", true);
 
         testCopy(projectName, folderName, experimentTitle,  folderName + " Copy");
     }
@@ -77,13 +77,9 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
         goToExperimentDetailsPage();
 
         var modsTable = new DataRegionTable(STRUCTURAL_MOD, this);
-        int rowIdx = modsTable.getRowIndex("ModId/Name", modificationName);
-        assertNotEquals("Expected a row in the " + STRUCTURAL_MOD + " table for modification name " + modificationName, -1, rowIdx);
-        assertEquals("FIND MATCH", modsTable.getDataAsText(rowIdx, "UnimodMatch"));
+        int rowIdx = checkModificationRow(modsTable, modificationName);
 
-        var row = modsTable.findRow(rowIdx);
-        var findMatchLink = Locator.XPathLocator.tag("a").withText("Find Match").findElement(row);
-        clickAndWait(findMatchLink);
+        clickFindMatchInRow(modsTable, rowIdx);
         assertTextPresent("Unimod Match Options ");
         clickButton("Combination Modification");
 
@@ -114,11 +110,7 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
         else
         {
             modsTable = new DataRegionTable(STRUCTURAL_MOD, this);
-            rowIdx = modsTable.getRowIndex("Name", modificationName);
-            //Example: **UNIMOD:34 (Methyl)+UNIMOD:58 (Propionyl)
-            var expectedComboMatch = String.format("**%s (%s)+%s (%s)", unimod1.getUnimodId(), unimod1.getName(), unimod2.getUnimodId(), unimod2.getName());
-            var textFound = modsTable.getDataAsText(rowIdx, "UnimodMatch");
-            assertTrue("Unexpected combination match: " + textFound, textFound.contains(expectedComboMatch));
+            checkModificationRow(modsTable, modificationName, unimod1, unimod2);
         }
     }
 
@@ -140,13 +132,9 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
     private void testSaveMatchForStructuralMod(String modificationName, List<Unimod> matches, int correctMatchIndex)
     {
         var modsTable = new DataRegionTable(STRUCTURAL_MOD, this);
-        int rowIdx = modsTable.getRowIndex("Name", modificationName);
-        assertNotEquals("Expected a row in the " + STRUCTURAL_MOD + " table for modification name " + modificationName, -1, rowIdx);
-        assertEquals("FIND MATCH", modsTable.getDataAsText(rowIdx, "UnimodMatch"));
+        int rowIdx = checkModificationRow(modsTable, modificationName, null);
 
-        var row = modsTable.findRow(rowIdx);
-        var findMatchLink = Locator.XPathLocator.tag("a").withText("Find Match").findElement(row);
-        clickAndWait(findMatchLink);
+        clickFindMatchInRow(modsTable, rowIdx);
         assertTextPresent("Unimod Match Options ");
         clickButton("Unimod Match");
         List<String> expectedTexts = new ArrayList<>();
@@ -163,13 +151,9 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
         clickButtonByIndex("Save Match", correctMatchIndex);
 
         modsTable = new DataRegionTable(STRUCTURAL_MOD, this);
-        rowIdx = modsTable.getRowIndex("Name", modificationName);
-        assertNotEquals("Expected a row in the " + STRUCTURAL_MOD + " table for modification name " + modificationName, -1, rowIdx);
-        Unimod correctMatch = matches.get(correctMatchIndex);
-        var assignedMatch = "**" + correctMatch.getUnimodId() + " (" + correctMatch.getName() + ")";
-        var foundMatch = modsTable.getDataAsText(rowIdx, "UnimodMatch");
-        assertTrue("Unexpected match found: " + foundMatch, foundMatch.contains(assignedMatch));
+        checkModificationRow(modsTable, modificationName, matches.get(correctMatchIndex));
     }
+
 
     private void testCustomizeGrid(String drName, boolean folderHasExperiment)
     {
@@ -195,7 +179,14 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
     private void testCopy(String projectName, String folderName, String experimentTitle, String targetFolder)
     {
         var validationPage = submitValidationJob();
-        // validationPage.verifyModificationStatus(); // TODO
+        var modName =  propionylation + "**";
+        int rowIdx = validationPage.getRowIndexForModification(modName);
+        assertNotEquals("Expected a row in the modifications validation grid for modification " + modName, -1, rowIdx);
+        validationPage.verifyModificationStatus(rowIdx, modName, propionyl.getUnimodId(), propionyl.getName());
+        modName = methylPropionyl + "**";
+        rowIdx = validationPage.getRowIndexForModification(modName);
+        assertNotEquals("Expected a row in the modifications validation grid for modification " + modName, -1, rowIdx);
+        validationPage.verifyModificationStatus(rowIdx, modName, methyl.getUnimodId(), methyl.getName(), propionyl.getUnimodId(), propionyl.getName());
         submitWithoutPxIdButton();
 
         goToDashboard();
@@ -206,18 +197,48 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
         goToProjectFolder(PANORAMA_PUBLIC, targetFolder);
         goToExperimentDetailsPage();
         var modsTable = new DataRegionTable(STRUCTURAL_MOD, this);
-        var modificationName = "Propionylation";
-        int rowIdx = modsTable.getRowIndex("Name", modificationName);
-        assertNotEquals("Expected a row in the " + STRUCTURAL_MOD + " table for modification name " + modificationName, -1, rowIdx);
-        Unimod correctMatch = propionyl;
-        var assignedMatch = "**" + correctMatch.getUnimodId() + " (" + correctMatch.getName() + ")";
-        var foundMatch = modsTable.getDataAsText(rowIdx, "UnimodMatch");
-        assertTrue("Unexpected match found: " + foundMatch, foundMatch.contains(assignedMatch));
+        checkModificationRow(modsTable, propionylation, propionyl);
+        checkModificationRow(modsTable, methylPropionyl, methyl, propionyl);
+    }
 
-        modificationName = "MethylPropionyl";
-        rowIdx = modsTable.getRowIndex("Name", modificationName);
-        assertNotEquals("Expected a row in the " + STRUCTURAL_MOD + " table for modification name " + modificationName, -1, rowIdx);
+    private int checkModificationRow(DataRegionTable modsTable, String modificationName)
+    {
+        return checkModificationRow(modsTable, modificationName, null, null);
+    }
 
+    private int checkModificationRow(DataRegionTable modsTable, String modificationName, Unimod assignedMatch1)
+    {
+        return checkModificationRow(modsTable, modificationName, assignedMatch1, null);
+    }
+
+    private int checkModificationRow(DataRegionTable modsTable, String modificationName, Unimod assignedMatch1, Unimod assignedMatch2)
+    {
+        int rowIdx = modsTable.getRowIndex("ModId/Name", modificationName);
+        assertNotEquals("Expected a row in the " + modsTable.getDataRegionName() + " table for modification name " + modificationName, -1, rowIdx);
+        String expectedText;
+        if (assignedMatch1 != null)
+        {
+            expectedText = String.format("**%s (%s)", assignedMatch1.getUnimodId(), assignedMatch1.getName());
+            if (assignedMatch2 != null)
+            {
+                //Example: **UNIMOD:34 (Methyl)+UNIMOD:58 (Propionyl)
+                expectedText = String.format("%s+%s (%s)", expectedText, assignedMatch2.getUnimodId(), assignedMatch2.getName());
+            }
+        }
+        else
+        {
+            expectedText = "FIND MATCH";
+        }
+        var cellText = modsTable.getDataAsText(rowIdx, "UnimodMatch");
+        assertTrue("UnimodMatch cell text (" + cellText + ") does not contain expected text: " + expectedText, cellText.contains(expectedText));
+        return rowIdx;
+    }
+
+    private void clickFindMatchInRow(DataRegionTable modsTable, int rowIdx)
+    {
+        var row = modsTable.findRow(rowIdx);
+        var findMatchLink = Locator.XPathLocator.tag("a").withText("Find Match").findElement(row);
+        clickAndWait(findMatchLink);
     }
 
     private static class Unimod

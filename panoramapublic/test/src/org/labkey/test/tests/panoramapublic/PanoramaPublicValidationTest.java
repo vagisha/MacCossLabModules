@@ -6,7 +6,6 @@ import org.labkey.test.BaseWebDriverTest;
 import org.labkey.test.Locator;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
-import org.labkey.test.components.panoramapublic.TargetedMsExperimentWebPart;
 import org.labkey.test.pages.panoramapublic.DataValidationPage;
 import org.labkey.test.util.DataRegionTable;
 import org.labkey.test.util.TextSearcher;
