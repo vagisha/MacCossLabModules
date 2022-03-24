@@ -103,7 +103,7 @@ public class PanoramaPublicValidationTest extends PanoramaPublicBaseTest
 
         // The Carboxymethylcysteine modification in the document does not have a Unimod Id. We should see the "Continue with an Incomplete PX Submission" button
         validationPage.verifyIncompleteStatus();
-        validationPage.verifyModificationStatus(0, "Carboxymethylcysteine", null, null);
+        validationPage.verifyModificationStatus("Carboxymethylcysteine", false, null, null);
 
         goToExperimentDetailsPage();
 
@@ -121,7 +121,7 @@ public class PanoramaPublicValidationTest extends PanoramaPublicBaseTest
 
         validationPage = goToValidationDetailsFromExpDetails();
         validationPage.verifyCompleteStatus();
-        validationPage.verifyModificationStatus(0, "Carboxymethylcysteine**", "UNIMOD:6", "Carboxymethyl");
+        validationPage.verifyModificationStatus("Carboxymethylcysteine", true, "UNIMOD:6", "Carboxymethyl");
     }
 
     private DataValidationPage goToValidationDetails()

@@ -21,7 +21,7 @@ public class Formula
         _elementCounts = new TreeMap<>();
     }
 
-    public void addElement(ChemElement element, int count)
+    public void addElement(@NotNull ChemElement element, int count)
     {
         Integer currentCount = _elementCounts.computeIfAbsent(element, el -> 0);
         int newCount = currentCount + count;
@@ -42,8 +42,8 @@ public class Formula
 
     public String getFormula()
     {
-        String positive = "";
-        String negative = "";
+        StringBuilder positive = new StringBuilder();
+        StringBuilder negative = new StringBuilder();
         for (ChemElement el: _elementCounts.keySet())
         {
             int count = _elementCounts.get(el);
@@ -52,32 +52,32 @@ public class Formula
             String formulaPart = el.getSymbol() + (count > 1 ? count : "");
             if (pos)
             {
-                positive += formulaPart;
+                positive.append(formulaPart);
             }
             else
             {
-                negative += formulaPart;
+                negative.append(formulaPart);
             }
         }
         String separator = positive.length() > 0 && negative.length() > 0 ? " - " : (negative.length() > 0 ? "-" : "");
         return positive + separator + negative;
     }
 
-    public Formula addFormula(Formula otherFormula)
+    public Formula addFormula(@NotNull Formula otherFormula)
     {
         Formula newFormula = new Formula();
 
-        this._elementCounts.forEach((key, value) -> newFormula.addElement(key, value));
-        otherFormula._elementCounts.forEach((key, value) -> newFormula.addElement(key, value));
+        this._elementCounts.forEach(newFormula::addElement);
+        otherFormula._elementCounts.forEach(newFormula::addElement);
 
         return newFormula;
     }
 
-    public Formula subtractFormula(Formula otherFormula)
+    public Formula subtractFormula(@NotNull Formula otherFormula)
     {
         Formula newFormula = new Formula();
 
-        this._elementCounts.forEach((key, value) -> newFormula.addElement(key, value));
+        this._elementCounts.forEach(newFormula::addElement);
         otherFormula._elementCounts.forEach((key, value) -> newFormula.addElement(key, value * -1));
 
         return newFormula;
@@ -94,11 +94,37 @@ public class Formula
         return getFormula();
     }
 
-    public static String normalizeFormula(String input)
+    /**
+     * @param input formula to normalize
+     * @return Returns the normalized formula of the form H'6C'8N'4 - H2C6N4.
+     * Elements in the formula are ordered according to the order of {@link ChemElement}.
+     * Returns the input formula if there is an error in parsing the formula.
+     */
+    public static @NotNull String normalizeFormula(String input)
     {
-        return parse(input).getFormula();
+        Formula formula = tryParse(input, new ArrayList<>());
+        return formula != null ? formula.getFormula() : input;
     }
 
+    /**
+     * @param input formula to normalize
+     * @return Returns the normalized formula of the form H'6C'8N'4 - H2C6N4.
+     * Elements in the formula are ordered according to the order of {@link ChemElement}.
+     * Returns null if there is an error in parsing the input formula.
+     */
+    public static @Nullable String normalizeIfValid(String input)
+    {
+        Formula formula = tryParse(input, new ArrayList<>());
+        return formula != null ? formula.getFormula() : null;
+    }
+
+    /**
+     * Parses a formula of the form H'6C'8N'4 - H2C6N4. Returns null if exceptions were thrown while parsing the formula.
+     * The error messages are added to the given errors parameter.
+     * @param input formula to parse
+     * @param errors parse error messages
+     * @return a Formula object representing the input formula, or null if there were errors in parsing the formula
+     */
     public static @Nullable Formula tryParse(String input, @NotNull List<String> errors)
     {
         try
@@ -112,12 +138,22 @@ public class Formula
         return null;
     }
 
+    /**
+     * Parses a formula of the form H'6C'8N'4 - H2C6N4. An exception is throws if there are more than one subtraction
+     * operations in the input formula (e.g. H2C'6 - N4 - C6) there are unrecognized elements in the formula or if
+     * the formula contains unrecognized elements.
+     * @param input formula to parse
+     * @return a Formula object representing the input formula
+     */
     public static @NotNull Formula parse(String input)
     {
         return parse(input, new Formula(), false);
     }
 
-    // Based on BiomassCalc.ParseCounts() in Skyline
+    // Based on BiomassCalc.ParseCounts() in Skyline.
+    // Other related code:
+    // BiomassCalc.ParseMassExpression() and BiomassCalc.ParseMass()
+    // Formula.ParseToDictionary()
     private static Formula parse(String input, Formula formula, boolean negative)
     {
         if(StringUtils.isBlank(input))
@@ -140,7 +176,7 @@ public class Formula
                 {
                     throw new IllegalArgumentException("More than one subtraction operation is not supported if a formula.");
                 }
-                return parse(input.substring(1), formula, !negative);
+                return parse(input.substring(1), formula, true);
             }
             String sym = getNextSymbol(input);
             ChemElement el = ChemElement.getElementForSymbol(sym);
@@ -194,31 +230,40 @@ public class Formula
             assertTrue(Formula.parse(null).isEmpty());
             assertTrue(Formula.parse("").isEmpty());
 
-            assertEquals("O2 - H2N2", Formula.parse("OO-HNHN").getFormula());
-            assertEquals("O - H2N2", Formula.parse("OO-HNHNO").getFormula());
-
             var C12H8S2O6 = "C12H8S2O6";
             var SO4 = "SO4";
             assertEquals("H8C12O6S2", Formula.parse(C12H8S2O6).getFormula());
             var subtracted = C12H8S2O6+ " - " +SO4;
             assertEquals("H8C12O2S", Formula.parse(subtracted).getFormula());
             assertEquals("H8C12O2S", Formula.parse(C12H8S2O6).subtractFormula(Formula.parse(SO4)).getFormula());
+            assertEquals("-" + SO4,  new Formula().addFormula(Formula.parse(SO4)).getFormula());
+            assertEquals(SO4,  Formula.parse(SO4).addFormula(new Formula()).getFormula());
+
+            var formula = new Formula();
+            formula.addElement(ChemElement.C, 3);
+            formula.addElement(ChemElement.H, 8);
+            formula.addElement(ChemElement.O, 2);
+            formula.addElement(ChemElement.C13, 3);
+            formula.addElement(ChemElement.N, 0);
+            assertEquals("H8C3C'3O2", formula.getFormula());
+            // H4C3O + H4C'3O = H8C3C'3O2
+            assertEquals(formula.getFormula(), Formula.parse("H4C3O").addFormula(Formula.parse("H4C'3O")).getFormula());
 
             var errors = new ArrayList<String>();
             var input = subtracted + subtracted;
-            var formula = Formula.tryParse(input, errors); // More than one subtraction operation is not supported
+            formula = Formula.tryParse(input, errors); // More than one subtraction operation is not supported
             assertNull(formula);
-            assertTrue(errors.size() == 1);
+            assertEquals(1, errors.size());
             assertEquals("Failed to parse formula '" + input + "'. More than one subtraction operation is not supported if a formula.", errors.get(0));
 
-            errors = new ArrayList<String>();
+            errors = new ArrayList<>();
             input = C12H8S2O6 + 'X' + SO4;
             formula = Formula.tryParse(input, errors); // Unrecognized element in formula
             assertNull(formula);
             assertEquals("Failed to parse formula '" + input + "'. Unrecognized element in formula: X", errors.get(0));
 
 
-            // Check our ability to handle strangely constructed chemical formulas
+            // Check our ability to handle strangely constructed chemical formulas (from MassCalcTest.TestGetIonFormula() in Skyline)
             var normalized = "H9C12S2";
             assertEquals(Formula.parse("C12H9S2P0").getFormula(), Formula.parse("C12H9S2").getFormula()); // P0 is weird
             assertEquals(normalized, Formula.parse("C12H9S2P0").getFormula());
@@ -229,21 +274,12 @@ public class Formula
             assertEquals(Formula.parse("C12H9S0P").getFormula(), Formula.parse("C12H9P").getFormula()); // S0 is weird, and not at end
             assertEquals(normalized, Formula.parse("C12H9S0P").getFormula());
 
-            assertEquals("Cl", Formula.parse("Cl").getFormula());
             assertEquals("Cl", Formula.parse("Cl1").getFormula());
             assertEquals("-Cl", Formula.parse(" - Cl1").getFormula());
+            assertEquals("O2 - H2N2", Formula.parse("OO-HNHN").getFormula());
+            assertEquals("O - H2N2", Formula.parse("OO-HNHNO").getFormula());
             assertEquals("C6N2 - C'6N'2", Formula.parse("C5NNC - C'N'C'5N'").getFormula());
             assertEquals("C7N2Cl - C'6N'2", Formula.parse("C5NNCClC - C'N'C'5N'").getFormula());
-
-
-            Formula formula1 = new Formula();
-            formula1.addElement(ChemElement.C, 3);
-            formula1.addElement(ChemElement.H, 8);
-            formula1.addElement(ChemElement.O, 2);
-            formula1.addElement(ChemElement.C13, 3);
-            assertEquals("H8C3C'3O2", formula1.getFormula());
-            // H4C3O + H4C'3O = H8C3C'3O2
-            assertEquals(formula1.getFormula(), Formula.parse("H4C3O").addFormula(Formula.parse("H4C'3O")).getFormula());
         }
     }
 }

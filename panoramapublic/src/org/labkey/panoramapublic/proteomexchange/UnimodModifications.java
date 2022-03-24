@@ -42,11 +42,6 @@ public class UnimodModifications
         _aminoAcids = new HashMap<>();
     }
 
-    public boolean isEmpty()
-    {
-        return _modifications.size() == 0;
-    }
-
     public List<UnimodModification> getModifications()
     {
         return Collections.unmodifiableList(_modifications);

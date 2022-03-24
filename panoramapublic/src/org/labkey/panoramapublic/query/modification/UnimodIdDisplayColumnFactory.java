@@ -9,6 +9,10 @@ import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 
 import java.io.Writer;
 
+/**
+ * Displays a link to the Unimod page for a modification with the given Unimod Id.
+ * Example: https://www.unimod.org/modifications_view.php?editid1=4
+ */
 public class UnimodIdDisplayColumnFactory implements DisplayColumnFactory
 {
     @Override

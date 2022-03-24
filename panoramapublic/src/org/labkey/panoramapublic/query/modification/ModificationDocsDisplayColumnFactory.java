@@ -15,6 +15,7 @@ import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.targetedms.TargetedMSUrls;
 import org.labkey.api.util.DOM;
+import org.labkey.api.util.HtmlString;
 import org.labkey.api.util.Link;
 import org.labkey.api.util.PageFlowUtil;
 
@@ -33,6 +34,11 @@ import static org.labkey.api.util.DOM.TD;
 import static org.labkey.api.util.DOM.TR;
 import static org.labkey.api.util.DOM.at;
 
+/**
+ * Used with the "RunIds" column of the custom queries StructuralModifications.sql and IsotopeModifications.sql
+ * Displays links to the Skyline documents represented by "RunIds" along with a link to the peptides that have
+ * the modification in each document.
+ */
 public abstract class ModificationDocsDisplayColumnFactory implements DisplayColumnFactory
 {
     private static final FieldKey MOD_ID = FieldKey.fromParts("ModId");
@@ -66,14 +72,14 @@ public abstract class ModificationDocsDisplayColumnFactory implements DisplayCol
                         {
                             runPeptideLinks.add(TR(
                                     TD(at(style, "padding:2px 2px 2px 5px;"), runLink(run)),
-                                    TD(at(style, "padding:2px; vertical-align:top;"), peptidesLink(run, modId)))
+                                    modId != null ? TD(at(style, "padding:2px; vertical-align:top;"), peptidesLink(run, modId)) : HtmlString.EMPTY_STRING)
                             );
                         }
                         DOM.TABLE(runPeptideLinks).appendTo(out);
                     }
                     else
                     {
-                        out.write("No runs found for the modification: " + PageFlowUtil.filter(runIds));
+                        out.write("No runs found for Ids: " + PageFlowUtil.filter(runIds));
                     }
                 }
             }

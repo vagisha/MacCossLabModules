@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCache>
@@ -147,7 +148,7 @@ public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCac
         expander.click();
     }
 
-    public int getRowIndexForModification(String modification)
+    private int getRowIndexForModification(String modification)
     {
         var rowCount = elementCache().getModificationRows().size();
         for (int i = 0; i < rowCount; i++)
@@ -157,17 +158,27 @@ public class DataValidationPage extends LabKeyPage<DataValidationPage.ElementCac
         return -1;
     }
 
-    public void verifyModificationStatus(int row, String modName, String unimodId, String unimodName)
+    private String inferredModName(String modification)
     {
-        verifyModificationStatus(row, modName, unimodId, unimodName, null, null);
+        return "**" + modification;
     }
 
-    public void verifyModificationStatus(int row, String modName, String unimodId, String unimodName, String unimodId2, String unimodName2)
+    public void verifyModificationStatus(String modName, boolean inferred, String unimodId, String unimodName)
     {
-        var cells = elementCache().getModificationRowCells(row);
+        verifyModificationStatus(modName, inferred, unimodId, unimodName, null, null);
+    }
+
+    public void verifyModificationStatus(String modName, boolean inferred, String unimodId, String unimodName, String unimodId2, String unimodName2)
+    {
+        modName = inferred ? inferredModName(modName) : modName;
+
+        int rowIdx = getRowIndexForModification(modName);
+        assertNotEquals("Expected a row in the modifications validation grid for modification " + modName, -1, rowIdx);
+
+        var cells = elementCache().getModificationRowCells(rowIdx);
         Set<String> cellValues = new HashSet<>();
         cells.forEach(cell -> cellValues.add(cell.getText()));
-        assertTrue(modName + " was not found in modification row " + row, cellValues.contains(modName));
+        assertTrue(modName + " was not found in modification row " + rowIdx, cellValues.contains(modName));
 
         if (unimodId == null)
         {

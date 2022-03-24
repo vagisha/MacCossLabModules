@@ -11,14 +11,14 @@
                             <fkColumnName>id</fkColumnName>
                         </fk>
                     </column>
-                    <column columnName="GivenUnimodId">
+                    <column columnName="SkylineUnimodId">
                         <description>Unimod Id from the Skyline document</description>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
                         </displayColumnFactory>
                     </column>
-                    <column columnName="GivenFormula">
-                        <description>Modification formula from the Skyline document</description>
+                    <column columnName="NormalizedFormula">
+                        <description>Normalized modification formula from the Skyline document</description>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.modification.NormalizedFormulaDisplayColumnFactory</className>
                         </displayColumnFactory>

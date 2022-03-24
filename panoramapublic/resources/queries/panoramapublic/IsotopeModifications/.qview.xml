@@ -29,7 +29,7 @@
             </properties>
         </column>
         <column name="ModId/Terminus" />
-        <column name="GivenUnimodId">
+        <column name="SkylineUnimodId">
             <properties>
                 <property name="columnTitle" value="Unimod Id"/>
             </properties>

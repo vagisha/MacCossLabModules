@@ -32,17 +32,16 @@ import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocSpecLib;
-import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile;
-import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
 import org.labkey.panoramapublic.model.validation.SpecLib;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
 import org.labkey.panoramapublic.model.validation.Status;
-import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 import org.labkey.panoramapublic.proteomexchange.PsiInstrumentParser;
 import org.labkey.panoramapublic.proteomexchange.PxException;
+import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
+import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
-import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -295,25 +294,26 @@ public class DataValidationManager
         return Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
     }
 
-    public static void removeModInfo(@NotNull ExperimentAnnotations expAnnotations, long modId, Modification.ModType modType, User user)
+    public static void removeModInfo(@NotNull ExperimentAnnotations expAnnotations, Container container, long modId, Modification.ModType modType, User user)
     {
-        updateModInfo(expAnnotations, modId, modType, null, user);
+        updateModInfo(expAnnotations, container, modId, modType, null, user);
     }
 
-    public static void addModInfo(@NotNull ExperimentAnnotations expAnnotations, @NotNull ExperimentModInfo modInfo, Modification.ModType modType, User user)
+    public static void addModInfo(@NotNull ExperimentAnnotations expAnnotations, Container container, @NotNull ExperimentModInfo modInfo,
+                                  Modification.ModType modType, User user)
     {
-        updateModInfo(expAnnotations, modInfo.getModId(), modType, modInfo.getId(), user);
+        updateModInfo(expAnnotations, container, modInfo.getModId(), modType, modInfo.getId(), user);
     }
 
-    private static void updateModInfo(ExperimentAnnotations expAnnotations, long modId, Modification.ModType modType, Integer modInfoId, User user)
+    private static void updateModInfo(ExperimentAnnotations expAnnotations, Container container, long modId, Modification.ModType modType, Integer modInfoId, User user)
     {
-        var latestValidation = DataValidationManager.getLatestValidation(expAnnotations.getId(), expAnnotations.getContainer());
+        var latestValidation = DataValidationManager.getLatestValidation(expAnnotations.getId(), container);
         if (latestValidation != null)
         {
             var modification = DataValidationManager.getModification(latestValidation.getId(), modId, modType);
             if (modification != null)
             {
-                if (modInfoId != null || (modInfoId == null && modification.getModInfoId() != null))
+                if (modInfoId != null || modification.getModInfoId() != null)
                 {
                     modification.setModInfoId(modInfoId);
                     modification.setInferred(modInfoId != null);

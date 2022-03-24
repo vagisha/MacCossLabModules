@@ -11,7 +11,7 @@
                             <fkColumnName>id</fkColumnName>
                         </fk>
                     </column>
-                    <column columnName="GivenUnimodId">
+                    <column columnName="SkylineUnimodId">
                         <description>Unimod Id from the Skyline document</description>
                         <displayColumnFactory>
                             <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>

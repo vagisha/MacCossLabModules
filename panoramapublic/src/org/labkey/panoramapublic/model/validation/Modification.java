@@ -173,7 +173,7 @@ public class Modification
         jsonObject.put("modType", getModType().name());
         jsonObject.put("dbModId", getDbModId());
         jsonObject.put("modInfoId", getModInfoId());
-        if (getUnimodId() == null && getModInfoId() != null)
+        if (getModInfoId() != null)
         {
             var modInfo = ModType.Isotopic == getModType() ? ModificationInfoManager.getIsotopeModInfo(getModInfoId()) :
                     ModificationInfoManager.getStructuralModInfo(getModInfoId());
@@ -196,7 +196,7 @@ public class Modification
             return getSkylineModName();
         }
 
-        return getSkylineModName() + (isInferred() ? "**" : "");
+        return (isInferred() ? "**" : "") + getSkylineModName();
     }
 
     private JSONArray getUnimodMatchesJSON(List<Pair<Integer, String>> unimodMatches)

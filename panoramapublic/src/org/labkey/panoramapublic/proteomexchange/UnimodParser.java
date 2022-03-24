@@ -209,59 +209,10 @@ public class UnimodParser
                 (!has15N || label15N == 0) && (!has13C || label13C == 0)
                 && (!has18O || label18O == 0) && (!has2H || label2H == 0);
     }
-//
-//    private String getFormula(NodeList nl)
-//    {
-//        StringBuilder formula_pos = new StringBuilder();
-//        StringBuilder formula_neg = new StringBuilder();
-//        if(nl.getLength() > 0)
-//        {
-//            nl = ((Element)nl.item(0)).getElementsByTagName("element");
-//            for(int i = 0; i < nl.getLength(); i++)
-//            {
-//                Element el = (Element)nl.item(i);
-//                String symbol = el.getAttribute("symbol");
-//                switch (symbol)
-//                {
-//                    case "2H":
-//                        symbol = "H'";
-//                        break;
-//                    case "13C":
-//                        symbol = "C'";
-//                        break;
-//                    case "15N":
-//                        symbol = "N'";
-//                        break;
-//                    case "18O":
-//                        symbol = "O'";
-//                        break;
-//                }
-//                Integer number = Integer.parseInt(el.getAttribute("number"));
-//                if(number > 0)
-//                {
-//                    formula_pos.append(symbol).append(number);
-//                }
-//                else
-//                {
-//                    formula_neg.append(symbol).append(-(number));
-//                }
-//            }
-//        }
-//
-//        String formula = formula_pos.toString();
-//        if(formula_neg.length() > 0)
-//        {
-//            String sep = formula.length() > 0 ? " - " : "-";
-//            formula = formula + sep + formula_neg;
-//        }
-//        return Formula.normalizeFormula(formula);
-//    }
 
-    private Formula getFormula(NodeList nl)
+    private Formula getFormula(NodeList nl) throws PxException
     {
         Formula formula = new Formula();
-//        StringBuilder formula_pos = new StringBuilder();
-//        StringBuilder formula_neg = new StringBuilder();
         if(nl.getLength() > 0)
         {
             nl = ((Element)nl.item(0)).getElementsByTagName("element");
@@ -269,22 +220,19 @@ public class UnimodParser
             {
                 Element el = (Element)nl.item(i);
                 String symbol = el.getAttribute("symbol");
-                switch (symbol)
+                ChemElement chemElement = ChemElement.getElement(symbol);
+//                ChemElement chemElement = switch (symbol)
+//                        {
+//                            case "2H" -> ChemElement.H2;
+//                            case "13C" -> ChemElement.C13;
+//                            case "15N" -> ChemElement.N15;
+//                            case "18O" -> ChemElement.O18;
+//                            default -> ChemElement.getElementForSymbol(symbol);
+//                        };
+                if (chemElement == null)
                 {
-                    case "2H":
-                        symbol = "H'";
-                        break;
-                    case "13C":
-                        symbol = "C'";
-                        break;
-                    case "15N":
-                        symbol = "N'";
-                        break;
-                    case "18O":
-                        symbol = "O'";
-                        break;
+                    throw new PxException("Unrecognized element in formula: " + symbol);
                 }
-                ChemElement chemElement = ChemElement.getElementForSymbol(symbol);
                 Integer number = Integer.parseInt(el.getAttribute("number"));
                 formula.addElement(chemElement, number);
             }
@@ -386,7 +334,7 @@ public class UnimodParser
         {
             for (Position p: values())
             {
-                if (p._label.matches(label))
+                if (p._label.equals(label))
                 {
                     return p;
                 }

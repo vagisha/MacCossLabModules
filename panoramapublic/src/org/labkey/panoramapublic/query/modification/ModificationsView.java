@@ -6,7 +6,6 @@ import org.labkey.api.data.DataRegion;
 import org.labkey.api.query.QuerySettings;
 import org.labkey.api.query.QueryUrls;
 import org.labkey.api.query.QueryView;
-import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.view.ViewContext;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
@@ -43,6 +42,8 @@ public class ModificationsView extends QueryView
         QuerySettings settings = getSchema().getSettings(portalCtx, _title, _queryName, null);
         if (_exptAnnotations != null)
         {
+            // If we are given an ExperimentAnnotations it means that this view is being displayed on the experiment details page.
+            // We will display a non-customizable view in this case.  The user can click the grid title to view the customizable query.
             settings.setContainerFilterName(_exptAnnotations.isIncludeSubfolders() ?
                     ContainerFilter.Type.CurrentAndSubfolders.name() : ContainerFilter.Type.Current.name());
             settings.setViewName(_customViewName);
@@ -50,8 +51,6 @@ public class ModificationsView extends QueryView
         }
 
         setTitleHref(PageFlowUtil.urlProvider(QueryUrls.class).urlExecuteQuery(portalCtx.getContainer(), PanoramaPublicSchema.SCHEMA_NAME, _queryName));
-
-        settings.setAllowCustomizeView(portalCtx.getContainer().hasPermission(portalCtx.getUser(), UpdatePermission.class));
 
         return settings;
     }

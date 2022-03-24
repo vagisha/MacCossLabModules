@@ -179,16 +179,11 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
     private void testCopy(String projectName, String folderName, String experimentTitle, String targetFolder)
     {
         var validationPage = submitValidationJob();
-        var modName =  propionylation + "**";
-        int rowIdx = validationPage.getRowIndexForModification(modName);
-        assertNotEquals("Expected a row in the modifications validation grid for modification " + modName, -1, rowIdx);
-        validationPage.verifyModificationStatus(rowIdx, modName, propionyl.getUnimodId(), propionyl.getName());
-        modName = methylPropionyl + "**";
-        rowIdx = validationPage.getRowIndexForModification(modName);
-        assertNotEquals("Expected a row in the modifications validation grid for modification " + modName, -1, rowIdx);
-        validationPage.verifyModificationStatus(rowIdx, modName, methyl.getUnimodId(), methyl.getName(), propionyl.getUnimodId(), propionyl.getName());
-        submitWithoutPxIdButton();
 
+        validationPage.verifyModificationStatus(propionylation, true, propionyl.getUnimodId(), propionyl.getName());
+        validationPage.verifyModificationStatus(methylPropionyl, true, methyl.getUnimodId(), methyl.getName(), propionyl.getUnimodId(), propionyl.getName());
+
+        submitWithoutPxIdButton();
         goToDashboard();
         assertTextPresent("Copy Pending!");
 

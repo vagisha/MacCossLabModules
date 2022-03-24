@@ -61,21 +61,23 @@ public abstract class UnimodMatchDisplayColumnFactory<T extends ExperimentModInf
                     else
                     {
                         var modInfo = getModInfo(modInfoId);
-                        DIV(getUnimodDetails(modInfo)).appendTo(out);
+                        DIV(getAssignedUnimodDetails(modInfo)).appendTo(out);
 
                         int exptId = modInfo.getExperimentAnnotationsId();
                         var dbMod = getModification(modInfo.getModId());
-                        ActionURL deleteUrl = getDeleteAction(ctx).addParameter("id", exptId).addParameter("modInfoId", modInfoId);
+                        var deleteUrl = getDeleteAction(ctx).addParameter("id", exptId).addParameter("modInfoId", modInfoId);
                         DIV(at(style, "margin-top:5px;"), new Link.LinkBuilder("[Delete]")
                                 .href(deleteUrl)
                                 .clearClasses().addClass("labkey-error")
-                                .usePost("Are you sure you want to delete the saved Unimod information for modification " + dbMod.getName() + "?")
+                                .usePost(String.format("Are you sure you want to delete the saved Unimod information for modification '%s'?",
+                                        dbMod != null ? dbMod.getName() : ""))
                                 .build())
                                 .appendTo(out);
                     }
                 }
                 else
                 {
+                    // If there is an experiment in the container then display a link to find a Unimod match
                     ExperimentAnnotations exptAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(ctx.getContainer());
                     Integer exptId = exptAnnotations != null ? exptAnnotations.getId() : null;
 
@@ -101,9 +103,13 @@ public abstract class UnimodMatchDisplayColumnFactory<T extends ExperimentModInf
         };
     }
 
-    protected List<DOM.Renderable> getUnimodDetails(T modInfo)
+    protected List<DOM.Renderable> getAssignedUnimodDetails(T modInfo)
     {
-        return List.of(SPAN("**"), UnimodModification.getLink(modInfo.getUnimodId(), true), HtmlString.NBSP, SPAN("(" + modInfo.getUnimodName() + ")"));
+        return List.of(
+                SPAN("**"), UnimodModification.getLink(modInfo.getUnimodId(), true),
+                HtmlString.NBSP,
+                SPAN("(" + modInfo.getUnimodName() + ")")
+        );
     }
 
     public static class StructuralUnimodMatch extends UnimodMatchDisplayColumnFactory<ExperimentStructuralModInfo>
@@ -133,9 +139,9 @@ public abstract class UnimodMatchDisplayColumnFactory<T extends ExperimentModInf
         }
 
         @Override
-        protected List<DOM.Renderable> getUnimodDetails(ExperimentStructuralModInfo modInfo)
+        protected List<DOM.Renderable> getAssignedUnimodDetails(ExperimentStructuralModInfo modInfo)
         {
-            List<DOM.Renderable> list = new ArrayList<>(super.getUnimodDetails(modInfo));
+            List<DOM.Renderable> list = new ArrayList<>(super.getAssignedUnimodDetails(modInfo));
             if (modInfo.isCombinationMod())
             {
                 list.add(SPAN(at(style, "margin:0 10px 0 10px;"), B("+")));

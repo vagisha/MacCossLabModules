@@ -582,7 +582,7 @@
                 }]
             });
             if (hasInferred) {
-                var noteHtml = "Modifications ending with <strong>**</strong> in the Name column did not have a Unimod Id in the Skyline document."
+                var noteHtml = "Modification names starting with <strong>**</strong> in the Name column did not have a Unimod Id in the Skyline document."
                         + " A Unimod match was was inferred based on the formula, modification site(s) and terminus in the modification definition"
                         + ", or a combination modification was defined.";
                 var note = {

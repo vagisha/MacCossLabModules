@@ -11,6 +11,11 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 
+/**
+ * Used with the "NormalizedFormula" column of the custom query StructuralModifications.sql. The raw value in this column
+ * is the formula from the Skyline document which may or may not be normalized. Displays the normalized formula if it
+ * is parsed without errors. Otherwise displays the original formula.
+ */
 public class NormalizedFormulaDisplayColumnFactory implements DisplayColumnFactory
 {
     @Override
@@ -24,8 +29,7 @@ public class NormalizedFormulaDisplayColumnFactory implements DisplayColumnFacto
                 String formula = ctx.get(colInfo.getFieldKey(), String.class);
                 if (formula != null)
                 {
-                    Formula normalizedFormula = Formula.tryParse(formula, new ArrayList<>());
-                    out.write(normalizedFormula != null ? normalizedFormula.getFormula() : formula);
+                    out.write(Formula.normalizeFormula(formula));
                 }
             }
         };

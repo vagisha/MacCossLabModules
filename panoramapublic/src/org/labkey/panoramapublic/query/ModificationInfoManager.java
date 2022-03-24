@@ -12,6 +12,7 @@ import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.panoramapublic.PanoramaPublicManager;
+import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
 
@@ -59,14 +60,23 @@ public class ModificationInfoManager
         return Table.insert(user, PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), modInfo);
     }
 
-    public static void deleteIsotopeModInfo(ExperimentModInfo modInfo)
+    public static void deleteIsotopeModInfo(ExperimentModInfo modInfo, int expAnnotationsId, Container container)
     {
-        Table.delete(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), modInfo.getId());
+        deleteModInfo(modInfo, expAnnotationsId, container, PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo());
     }
 
-    public static void deleteStructuralModInfo(ExperimentModInfo modInfo)
+    public static void deleteStructuralModInfo(ExperimentModInfo modInfo, int expAnnotationsId, Container container)
     {
-        Table.delete(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), modInfo.getId());
+        deleteModInfo(modInfo, expAnnotationsId, container, PanoramaPublicManager.getTableInfoExperimentStructuralModInfo());
+    }
+
+    private static void deleteModInfo(ExperimentModInfo modInfo, int expAnnotationsId, Container container, TableInfo tableInfo)
+    {
+        ExperimentAnnotations experimentAnnotations = ExperimentAnnotationsManager.get(expAnnotationsId, container);
+        if (experimentAnnotations != null && modInfo.getExperimentAnnotationsId() == expAnnotationsId)
+        {
+            Table.delete(tableInfo, modInfo.getId());
+        }
     }
 
     public static List<ExperimentStructuralModInfo> getStructuralModInfosForExperiment(int experimentAnnotationsId, Container container)
@@ -90,7 +100,17 @@ public class ModificationInfoManager
         return Collections.emptyList();
     }
 
-    public static boolean runsHaveModifications(List<Long> runIds, TableInfo tableInfo, User user, Container container)
+    public static boolean runsHaveStructuralModifications(List<Long> runIds, User user, Container container)
+    {
+        return runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideStructuralModification(), user, container);
+    }
+
+    public static boolean runsHaveIsotopeModifications(List<Long> runIds, User user, Container container)
+    {
+        return runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideIsotopeModification(), user, container);
+    }
+
+    private static boolean runsHaveModifications(List<Long> runIds, TableInfo tableInfo, User user, Container container)
     {
         if (runIds.size() == 0) return false;
 

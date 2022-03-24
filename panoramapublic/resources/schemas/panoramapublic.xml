@@ -666,7 +666,8 @@
                     <fkTable>ExperimentAnnotations</fkTable>
                 </fk>
             </column>
-            <column columnName="StructuralModId">
+            <column columnName="ModId">
+                <description>Structural modification in the Skyline document</description>
                 <fk>
                     <fkColumnName>Id</fkColumnName>
                     <fkDbSchema>targetedms</fkDbSchema>
@@ -674,12 +675,14 @@
                 </fk>
             </column>
             <column columnName="UnimodId">
+                <description>Assigned Unimod Id</description>
                 <displayColumnFactory>
                     <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
                 </displayColumnFactory>
             </column>
             <column columnName="UnimodName" />
             <column columnName="UnimodId2">
+                <description>Additional assigned Unimod Id for a combination modification</description>
                 <displayColumnFactory>
                     <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
                 </displayColumnFactory>
@@ -722,14 +725,20 @@
                     <fkTable>ExperimentAnnotations</fkTable>
                 </fk>
             </column>
-            <column columnName="IsotopeModId">
+            <column columnName="ModId">
+                <description>Isotope modification in the Skyline document</description>
                 <fk>
                     <fkColumnName>Id</fkColumnName>
                     <fkDbSchema>targetedms</fkDbSchema>
                     <fkTable>IsotopeModification</fkTable>
                 </fk>
             </column>
-            <column columnName="UnimodId" />
+            <column columnName="UnimodId">
+                <description>Assigned Unimod Id</description>
+                <displayColumnFactory>
+                    <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
+                </displayColumnFactory>
+            </column>
             <column columnName="UnimodName" />
         </columns>
     </table>

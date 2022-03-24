@@ -23,7 +23,7 @@ CREATE TABLE panoramapublic.ExperimentStructuralModInfo
     Modified          TIMESTAMP,
 
     ExperimentAnnotationsId   INT NOT NULL,
-    ModId                     BIGINT NOT NULL,
+    ModId                     BIGINT NOT NULL, -- targetedms.structuralmodification.Id
     UnimodId                  INT NOT NULL,
     UnimodName                VARCHAR NOT NULL,
     UnimodId2                 INT,
@@ -48,7 +48,7 @@ CREATE TABLE panoramapublic.ExperimentIsotopeModInfo
     Modified          TIMESTAMP,
 
     ExperimentAnnotationsId   INT NOT NULL,
-    ModId                     BIGINT NOT NULL, -- targetedms.structuralmodification.Id
+    ModId                     BIGINT NOT NULL, -- targetedms.isotopemodification.Id
     UnimodId                  INT NOT NULL,
     UnimodName                VARCHAR NOT NULL,
 
@@ -60,5 +60,9 @@ CREATE TABLE panoramapublic.ExperimentIsotopeModInfo
 CREATE INDEX IX_ExperimentIsotopeModInfo_ExperimentAnnotationsId ON panoramapublic.ExperimentIsotopeModInfo(experimentAnnotationsId);
 CREATE INDEX IX_ExperimentIsotopeModInfo_ModId ON panoramapublic.ExperimentIsotopeModInfo(ModId);
 
+-- We will no longer try to assign Unimod Ids automatically during data validation. We will rely instead on the user-assigned
+-- values in the ExperimentStructuralModInfo and ExperimentIsotopeModInfo tables.
 ALTER TABLE panoramapublic.ModificationValidation DROP COLUMN UnimodMatches;
-ALTER TABLE panoramapublic.ModificationValidation ADD COLUMN ModInfoId INT; -- panoramapublic.ExperimentStructuralModInfo.Id OR panoramapublic.ExperimentIsotopeModInfo.Id
+-- ModInfoId refers to either panoramapublic.ExperimentStructuralModInfo.Id OR panoramapublic.ExperimentIsotopeModInfo.Id
+-- depending on the value in ModType column
+ALTER TABLE panoramapublic.ModificationValidation ADD COLUMN ModInfoId INT;

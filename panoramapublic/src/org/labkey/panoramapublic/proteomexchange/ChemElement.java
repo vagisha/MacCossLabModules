@@ -6,57 +6,64 @@ import java.util.Map;
 public enum ChemElement
 {
     // Source: Unimod
-    H("H",1.007825035),
+    H("H",1.00794),
     H2("2H", "H'", 2.014101779),
-    Li("Li",7.016003),
-    B("B",11.0093055),
-    C("C",12),
-    C13("13C", "C'", 13.00335483),
-    N("N",14.003074),
-    N15("15N", "N'", 15.00010897),
-    O("O",15.99491463),
+    Li("Li",6.941),
+    B("B",10.811),
+    C("C",12.0107),
+    C13("13C","C'", 13.00335483),
+    N("N",14.0067),
+    N15("15N","N'", 15.00010897),
+    O("O",15.9994),
     O18("18O", "O'", 17.9991603),
-    F("F",18.99840322),
-    Na("Na",22.9897677),
-    Mg("Mg",23.9850423),
+    F("F",18.9984032),
+    Na("Na",22.98977),
+    Mg("Mg",24.305),
     Al("Al",26.9815386),
-    P("P",30.973762),
-    S("S",31.9720707),
-    Cl("Cl",34.96885272),
-    K("K",38.9637074),
-    Ca("Ca",39.9625906),
-    Cr("Cr",51.9405098),
-    Mn("Mn",54.9380471),
-    Fe("Fe",55.9349393),
-    Ni("Ni",57.9353462),
-    Co("Co",58.9331976),
-    Cu("Cu",62.9295989),
-    Zn("Zn",63.9291448),
+    Si("Si",28.085),
+    P("P",30.973761),
+    S("S",32.065),
+    Cl("Cl",35.453),
+    K("K",39.0983),
+    Ca("Ca",40.078),
+    Cr("Cr",51.9961),
+    Mn("Mn",54.938045),
+    Fe("Fe",55.845),
+    Ni("Ni",58.6934),
+    Co("Co",58.933195),
+    Cu("Cu",63.546),
+    Zn("Zn",65.409),
     As("As",74.9215942),
-    Br("Br",78.9183361),
-    Se("Se",79.9165196),
-    Mo("Mo",97.9054073),
-    Ru("Ru",101.9043485),
-    Pd("Pd",105.903478),
-    Ag("Ag",106.905092),
-    Cd("Cd",113.903357),
-    I("I",126.904473),
-    Pt("Pt",194.964766),
-    Au("Au",196.966543),
-    Hg("Hg",201.970617);
-
+    Se("Se",78.96),
+    Br("Br",79.904),
+    Mo("Mo",95.94),
+    Ru("Ru",101.07),
+    Pd("Pd",106.42),
+    Ag("Ag",107.8682),
+    Cd("Cd",112.411),
+    I("I",126.90447),
+    Pt("Pt",195.084),
+    Au("Au",196.96655),
+    Hg("Hg",200.59);
 
     private final String _title;
     private final String _symbol;
     private final double _avgMass;
 
+    private static Map<String, ChemElement> titleMap = new HashMap<>();
     private static Map<String, ChemElement> symbolMap = new HashMap<>();
     static
     {
         for (ChemElement el: ChemElement.values())
         {
             symbolMap.put(el.getSymbol(), el);
+            titleMap.put(el.getTitle(), el);
         }
+    }
+
+    public static ChemElement getElement(String title)
+    {
+        return titleMap.get(title);
     }
 
     public static ChemElement getElementForSymbol(String symbol)

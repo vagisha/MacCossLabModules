@@ -52,7 +52,7 @@ public class ExperimentStructuralModInfo extends ExperimentModInfo
             return super.getUnimodIdsAndNames();
         }
         var list = new ArrayList<>(super.getUnimodIdsAndNames());
-        list.add(new Pair(_unimodId2, _unimodName2));
+        list.add(new Pair<>(_unimodId2, _unimodName2));
         return Collections.unmodifiableList(list);
     }
 

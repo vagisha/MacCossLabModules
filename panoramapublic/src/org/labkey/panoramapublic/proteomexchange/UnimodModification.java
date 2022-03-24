@@ -17,8 +17,6 @@ package org.labkey.panoramapublic.proteomexchange;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
-import org.junit.Assert;
-import org.junit.Test;
 import org.labkey.api.util.Link;
 
 import java.util.Collections;
@@ -111,7 +109,7 @@ public class UnimodModification
     }
 
     /**
-     * @param normFormula normalized formula for the modification
+     * @param normFormula normalized formula for the modification {@link Formula#normalizeFormula(String)}
      * @param sites sites (amino acids + terminus) where this modification occurs
      * @param terminus terminus (N-term / C-term) where this modification occurs if no sites are specified.
      * @return true if the given normalized formula matches this Unimod modification's composition, and the given sites are in the
@@ -192,15 +190,6 @@ public class UnimodModification
         return sb.toString();
     }
 
-    public String getModSites()
-    {
-        if(_modSites.size() > 0)
-        {
-            return StringUtils.join(_modSites.stream().map(s -> s.getSite()).collect(Collectors.toSet()), ":");
-        }
-        return "";
-    }
-
     public TermSpecificity getNterm()
     {
         return _nTerm;
@@ -215,7 +204,7 @@ public class UnimodModification
     {
         if(_modSites.size() > 0)
         {
-            return StringUtils.join(_modSites.stream().map(s -> s.toString()).collect(Collectors.toSet()), ":");
+            return StringUtils.join(_modSites.stream().map(Specificity::toString).collect(Collectors.toSet()), ":");
         }
         return "";
     }
@@ -257,8 +246,6 @@ public class UnimodModification
         if (clearClasses)
         {
             link = link.clearClasses();
-//                    .addClass("labkey-text-link-noarrow")
-//                    .style("margin:.1em 0 .5em 0; padding:.3em 2px 2px 0;");
         }
         return link.build();
     }

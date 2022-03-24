@@ -116,7 +116,7 @@ public class ExperimentModificationGetter
         else
         {
             PxStructuralMod pxMod = new PxStructuralMod(mod.getName(), mod.getId());
-            String normFormula = Formula.normalizeFormula(mod.getFormula());
+            String normFormula = Formula.normalizeIfValid(mod.getFormula());
             if(normFormula != null && lookupUnimod)
             {
                 addMatches(mod, uMods, pxMod, normFormula, true);
@@ -170,7 +170,7 @@ public class ExperimentModificationGetter
                 }
             }
             PxIsotopicMod pxMod = new PxIsotopicMod(mod.getName(), mod.getId());
-            String normFormula = Formula.normalizeFormula(formula);
+            String normFormula = Formula.normalizeIfValid(formula);
             if(normFormula != null && lookupUnimod)
             {
                 addMatches(mod, uMods, pxMod, normFormula, false);

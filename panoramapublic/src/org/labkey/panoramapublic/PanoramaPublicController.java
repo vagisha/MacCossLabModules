@@ -5290,12 +5290,12 @@ public class PanoramaPublicController extends SpringActionController
             {
                 // Structural modifications
                 List<Long> runIds = runs.stream().map(ITargetedMSRun::getId).collect(Collectors.toList());
-                if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideStructuralModification(), getUser(), getContainer()))
+                if (ModificationInfoManager.runsHaveStructuralModifications(runIds, getUser(), getContainer()))
                 {
                     result.addView(new ModificationsView.StructuralModsView(getViewContext(), exptAnnotations));
                 }
-                // Isotopic modifications
-                if (ModificationInfoManager.runsHaveModifications(runIds, TargetedMSService.get().getTableInfoPeptideIsotopeModification(), getUser(), getContainer()))
+                // Isotope modifications
+                if (ModificationInfoManager.runsHaveIsotopeModifications(runIds, getUser(), getContainer()))
                 {
                     result.addView(new ModificationsView.IsotopeModsView(getViewContext(), exptAnnotations));
                 }
@@ -7332,7 +7332,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected void updateValidationModification(ExperimentStructuralModInfo modInfo)
         {
-            DataValidationManager.addModInfo(_expAnnot, modInfo, Modification.ModType.Structural, getUser());
+            DataValidationManager.addModInfo(_expAnnot, getContainer(), modInfo, Modification.ModType.Structural, getUser());
         }
     }
 
@@ -7383,7 +7383,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected void updateValidationModification(ExperimentModInfo modInfo)
         {
-            DataValidationManager.addModInfo(_expAnnot, modInfo, Modification.ModType.Isotopic, getUser());
+            DataValidationManager.addModInfo(_expAnnot, getContainer(), modInfo, Modification.ModType.Isotopic, getUser());
         }
     }
 
@@ -7516,6 +7516,7 @@ public class PanoramaPublicController extends SpringActionController
     {
         private UnimodModifications _unimodModifications;
         private IModification.IStructuralModification _modification;
+        private Formula _modFormula;
 
         @Override
         protected ModelAndView getModelAndView(CombinationModificationFrom form, boolean reshow, BindException errors)
@@ -7529,18 +7530,10 @@ public class PanoramaPublicController extends SpringActionController
                 }
             }
 
-            List<String> parseErrors = new ArrayList<>();
-            Formula modFormula = Formula.tryParse(_modification.getFormula(), parseErrors);
-            if (modFormula == null)
-            {
-                parseErrors.forEach(err -> errors.reject(ERROR_MSG, err));
-                return new SimpleErrorView(errors);
-            }
-
             CombinationModificationBean bean = new CombinationModificationBean(
                     form,
                     _modification,
-                    modFormula,
+                    _modFormula,
                     _unimodModifications.getStructuralModifications(),
                     Arrays.stream(ChemElement.values()).map(el -> el.getSymbol()).collect(Collectors.toList())
                     );
@@ -7570,6 +7563,16 @@ public class PanoramaPublicController extends SpringActionController
                         "To define a modification as a combination of two Unimod modifications it must include the amino acid(s) or the terminus where the modification occurs.");
                 return;
             }
+            List<String> parseErrors = new ArrayList<>();
+            _modFormula = Formula.tryParse(_modification.getFormula(), parseErrors);
+            if (_modFormula == null)
+            {
+                // We cannot define a combination modification if the formula could not be parsed.
+                errors.reject(ERROR_MSG, "Modification formula '" + _modification.getFormula() + "' could not be parsed.");
+                parseErrors.forEach(err -> errors.reject(ERROR_MSG, err));
+                return;
+            }
+
             _unimodModifications = readUnimod(errors);
         }
 
@@ -7608,14 +7611,8 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             Formula combinedFormula = UnimodModification.getCombinedFormula(mod1,mod2);
-            List<String> parseErrors = new ArrayList<>();
-            Formula modFormula = Formula.tryParse(_modification.getFormula(), parseErrors);
-            if (modFormula == null)
-            {
-                parseErrors.forEach(err -> errors.reject(ERROR_MSG, err));
-                return false;
-            }
-            Formula diff = modFormula.subtractFormula(combinedFormula);
+
+            Formula diff = _modFormula.subtractFormula(combinedFormula);
             if (!diff.isEmpty())
             {
                 errors.reject(ERROR_MSG, "Selected Unimod modification formulas do not add up to the formula of the modification. " +
@@ -7635,7 +7632,7 @@ public class PanoramaPublicController extends SpringActionController
             try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
             {
                 modInfo = ModificationInfoManager.saveStructuralModInfo(modInfo, getUser());
-                DataValidationManager.addModInfo(_expAnnot, modInfo, Modification.ModType.Structural, getUser());
+                DataValidationManager.addModInfo(_expAnnot, getContainer(), modInfo, Modification.ModType.Structural, getUser());
                 transaction.commit();
             }
 
@@ -7778,7 +7775,7 @@ public class PanoramaPublicController extends SpringActionController
         T _modInfo;
 
         protected abstract T getModInfo(int modInfoId);
-        protected abstract void deleteModInfo(T modInfo);
+        protected abstract void deleteModInfo(T modInfo, int expAnnotationsId);
         protected abstract void updateValidationModification(T modInfo);
 
         @Override
@@ -7815,7 +7812,7 @@ public class PanoramaPublicController extends SpringActionController
 
             try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
             {
-                deleteModInfo(_modInfo);
+                deleteModInfo(_modInfo, form.getId());
                 updateValidationModification(_modInfo);
                 transaction.commit();
             }
@@ -7845,15 +7842,15 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        protected void deleteModInfo(ExperimentStructuralModInfo modInfo)
+        protected void deleteModInfo(ExperimentStructuralModInfo modInfo, int expAnnotationsId)
         {
-            ModificationInfoManager.deleteStructuralModInfo(modInfo);
+            ModificationInfoManager.deleteStructuralModInfo(modInfo, expAnnotationsId, getContainer());
         }
 
         @Override
         protected void updateValidationModification(ExperimentStructuralModInfo modInfo)
         {
-            DataValidationManager.removeModInfo(_expAnnot, modInfo.getModId(), Modification.ModType.Structural, getUser());
+            DataValidationManager.removeModInfo(_expAnnot, getContainer(), modInfo.getModId(), Modification.ModType.Structural, getUser());
         }
     }
 
@@ -7867,15 +7864,15 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        protected void deleteModInfo(ExperimentModInfo modInfo)
+        protected void deleteModInfo(ExperimentModInfo modInfo, int expAnnotationsId)
         {
-            ModificationInfoManager.deleteIsotopeModInfo(modInfo);
+            ModificationInfoManager.deleteIsotopeModInfo(modInfo, expAnnotationsId, getContainer());
         }
 
         @Override
         protected void updateValidationModification(ExperimentModInfo modInfo)
         {
-            DataValidationManager.removeModInfo(_expAnnot, modInfo.getModId(), Modification.ModType.Isotopic, getUser());
+            DataValidationManager.removeModInfo(_expAnnot, getContainer(), modInfo.getModId(), Modification.ModType.Isotopic, getUser());
         }
     }
 

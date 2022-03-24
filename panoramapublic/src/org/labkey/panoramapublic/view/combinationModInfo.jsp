@@ -39,26 +39,70 @@
 
 <script type="text/javascript">
 
-    let modFormula = undefined;
+    const elementOrder = {}; // Order of elements in a normalized formula
+    let idx = 0;
+    <% for (var el: bean.getElementOrder()) { %>
+    elementOrder[<%=q(el)%>] = idx++;
+    <% } %>
+
+    class Formula {
+
+        constructor() {
+            this.elementCounts = {};
+        }
+        subtractElement(el, count) {
+            this.addElement(el, count * -1);
+        }
+        addElement(element, count) {
+            const currentCount = this.elementCounts[element];
+            if (currentCount) {
+                count = currentCount + count;
+            }
+            this.elementCounts[element] = count;
+        }
+        subtractFormula(otherFormula) {
+            const newFormula = new Formula();
+            Object.keys(this.elementCounts).forEach(el => newFormula.addElement(el, this.elementCounts[el]));
+            Object.keys(otherFormula.elementCounts).forEach(el => newFormula.subtractElement(el, otherFormula.elementCounts[el]));
+
+            return newFormula;
+        }
+        isEmpty() {
+            return !Object.keys(this.elementCounts).find(el => this.elementCounts[el] !== 0);
+        }
+        getFormula() {
+            let posForm = "";
+            let negForm = "";
+
+            const sortedKeys = Object.keys(this.elementCounts).sort((a,b) => elementOrder[a] - elementOrder[b]);
+            for (const elem of sortedKeys) {
+                let cnt = this.elementCounts[elem];
+                if (cnt > 0) {
+                    posForm += elem + (cnt > 1 ? cnt : "");
+                }
+                else if (cnt < 0) {
+                    cnt = cnt * -1;
+                    negForm += elem + (cnt > 1 ? cnt : "");
+                }
+            }
+            const sep = posForm && negForm ? " - " : negForm ? "-" : "";
+            return posForm + sep + negForm;
+        }
+    }
+
+    const modFormula = new Formula();
+    <% for (var entry: modFormula.getElementCounts().entrySet()) { %>
+    modFormula.addElement(<%=q(entry.getKey().getSymbol())%>, <%=entry.getValue()%>);
+    <% } %>
+
     let selectedUnimod1 = undefined;
     let selectedUnimod2 = undefined;
-    const elementOrder = {};
     let formPanel, combo1, combo2;
 
     Ext4.onReady(function(){
 
-        modFormula = new Formula();
-        <% for (var entry: modFormula.getElementCounts().entrySet()) { %>
-        modFormula.addElement(<%=q(entry.getKey().getSymbol())%>, <%=entry.getValue()%>);
-        <% } %>
-
-        let idx = 0;
-        <% for (var el: bean.getElementOrder()) { %>
-            elementOrder[<%=q(el)%>] = idx++;
-        <% } %>
-
-        const combo1 = createUnimodCb(1);
-        const combo2 = createUnimodCb(2);
+        combo1 = createUnimodCb(1);
+        combo2 = createUnimodCb(2);
 
         <% if (form.getUnimodId1() != null) { %>
             const record1 = combo1.getStore().getById(<%=form.getUnimodId1()%>);
@@ -166,57 +210,13 @@
         }
     });
 
-    function Formula() {
-
-        this.elementCounts = {};
-
-        this.subtractElement = function _subtractElement(el, count) {
-            this.addElement(el, count * -1);
-        }
-        this.addElement = function _addElement(element, count) {
-            const currentCount = this.elementCounts[element];
-            if (currentCount) {
-                count = currentCount + count;
-            }
-            this.elementCounts[element] = count;
-        }
-        this.subtractFormula = function _subtractFormula(otherFormula) {
-            const newFormula = new Formula();
-            Object.keys(this.elementCounts).forEach(el => newFormula.addElement(el, this.elementCounts[el]));
-            Object.keys(otherFormula.elementCounts).forEach(el => newFormula.subtractElement(el, otherFormula.elementCounts[el]));
-
-            return newFormula;
-        }
-        this.isEmpty = function _isEmpty() {
-            return !Object.keys(this.elementCounts).find(el => this.elementCounts[el] !== 0);
-        }
-        this.getFormula = function _getFormula() {
-            let posForm = '';
-            let negForm = '';
-
-            const sortedKeys = Object.keys(this.elementCounts).sort((a,b) => elementOrder[a] - elementOrder[b]);
-            for (const elem of sortedKeys) {
-                let cnt = this.elementCounts[elem];
-                if (cnt > 0) {
-                    posForm += elem + (cnt > 1 ? cnt : '');
-                }
-                else if (cnt < 0) {
-                    cnt = cnt * -1;
-                    negForm += elem + (cnt > 1 ? cnt : '');
-                }
-            }
-            const sep = posForm && negForm ? ' - ' : negForm ? '-' : '';
-            return posForm + sep + negForm;
-        }
-    }
-
     function createUnimodCb(cbIdx) {
 
         const createDataSourceFilter = function(value) {
             return Ext4.create('Ext.util.Filter', {
                 filterFn: function(item) {
                     // Filter on display name or formula
-                    return item.data.displayName.startsWith(value) || item.data.formula.startsWith(value);
+                    return Ext4.String.startsWith(item.data.displayName, value, true) || Ext4.String.startsWith(item.data.formula, value);
                 }
             });
         };
