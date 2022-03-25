@@ -19,7 +19,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @Category({External.class, MacCossLabModules.class})
-@BaseWebDriverTest.ClassTimeout(minutes = 7)
+@BaseWebDriverTest.ClassTimeout(minutes = 5)
 public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
 {
     private static final String SKY_FILE_1 = "HighPrecModSkydTest.sky.zip";
@@ -38,7 +38,9 @@ public class PanoramaPublicModificationsTest extends PanoramaPublicBaseTest
         String projectName = getProjectName();
         String folderName = "ModificationsTest";
 
-        setupSubfolder(projectName, folderName, FolderType.Experiment);
+        setupSourceFolder(projectName, folderName, SUBMITTER);
+        impersonate(SUBMITTER);
+        updateSubmitterAccountInfo("One");
 
         // Upload document
         importData(SKY_FILE_1, 1);

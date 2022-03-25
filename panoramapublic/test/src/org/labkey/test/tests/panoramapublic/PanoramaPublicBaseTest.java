@@ -345,6 +345,8 @@ public class PanoramaPublicBaseTest extends TargetedMSTest implements PostgresOn
         APIContainerHelper apiContainerHelper = new APIContainerHelper(this);
         apiContainerHelper.deleteProject(PANORAMA_PUBLIC, afterTest);
 
+        _userHelper.deleteUsers(false,ADMIN_USER, SUBMITTER);
+
         super.doCleanup(afterTest);
     }
 }

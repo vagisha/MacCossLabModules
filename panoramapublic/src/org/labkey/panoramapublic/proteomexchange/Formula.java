@@ -236,8 +236,8 @@ public class Formula
             var subtracted = C12H8S2O6+ " - " +SO4;
             assertEquals("H8C12O2S", Formula.parse(subtracted).getFormula());
             assertEquals("H8C12O2S", Formula.parse(C12H8S2O6).subtractFormula(Formula.parse(SO4)).getFormula());
-            assertEquals("-" + SO4,  new Formula().addFormula(Formula.parse(SO4)).getFormula());
-            assertEquals(SO4,  Formula.parse(SO4).addFormula(new Formula()).getFormula());
+            assertEquals("-O4S",  new Formula().subtractFormula(Formula.parse(SO4)).getFormula());
+            assertEquals("O4S",  Formula.parse(SO4).addFormula(new Formula()).getFormula());
 
             var formula = new Formula();
             formula.addElement(ChemElement.C, 3);
