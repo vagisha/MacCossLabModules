@@ -36,10 +36,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.labkey.panoramapublic.proteomexchange.UnimodParser.*;
+import static org.labkey.panoramapublic.proteomexchange.UnimodParser.Terminus;
 
 public class ExperimentModificationGetter
 {
@@ -56,7 +57,7 @@ public class ExperimentModificationGetter
         Map<Long, PxModification> strModMap = new HashMap<>();
         Map<Long, PxModification> isoModMap = new HashMap<>();
 
-        UnimodModifications uMods = getUnimodMods(); // Read the UNIMOD modifications
+        UnimodModifications uMods = UnimodUtil.unimod(); // Read the UNIMOD modifications
 
         for(ITargetedMSRun run: runs)
         {
@@ -157,20 +158,24 @@ public class ExperimentModificationGetter
         }
         else
         {
-            String formula = mod.getFormula();
-            if(StringUtils.isBlank(formula))
+            String normFormula = null;
+            if(StringUtils.isBlank(mod.getFormula()))
             {
                 try
                 {
-                    formula = buildIsotopeModFormula(mod, uMods);
+                    var formula = buildIsotopeModFormula(mod, uMods);
+                    normFormula = formula != null ? formula.getFormula() : null;
                 }
                 catch (PxException e)
                 {
                     LOG.error("Error building formula for isotopic mod (Id: " + mod.getId() + ", " + mod.getName() + ")", e);
                 }
             }
+            else
+            {
+                normFormula = Formula.normalizeIfValid(mod.getFormula());
+            }
             PxIsotopicMod pxMod = new PxIsotopicMod(mod.getName(), mod.getId());
-            String normFormula = Formula.normalizeIfValid(formula);
             if(normFormula != null && lookupUnimod)
             {
                 addMatches(mod, uMods, pxMod, normFormula, false);
@@ -179,47 +184,34 @@ public class ExperimentModificationGetter
         }
     }
 
-    private static String buildIsotopeModFormula(IModification.IIsotopeModification mod, UnimodModifications uMods) throws PxException
+    private static Formula buildIsotopeModFormula(IModification.IIsotopeModification mod, UnimodModifications uMods) throws PxException
     {
         String aminoAcids = mod.getAminoAcid();
-        if(StringUtils.isBlank(aminoAcids))
+        if (StringUtils.isBlank(aminoAcids))
         {
             return null;
         }
 
         // On PanoramaWeb we do not have any isotopic modifications with multiple amino acids as targets.  But Skyline allows it
         String[] sites = modSites(mod);
-        String formula = null;
-        for(String site: sites)
+        Formula formula = null;
+        for (String site : sites)
         {
-            String f = uMods.buildIsotopicModFormula(site.charAt(0),
+            Formula f = UnimodUtil.buildIsotopicModFormula(site.charAt(0),
                     Boolean.TRUE.equals(mod.getLabel2H()),
                     Boolean.TRUE.equals(mod.getLabel13C()),
                     Boolean.TRUE.equals(mod.getLabel15N()),
                     Boolean.TRUE.equals(mod.getLabel18O()));
-            if(formula == null)
+            if (formula == null)
             {
                 formula = f;
             }
-            else if(!formula.equals(f))
+            else if (!formula.getFormula().equals(f.getFormula()))
             {
-                throw new PxException("Multiple amino acids found for isotopic modification (" + mod.getName() +"). Formulae do not match.");
+                throw new PxException("Multiple amino acids found for isotopic modification (" + mod.getName() + "). Formulae do not match.");
             }
         }
         return formula;
-    }
-
-    public static UnimodModifications getUnimodMods()
-    {
-        try
-        {
-            return (new UnimodParser().parse());
-        }
-        catch (Exception e)
-        {
-            LOG.error("There was an error reading UNIMOD modifications.", e);
-            return new UnimodModifications();
-        }
     }
 
     public static abstract class PxModification
@@ -901,7 +893,7 @@ public class ExperimentModificationGetter
         private static final boolean LABEL13C = true;
         private static final boolean LABEL15N = true;
         private static final boolean LABEL18O = true;
-        private IsotopeModification createisotopicMod(String name, String formula, String sites, String terminus,
+        private static IsotopeModification createisotopicMod(String name, String formula, String sites, String terminus,
                                                                       boolean label2h, boolean label13c, boolean label15n, boolean label18o)
         {
             IsotopeModification mod = new IsotopeModification();
@@ -1015,6 +1007,21 @@ public class ExperimentModificationGetter
         {
             _unimodId = unimodId;
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Modification that = (Modification) o;
+            return getId() == that.getId() && getName().equals(that.getName()) && Objects.equals(getAminoAcid(), that.getAminoAcid()) && Objects.equals(getTerminus(), that.getTerminus()) && Objects.equals(getFormula(), that.getFormula()) && Objects.equals(getMassDiffMono(), that.getMassDiffMono()) && Objects.equals(getMassDiffAvg(), that.getMassDiffAvg()) && Objects.equals(getUnimodId(), that.getUnimodId());
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(getId(), getName(), getAminoAcid(), getTerminus(), getFormula(), getMassDiffMono(), getMassDiffAvg(), getUnimodId());
+        }
     }
 
     static class IsotopeModification extends Modification implements IModification.IIsotopeModification
@@ -1066,6 +1073,56 @@ public class ExperimentModificationGetter
         public void setLabel2H(Boolean label2H)
         {
             _label2H = label2H;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            IsotopeModification that = (IsotopeModification) o;
+            return Objects.equals(getLabel13C(), that.getLabel13C())
+                    && Objects.equals(getLabel15N(), that.getLabel15N())
+                    && Objects.equals(getLabel18O(), that.getLabel18O())
+                    && Objects.equals(getLabel2H(), that.getLabel2H());
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), getLabel13C(), getLabel15N(), getLabel18O(), getLabel2H());
+        }
+
+        private static final boolean LABEL2H = true;
+        private static final boolean LABEL13C = true;
+        private static final boolean LABEL15N = true;
+        private static final boolean LABEL18O = true;
+
+        public static IsotopeModification createisotopicMod(String name, String formula, String sites, String terminus,
+                                                             boolean label2h, boolean label13c, boolean label15n, boolean label18o)
+        {
+            IsotopeModification mod = new IsotopeModification();
+            mod.setFormula(formula);
+            mod.setTerminus(terminus);
+            mod.setAminoAcid(sites);
+            mod.setName(name);
+            mod.setLabel2H(label2h);
+            mod.setLabel13C(label13c);
+            mod.setLabel15N(label15n);
+            mod.setLabel18O(label18o);
+            return mod;
+        }
+
+        public static IsotopeModification create(IModification.IIsotopeModification iMod)
+        {
+            return iMod != null ?
+                    createisotopicMod(iMod.getName(), iMod.getFormula(), iMod.getAminoAcid(), iMod.getTerminus(),
+                    iMod.getLabel2H() != null ? iMod.getLabel2H().booleanValue() : false,
+                    iMod.getLabel13C() != null ? iMod.getLabel13C().booleanValue() : false,
+                    iMod.getLabel15N() != null ? iMod.getLabel15N().booleanValue() : false,
+                    iMod.getLabel18O() != null ? iMod.getLabel18O().booleanValue() : false)
+                    : null;
         }
     }
 }

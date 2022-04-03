@@ -462,6 +462,10 @@
                     {
                         property: 'unimodMatches',
                         direction: 'DESC'
+                    },
+                    {
+                        property: 'skylineModInfo',
+                        direction: 'ASC'
                     }
                 ]
             });
@@ -503,9 +507,10 @@
                             else if (record.data['unimodMatches']) {
                                 var ret = ''; var sep = '';
                                 var matches = record.data['unimodMatches'];
+                                var isotopic = record.data['modType'] === "Isotopic" ? true : false;
                                 for (var i = 0; i < matches.length; i++) {
                                     ret += sep + unimodLink(matches[i]['unimodId'], 'pxv-valid');
-                                    sep = ' + ';
+                                    sep = isotopic ? '</br>' : ' + ';
                                 }
                                 return ret;
                             }
@@ -521,9 +526,10 @@
                             else if (record.data['unimodMatches']) {
                                 var ret = ''; var sep = '';
                                 var matches = record.data['unimodMatches'];
+                                var isotopic = record.data['modType'] === "Isotopic" ? true : false;
                                 for (var i = 0; i < matches.length; i++) {
                                     ret += sep + htmlEncode(matches[i]['name']);
-                                    sep = ' + ';
+                                    sep = isotopic ? '</br>' : ' + ';
                                 }
                                 return ret;
                             }

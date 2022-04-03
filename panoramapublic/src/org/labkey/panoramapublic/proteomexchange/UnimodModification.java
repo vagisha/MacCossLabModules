@@ -17,13 +17,18 @@ package org.labkey.panoramapublic.proteomexchange;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.labkey.api.util.HtmlString;
+import org.labkey.api.util.HtmlStringBuilder;
 import org.labkey.api.util.Link;
+import org.w3c.dom.NodeList;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.labkey.panoramapublic.proteomexchange.ChemElement.*;
 import static org.labkey.panoramapublic.proteomexchange.UnimodParser.Position;
 import static org.labkey.panoramapublic.proteomexchange.UnimodParser.Specificity;
 import static org.labkey.panoramapublic.proteomexchange.UnimodParser.TermSpecificity;
@@ -37,7 +42,12 @@ public class UnimodModification
     private final Set<Specificity> _modSites;
     private TermSpecificity _nTerm;
     private TermSpecificity _cTerm;
+    private boolean _isIsotopicClassification;
     private boolean _isIsotopic;
+    private boolean _isTrueIsotopic;
+    private Formula _diffFormula;
+    private UnimodModification _parentStructuralMod;
+
 
     public UnimodModification(int id, String name, Formula formula)
     {
@@ -45,6 +55,7 @@ public class UnimodModification
         _name = name;
         _formula = formula;
         _modSites = new HashSet<>();
+        _isIsotopic = _formula.getElementCounts().keySet().stream().anyMatch(el -> HEAVY_LABELS.containsKey(el));;
     }
 
     public int getId()
@@ -88,24 +99,91 @@ public class UnimodModification
         _cTerm = new TermSpecificity(Terminus.C, position);
     }
 
-    public void addSite(@NotNull String site, @NotNull Position position)
+    public void addSite(@NotNull String site, @NotNull Position position, String classification)
     {
         _modSites.add(new Specificity(site, position));
     }
 
+    /**
+     * @return true if the modification formula changes the elemental composition of the residue or terminus.
+     * This will include modifications such as
+     * Methyl:2H(3); Unimod:298; Composition: H(-1) 2H(3) C
+     * and 	Dimethyl:2H(6); Unimod:1291; Composition: H(-2) 2H(6) C(2)
+     * These are isotope labels that are also chemical modifications.
+     * This is based on the PanoramaWeb support board request: https://panoramaweb.org/home/support/announcements-thread.view?rowId=4105
+     * The user added Methyl:2H(3) and Dimethyl:2H(6) as structural modifications rather than isotopic because he needed them to be variable.
+     * Data is available on Panorama Public at: https://panoramaweb.org/PRMT6motif.url
+     */
     public boolean isStructural()
     {
-        return !_isIsotopic;
+        return !isTrueIsotopic();
     }
 
+    /**
+     * @return true if at least one of the modifications sites has the classification "Isotopic label" in unimod.xml
+     */
     public boolean isIsotopic()
     {
         return _isIsotopic;
     }
 
-    public void setIsotopic(boolean isotopic)
+    public void setIsotopicClassification(boolean isotopic)
     {
-        _isIsotopic = isotopic;
+        _isIsotopicClassification = isotopic;
+    }
+
+    /**
+     * @return true if the formula has heavy labeled elements, and the labels do not change the elemental composition of
+     * the residue or terminus. Example: C(-6)13C(6). This is determined by {@link UnimodParser#checkTrueIsotopeMod(NodeList)}.
+     */
+    @SuppressWarnings("JavadocReference")
+    public boolean isTrueIsotopic()
+    {
+        return _isTrueIsotopic;
+    }
+
+    public void setTrueIsotopic(boolean trueIsotopic)
+    {
+        _isTrueIsotopic = trueIsotopic;
+    }
+
+    // https://www.unimod.org/names.html
+    public boolean isIsotopeLabel()
+    {
+        return _name.indexOf(":") != -1 && !_name.startsWith("Delta:");
+    }
+
+    public @Nullable String getIsotopeLabelName()
+    {
+        return isIsotopeLabel() ? _name.substring(0, _name.indexOf(":")) : null;
+    }
+
+    public @Nullable Formula getDiffIsotopicFormula()
+    {
+        return _diffFormula;
+    }
+
+    public void setDiffIsotopicFormulaAndParent(@NotNull Formula diffFormula, @NotNull UnimodModification parentStructuralMod)
+    {
+        _diffFormula = diffFormula;
+        _parentStructuralMod = parentStructuralMod;
+    }
+
+    public HtmlString getDiffIsotopeDescription()
+    {
+        if (isIsotopic() && _diffFormula != null)
+        {
+            var builder = HtmlStringBuilder.of("Difference of " + getName() + " and " + _parentStructuralMod.getName())
+                    .append(HtmlString.BR)
+                    .append(getNormalizedFormula() + " - " + _parentStructuralMod.getNormalizedFormula() + " = " + _diffFormula.getFormula());
+            return builder.getHtmlString();
+        }
+        return HtmlString.EMPTY_STRING;
+    }
+
+    public UnimodModification getParentStructuralMod()
+    {
+        return _parentStructuralMod;
     }
 
     /**
@@ -158,9 +236,9 @@ public class UnimodModification
         }
     }
 
-    public boolean formulaMatches(String normFormula)
+    private boolean formulaMatches(String normFormula)
     {
-        return _formula.getFormula().equals(normFormula);
+        return _formula.getFormula().equals(normFormula) || (isIsotopic() && _diffFormula.getFormula().equals(normFormula));
     }
 
     public static Formula getCombinedFormula(UnimodModification mod1, UnimodModification mod2)
@@ -186,7 +264,13 @@ public class UnimodModification
         {
             sb.append(", N-term");
         }
-        sb.append(", Isotopic: " + _isIsotopic);
+        sb.append(", Isotopic: " + isIsotopic());
+        sb.append(", Structural: " + isStructural());
+
+        if (_diffFormula != null)
+        {
+            sb.append(", Diff isotope formula: " + _diffFormula.getFormula() + "; Parent mod: " + _parentStructuralMod.getName() + " Unimod:" + _parentStructuralMod.getId());
+        }
         return sb.toString();
     }
 

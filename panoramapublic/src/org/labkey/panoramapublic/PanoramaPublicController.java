@@ -135,14 +135,14 @@ import org.labkey.panoramapublic.model.JournalExperiment;
 import org.labkey.panoramapublic.model.JournalSubmission;
 import org.labkey.panoramapublic.model.PxXml;
 import org.labkey.panoramapublic.model.Submission;
-import org.labkey.panoramapublic.model.validation.DataValidation;
-import org.labkey.panoramapublic.model.validation.Modification;
-import org.labkey.panoramapublic.model.validation.PxStatus;
-import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.model.speclib.SpecLibDependencyType;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
 import org.labkey.panoramapublic.model.speclib.SpecLibSourceType;
 import org.labkey.panoramapublic.model.speclib.SpectralLibrary;
+import org.labkey.panoramapublic.model.validation.DataValidation;
+import org.labkey.panoramapublic.model.validation.Modification;
+import org.labkey.panoramapublic.model.validation.PxStatus;
+import org.labkey.panoramapublic.model.validation.Status;
 import org.labkey.panoramapublic.pipeline.AddPanoramaPublicModuleJob;
 import org.labkey.panoramapublic.pipeline.CopyExperimentPipelineJob;
 import org.labkey.panoramapublic.pipeline.PxDataValidationPipelineJob;
@@ -159,7 +159,7 @@ import org.labkey.panoramapublic.proteomexchange.PxHtmlWriter;
 import org.labkey.panoramapublic.proteomexchange.PxXmlWriter;
 import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.UnimodModifications;
-import org.labkey.panoramapublic.proteomexchange.UnimodParser;
+import org.labkey.panoramapublic.proteomexchange.UnimodUtil;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.DataValidationManager.MissingMetadata;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
@@ -168,6 +168,7 @@ import org.labkey.panoramapublic.query.ModificationInfoManager;
 import org.labkey.panoramapublic.query.PxXmlManager;
 import org.labkey.panoramapublic.query.SpecLibInfoManager;
 import org.labkey.panoramapublic.query.SubmissionManager;
+import org.labkey.panoramapublic.query.modification.ExperimentIsotopeModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
 import org.labkey.panoramapublic.query.modification.ModificationsView;
@@ -208,7 +209,7 @@ import static org.labkey.api.targetedms.TargetedMSService.FolderType.Library;
 import static org.labkey.api.targetedms.TargetedMSService.FolderType.LibraryProtein;
 import static org.labkey.api.targetedms.TargetedMSService.FolderType.Undefined;
 import static org.labkey.api.targetedms.TargetedMSService.RAW_FILES_TAB;
-import static org.labkey.api.util.DOM.*;
+import static org.labkey.api.util.DOM.A;
 import static org.labkey.api.util.DOM.Attribute.action;
 import static org.labkey.api.util.DOM.Attribute.border;
 import static org.labkey.api.util.DOM.Attribute.colspan;
@@ -219,9 +220,27 @@ import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.Attribute.type;
 import static org.labkey.api.util.DOM.Attribute.valign;
 import static org.labkey.api.util.DOM.Attribute.value;
+import static org.labkey.api.util.DOM.B;
+import static org.labkey.api.util.DOM.BR;
+import static org.labkey.api.util.DOM.DIV;
+import static org.labkey.api.util.DOM.INPUT;
+import static org.labkey.api.util.DOM.LABEL;
+import static org.labkey.api.util.DOM.LI;
 import static org.labkey.api.util.DOM.LK.CHECKBOX;
 import static org.labkey.api.util.DOM.LK.ERRORS;
 import static org.labkey.api.util.DOM.LK.FORM;
+import static org.labkey.api.util.DOM.SPAN;
+import static org.labkey.api.util.DOM.STRONG;
+import static org.labkey.api.util.DOM.TABLE;
+import static org.labkey.api.util.DOM.TBODY;
+import static org.labkey.api.util.DOM.TD;
+import static org.labkey.api.util.DOM.TH;
+import static org.labkey.api.util.DOM.THEAD;
+import static org.labkey.api.util.DOM.TR;
+import static org.labkey.api.util.DOM.UL;
+import static org.labkey.api.util.DOM.at;
+import static org.labkey.api.util.DOM.cl;
+import static org.labkey.api.util.DOM.createHtmlFragment;
 import static org.labkey.panoramapublic.proteomexchange.NcbiUtils.PUBMED_ID;
 
 /**
@@ -7198,7 +7217,7 @@ public class PanoramaPublicController extends SpringActionController
                 return new SimpleErrorView(errors);
             }
 
-            UnimodModifications uMods = readUnimod(errors); // Read the Unimod modifications
+            UnimodModifications uMods = getUnimods(errors); // Read the Unimod modifications
             if (uMods == null)
             {
                 return new SimpleErrorView(errors);
@@ -7249,7 +7268,7 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         public boolean handlePost(UnimodMatchForm form, BindException errors) throws Exception
         {
-            UnimodModifications uMods = readUnimod(errors); // Read the Unimod modifications
+            UnimodModifications uMods = getUnimods(errors); // Read the Unimod modifications
             if (uMods == null) return false;
 
             UnimodModification matchedMod = uMods.getById(form.getUnimodId());
@@ -7366,13 +7385,18 @@ public class PanoramaPublicController extends SpringActionController
         @Override
         protected ExperimentModificationGetter.PxModification getModificationMatch(IModification modification, UnimodModifications unimodModifications)
         {
-            return ExperimentModificationGetter.getIsotopicUnimodMod((IModification.IIsotopeModification) modification, unimodModifications);
+            var pxMod = ExperimentModificationGetter.getIsotopicUnimodMod((IModification.IIsotopeModification) modification, unimodModifications);
+            if (!pxMod.hasUnimodId() && !pxMod.hasPossibleUnimods() && UnimodUtil.isWildcardModification(pxMod))
+            {
+                // throw new RedirectException()
+            }
+            return pxMod;
         }
 
         @Override
         protected ExperimentModInfo saveModInfo(UnimodMatchForm form, UnimodModification matchedMod)
         {
-            ExperimentModInfo modInfo = new ExperimentModInfo();
+            var modInfo = new ExperimentIsotopeModInfo();
             modInfo.setExperimentAnnotationsId(form.getId());
             modInfo.setModId(form.getModificationId());
             modInfo.setUnimodId(matchedMod.getId());
@@ -7573,7 +7597,7 @@ public class PanoramaPublicController extends SpringActionController
                 return;
             }
 
-            _unimodModifications = readUnimod(errors);
+            _unimodModifications = getUnimods(errors);
         }
 
         @Override
@@ -7755,18 +7779,16 @@ public class PanoramaPublicController extends SpringActionController
         }
     }
 
-    private static UnimodModifications readUnimod(Errors errors)
+    private static UnimodModifications getUnimods(Errors errors)
     {
-        try
+        UnimodModifications uMods = UnimodUtil.unimod();
+        if (uMods.getModifications().size() == 0)
         {
-            return new UnimodParser().parse();
-        }
-        catch (Exception e)
-        {
-            errors.reject(ERROR_MSG, "There was an error parsing Unimod modifications. The error was: " + e.getMessage()
+            errors.reject(ERROR_MSG, "There was an error parsing Unimod modifications"
                     + ". Please try again. If you continue to see this error please contact the server administrator.");
+            return null;
         }
-        return null;
+        return uMods;
     }
 
     @RequiresPermission(UpdatePermission.class)
@@ -7855,22 +7877,22 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(UpdatePermission.class)
-    public static class DeleteIsotopeModInfoAction extends DeleteModInfoAction<ExperimentModInfo>
+    public static class DeleteIsotopeModInfoAction extends DeleteModInfoAction<ExperimentIsotopeModInfo>
     {
         @Override
-        protected ExperimentModInfo getModInfo(int modInfoId)
+        protected ExperimentIsotopeModInfo getModInfo(int modInfoId)
         {
             return ModificationInfoManager.getIsotopeModInfo(modInfoId);
         }
 
         @Override
-        protected void deleteModInfo(ExperimentModInfo modInfo, int expAnnotationsId)
+        protected void deleteModInfo(ExperimentIsotopeModInfo modInfo, int expAnnotationsId)
         {
             ModificationInfoManager.deleteIsotopeModInfo(modInfo, expAnnotationsId, getContainer());
         }
 
         @Override
-        protected void updateValidationModification(ExperimentModInfo modInfo)
+        protected void updateValidationModification(ExperimentIsotopeModInfo modInfo)
         {
             DataValidationManager.removeModInfo(_expAnnot, getContainer(), modInfo.getModId(), Modification.ModType.Isotopic, getUser());
         }
