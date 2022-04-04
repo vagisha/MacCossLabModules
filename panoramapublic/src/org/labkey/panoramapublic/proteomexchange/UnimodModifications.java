@@ -198,9 +198,25 @@ public class UnimodModifications
         listCopy.sort(Comparator.comparing(mod -> mod.isStructural()));
         listCopy.sort(Comparator.comparing(mod -> mod.getId()));
         listCopy.sort(Comparator.comparing(mod -> mod.getName()));
+
         for (var mod: listCopy)
         {
-            System.out.println(mod);
+            if (mod.getDiffIsotopicFormula() != null)
+            {
+                var modsWithFormula = getByFormula(mod.getDiffIsotopicFormula().getFormula());
+                if (modsWithFormula != null && modsWithFormula.size() > 0)
+                {
+                    System.out.println("----------------------------------------------------");
+                    System.out.println(mod.toString());
+                    System.out.println("Diff formula matches: ");
+                    for (var m: modsWithFormula)
+                    {
+                        System.out.println(m.toString());
+                    }
+                    System.out.println("----------------------------------------------------");
+                }
+            }
+            // System.out.println(mod);
         }
     }
 }
