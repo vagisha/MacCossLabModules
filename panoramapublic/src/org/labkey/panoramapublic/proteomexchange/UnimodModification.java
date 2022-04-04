@@ -186,6 +186,11 @@ public class UnimodModification
         return _parentStructuralMod;
     }
 
+    public String getParentStructuralModFormula()
+    {
+        return _parentStructuralMod != null ? _parentStructuralMod.getFormula().getFormula() : "";
+    }
+
     /**
      * @param normFormula normalized formula for the modification {@link Formula#normalizeFormula(String)}
      * @param sites sites (amino acids + terminus) where this modification occurs

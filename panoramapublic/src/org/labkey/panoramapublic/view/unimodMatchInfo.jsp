@@ -110,7 +110,7 @@
                                 <%=qh(unimodMatch.getFormula().getFormula())%>,
                                 <%=qh(unimodMatch.getParentStructuralMod().getName())%>,
                                 <%=unimodMatch.getParentStructuralMod().getId()%>,
-                                <%=qh(unimodMatch.getParentStructuralMod().getFormula().getFormula())%>,
+                                <%=qh(unimodMatch.getParentStructuralModFormula())%>,
                                 <%=qh(unimodMatch.getDiffIsotopicFormula().getFormula())%>),
                     <% } %>
                     ));
@@ -196,9 +196,18 @@
                             {
                                 Ext4.create('Ext.tip.ToolTip', {
                                     target: cmp.getEl(),
+                                    anchorToTarget: true,
+                                    anchor: 'right',
+                                    header: {html: "<b>Modification Isotope Formula</b>", style:{padding:'0 0 0 15px',color: '#777777'}},
+                                    frameHeader: true,
                                     autoHide: false,
-                                    width: 250,
-                                    html: "HEllo!! This is a tooltiop"
+                                    width: 350,
+                                    bodyCls: 'alert alert-info',
+                                    closable: true,
+                                    html: "Isotope modifications in Skyline that are the heavy version of a structural modification " +
+                                            "have a formula that is the difference between the formula of the modification and the formula " +
+                                            "of the parent unlabeled structural modification.<br>For example: the isotope formula for Dimethyl:2H(6) is the difference " +
+                                            "between the formulas of Dimethyl:2H(6) and Dimethyl.<br>This difference is H'6C2-H2 <b>-</b> H4C2 = <b>H'6-H6.</b>"
                                 });
                             }
                         }
