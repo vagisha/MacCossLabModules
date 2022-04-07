@@ -11,6 +11,7 @@ import org.labkey.api.util.logging.LogHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,12 @@ public class UnimodUtil
 
     public static UnimodModifications unimod()
     {
-        return _unimodCache.get(UNIMOD);
+        var unimods = _unimodCache.get(UNIMOD);
+        if (unimods.hasParseError())
+        {
+            _unimodCache.clear(); // clear the cache so that the next
+        }
+        return unimods;
     }
 
 
@@ -37,14 +43,12 @@ public class UnimodUtil
     {
         try
         {
-            UnimodModifications uMOds = (new UnimodParser().parse());
-            uMOds.print();
-            return uMOds;
+            return (new UnimodParser().parse());
         }
         catch (Exception e)
         {
             LOG.error("There was an error reading UNIMOD modifications.", e);
-            return new UnimodModifications();
+            return new UnimodModifications(e);
         }
     }
 
@@ -277,6 +281,7 @@ public class UnimodUtil
             {
                 matches.addAll(uMods.getByFormula(formula));
             }
+            matches.sort(Comparator.comparing(m -> m.getName()));
             return matches;
         }
         return Collections.emptyList();

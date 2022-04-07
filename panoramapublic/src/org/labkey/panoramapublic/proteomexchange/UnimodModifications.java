@@ -20,7 +20,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -38,10 +37,11 @@ public class UnimodModifications
     private final Map<String, List<Integer>> _formulaModIdxMap; // Indices in the _modifications array for modifications with a given formula
     private final Map<String, List<Integer>> _isotopicDiffFormulaModIdxMap;
     private final Map<String, Integer> _modNameModIdxMap; // Index in the _modifications array for modifications with a given name
+    private final Exception _error;
 
     private final Map<Character, Map<String, Integer>> _aminoAcids;
 
-    public UnimodModifications()
+    public UnimodModifications(Exception error)
     {
         _modifications = new ArrayList<>();
         _modIdModIdxMap = new HashMap<>();
@@ -49,6 +49,12 @@ public class UnimodModifications
         _isotopicDiffFormulaModIdxMap = new HashMap<>();
         _modNameModIdxMap = new HashMap<>();
         _aminoAcids = new HashMap<>();
+        _error = error;
+    }
+
+    public UnimodModifications()
+    {
+        this(null);
     }
 
     public List<UnimodModification> getModifications()
@@ -59,6 +65,21 @@ public class UnimodModifications
     public List<UnimodModification> getStructuralModifications()
     {
         return _modifications.stream().filter(UnimodModification::isStructural).toList();
+    }
+
+    public boolean hasModifications()
+    {
+        return _modifications.size() > 0;
+    }
+
+    public boolean hasParseError()
+    {
+        return _error != null;
+    }
+
+    public Exception getParseError()
+    {
+        return _error;
     }
 
     public void add(UnimodModification uMod) throws PxException
@@ -190,33 +211,5 @@ public class UnimodModifications
     public List<Character> getAminoAcids()
     {
         return _aminoAcids.keySet().stream().toList();
-    }
-
-    public void print()
-    {
-        var listCopy = new ArrayList<>(_modifications);
-        listCopy.sort(Comparator.comparing(mod -> mod.isStructural()));
-        listCopy.sort(Comparator.comparing(mod -> mod.getId()));
-        listCopy.sort(Comparator.comparing(mod -> mod.getName()));
-
-        for (var mod: listCopy)
-        {
-            if (mod.getDiffIsotopicFormula() != null)
-            {
-                var modsWithFormula = getByFormula(mod.getDiffIsotopicFormula().getFormula());
-                if (modsWithFormula != null && modsWithFormula.size() > 0)
-                {
-                    System.out.println("----------------------------------------------------");
-                    System.out.println(mod.toString());
-                    System.out.println("Diff formula matches: ");
-                    for (var m: modsWithFormula)
-                    {
-                        System.out.println(m.toString());
-                    }
-                    System.out.println("----------------------------------------------------");
-                }
-            }
-            // System.out.println(mod);
-        }
     }
 }

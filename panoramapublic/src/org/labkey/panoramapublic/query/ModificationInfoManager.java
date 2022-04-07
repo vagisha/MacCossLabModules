@@ -2,18 +2,22 @@ package org.labkey.panoramapublic.query;
 
 import org.apache.commons.lang3.StringUtils;
 import org.labkey.api.data.Container;
+import org.labkey.api.data.DbScope;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.data.SqlSelector;
 import org.labkey.api.data.Table;
 import org.labkey.api.data.TableInfo;
 import org.labkey.api.data.TableSelector;
+import org.labkey.api.formSchema.Field;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.panoramapublic.PanoramaPublicManager;
+import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.query.modification.ExperimentIsotopeModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentStructuralModInfo;
@@ -48,6 +52,28 @@ public class ModificationInfoManager
                     new SimpleFilter(FieldKey.fromParts("ModInfoId"), modInfo.getId()), null).getArrayList(ExperimentModInfo.UnimodInfo.class);
             unimodInfos.forEach(modInfo::addUnimodInfo);
         }
+    }
+
+    public static ExperimentStructuralModInfo getStructuralModInfo(int modInfoId, Container container)
+    {
+        var expAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(container);
+        if (expAnnotations != null)
+        {
+            var modInfo = getStructuralModInfo(modInfoId);
+            return modInfo != null && modInfo.getExperimentAnnotationsId() == expAnnotations.getId() ? modInfo : null;
+        }
+        return null;
+    }
+
+    public static ExperimentIsotopeModInfo getIsotopeModInfo(int modInfoId, Container container)
+    {
+        var expAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(container);
+        if (expAnnotations != null)
+        {
+            var modInfo = getIsotopeModInfo(modInfoId);
+            return modInfo != null && modInfo.getExperimentAnnotationsId() == expAnnotations.getId() ? modInfo : null;
+        }
+        return null;
     }
 
     public static ExperimentStructuralModInfo getStructuralModInfo(long modificationId, int experimentAnnotationsId)
@@ -85,23 +111,67 @@ public class ModificationInfoManager
         return savedModInfo;
     }
 
-    public static void deleteIsotopeModInfo(ExperimentIsotopeModInfo modInfo, int expAnnotationsId, Container container)
+    public static void deleteIsotopeModInfo(int modInfoId, Container container, User user)
     {
-        Table.delete(PanoramaPublicManager.getTableInfoIsotopeUnimodInfo(), new SimpleFilter(FieldKey.fromParts("modInfoId"), modInfo.getId()));
-        deleteModInfo(modInfo, expAnnotationsId, container, PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo());
+        var expAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(container);
+        var modInfo = getIsotopeModInfo(modInfoId);
+        deleteIsotopeModInfo(modInfo, expAnnotations, container, user);
     }
 
-    public static void deleteStructuralModInfo(ExperimentModInfo modInfo, int expAnnotationsId, Container container)
+    public static void deleteIsotopeModInfo(ExperimentIsotopeModInfo modInfo, ExperimentAnnotations expAnnotations, Container container, User user)
     {
-        deleteModInfo(modInfo, expAnnotationsId, container, PanoramaPublicManager.getTableInfoExperimentStructuralModInfo());
-    }
-
-    private static void deleteModInfo(ExperimentModInfo modInfo, int expAnnotationsId, Container container, TableInfo tableInfo)
-    {
-        ExperimentAnnotations experimentAnnotations = ExperimentAnnotationsManager.get(expAnnotationsId, container);
-        if (experimentAnnotations != null && modInfo.getExperimentAnnotationsId() == expAnnotationsId)
+        if (modInfo != null && expAnnotations != null && modInfo.getExperimentAnnotationsId() == expAnnotations.getId())
         {
-            Table.delete(tableInfo, modInfo.getId());
+            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+            {
+                Table.delete(PanoramaPublicManager.getTableInfoIsotopeUnimodInfo(), new SimpleFilter(FieldKey.fromParts("modInfoId"), modInfo.getId()));
+                Table.delete(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), modInfo.getId());
+                DataValidationManager.removeModInfo(expAnnotations, container, modInfo.getModId(), Modification.ModType.Isotopic, user);
+                transaction.commit();
+            }
+        }
+    }
+
+    public static void deleteIsotopeModInfoForExperiment(ExperimentAnnotations expAnnotations)
+    {
+        if (expAnnotations != null)
+        {
+            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+            {
+                List<Integer> modInfoIds = new TableSelector(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(),
+                        Collections.singleton("Id"),
+                        new SimpleFilter(FieldKey.fromParts("experimentAnnotationsId"), expAnnotations.getId()),
+                        null
+                        ).getArrayList(Integer.class);
+                if (modInfoIds.size() > 0)
+                {
+                    SimpleFilter filter = new SimpleFilter(new SimpleFilter.InClause(FieldKey.fromParts("modInfoId"), modInfoIds));
+                    Table.delete(PanoramaPublicManager.getTableInfoIsotopeUnimodInfo(), filter);
+                    Table.delete(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), new SimpleFilter(FieldKey.fromParts("experimentAnnotationsId"), expAnnotations.getId()));
+                    // No need to update the data validation status.  The experiment is being deleted, everything in the data validation tables will be deleted.
+                }
+                transaction.commit();
+            }
+        }
+    }
+
+    public static void deleteStructuralModInfo(int modInfoId, Container container, User user)
+    {
+        ExperimentAnnotations experimentAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(container);
+        var modInfo = getStructuralModInfo(modInfoId);
+        deleteStructuralModInfo(modInfo, experimentAnnotations, container, user);
+    }
+
+    public static void deleteStructuralModInfo(ExperimentModInfo modInfo, ExperimentAnnotations expAnnotations, Container container, User user)
+    {
+        if (modInfo != null && expAnnotations != null && modInfo.getExperimentAnnotationsId() == expAnnotations.getId())
+        {
+            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+            {
+                Table.delete(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), modInfo.getId());
+                DataValidationManager.removeModInfo(expAnnotations, container, modInfo.getModId(), Modification.ModType.Structural, user);
+                transaction.commit();
+            }
         }
     }
 
@@ -175,6 +245,19 @@ public class ModificationInfoManager
         {
             SQLFragment sql = new SQLFragment("SELECT DISTINCT substring(pep.sequence, pimod.indexAA + 1, 1) FROM ")
                     .append(svc.getTableInfoPeptideIsotopeModification(), "pimod")
+                    .append(" INNER JOIN ")
+                    // Not enough to query the PeptideIsotopeModification table which will have rows for all the isotope label types defined in the document.
+                    // We need to join to the Precursor and RunIsotopeModification tables to return only those rows where there is a precursor with a
+                    // given isotope label type. The user can "pick children" for a peptide in Skyline.  If there are two isotope labels types (e.g. heavy and medium)
+                    // the user may only pick the "heavy" label for a peptide, for example. The document's <peptide> element, however, lists all the label types
+                    // as <implicit_heavy_modifications>. The information in these elements is what goes into the PeptideIsotopeModification table. We have to find
+                    // the precursors for a peptide that have a label type (generalprecursor.isotopeLabelType) which includes the given isotopeModId.  The RunIsotopeModification
+                    // table links label types to the modifications Ids included in that label type.
+                    .append(svc.getTableInfoGeneralPrecursor(), "pre")
+                    .append(" ON pre.generalMoleculeId = piMod.peptideId ")
+                    .append(" INNER JOIN ")
+                    .append("targetedms.RunIsotopeModification AS rim ")
+                    .append(" ON rim.isotopeModId = pimod.isotopeModId AND rim.isotopeLabelId = pre.isotopeLabelId ")
                     .append(" INNER JOIN ")
                     .append("targetedms.peptide AS pep").append(" ON pep.Id = pimod.peptideId ")
                     .append(" INNER JOIN ")

@@ -778,7 +778,6 @@
                 </fk>
             </column>
             <column columnName="UnimodId">
-                <description>Assigned Unimod Id</description>
                 <displayColumnFactory>
                     <className>org.labkey.panoramapublic.query.modification.UnimodIdDisplayColumnFactory</className>
                 </displayColumnFactory>

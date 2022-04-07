@@ -581,7 +581,7 @@
                                     var params = {
                                         'schemaName': 'targetedms',
                                         'query.PeptideId/PeptideGroupId/RunId~eq': doc.runId,
-                                        'query.queryName': queryName = modTypeUpper === 'STRUCTURAL' ? 'PeptideStructuralModification' : 'PeptideIsotopeModification'
+                                        'query.queryName': queryName = modTypeUpper === 'STRUCTURAL' ? 'PeptideStructuralModification' : 'PrecursorIsotopeModification'
                                     };
                                     if (modTypeUpper === 'STRUCTURAL') params['query.StructuralModId/Id~eq'] = dbModId;
                                     else params['query.IsotopeModId/Id~eq'] = dbModId;

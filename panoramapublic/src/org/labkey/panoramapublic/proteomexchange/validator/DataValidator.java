@@ -126,15 +126,14 @@ public class DataValidator
                 {
                     var modInfo = ModType.Isotopic == mod.getModType() ? ModificationInfoManager.getIsotopeModInfo(mod.getDbModId(), _expAnnotations.getId())
                             : ModificationInfoManager.getStructuralModInfo(mod.getDbModId(), _expAnnotations.getId());
-                    if (modInfo == null)
+                    if (UnimodUtil.isWildcardModification(pxMod))
+                    {
+                        modInfo = saveModInfoForWildCardSkylineMod(pxMod, (ExperimentIsotopeModInfo) modInfo, _expAnnotations, runs, user);
+                    }
+                    else if (modInfo == null)
                     {
                         modInfo = saveModInfoIfHardcodedSkylineMod(pxMod, _expAnnotations, user);
                     }
-                    if (modInfo == null)
-                    {
-                        modInfo = saveModInfoIfWildCardSkylineMod(pxMod, _expAnnotations, runs, user);
-                    }
-
                     if (modInfo != null)
                     {
                         mod.setModInfoId(modInfo.getId());
@@ -164,28 +163,31 @@ public class DataValidator
         _listener.modificationsValidated(status);
     }
 
-    private ExperimentModInfo saveModInfoIfWildCardSkylineMod(ExperimentModificationGetter.PxModification pxMod, ExperimentAnnotations expAnnotations,
-                                                              List<ITargetedMSRun> runs, User user)
+    private ExperimentModInfo saveModInfoForWildCardSkylineMod(ExperimentModificationGetter.PxModification pxMod, ExperimentIsotopeModInfo savedModInfo,
+                                                               ExperimentAnnotations expAnnotations,
+                                                               List<ITargetedMSRun> runs, User user)
     {
-        if (pxMod.isIsotopicMod() && UnimodUtil.isWildcardModification(pxMod))
+        List<Character> sites = ModificationInfoManager.getIsotopeModificationSites(pxMod.getDbModId(), runs, user);
+        var uModsList = UnimodUtil.getMatchesIfWildcardSkylineMod(pxMod, sites);
+        if (uModsList.size() > 0)
         {
-            List<Character> sites = ModificationInfoManager.getIsotopeModificationSites(pxMod.getDbModId(), runs, user);
-            var uModsList = UnimodUtil.getMatchesIfWildcardSkylineMod(pxMod, sites);
-            if (uModsList.size() > 0)
+            var modInfo = new ExperimentIsotopeModInfo();
+            modInfo.setExperimentAnnotationsId(expAnnotations.getId());
+            modInfo.setModId(pxMod.getDbModId());
+            modInfo.setUnimodId(uModsList.get(0).getId());
+            modInfo.setUnimodName(uModsList.get(0).getName());
+            for (int i = 1; i < uModsList.size(); i++)
             {
-                uModsList.sort(Comparator.comparing(mod -> mod.getName()));
-                var modInfo = new ExperimentIsotopeModInfo();
-                modInfo.setExperimentAnnotationsId(expAnnotations.getId());
-                modInfo.setModId(pxMod.getDbModId());
-                modInfo.setUnimodId(uModsList.get(0).getId());
-                modInfo.setUnimodName(uModsList.get(0).getName());
-                for (int i = 1; i < uModsList.size(); i++)
-                {
-                    var uMod = uModsList.get(i);
-                    modInfo.addUnimodInfo(new ExperimentModInfo.UnimodInfo(uMod.getId(), uMod.getName()));
-                }
-                return ModificationInfoManager.saveIsotopeModInfo(modInfo, user);
+                var uMod = uModsList.get(i);
+                modInfo.addUnimodInfo(new ExperimentModInfo.UnimodInfo(uMod.getId(), uMod.getName()));
             }
+            if (savedModInfo != null)
+            {
+                // The list of Unimod modifications has changed from what was saved before because the current set of runs in the experiment have different modification sites
+                // Delete the old mod info.
+                ModificationInfoManager.deleteIsotopeModInfo(savedModInfo, expAnnotations, expAnnotations.getContainer(), user);
+            }
+            return ModificationInfoManager.saveIsotopeModInfo(modInfo, user);
         }
         return null;
     }

@@ -109,7 +109,7 @@
                                 <%=unimodMatch.getId()%>,
                                 <%=qh(unimodMatch.getFormula().getFormula())%>,
                                 <%=qh(unimodMatch.getParentStructuralMod().getName())%>,
-                                <%=unimodMatch.getParentStructuralMod().getId()%>,
+                                <%=q(UnimodModification.getLink(unimodMatch.getParentStructuralMod().getId()).getHtmlString())%>,
                                 <%=qh(unimodMatch.getParentStructuralModFormula())%>,
                                 <%=qh(unimodMatch.getDiffIsotopicFormula().getFormula())%>),
                     <% } %>
@@ -129,11 +129,11 @@
         });
     });
 
-    function getDiffIsotopeDesc(name, unimodId, formula, parentName, parentUnimodId, parentFormula, diffFormula) {
+    function getDiffIsotopeDesc(name, unimodId, formula, parentName, parentUnimodLink, parentFormula, diffFormula) {
         var html = '<div style="color:darkslateblue;padding:6px;background-color:#f9f9f9;">'
-                  + 'Difference of <b>' + name + '</b> and <b>' + parentName + '</b>' + ' (Unimod:' + parentUnimodId + ')'
-                  + '<br><div style="margin-top:10px;">'
-                  + formula + ' - ' + parentFormula + ' = ' + diffFormula
+                  + 'Difference between<br><b>' + name + '</b> and <b>' + parentName + '</b>' + ' (' + parentUnimodLink + ')'
+                  + '<br><div style="margin-top:7px;">'
+                  + formula + ' - ' + parentFormula + ' = <b>' + diffFormula + '</b>'
                   + '</div></div>'
         return html;
     }
@@ -186,7 +186,7 @@
                     {
                         xtype: 'displayfield',
                         fieldCls: 'display-value',
-                        fieldLabel: "Isotope Formula Diff",
+                        fieldLabel: "Isotope Formula",
                         value: diffIsotopeFormula,
                         afterBodyEl: '<span style="font-size: 0.9em;">' + diffIsotopeModDescription + '</span>',
                         msgTarget : 'under',
@@ -198,7 +198,7 @@
                                     target: cmp.getEl(),
                                     anchorToTarget: true,
                                     anchor: 'right',
-                                    header: {html: "<b>Modification Isotope Formula</b>", style:{padding:'0 0 0 15px',color: '#777777'}},
+                                    header: {html: "<b>Isotope Formula</b>", style:{padding:'0 0 0 15px',color: '#777777'}},
                                     frameHeader: true,
                                     autoHide: false,
                                     width: 350,

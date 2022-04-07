@@ -44,6 +44,6 @@ public class ExperimentIsotopeModInfo extends ExperimentModInfo
 
     public List<UnimodInfo> getAdditionalUnimodInfos()
     {
-        return _additionalMatches != null ? _additionalMatches : Collections.emptyList();
+        return _additionalMatches != null ? Collections.unmodifiableList(_additionalMatches) : Collections.emptyList();
     }
 }
