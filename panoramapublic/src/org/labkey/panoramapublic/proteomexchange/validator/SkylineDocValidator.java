@@ -11,7 +11,9 @@ import org.labkey.api.targetedms.model.SampleFilePath;
 import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.SkylineDocValidation;
 import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
+import org.labkey.panoramapublic.query.DataValidationManager;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,11 +63,17 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
 
     void addSampleFiles(TargetedMSService svc)
     {
-        List<ValidatorSampleFile> docSampleFile = getDocSampleFiles(svc.getSampleFiles(getRunId()));
-        docSampleFile.forEach(this::addSampleFile);
+        var sampleFileList = svc.getSampleFiles(getRunId());
+        List<ValidatorSampleFile> docSampleFiles = new ArrayList<>();
+        for (ISampleFile sf: sampleFileList)
+        {
+            docSampleFiles.add(new ValidatorSampleFile(sf, DataValidationManager.getReplicateName(sf.getReplicateId())));
+        }
+        docSampleFiles = getDocSampleFiles(docSampleFiles);
+        docSampleFiles.forEach(this::addSampleFile);
     }
 
-    private static List<ValidatorSampleFile> getDocSampleFiles(List<? extends ISampleFile> sampleFiles)
+    private static List<ValidatorSampleFile> getDocSampleFiles(List<ValidatorSampleFile> sampleFiles)
     {
         Set<String> pathsImported = new HashSet<>(); // File paths that were imported in the Skyline document
                                                      // The same sample file may be imported into more than one replicate
@@ -74,9 +82,9 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
 
         List<ValidatorSampleFile> docSampleFiles = new ArrayList<>();
 
-        for (ISampleFile s: sampleFiles)
+        for (ValidatorSampleFile sampleFile: sampleFiles)
         {
-            ValidatorSampleFile sampleFile = new ValidatorSampleFile(s);
+            ISampleFile s = sampleFile.getSampleFile();
             if (!isSciexWiff(s.getFileName()))
             {
                 if (!pathsImported.contains(s.getFilePath()))
@@ -103,7 +111,7 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
                 docSampleFiles.add(sampleFile);
 
                 // For a SCIEX wiff file we will also add a corresponding .wiff.scan file
-                ValidatorSampleFile wiffScanFile = new ValidatorSampleFile(new AbstractSampleFile()
+                ValidatorSampleFile wiffScanFile = new ValidatorSampleFile(new AbstractSampleFile(sampleFile.getReplicateName())
                 {
                     @Override
                     public String getFileName()
@@ -122,7 +130,18 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
                     {
                         return s.getInstrumentId();
                     }
-                });
+                    @Override
+                    public long getId()
+                    {
+                        return s.getId(); // Same database Id as the .wiff files since .wiff.scan files are not saved in the targetedms.samplefile table
+                    }
+
+                    @Override
+                    public long getReplicateId()
+                    {
+                        return s.getReplicateId();
+                    }
+                }, sampleFile.getReplicateName());
                 docSampleFiles.add(wiffScanFile);
             }
         }
@@ -142,7 +161,7 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
         if (idx != -1)
         {
             // Example: D:\Data\Site52_041009_Study9S_Phase-I.wiff|Site52_STUDY9S_PHASEI_6ProtMix_QC_03|2
-            // We want D:\Data\Site52_041009_Study9S_Phase-I.wiff
+            // We want  D:\Data\Site52_041009_Study9S_Phase-I.wiff
             return filePath.substring(0, idx + file.getFileName().length());
         }
         return filePath;
@@ -201,6 +220,18 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
 
     public abstract static class AbstractSampleFile implements ISampleFile
     {
+        private final String _replicateName;
+
+        public AbstractSampleFile(String replicateName)
+        {
+            _replicateName = replicateName;
+        }
+
+        public String getReplicateName()
+        {
+            return _replicateName;
+        }
+
         @Override
         public String getSampleName()
         {
@@ -383,8 +414,14 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
 
         private ISampleFile createFile(String path)
         {
-            return new AbstractSampleFile()
+            return new AbstractSampleFile(new File(path).getName())
             {
+                @Override
+                public long getId()
+                {
+                    return 0;
+                }
+
                 @Override
                 public String getFilePath()
                 {

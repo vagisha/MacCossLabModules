@@ -4,6 +4,7 @@ package org.labkey.panoramapublic.model.validation;
 public class SkylineDocSampleFile extends DataFile
 {
     private int _skylineDocValidationId;
+    private long _sampleFileId;
     private String _filePathImported;
 
     public SkylineDocSampleFile() {}
@@ -16,6 +17,16 @@ public class SkylineDocSampleFile extends DataFile
     public void setSkylineDocValidationId(int skylineDocValidationId)
     {
         _skylineDocValidationId = skylineDocValidationId;
+    }
+
+    public long getSampleFileId()
+    {
+        return _sampleFileId;
+    }
+
+    public void setSampleFileId(long sampleFileId)
+    {
+        _sampleFileId = sampleFileId;
     }
 
     /**

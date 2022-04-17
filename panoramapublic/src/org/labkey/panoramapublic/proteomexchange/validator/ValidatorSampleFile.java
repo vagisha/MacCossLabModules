@@ -6,12 +6,14 @@ import org.labkey.panoramapublic.model.validation.SkylineDocSampleFile;
 public class ValidatorSampleFile extends SkylineDocSampleFile
 {
     private ISampleFile _sampleFile;
+    private String _replicateName;
 
     public ValidatorSampleFile() {}
 
-    public ValidatorSampleFile(ISampleFile sampleFile)
+    public ValidatorSampleFile(ISampleFile sampleFile, String replicateName)
     {
         setName(sampleFile.getFileName());
+        setSampleFileId(sampleFile.getId());
         setFilePathImported(sampleFile.getFilePath());
         _sampleFile = sampleFile;
     }
@@ -19,5 +21,10 @@ public class ValidatorSampleFile extends SkylineDocSampleFile
     public ISampleFile getSampleFile()
     {
         return _sampleFile;
+    }
+
+    public String getReplicateName()
+    {
+        return _replicateName;
     }
 }

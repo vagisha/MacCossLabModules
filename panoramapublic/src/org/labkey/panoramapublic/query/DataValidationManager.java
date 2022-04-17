@@ -10,8 +10,10 @@ import org.labkey.api.data.CompareType;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbScope;
+import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.data.Sort;
+import org.labkey.api.data.SqlSelector;
 import org.labkey.api.data.Table;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.pipeline.PipelineJob;
@@ -20,6 +22,7 @@ import org.labkey.api.pipeline.PipelineStatusFile;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
 import org.labkey.api.targetedms.ITargetedMSRun;
+import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.Pair;
 import org.labkey.api.util.logging.LogHelper;
 import org.labkey.panoramapublic.PanoramaPublicManager;
@@ -643,5 +646,11 @@ public class DataValidationManager
         {
             return _missingFields.stream().anyMatch(Pair::getValue);
         }
+    }
+
+    public static String getReplicateName(long replicateId)
+    {
+        SQLFragment sql = new SQLFragment("SELECT name FROM targetedms.replicate where Id=?").add(replicateId);
+        return new SqlSelector(PanoramaPublicManager.getSchema().getScope(), sql).getObject(String.class);
     }
 }

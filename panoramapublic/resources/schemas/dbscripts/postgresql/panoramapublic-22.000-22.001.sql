@@ -53,6 +53,7 @@ CREATE TABLE panoramapublic.SkylineDocSampleFile
 (
     Id                         SERIAL NOT NULL,
     SkylineDocValidationId     INT NOT NULL,
+    SampleFileId               BIGINT NOT NULL, -- targetedms.samplefile.Id
     Name                       VARCHAR(300) NOT NULL, -- file name
     FilePathImported           VARCHAR(500) NOT NULL, -- sample file path imported into the Skyline document
     Path                       TEXT, -- path of the file on the server if it was found
