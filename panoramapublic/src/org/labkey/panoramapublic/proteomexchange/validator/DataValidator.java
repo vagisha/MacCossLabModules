@@ -1,6 +1,7 @@
 package org.labkey.panoramapublic.proteomexchange.validator;
 
 import org.jetbrains.annotations.NotNull;
+import org.labkey.api.data.Container;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.files.FileContentService;
 import org.labkey.api.security.User;
@@ -10,14 +11,17 @@ import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.UnexpectedException;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
+import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.proteomexchange.UnimodModification;
 import org.labkey.panoramapublic.proteomexchange.UnimodUtil;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator.SpecLibKeyWithSize;
+import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile.SampleFileKey;
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.ModificationInfoManager;
@@ -28,10 +32,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DataValidator
 {
@@ -212,18 +219,55 @@ public class DataValidator
 
     private void validateSampleFiles(ValidatorStatus status, TargetedMSService svc, User user)
     {
-        for (SkylineDocValidator skyDoc: status.getSkylineDocs())
+        List<SkylineDocValidator> docs = status.getSkylineDocs();
+        Map<Container, List<SkylineDocValidator>> containerDocs = docs.stream().collect(Collectors.groupingBy(doc -> doc.getRunContainer()));
+        for (Container container: containerDocs.keySet())
         {
-            _listener.validatingDocument(skyDoc);
-            // sleep();
-            skyDoc.validateSampleFiles(svc);
+            validateContainerSampleFiles(containerDocs.get(container), status, svc, user);
+        }
+
+        for (SkylineDocValidator skyDoc: docs)
+        {
             try (DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
                 DataValidationManager.updateSampleFileStatus(skyDoc, user);
                 transaction.commit();
             }
+        }
+    }
 
+    private void validateContainerSampleFiles(List<SkylineDocValidator> skylineDocs, ValidatorStatus status, TargetedMSService svc, User user)
+    {
+        Map<String, Set<SampleFileKey>> sampleFileNameAndKeys = new HashMap<>();
+        for (SkylineDocValidator skyDoc: skylineDocs)
+        {
+            _listener.validatingDocument(skyDoc);
+            skyDoc.validateSampleFiles(svc);
+            for (ValidatorSampleFile sampleFile: skyDoc.getSampleFiles())
+            {
+                Set<SampleFileKey> sampleFileKeys = sampleFileNameAndKeys.computeIfAbsent(sampleFile.getFileName(), k -> new HashSet<>());
+                sampleFileKeys.add(sampleFile.getKey());
+            }
             _listener.sampleFilesValidated(skyDoc, status);
+        }
+
+        // Sample files that have the same name but were imported from different paths or have different acquired time
+        // and instrument serial number will be marked as "ambiguous". This will also include sample files with the same
+        // name but different paths imported into separate replicates of a document. Skyline allows this but it can get
+        // confusing even for the user.
+        Set<String> ambiguousFiles = sampleFileNameAndKeys.keySet().stream().filter(k -> sampleFileNameAndKeys.get(k).size() > 1).collect(Collectors.toSet());
+        if (ambiguousFiles.size() > 0)
+        {
+            for (SkylineDocValidator skyDoc : skylineDocs)
+            {
+                for (ValidatorSampleFile sampleFile : skyDoc.getSampleFiles())
+                {
+                    if (ambiguousFiles.contains(sampleFile.getFileName()))
+                    {
+                        sampleFile.setPath(DataFile.AMBIGUOUS);
+                    }
+                }
+            }
         }
     }
 
@@ -291,6 +335,19 @@ public class DataValidator
             }
         }
         return new SpecLibValidator(lib, librarySize);
+    }
+
+    public static java.nio.file.Path getRawFilesDirPath(Container container, FileContentService fcs)
+    {
+        if(container != null && fcs != null)
+        {
+            java.nio.file.Path fileRoot = fcs.getFileRootPath(container, FileContentService.ContentType.files);
+            if (fileRoot != null)
+            {
+                return fileRoot.resolve(TargetedMSService.RAW_FILES_DIR);
+            }
+        }
+        return null;
     }
 
 //    private void sleep()

@@ -7,6 +7,8 @@
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
 <%@ page import="org.labkey.api.action.SpringActionController" %>
 <%@ page import="org.labkey.panoramapublic.model.Submission" %>
+<%@ page import="org.labkey.panoramapublic.model.ExperimentAnnotations" %>
+<%@ page import="org.labkey.panoramapublic.query.ExperimentAnnotationsManager" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%!
@@ -100,6 +102,8 @@
     var view = (JspView<PanoramaPublicController.PxValidationStatusBean>) HttpView.currentView();
     var bean = view.getModelBean();
     int experimentAnnotationsId = bean.getDataValidation().getExperimentAnnotationsId();
+    ExperimentAnnotations experimentAnnotations = ExperimentAnnotationsManager.get(experimentAnnotationsId);
+    boolean includeSubfolders = experimentAnnotations != null && experimentAnnotations.isIncludeSubfolders();
     int jobId = bean.getDataValidation().getJobId();
     Integer journalId = bean.getJournalId();
     var submitAction = SpringActionController.getActionName(PanoramaPublicController.PublishExperimentAction.class);
@@ -624,7 +628,7 @@
         if (json["skylineDocuments"]) {
             var skylineDocsStore = Ext4.create('Ext.data.Store', {
                 storeId: 'skylineDocsStore',
-                fields: ['id', 'runId', 'name', 'container', 'valid', 'sampleFiles'],
+                fields: ['id', 'runId', 'name', 'container', 'rel_container', 'valid', 'sampleFiles'],
                 data: json,
                 proxy: {
                     type: 'memory',
@@ -635,11 +639,11 @@
                 },
                 sorters: [
                     {
-                        property: 'valid',
+                        property: 'container',
                         direction: 'ASC'
                     },
                     {
-                        property: 'container',
+                        property: 'valid',
                         direction: 'ASC'
                     },
                     {
@@ -706,7 +710,21 @@
                             }
                             return "";
                         }
-                    }],
+                    },
+                    <% if (includeSubfolders) { %>
+                    {
+                        text: 'Folder',
+                        sortable: false,
+                        hideable: false,
+                        width: 250,
+                        dataIndex: 'rel_container',
+                        renderer: function (value, metadata, record) {
+                            metadata.style = 'text-align: left';
+                            return value;
+                        }
+                    }
+                    <% } %>
+                    ],
                 plugins: [{
                     ptype: 'rowexpander',
                     rowBodyTpl: new Ext4.XTemplate(
@@ -887,7 +905,7 @@
             '<tpl if="title.length &gt; 0">', '<div class="pxv-tpl-table-title">{title}</div>', '</tpl>',
             '<table class="{tblCls} pxv-tpl-table">',
             '<tpl for="files">',
-            '<tr> <td>{name}</td> {[this.renderStatus(values)]} </tr>', // tdTpl.apply(['{name}']),
+            '<tr> <td>{name}</td> {[this.renderStatus(values)]} <td>{path}</td></tr>', // tdTpl.apply(['{name}']),
             '</tpl>',
             '</table>',
             {
