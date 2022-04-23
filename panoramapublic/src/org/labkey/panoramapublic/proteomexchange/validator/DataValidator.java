@@ -15,7 +15,6 @@ import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.Modification.ModType;
-import org.labkey.panoramapublic.model.validation.SkylineDoc;
 import org.labkey.panoramapublic.model.validation.SkylineDocModification;
 import org.labkey.panoramapublic.proteomexchange.ExperimentModificationGetter;
 import org.labkey.panoramapublic.proteomexchange.UnimodModification;
@@ -32,7 +31,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -220,10 +218,10 @@ public class DataValidator
     private void validateSampleFiles(ValidatorStatus status, TargetedMSService svc, User user)
     {
         List<SkylineDocValidator> docs = status.getSkylineDocs();
-        Map<Container, List<SkylineDocValidator>> containerDocs = docs.stream().collect(Collectors.groupingBy(doc -> doc.getRunContainer()));
+        Map<Container, List<SkylineDocValidator>> containerDocs = docs.stream().collect(Collectors.groupingBy(SkylineDocValidator::getRunContainer));
         for (Container container: containerDocs.keySet())
         {
-            validateContainerSampleFiles(containerDocs.get(container), status, svc, user);
+            validateContainerSampleFiles(containerDocs.get(container), status, svc);
         }
 
         for (SkylineDocValidator skyDoc: docs)
@@ -236,7 +234,7 @@ public class DataValidator
         }
     }
 
-    private void validateContainerSampleFiles(List<SkylineDocValidator> skylineDocs, ValidatorStatus status, TargetedMSService svc, User user)
+    private void validateContainerSampleFiles(List<SkylineDocValidator> skylineDocs, ValidatorStatus status, TargetedMSService svc)
     {
         Map<String, Set<SampleFileKey>> sampleFileNameAndKeys = new HashMap<>();
         for (SkylineDocValidator skyDoc: skylineDocs)
@@ -349,16 +347,4 @@ public class DataValidator
         }
         return null;
     }
-
-//    private void sleep()
-//    {
-//        try
-//        {
-//            Thread.sleep(1000);
-//        }
-//        catch (InterruptedException e)
-//        {
-//            e.printStackTrace();
-//        }
-//    }
 }

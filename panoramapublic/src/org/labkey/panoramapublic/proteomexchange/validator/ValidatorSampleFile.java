@@ -22,6 +22,7 @@ public class ValidatorSampleFile extends SkylineDocSampleFile
     {
         setName(sampleFile.getFileName());
         setFilePathImported(sampleFile.getFilePath());
+        setSampleFileId(sampleFile.getId());
         _sampleFile = sampleFile;
     }
 

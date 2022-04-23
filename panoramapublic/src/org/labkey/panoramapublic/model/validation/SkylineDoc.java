@@ -63,11 +63,10 @@ public class SkylineDoc extends SkylineDocValidation<SkylineDocSampleFile>
     @NotNull
     private JSONArray getSampleFilesJSON()
     {
-        Path rawFilesDirPath = DataValidator.getRawFilesDirPath(getRunContainer(), FileContentService.get());
         JSONArray result = new JSONArray();
         for (SkylineDocSampleFile sampleFile: getSampleFiles())
         {
-            result.put(sampleFile.toJSON(rawFilesDirPath != null ? rawFilesDirPath.getParent() : null));
+            result.put(sampleFile.toJSON(getRunContainer()));
         }
         return result;
     }

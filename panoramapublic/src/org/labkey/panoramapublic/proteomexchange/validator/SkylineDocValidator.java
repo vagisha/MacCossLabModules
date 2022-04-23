@@ -75,7 +75,6 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
             docSampleFiles.add(vsf);
             addWiffScanIfWiff(docSampleFiles, vsf);
         }
-        docSampleFiles = getUniqueDocSampleFiles(docSampleFiles);
         docSampleFiles.forEach(this::addSampleFile);
     }
 
@@ -109,6 +108,18 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
                 public String getFileName()
                 {
                     return sampleFile.getFileName() + DOT_SCAN;
+                }
+
+                @Override
+                public long getId()
+                {
+                    return sampleFile.getSampleFile().getId();
+                }
+
+                @Override
+                public long getReplicateId()
+                {
+                    return sampleFile.getSampleFile().getReplicateId();
                 }
 
                 @Override
@@ -361,6 +372,18 @@ public class SkylineDocValidator extends SkylineDocValidation<ValidatorSampleFil
         {
             var iSampleFile = new AbstractSampleFile()
             {
+                @Override
+                public long getId()
+                {
+                    return 0;
+                }
+
+                @Override
+                public long getReplicateId()
+                {
+                    return 0;
+                }
+
                 @Override
                 public String getFilePath()
                 {

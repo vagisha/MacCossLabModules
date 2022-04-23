@@ -4,11 +4,9 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.labkey.api.data.Container;
-import org.labkey.api.files.FileContentService;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -104,11 +102,12 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
 
         int expAnnotationsId = getValidation().getExperimentAnnotationsId();
         ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.get(expAnnotationsId);
+        Container expContainer = expAnnotations != null ? expAnnotations.getContainer() : null;
         jsonObject.put("validation", validationJson);
-        jsonObject.put("skylineDocuments", getSkylineDocsJSON(expAnnotations != null ? expAnnotations.getContainer() : null));
+        jsonObject.put("skylineDocuments", getSkylineDocsJSON(expContainer));
         Map<Integer, SkylineDoc> docMap = getSkylineDocs().stream().collect(Collectors.toMap(SkylineDocValidation::getId, Function.identity()));
         jsonObject.put("modifications", getModificationsJSON(docMap));
-        jsonObject.put("spectrumLibraries", getSpectralLibrariesJSON(docMap, expAnnotations));
+        jsonObject.put("spectrumLibraries", getSpectralLibrariesJSON(docMap, expContainer));
         return jsonObject;
     }
 
@@ -153,13 +152,12 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
         return docMod;
     }
 
-    private JSONArray getSpectralLibrariesJSON(Map<Integer, SkylineDoc> docMap, ExperimentAnnotations expAnnotations)
+    private JSONArray getSpectralLibrariesJSON(Map<Integer, SkylineDoc> docMap, Container expContainer)
     {
         JSONArray result = new JSONArray();
-        Path expContainerPath = getExperimentContainerPath(expAnnotations);
         for (SpecLib specLib: getSpectralLibraries())
         {
-            JSONObject json = specLib.toJSON(expContainerPath);
+            JSONObject json = specLib.toJSON(expContainer);
             JSONArray docsJson = new JSONArray();
             for (SkylineDocSpecLib skyDocLib: specLib.getDocsWithLibrary())
             {
@@ -173,20 +171,6 @@ public class Status extends GenericValidationStatus <SkylineDoc, SpecLib>
             result.put(json);
         }
         return result;
-    }
-
-    private Path getExperimentContainerPath(ExperimentAnnotations expAnnotations)
-    {
-        if (expAnnotations != null)
-        {
-            FileContentService fcs = FileContentService.get();
-            if (fcs != null)
-            {
-                Path containerRoot = fcs.getFileRootPath(expAnnotations.getContainer(), FileContentService.ContentType.files);
-                return containerRoot != null ? (expAnnotations.isIncludeSubfolders() ? containerRoot.getParent() : containerRoot) : null;
-            }
-        }
-        return null;
     }
 
     public JSONArray toProgressSummaryJSON()

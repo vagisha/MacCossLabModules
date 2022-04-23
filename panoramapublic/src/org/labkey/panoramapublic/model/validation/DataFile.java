@@ -2,6 +2,8 @@ package org.labkey.panoramapublic.model.validation;
 
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
+import org.labkey.api.data.Container;
+import org.labkey.api.files.FileContentService;
 
 import java.nio.file.Path;
 
@@ -68,7 +70,7 @@ public abstract class DataFile
     }
 
     @NotNull
-    public JSONObject toJSON(Path parentPath)
+    public JSONObject toJSON(Container container)
     {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("name", getName());
@@ -77,32 +79,41 @@ public abstract class DataFile
         jsonObject.put("ambiguous", isAmbiguous());
         if (found())
         {
-            jsonObject.put("path", getDisplayPath(parentPath));
+            jsonObject.put("path", getDisplayPath(container));
         }
         return jsonObject;
     }
 
-    // Returns the path relative to the given parent path.  For a sample file this should be relative to the file root
+    // Returns the path relative to the given container path.  For a sample file this should be relative to the file root
     // of the run's container (e.g. RawFiles/SISpeptides.d.zip.  For a library source file this should be relative to the
-    // file root of the folder containing the experiment.
-    public String getDisplayPath(Path parentPath)
+    // file root of the container containing the experiment. This is because the same library can be used in more than one
+    // Skyline document. If the experiment is configured to container subfolders, and documents in different subfolders
+    // use the same library, we expect to find the library source files in the root experiment folder or any of its subfolders.
+    public String getDisplayPath(Container container)
     {
         if (!found())
         {
-            return getPath();
+            return getPath(); // NOT_FOUND or AMBIGUOUS
         }
-        if (parentPath != null)
+        if (container != null)
         {
             try
             {
-                Path filePath = Path.of(getPath());
-                return parentPath.relativize(filePath).toString();
+                FileContentService fcs = FileContentService.get();
+                if (fcs != null)
+                {
+                    Path fileRootPath = fcs.getFileRootPath(container, FileContentService.ContentType.files);
+                    if (fileRootPath != null)
+                    {
+                        return fileRootPath.relativize(Path.of(getPath())).toString();
+                    }
+                }
             }
             catch (IllegalArgumentException ignored)
             {
             }
         }
-        // Return empty string if we couldn't relativize the path. Don't display the full path on the server.
-        return "";
+        // Return the file name if we couldn't relativize the path. Don't display the full path on the server.
+        return getName();
     }
 }

@@ -4,6 +4,7 @@ import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.labkey.api.data.Container;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -28,7 +29,7 @@ public class SpecLib extends SpecLibValidation<SkylineDocSpecLib>
     }
 
     @NotNull
-    public JSONObject toJSON(Path expContainerPath)
+    public JSONObject toJSON(Container expContainer)
     {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("id", getId());
@@ -38,18 +39,18 @@ public class SpecLib extends SpecLibValidation<SkylineDocSpecLib>
         jsonObject.put("size", getSize() != null ? FileUtils.byteCountToDisplaySize(getSize()) : "-");
         jsonObject.put("valid", isValid());
         jsonObject.put("status", getStatusString());
-        jsonObject.put("spectrumFiles", getSourceFilesJSON(getSpectrumFiles(), expContainerPath));
-        jsonObject.put("idFiles", getSourceFilesJSON(getIdFiles(), expContainerPath));
+        jsonObject.put("spectrumFiles", getSourceFilesJSON(getSpectrumFiles(), expContainer));
+        jsonObject.put("idFiles", getSourceFilesJSON(getIdFiles(), expContainer));
         return jsonObject;
     }
 
     @NotNull
-    private JSONArray getSourceFilesJSON(List<SpecLibSourceFile> sourceFiles, Path expContainerPath)
+    private JSONArray getSourceFilesJSON(List<SpecLibSourceFile> sourceFiles, Container expContainer)
     {
         JSONArray result = new JSONArray();
         for (SpecLibSourceFile sourceFile: sourceFiles)
         {
-            result.put(sourceFile.toJSON(expContainerPath));
+            result.put(sourceFile.toJSON(expContainer));
         }
         return result;
     }
