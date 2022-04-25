@@ -5239,6 +5239,27 @@ public class PanoramaPublicController extends SpringActionController
                 }
             }
 
+            // If the data has been validated for a ProteomeXchange submission, show the summary of the last validation
+            var latestValidation = DataValidationManager.getLatestValidation(exptAnnotations.getId(), getContainer());
+            if (latestValidation != null && getContainer().hasPermission(getUser(), AdminPermission.class))
+            {
+                HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation, getUser()), exptAnnotations, getContainer(), getUser());
+                VBox view = new VBox(details);
+                Button viewAllButton = null;
+                if (DataValidationManager.getValidationJobCount(exptAnnotations.getId()) > 1)
+                {
+                    ActionURL url = new ActionURL(ViewPxValidationsAction.class, getContainer()).addParameter("id", exptAnnotations.getId());
+                    viewAllButton = new Button.ButtonBuilder("View All Validation Jobs").href(url).build();
+                }
+                view.addView(new HtmlView(DIV(at(style, "margin-top:15px;"),
+                        viewAllButton != null ? SPAN(at(style, "margin-right:10px;"), viewAllButton) : HtmlString.EMPTY_STRING,
+                        getStartDataValidationButton(exptAnnotations, getContainer()))));
+
+                view.setTitle("Data Validation for ProteomeXchange");
+                view.setFrame(WebPartView.FrameType.PORTAL);
+                result.addView(view);
+            }
+
             // Show a list of subfolders, if any
             List<Container> children = getAllSubfolders(exptAnnotations.getContainer());
             HtmlView subfoldersView = null;
@@ -5312,27 +5333,6 @@ public class PanoramaPublicController extends SpringActionController
                 {
                     result.addView(new ModificationsView.IsotopeModsView(getViewContext(), exptAnnotations));
                 }
-            }
-
-            // If the data has been validated for a ProteomeXchange submission, show the summary of the last validation
-            var latestValidation = DataValidationManager.getLatestValidation(exptAnnotations.getId(), getContainer());
-            if (latestValidation != null && getContainer().hasPermission(getUser(), AdminPermission.class))
-            {
-                HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation, getUser()), exptAnnotations, getContainer(), getUser());
-                VBox view = new VBox(details);
-                Button viewAllButton = null;
-                if (DataValidationManager.getValidationJobCount(exptAnnotations.getId()) > 1)
-                {
-                    ActionURL url = new ActionURL(ViewPxValidationsAction.class, getContainer()).addParameter("id", exptAnnotations.getId());
-                    viewAllButton = new Button.ButtonBuilder("View All Validation Jobs").href(url).build();
-                }
-                view.addView(new HtmlView(DIV(at(style, "margin-top:15px;"),
-                        viewAllButton != null ? SPAN(at(style, "margin-right:10px;"), viewAllButton) : HtmlString.EMPTY_STRING,
-                        getStartDataValidationButton(exptAnnotations, getContainer()))));
-
-                view.setTitle("Data Validation for ProteomeXchange");
-                view.setFrame(WebPartView.FrameType.PORTAL);
-                result.addView(view);
             }
 
             // If this experiment has been submitted show the submission requests

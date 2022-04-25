@@ -279,8 +279,8 @@
                 var updateMedataLink = LABKEY.ActionURL.buildURL('panoramapublic', 'showUpdateExperimentAnnotations', LABKEY.ActionURL.getContainer(), {id: <%=experimentAnnotationsId%>});
                 problems += '<li>Missing metadata: [' + link("Update Metadata", updateMedataLink, 'pxv-bold') + ']' + getMissingMetadataFields(json["missingMetadata"]) + '</li>';
             }
-            if (json["modificationsValid"] === false) problems += '<li>Modifications without a Unimod ID</li>';
             if (json["sampleFilesValid"] === false) problems += '<li>Missing raw data files</li>';
+            if (json["modificationsValid"] === false) problems += '<li>Modifications without a Unimod ID</li>';
             if (json["specLibsComplete"] === false) problems += '<li>Incomplete spectral library information</li>';
             return '</br>Problems found: <ul>' + problems + '</ul>';
         }
@@ -373,9 +373,9 @@
                 layout: {type: 'anchor', align: 'left'},
                 style:  {margin: '10px'},
                 items:  [
+                            {xtype: 'component', padding: '10, 5, 0, 5', html: experimentLink()},
                             {xtype: 'component', padding: '10, 5, 0, 5', html: 'Folder: ' + htmlEncode(validationJson["folder"])},
-                            {xtype: 'component', padding: '0, 5, 0, 5', html: experimentLink()},
-                            {xtype: 'component', padding: '0, 5, 10, 5', html: 'Date: ' + htmlEncode(validationJson["date"])},
+                            {xtype: 'component', padding: '0, 5, 10, 5', html: 'Validation date: ' + htmlEncode(validationJson["date"])},
                             {
                                 xtype:   'component',
                                 padding: '0, 5, 10, 5',
