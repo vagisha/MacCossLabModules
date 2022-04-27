@@ -3240,7 +3240,7 @@ public class PanoramaPublicController extends SpringActionController
                 var latestValidation = DataValidationManager.getLatestValidation(_experimentAnnotations.getId(), getContainer());
                 if (latestValidation != null)
                 {
-                    HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation, getUser()), _experimentAnnotations, getContainer(), getUser());
+                    HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation, getUser()), _experimentAnnotations, true, getContainer(), getUser());
                     view.addView(details);
                 }
                 else
@@ -3269,7 +3269,7 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @NotNull
-    private static HtmlView getValidationSummary(Status status, ExperimentAnnotations exptAnnotations, Container container, User user)
+    private static HtmlView getValidationSummary(Status status, ExperimentAnnotations exptAnnotations, boolean displayExperimentTitle, Container container, User user)
     {
         DataValidation validation = status.getValidation();
         boolean outdated = DataValidationManager.isValidationOutdated(validation, exptAnnotations, user);
@@ -3279,6 +3279,8 @@ public class PanoramaPublicController extends SpringActionController
         ActionURL validationDetailsUrl = getPxValidationStatusUrl(exptAnnotations.getId(), validation.getId(), container);
         var color = PxStatus.Complete == validation.getStatus() ? "darkgreen" : PxStatus.IncompleteMetadata == validation.getStatus() ? "darkorange" : "firebrick";
         return new HtmlView(TABLE(cl("lk-fields-table"),
+                displayExperimentTitle ? row("Experiment: ", DIV(exptAnnotations.getTitle(), HtmlString.NBSP, new Link.LinkBuilder("View Details")
+                        .href(getViewExperimentDetailsURL(exptAnnotations.getId(), container)).build())) : HtmlString.EMPTY_STRING,
                 row("Last Validation Date: ", validation.getFormattedDate()),
                 createdByUser != null ?
                         row("Created By: ", new Link.LinkBuilder(createdByUser.getDisplayName(user))
@@ -5243,7 +5245,7 @@ public class PanoramaPublicController extends SpringActionController
             var latestValidation = DataValidationManager.getLatestValidation(exptAnnotations.getId(), getContainer());
             if (latestValidation != null && getContainer().hasPermission(getUser(), AdminPermission.class))
             {
-                HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation, getUser()), exptAnnotations, getContainer(), getUser());
+                HtmlView details = getValidationSummary(DataValidationManager.getStatus(latestValidation, getUser()), exptAnnotations, false, getContainer(), getUser());
                 VBox view = new VBox(details);
                 Button viewAllButton = null;
                 if (DataValidationManager.getValidationJobCount(exptAnnotations.getId()) > 1)
@@ -6791,7 +6793,12 @@ public class PanoramaPublicController extends SpringActionController
             if (_specLibInfo != null)
             {
                 copyValues(_specLibInfo, form);
-                SpecLibInfoManager.update(_specLibInfo, getUser());
+                try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
+                {
+                    SpecLibInfoManager.update(_specLibInfo, getUser());
+                    DataValidationManager.specLibInfoChanged(_expAnnot, _specLibInfo, getUser());
+                    transaction.commit();
+                }
             }
             else
             {
@@ -6946,6 +6953,76 @@ public class PanoramaPublicController extends SpringActionController
         public void setDependencyType(String dependencyType)
         {
             _dependencyType = dependencyType;
+        }
+    }
+
+    @RequiresPermission(UpdatePermission.class)
+    public static class DeleteSpecLibInfoAction extends PanoramaPublicExperimentAction<DeleteSpecLibInfoForm>
+    {
+        private SpecLibInfo _specLibInfo;
+
+        @Override
+        protected ModelAndView getModelAndView(DeleteSpecLibInfoForm form, boolean reshow, BindException errors)
+        {
+            if (errors.hasErrors())
+            {
+                return new SimpleErrorView(errors);
+            }
+            errors.reject(ERROR_MSG, "Action does not support GET requests");
+            return new SimpleErrorView(errors);
+        }
+
+        @Override
+        protected void validatePostCommand(DeleteSpecLibInfoForm form, Errors errors) {}
+
+        @Override
+        public boolean handlePost(DeleteSpecLibInfoForm form, BindException errors) throws Exception
+        {
+            _specLibInfo = SpecLibInfoManager.get(form.getSpecLibInfoId());
+            if (_specLibInfo == null)
+            {
+                errors.reject(ERROR_MSG, "Could not find saved spectral library information with Id " + form.getSpecLibInfoId());
+                return false;
+            }
+            if (_specLibInfo.getExperimentAnnotationsId() != form.getId())
+            {
+                // It is enough to check that the experimentAnnotationsId in the form matches the id saved with the spec lib info.
+                // The container check on the ExperimentAnnotations has already happened in the super class - PanoramaPublicExperimentAction.validateCommand()
+                errors.reject(ERROR_MSG, String.format("Spectral library information with Id %d does not belong to experiment Id %d ",
+                        form.getSpecLibInfoId(), form.getId()));
+                return false;
+            }
+
+            SpecLibInfoManager.deleteSpecLibInfo(_specLibInfo, _expAnnot, getUser());
+
+            return true;
+        }
+
+        @Override
+        public URLHelper getSuccessURL(DeleteSpecLibInfoForm form)
+        {
+            return form.getReturnActionURL(getViewExperimentDetailsURL(form.getId(), getContainer()));
+        }
+
+        @Override
+        public void addNavTrail(NavTree root)
+        {
+            root.addChild("Delete Spectral Library Information");
+        }
+    }
+
+    public static class DeleteSpecLibInfoForm extends ExperimentIdForm
+    {
+        private int _specLibInfoId;
+
+        public int getSpecLibInfoId()
+        {
+            return _specLibInfoId;
+        }
+
+        public void setSpecLibInfoId(int specLibInfoId)
+        {
+            _specLibInfoId = specLibInfoId;
         }
     }
 
@@ -8079,6 +8156,14 @@ public class PanoramaPublicController extends SpringActionController
             editUrl.addParameter("specLibInfoId", specLibInfoId);
         }
         return editUrl;
+    }
+
+    public static ActionURL getDeleteSpecLibInfoURL(int experimentAnnotationsId, int specLibInfoId, Container container)
+    {
+        ActionURL deleteUrl = new ActionURL(PanoramaPublicController.DeleteSpecLibInfoAction.class, container);
+        deleteUrl.addParameter("id", experimentAnnotationsId);
+        deleteUrl.addParameter("specLibInfoId", specLibInfoId);
+        return deleteUrl;
     }
 
     private static ActionURL getSubmitPxValidationJobUrl(ExperimentAnnotations exptAnnotations, Container container)

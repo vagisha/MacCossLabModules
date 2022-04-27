@@ -752,7 +752,7 @@
         if (json["spectrumLibraries"]) {
             var specLibStore = Ext4.create('Ext.data.Store', {
                 storeId: 'specLibStore',
-                fields: ['id', 'libName', 'libType', 'fileName', 'size', 'valid', 'status', 'spectrumFiles', 'idFiles', 'documents'],
+                fields: ['id', 'libName', 'libType', 'fileName', 'size', 'valid', 'status', 'specLibInfo', 'specLibInfoId', 'spectrumFiles', 'idFiles', 'documents'],
                 data: json,
                 proxy: {
                     type: 'memory',
@@ -796,7 +796,7 @@
                 columns: [
                     {
                         text: 'Name',
-                        dataIndex: 'libName', // TODO: link to a Spectral Library webpart
+                        dataIndex: 'libName',
                         flex: 3,
                         sortable: false,
                         hideable: false,
@@ -866,7 +866,7 @@
                     rowBodyTpl: new Ext4.XTemplate(
 
                             '<div class="pxv-grid-expanded-row">',
-                            '<div class="pxv-tpl-table-title" style="margin-bottom:10px">Status: {[this.renderLibraryStatus(values.status, values.valid)]}</div>',
+                            '<div style="margin-bottom:20px; font-weight:bold;">Status: {[this.renderLibraryStatus(values)]}</div>',
                             // Spectrum files
                             '<tpl if="spectrumFiles.length &gt; 0">','{[this.renderTable(values.spectrumFiles, "lib-spectrum-files-status", "Spectrum Files")]}', '</tpl>',
                             // Peptide Id files
@@ -880,9 +880,25 @@
                             '</ul>',
                             '</div>',
                             {
-                                renderLibraryStatus: function (status, valid) {
-                                    var cls = valid === true ? 'pxv-valid' : 'pxv-invalid';
-                                    return '<span class="' + cls + '">' + status + '</span>';
+                                renderLibraryStatus: function (values) {
+                                    const cls = values.valid === true ? 'pxv-bold' : 'pxv-invalid';
+                                    const statusHtml = '<span class="' + cls + '">' + htmlEncode(values.status) + '</span>';
+                                    let specLibInfoHtml = '';
+                                    if (values.specLibInfo) {
+                                        const params = {
+                                            'schemaName': 'panoramapublic',
+                                            'queryName': 'SpectralLibraries',
+                                            'viewName': 'SpectralLibrariesInfo',
+                                            'query.SpecLibInfoId~eq': values.specLibInfoId
+                                        };
+
+                                        const href = LABKEY.ActionURL.buildURL('query', 'executeQuery', LABKEY.ActionURL.getContainer(), params);
+                                        specLibInfoHtml = '<div style="margin-top:10px;">'
+                                                          + 'Library Information: <span class="pxv-bold" style="margin-right: 10px;">' + htmlEncode(values.specLibInfo)+ '</span>'
+                                                          + link("[View Library Info]", href, null, false)
+                                                + '</div>';
+                                    }
+                                    return statusHtml + specLibInfoHtml;
                                 },
                                 renderTable: function(dataFiles, tblCls, title) {
                                     return libSourceFilesTableTpl.apply({files: dataFiles, tblCls: tblCls, title: title});
@@ -905,14 +921,13 @@
             '<table class="{tblCls} pxv-tpl-table">',
             '<thead><tr><th>Replicate</th><th>File</th><th>Status</th><th>Path</th><tr></thead>',
             '<tpl for="files">',
-            '<tr> <td>{replicate}</td> <td>{name}</td> {[this.renderStatus(values)]}  <td>{[this.renderPath(values)]}</td></tr>', // tdTpl.apply(['{name}']),
+            '<tr> <td>{replicate:htmlEncode}</td> <td>{name:htmlEncode}</td> {[this.renderStatus(values)]}  <td>{[this.renderPath(values)]}</td></tr>', // tdTpl.apply(['{name}']),
             '</tpl>',
             '</table>',
             '<div>{container}</div>',
             {
                 renderStatus: function (values) { return renderFileStatus(values, true) },
                 renderPath: function (values) {
-                    // return values.path;
                     if (values.ambiguous === true && values.container) {
                         let params = {
                             'schemaName': 'panoramapublic',
@@ -922,7 +937,7 @@
                         const href = LABKEY.ActionURL.buildURL('query', 'executeQuery', values.container, params)
                         return link("[Ambiguous Files]", href);
                     }
-                    else return values.path;
+                    else return htmlEncode(values.path);
                 },
                 compiled:true, disableFormats:true
             }
@@ -933,7 +948,7 @@
             '<table class="{tblCls} pxv-tpl-table">',
             '<thead><tr><th>File</th><th>Status</th><th>Path</th><tr></thead>',
             '<tpl for="files">',
-            '<tr> <td>{name}</td> {[this.renderStatus(values)]}  <td>{path}</td></tr>',
+            '<tr> <td>{name:htmlEncode}</td> {[this.renderStatus(values)]}  <td>{path:htmlEncode}</td></tr>',
             '</tpl>',
             '</table>',
             {
@@ -947,7 +962,7 @@
         let status = "FOUND";
         if (values.found === false) status = "MISSING";
         if (values.ambiguous === true) status = "AMBIGUOUS";
-        return '<td><span class="' + cls + '">' + status + '</span></td>';
+        return '<td><span class="' + cls + '">' + htmlEncode(status) + '</span></td>';
     }
 
     var headerRowTpl = new Ext4.XTemplate(

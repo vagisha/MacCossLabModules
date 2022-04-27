@@ -39,6 +39,11 @@ public class SpecLib extends SpecLibValidation<SkylineDocSpecLib>
         jsonObject.put("size", getSize() != null ? FileUtils.byteCountToDisplaySize(getSize()) : "-");
         jsonObject.put("valid", isValid());
         jsonObject.put("status", getStatusString());
+        if (getSpecLibInfo() != null)
+        {
+            jsonObject.put("specLibInfo", getSpecLibInfo().getInfo());
+            jsonObject.put("specLibInfoId", getSpecLibInfo().getId());
+        }
         jsonObject.put("spectrumFiles", getSourceFilesJSON(getSpectrumFiles(), expContainer));
         jsonObject.put("idFiles", getSourceFilesJSON(getIdFiles(), expContainer));
         return jsonObject;

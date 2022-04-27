@@ -11,6 +11,8 @@ import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.UnexpectedException;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
+import org.labkey.panoramapublic.model.speclib.SpecLibKey;
 import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.Modification;
@@ -24,6 +26,7 @@ import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile.S
 import org.labkey.panoramapublic.query.DataValidationManager;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 import org.labkey.panoramapublic.query.ModificationInfoManager;
+import org.labkey.panoramapublic.query.SpecLibInfoManager;
 import org.labkey.panoramapublic.query.modification.ExperimentIsotopeModInfo;
 import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
 
@@ -303,13 +306,15 @@ public class DataValidator
     {
         // A library can be used with more than one Skyline document.  Add it only once.
         Map<SpecLibKeyWithSize, SpecLibValidator> spectralLibraries = new HashMap<>();
+        // User-entered information about spectral libraries in the experiment
+        List<SpecLibInfo> specLibInfos = SpecLibInfoManager.getForExperiment(_expAnnotations.getId(), _expAnnotations.getContainer());
 
         for (SkylineDocValidator doc: status.getSkylineDocs())
         {
             List<? extends ISpectrumLibrary> allSpecLibs = targetedMsSvc.getLibraries(doc.getRun());
             for (ISpectrumLibrary lib: allSpecLibs)
             {
-                SpecLibValidator sLib = getSpectralLibrary(targetedMsSvc, doc, lib);
+                SpecLibValidator sLib = getSpectralLibrary(targetedMsSvc, doc, lib, specLibInfos);
                 spectralLibraries.putIfAbsent(sLib.getKey(), sLib);
                 spectralLibraries.get(sLib.getKey()).addDocumentLibrary(doc, lib);
             }
@@ -317,7 +322,7 @@ public class DataValidator
         spectralLibraries.values().forEach(status::addLibrary);
     }
 
-    private SpecLibValidator getSpectralLibrary(TargetedMSService targetedMsSvc, SkylineDocValidator doc, ISpectrumLibrary lib)
+    private SpecLibValidator getSpectralLibrary(TargetedMSService targetedMsSvc, SkylineDocValidator doc, ISpectrumLibrary lib, List<SpecLibInfo> specLibInfos)
     {
         Path libPath = targetedMsSvc.getLibraryFilePath(doc.getRun(), lib);
         Long librarySize = null;
@@ -332,7 +337,12 @@ public class DataValidator
                 throw UnexpectedException.wrap(e, "Error getting size of the library file '" + libPath + "'.");
             }
         }
-        return new SpecLibValidator(lib, librarySize);
+        SpecLibValidator specLib = new SpecLibValidator(lib, librarySize);
+        specLib.setSpecLibInfo(specLibInfos.stream().
+                // Match the library key (library type, name, filenamehint, skyline library id, revision)
+                filter(li -> SpecLibKey.fromLibrary(lib).equals(li.getLibraryKey()))
+                .findFirst().orElse(null));
+        return specLib;
     }
 
     public static java.nio.file.Path getRawFilesDirPath(Container container, FileContentService fcs)

@@ -15,6 +15,7 @@ import org.labkey.api.util.JunitUtil;
 import org.labkey.api.util.UnexpectedException;
 import org.labkey.panoramapublic.PanoramaPublicModule;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
+import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
 import org.labkey.panoramapublic.model.speclib.SpecLibKey;
 import org.labkey.panoramapublic.model.validation.DataFile;
 import org.labkey.panoramapublic.model.validation.SpecLibSourceFile;
@@ -57,6 +58,13 @@ public class SpecLibValidator extends SpecLibValidation<ValidatorSkylineDocSpecL
         setSize(fileSize);
         _key = new SpecLibKeyWithSize(library, fileSize);
         _docsWithLibrary = new ArrayList<>();
+    }
+
+    @Override
+    public void setSpecLibInfo(SpecLibInfo libInfo)
+    {
+        setSpecLibInfoId(libInfo != null ? libInfo.getId() : null);
+        super.setSpecLibInfo(libInfo);
     }
 
     @Override
@@ -337,7 +345,7 @@ public class SpecLibValidator extends SpecLibValidation<ValidatorSkylineDocSpecL
 
         public String toString()
         {
-            return _key.toString() + _size == null ? ", NOT_FOUND" : ", size: " + _size;
+            return _key.toString() + (_size == null ? ", NOT_FOUND" : ", size: " + _size);
         }
     }
 

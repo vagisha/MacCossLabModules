@@ -24,6 +24,7 @@ import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
 import org.labkey.panoramapublic.query.ContainerJoin;
 import org.labkey.panoramapublic.query.PanoramaPublicTable;
+import org.labkey.panoramapublic.query.SpecLibInfoManager;
 
 public class SpecLibInfoTableInfo extends PanoramaPublicTable
 {
@@ -132,7 +133,7 @@ public class SpecLibInfoTableInfo extends PanoramaPublicTable
         @Override
         public void delete(User user, Container container, int key)
         {
-            Table.delete(PanoramaPublicManager.getTableInfoSpecLibInfo(), key);
+            SpecLibInfoManager.deleteSpecLibInfo(key, container, user);
         }
 
         @Override
