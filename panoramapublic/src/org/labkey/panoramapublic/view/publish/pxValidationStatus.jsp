@@ -947,7 +947,7 @@
             '<table class="{tblCls} pxv-tpl-table">',
             '<thead><tr><th>Replicate</th><th>File</th><th>Status</th><th>Path</th><tr></thead>',
             '<tpl for="files">',
-            '<tr> <td>{replicate}</td> <td>{name}</td> {[this.renderStatus(values)]}  <td>{[this.renderPath(values)]}</td></tr>', // tdTpl.apply(['{name}']),
+            '<tr> <td>{replicate:htmlEncode}</td> <td>{name:htmlEncode}</td> {[this.renderStatus(values)]}  <td>{[this.renderPath(values)]}</td></tr>', // tdTpl.apply(['{name}']),
             '</tpl>',
             '</table>',
             '<div>{container}</div>',
@@ -988,7 +988,7 @@
         let status = "FOUND";
         if (values.found === false) status = "MISSING";
         if (values.ambiguous === true) status = "AMBIGUOUS";
-        return '<td><span class="' + cls + '">' + status + '</span></td>';
+        return '<td><span class="' + cls + '">' + htmlEncode(status) + '</span></td>';
     }
 
     var headerRowTpl = new Ext4.XTemplate(
