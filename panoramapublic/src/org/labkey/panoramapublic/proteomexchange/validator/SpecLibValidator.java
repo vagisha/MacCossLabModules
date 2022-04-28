@@ -45,6 +45,7 @@ public class SpecLibValidator extends SpecLibValidation<ValidatorSkylineDocSpecL
 {
     private List<ValidatorSkylineDocSpecLib> _docsWithLibrary;
     private SpecLibKeyWithSize _key;
+    private SpecLibInfo _specLibInfo;
 
     public SpecLibValidator() {}
 
@@ -60,11 +61,16 @@ public class SpecLibValidator extends SpecLibValidation<ValidatorSkylineDocSpecL
         _docsWithLibrary = new ArrayList<>();
     }
 
-    @Override
     public void setSpecLibInfo(SpecLibInfo libInfo)
     {
         setSpecLibInfoId(libInfo != null ? libInfo.getId() : null);
-        super.setSpecLibInfo(libInfo);
+        _specLibInfo = libInfo;
+    }
+
+    @Override
+    public SpecLibInfo getSpecLibInfo()
+    {
+        return _specLibInfo;
     }
 
     @Override
