@@ -29,7 +29,6 @@ import org.labkey.api.util.logging.LogHelper;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
 import org.labkey.panoramapublic.model.validation.DataValidation;
 import org.labkey.panoramapublic.model.validation.Modification;
 import org.labkey.panoramapublic.model.validation.PxStatus;
@@ -46,7 +45,6 @@ import org.labkey.panoramapublic.proteomexchange.validator.SkylineDocValidator;
 import org.labkey.panoramapublic.proteomexchange.validator.SpecLibValidator;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorSampleFile;
 import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
-import org.labkey.panoramapublic.query.modification.ExperimentModInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -139,15 +137,15 @@ public class DataValidationManager
         if (hasNewerModInfos(expAnnotations.getId(), validation.getCreated())
                 || hasDeletedModInfos(validation.getId(), expAnnotations.getId()))
         {
-            return false;
+            return true;
         }
 
         // Validation is outdated if any spectral library information (SpecLibInfo table) was created that is newer than
         // the validation date OR if an existing row in the table was modified after the data validation job was started.
         // It is also outdated if there are any specLibInfoIds in the SpecLibValidation table that are no longer in the
         // SpecLibInfo table, i.e. a spectral library information row was deleted after the validation job was started.
-        return !hasNewerSpecLibInfos(expAnnotations.getId(), validation.getCreated())
-                && !hasDeletedSpecLibInfos(validation.getId(), expAnnotations.getId());
+        return hasNewerSpecLibInfos(expAnnotations.getId(), validation.getCreated())
+                || hasDeletedSpecLibInfos(validation.getId(), expAnnotations.getId());
     }
 
     private static boolean hasNewerModInfos(int expAnnotationsId, Date createDate)
@@ -174,14 +172,14 @@ public class DataValidationManager
 
     private static SQLFragment getDeletedModInfoSql(int validationId, int expAnnotationsId, Modification.ModType modType, TableInfo modInfoTableInfo)
     {
-        return new SQLFragment("SELECT modInfoId FROM")
+        return new SQLFragment("SELECT modInfoId FROM ")
                 .append(PanoramaPublicManager.getTableInfoModificationValidation(), "mv")
-                .append(" WHERE sv.validationId = ").add(validationId)
-                .append(" AND mv.modType = ").add(modType.ordinal())
-                .append(" AND modInfo NOT IN ")
+                .append(" WHERE mv.validationId = ? ").add(validationId)
+                .append(" AND mv.modType = ? ").add(modType.ordinal())
+                .append(" AND mv.modInfoId NOT IN ")
                 .append(" (SELECT Id FROM ")
                 .append(modInfoTableInfo, "mi")
-                .append(" WHERE mi.experimentAnnotationsId = ").add(expAnnotationsId)
+                .append(" WHERE mi.experimentAnnotationsId = ? ").add(expAnnotationsId)
                 .append(" ) ");
     }
 
@@ -194,13 +192,13 @@ public class DataValidationManager
 
     private static boolean hasDeletedSpecLibInfos(int validationId, int expAnnotationsId)
     {
-        SQLFragment sql = new SQLFragment("SELECT specLibInfoId FROM")
+        SQLFragment sql = new SQLFragment("SELECT specLibInfoId FROM ")
                 .append(PanoramaPublicManager.getTableInfoSpecLibValidation(), "sv")
-                .append(" WHERE sv.validationId = ").add(validationId)
-                .append(" AND specLibInfoId NOT IN ")
+                .append(" WHERE sv.validationId = ? ").add(validationId)
+                .append(" AND sv.specLibInfoId NOT IN ")
                 .append(" (SELECT Id FROM ")
                 .append(PanoramaPublicManager.getTableInfoSpecLibInfo(), "li")
-                .append(" WHERE li.experimentAnnotationsId = ").add(expAnnotationsId)
+                .append(" WHERE li.experimentAnnotationsId = ? ").add(expAnnotationsId)
                 .append(" )");
         return new SqlSelector(PanoramaPublicManager.getSchema(), sql).getRowCount() > 0;
     }
@@ -323,14 +321,6 @@ public class DataValidationManager
         return new TableSelector(PanoramaPublicManager.getTableInfoSkylineDocModification(), filter, null).getArrayList(SkylineDocModification.class);
     }
 
-    private static Modification getModification(int dataValidationId, long dbModId, Modification.ModType modType)
-    {
-        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("ValidationId"), dataValidationId);
-        filter.addCondition(FieldKey.fromParts("DbModId"), dbModId);
-        filter.addCondition(FieldKey.fromParts("modType"), modType.ordinal());
-        return new TableSelector(PanoramaPublicManager.getTableInfoModificationValidation(), filter, null).getObject(Modification.class);
-    }
-
     private static List<SpecLib> getSpectrumLibraries(SimpleFilter filter)
     {
         List<SpecLib> specLibs = new TableSelector(PanoramaPublicManager.getTableInfoSpecLibValidation(), filter, null).getArrayList(SpecLib.class);
@@ -386,68 +376,6 @@ public class DataValidationManager
         return Table.update(user, PanoramaPublicManager.getTableInfoDataValidation(), validation, validation.getId());
     }
 
-    public static void removeModInfo(@NotNull ExperimentAnnotations expAnnotations, Container container, long modId, Modification.ModType modType, User user)
-    {
-        updateModInfo(expAnnotations, container, modId, modType, null, user);
-    }
-
-    public static void addModInfo(@NotNull ExperimentAnnotations expAnnotations, Container container, @NotNull ExperimentModInfo modInfo,
-                                  Modification.ModType modType, User user)
-    {
-        updateModInfo(expAnnotations, container, modInfo.getModId(), modType, modInfo.getId(), user);
-    }
-
-    private static void updateModInfo(ExperimentAnnotations expAnnotations, Container container, long modId, Modification.ModType modType, Integer modInfoId, User user)
-    {
-        var latestValidation = DataValidationManager.getLatestValidation(expAnnotations.getId(), container);
-        if (latestValidation != null)
-        {
-            var modification = DataValidationManager.getModification(latestValidation.getId(), modId, modType);
-            if (modification != null)
-            {
-                if (modInfoId != null || modification.getModInfoId() != null)
-                {
-                    modification.setModInfoId(modInfoId);
-                    modification.setInferred(modInfoId != null);
-                }
-                try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
-                {
-                    Table.update(user, PanoramaPublicManager.getTableInfoModificationValidation(), modification, modification.getId());
-                    recalculateStatus(latestValidation, user);
-                    transaction.commit();
-                }
-            }
-        }
-    }
-
-    /*
-        Call this method if the status of the modifications or spectral libraries likely changed because the user added
-        a Unimod Id to a modification, or deleted a saved Unimod Id, or deleted information for a spectral library.
-        The validation status will not be updated if the current status is PxStatus.NotValid (missing raw data files).
-    */
-    private static void recalculateStatus(DataValidation validation, User user)
-    {
-        PxStatus status = validation.getStatus();
-        if (status != null && status.ordinal() >= PxStatus.IncompleteMetadata.ordinal())
-        {
-            // If the current status is < PxStatus.IncompleteMetadata it means that there are missing raw data files.
-            // In this case any changes to modification validation will not change the final status.
-            // Update the status only if the current status is PxStatus.IncompleteMetadata or PxStatus.Complete
-            SimpleFilter validationIdFilter = new SimpleFilter(FieldKey.fromParts("ValidationId"), validation.getId());
-
-            var validationMods = getModifications(validationIdFilter);
-            var specLibs = getSpectrumLibraries(validationIdFilter);
-            PxStatus modsStatus = (specLibs.stream().anyMatch(lib -> !lib.isValid())  || validationMods.stream().anyMatch(mod -> !mod.isValid()))
-                    ? PxStatus.IncompleteMetadata : PxStatus.Complete;
-
-            if (!status.equals(modsStatus))
-            {
-                validation.setStatus(modsStatus);
-                updateValidationStatus(validation, user);
-            }
-        }
-    }
-
     public static void saveSkylineDocStatus(ValidatorStatus status, User user)
     {
         DataValidation validation = status.getValidation();
@@ -498,71 +426,6 @@ public class DataValidationManager
     public static void saveDocSpectrumLibrary(SkylineDocSpecLib docSpecLib, User user)
     {
         Table.insert(user, PanoramaPublicManager.getTableInfoSkylineDocSpecLib(), docSpecLib);
-    }
-
-    public static void removeSpecLibInfo(@NotNull ExperimentAnnotations expAnnotations, @NotNull SpecLibInfo specLibInfo, User user)
-    {
-        List<DataValidation> validationList = DataValidationManager.getValidations(expAnnotations.getId(), expAnnotations.getContainer());
-
-        // Get the libraries associated with the given SpecLibInfo
-        List<SpecLib> specLibList = getLibrariesForSpecLibInfo(specLibInfo, validationList);
-
-        if (specLibList.size() > 0)
-        {
-            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
-            {
-                for (SpecLib specLib: specLibList)
-                {
-                    specLib.setSpecLibInfoId(null);
-                    Table.update(user, PanoramaPublicManager.getTableInfoSpecLibValidation(), specLib, specLib.getId());
-                }
-                recalculateStatus(validationList, specLibList, user);
-                transaction.commit();
-            }
-        }
-    }
-
-    public static void specLibInfoChanged(@NotNull ExperimentAnnotations expAnnotations, @NotNull SpecLibInfo specLibInfo, User user)
-    {
-        List<DataValidation> validationList = DataValidationManager.getValidations(expAnnotations.getId(), expAnnotations.getContainer());
-
-        // Get the libraries associated with the given SpecLibInfo
-        List<SpecLib> specLibList = getLibrariesForSpecLibInfo(specLibInfo, validationList);
-
-        if (specLibList.size() > 0)
-        {
-            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
-            {
-                recalculateStatus(validationList, specLibList, user);
-                transaction.commit();
-            }
-        }
-    }
-
-    private static List<SpecLib> getLibrariesForSpecLibInfo(@NotNull SpecLibInfo specLibInfo, List<DataValidation> validationList)
-    {
-        List<SpecLib> specLibList = new ArrayList<>();
-        for (DataValidation validation : validationList)
-        {
-            SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("specLibInfoId"), specLibInfo.getId());
-            filter.addCondition(FieldKey.fromParts("validationId"), validation.getId());
-            List<SpecLib> specLibs = new TableSelector(PanoramaPublicManager.getTableInfoSpecLibValidation(), filter, null).getArrayList(SpecLib.class);
-            if (specLibs.size() > 0)
-            {
-                specLibList.addAll(specLibs);
-            }
-        }
-        return specLibList;
-    }
-
-    private static void recalculateStatus(List<DataValidation> validationList, List<SpecLib> specLibList, User user)
-    {
-        Set<Integer> validationIds = specLibList.stream().map(lib -> lib.getValidationId()).collect(Collectors.toSet());
-        List<DataValidation> validationsToUpdate = validationList.stream().filter(v -> validationIds.contains(v.getId())).collect(Collectors.toList());
-        for (DataValidation validation : validationsToUpdate)
-        {
-            recalculateStatus(validation, user);
-        }
     }
 
     public static void updateValidationStatus(DataValidation validation, User user)

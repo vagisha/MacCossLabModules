@@ -2,7 +2,6 @@ package org.labkey.panoramapublic.query;
 
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.data.Container;
-import org.labkey.api.data.DbScope;
 import org.labkey.api.data.SQLFragment;
 import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.data.SqlSelector;
@@ -13,7 +12,6 @@ import org.labkey.api.security.User;
 import org.labkey.api.targetedms.ISpectrumLibrary;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.panoramapublic.PanoramaPublicManager;
-import org.labkey.panoramapublic.PanoramaPublicSchema;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.model.speclib.SpecLibInfo;
 import org.labkey.panoramapublic.model.speclib.SpectralLibrary;
@@ -81,23 +79,18 @@ public class SpecLibInfoManager
         return libraries.stream().filter(Objects::nonNull).map(SpectralLibrary::new).collect(Collectors.toList());
     }
 
-    public static void deleteSpecLibInfo(int specLibInfoId, Container container, User user)
+    public static void deleteSpecLibInfo(int specLibInfoId, Container container)
     {
         ExperimentAnnotations experimentAnnotations = ExperimentAnnotationsManager.getExperimentInContainer(container);
         SpecLibInfo specLibInfo = get(specLibInfoId);
-        deleteSpecLibInfo(specLibInfo, experimentAnnotations, user);
+        deleteSpecLibInfo(specLibInfo, experimentAnnotations);
     }
 
-    public static void deleteSpecLibInfo(SpecLibInfo specLibInfo, ExperimentAnnotations expAnnotations, User user)
+    public static void deleteSpecLibInfo(SpecLibInfo specLibInfo, ExperimentAnnotations expAnnotations)
     {
         if (specLibInfo != null && expAnnotations != null && specLibInfo.getExperimentAnnotationsId() == expAnnotations.getId())
         {
-            try (DbScope.Transaction transaction = PanoramaPublicSchema.getSchema().getScope().ensureTransaction())
-            {
-                Table.delete(PanoramaPublicManager.getTableInfoSpecLibInfo(), specLibInfo.getId());
-                DataValidationManager.removeSpecLibInfo(expAnnotations, specLibInfo, user);
-                transaction.commit();
-            }
+           Table.delete(PanoramaPublicManager.getTableInfoSpecLibInfo(), specLibInfo.getId());
         }
     }
 }
