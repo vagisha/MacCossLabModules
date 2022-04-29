@@ -315,25 +315,31 @@
                     'You can view the validation details below.';
         }
 
-        function getIncompleteDataHtml(json) {
-            return 'The data can be assigned a ProteomeXchange ID but it is not valid for a "complete" ProteomeXchange submission. ' +
+        function getIncompleteDataHtml(json, validationOutdated) {
+            let message = 'The data can be assigned a ProteomeXchange ID but it is not valid for a "complete" ProteomeXchange submission. ' +
                     problemSummary(json) +
-                    'You can view the validation details in the tables below. ' +
-                    'For a "complete" submission try submitting after fixing the problems reported. ' +
-                    'Otherwise, you can continue with an incomplete submission.';
+                    'You can view the validation details in the tables below. ';
+            if (!validationOutdated) {
+                message += 'For a "complete" submission try submitting after fixing the problems reported. ' +
+                        'Otherwise, you can continue with an incomplete submission.';
+            }
+            return message;
         }
 
-        function getStatusInvalidHtml(json) {
-            return 'The data cannot be assigned a ProteomeXchange ID. ' +
+        function getStatusInvalidHtml(json, validationOutdated) {
+            let message = 'The data cannot be assigned a ProteomeXchange ID. ' +
                     problemSummary(json) +
-                    'You can view the validation details in the tables below. ' +
-                    'Try submitting the data after fixing the problems reported. ' +
-                    'Otherwise, you can submit the data without a ProteomeXchange ID.';
+                    'You can view the validation details in the tables below. ';
+            if (!validationOutdated) {
+                message += 'Try submitting the data after fixing the problems reported. ' +
+                        'Otherwise, you can submit the data without a ProteomeXchange ID.';
+            }
+            return message;
         }
 
-        function getStatusDetails(statusId, json) {
+        function getStatusDetails(statusId, json, validationOutdated) {
             var html =  statusId === PX_COMPLETE ? getStatusValidHtml(json)
-                        : statusId === PX_INCOMPLETE ? getIncompleteDataHtml(json) : getStatusInvalidHtml(json);
+                        : statusId === PX_INCOMPLETE ? getIncompleteDataHtml(json, validationOutdated) : getStatusInvalidHtml(json, validationOutdated);
             return '<div>' + html + '</div>';
         }
 
@@ -363,11 +369,12 @@
 
             const validationJson = json["validation"];
             const statusId = validationJson["statusId"];
+            const outdated = json['validationOutdated'] === true;
 
-            var components = [{xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(statusId, validationJson)}];
+            var components = [{xtype: 'component', margin: '0 0 5 0', html: getStatusDetails(statusId, validationJson, outdated)}];
             if (forSubmit === true)
             {
-                if (!json['validationOutdated']) {
+                if (!outdated) {
                     components.push({
                         xtype: 'button',
                         text: getButtonText(statusId),
@@ -377,17 +384,21 @@
                     });
                 }
                 else {
-                    components.push({
+                    components.unshift({
+                        xtype: 'component',
+                        margin: '0 0 0 10',
+                        autoEl: {
+                            tag: 'a',
+                            cls: 'labkey-text-link',
+                            href: LABKEY.ActionURL.buildURL('panoramapublic', 'viewPxValidations', LABKEY.ActionURL.getContainer(), {id: validationJson["experimentAnnotationsId"]}),
+                            hrefTarget: '_self',
+                            html: '[View All Validation Jobs]'
+                        }
+                    });
+                    components.unshift({
                         xtype: 'label',
                         cls: 'pxv-outdated-validation labkey-error',
                         text: 'This validation job is outdated.'
-                    });
-                    components.push({
-                        xtype: 'button',
-                        text: 'View All Validation Jobs',
-                        margin: '0 0 0 10',
-                        href: LABKEY.ActionURL.buildURL('panoramapublic', 'viewPxValidations', LABKEY.ActionURL.getContainer(), {id: validationJson["experimentAnnotationsId"]}),
-                        hrefTarget: '_self'
                     });
                 }
             }
