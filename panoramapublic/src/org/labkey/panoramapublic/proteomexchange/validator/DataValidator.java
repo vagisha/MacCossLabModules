@@ -134,18 +134,27 @@ public class DataValidator
                 {
                     var modInfo = ModType.Isotopic == mod.getModType() ? ModificationInfoManager.getIsotopeModInfo(mod.getDbModId(), _expAnnotations.getId())
                             : ModificationInfoManager.getStructuralModInfo(mod.getDbModId(), _expAnnotations.getId());
+
                     if (UnimodUtil.isWildcardModification(pxMod))
                     {
+                        // Always recalculate matches for a wild card modification as the Skyline documents in the folder (and the modified sites) may have changed
                         modInfo = saveModInfoForWildCardSkylineMod(pxMod, (ExperimentIsotopeModInfo) modInfo, _expAnnotations, runs, user);
+                        if (modInfo != null)
+                        {
+                            mod.setInferred(true);
+                        }
                     }
                     else if (modInfo == null)
                     {
                         modInfo = saveModInfoIfHardcodedSkylineMod(pxMod, _expAnnotations, user);
+                        if (modInfo != null)
+                        {
+                            mod.setInferred(true);
+                        }
                     }
                     if (modInfo != null)
                     {
                         mod.setModInfoId(modInfo.getId());
-                        mod.setInferred(true);
                     }
                 }
 

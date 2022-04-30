@@ -48,7 +48,6 @@ import org.labkey.panoramapublic.proteomexchange.validator.ValidatorStatus;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -134,7 +133,7 @@ public class DataValidationManager
         // Validation is outdated if any modifications were assigned a Unimod Id after the validation create date
         // OR there are any modInfoIds in the ModificationValidation table that are no longer in the ExperimentStructuralModInfo
         // or ExperimentIsotopeModInfo tables.
-        if (hasNewerModInfos(expAnnotations.getId(), validation.getCreated())
+        if (hasNewerModInfos(expAnnotations.getId(), validation)
                 || hasDeletedModInfos(validation.getId(), expAnnotations.getId()))
         {
             return true;
@@ -144,30 +143,48 @@ public class DataValidationManager
         // the validation date OR if an existing row in the table was modified after the data validation job was started.
         // It is also outdated if there are any specLibInfoIds in the SpecLibValidation table that are no longer in the
         // SpecLibInfo table, i.e. a spectral library information row was deleted after the validation job was started.
-        return hasNewerSpecLibInfos(expAnnotations.getId(), validation.getCreated())
+        return hasNewerSpecLibInfos(expAnnotations.getId(), validation)
                 || hasDeletedSpecLibInfos(validation.getId(), expAnnotations.getId());
     }
 
-    private static boolean hasNewerModInfos(int expAnnotationsId, Date createDate)
+    private static boolean hasNewerModInfos(int expAnnotationsId, DataValidation validation)
     {
-        SimpleFilter filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), expAnnotationsId);
-        filter.addCondition(FieldKey.fromParts("Created"), createDate, CompareType.GTE);
-        if (new TableSelector(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), filter, null).getRowCount() > 0)
+        SimpleFilter filter = new SimpleFilter().addCondition(FieldKey.fromParts("ExperimentAnnotationsId"), expAnnotationsId);
+        filter.addCondition(FieldKey.fromParts("Created"), validation.getCreated(), CompareType.GT);
+        if (new TableSelector(PanoramaPublicManager.getTableInfoExperimentStructuralModInfo(), filter, null).exists())
         {
-            return false;
+            return true;
         }
-        return new TableSelector(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), filter, null).getRowCount() > 0;
+        return hasNewerIsotopeMods(expAnnotationsId, validation);
+    }
+
+    private static boolean hasNewerIsotopeMods(int expAnnotationsId, DataValidation validation)
+    {
+        SimpleFilter modInfoFilter = new SimpleFilter().addCondition(FieldKey.fromParts("ExperimentAnnotationsId"), expAnnotationsId);
+        modInfoFilter.addCondition(FieldKey.fromParts("Created"), validation.getCreated(), CompareType.GT);
+        List<Integer> newMods = new TableSelector(PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo(), Collections.singleton("Id"), modInfoFilter, null).getArrayList(Integer.class);
+
+        if (newMods.size() > 0)
+        {
+            // Get the modInfos that were calculated during data validation, and remove them since their create date will be later than the create date on the data validation row
+            SimpleFilter inferredModsFilter = new SimpleFilter().addCondition(FieldKey.fromParts("ValidationId"), validation.getId());
+            inferredModsFilter.addCondition(FieldKey.fromParts("ModType"), Isotopic.ordinal());
+            inferredModsFilter.addCondition(FieldKey.fromParts("Inferred"), true);
+            List<Integer> inferredMods = new TableSelector(PanoramaPublicManager.getTableInfoModificationValidation(), Collections.singleton("ModInfoId"), inferredModsFilter, null).getArrayList(Integer.class);
+            newMods.removeAll(inferredMods);
+        }
+        return newMods.size() > 0;
     }
 
     private static boolean hasDeletedModInfos(int validationId, int expAnnotationsId)
     {
         return new SqlSelector(PanoramaPublicManager.getSchema(),
                 getDeletedModInfoSql(validationId, expAnnotationsId, Structural, PanoramaPublicManager.getTableInfoExperimentStructuralModInfo()))
-                .getRowCount() > 0
+                .exists()
                 ||
                 new SqlSelector(PanoramaPublicManager.getSchema(),
-                        getDeletedModInfoSql(validationId, expAnnotationsId, Isotopic, PanoramaPublicManager.getTableInfoExperimentStructuralModInfo()))
-                        .getRowCount() > 0;
+                        getDeletedModInfoSql(validationId, expAnnotationsId, Isotopic, PanoramaPublicManager.getTableInfoExperimentIsotopeModInfo()))
+                        .exists();
     }
 
     private static SQLFragment getDeletedModInfoSql(int validationId, int expAnnotationsId, Modification.ModType modType, TableInfo modInfoTableInfo)
@@ -176,6 +193,7 @@ public class DataValidationManager
                 .append(PanoramaPublicManager.getTableInfoModificationValidation(), "mv")
                 .append(" WHERE mv.validationId = ? ").add(validationId)
                 .append(" AND mv.modType = ? ").add(modType.ordinal())
+                .append(" AND mv.modInfoId IS NOT NULL ")
                 .append(" AND mv.modInfoId NOT IN ")
                 .append(" (SELECT Id FROM ")
                 .append(modInfoTableInfo, "mi")
@@ -183,11 +201,11 @@ public class DataValidationManager
                 .append(" ) ");
     }
 
-    private static boolean hasNewerSpecLibInfos(int expAnnotationsId, Date createDate)
+    private static boolean hasNewerSpecLibInfos(int expAnnotationsId, DataValidation validation)
     {
         SimpleFilter filter = new SimpleFilter().addCondition(FieldKey.fromParts("experimentAnnotationsId"), expAnnotationsId);
-        filter.addCondition(FieldKey.fromParts("Modified"), createDate, CompareType.GTE);
-        return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibInfo(), filter, null).getRowCount() > 0;
+        filter.addCondition(FieldKey.fromParts("Modified"), validation.getCreated(), CompareType.GT);
+        return new TableSelector(PanoramaPublicManager.getTableInfoSpecLibInfo(), filter, null).exists();
     }
 
     private static boolean hasDeletedSpecLibInfos(int validationId, int expAnnotationsId)
@@ -195,12 +213,13 @@ public class DataValidationManager
         SQLFragment sql = new SQLFragment("SELECT specLibInfoId FROM ")
                 .append(PanoramaPublicManager.getTableInfoSpecLibValidation(), "sv")
                 .append(" WHERE sv.validationId = ? ").add(validationId)
+                .append(" AND sv.specLibInfoId IS NOT NULL ")
                 .append(" AND sv.specLibInfoId NOT IN ")
                 .append(" (SELECT Id FROM ")
                 .append(PanoramaPublicManager.getTableInfoSpecLibInfo(), "li")
                 .append(" WHERE li.experimentAnnotationsId = ? ").add(expAnnotationsId)
                 .append(" )");
-        return new SqlSelector(PanoramaPublicManager.getSchema(), sql).getRowCount() > 0;
+        return new SqlSelector(PanoramaPublicManager.getSchema(), sql).exists();
     }
 
     public static boolean isLatestValidation(@NotNull DataValidation validation, @NotNull Container container)
