@@ -97,6 +97,7 @@ public class PanoramaPublicModule extends SpringModule
     {
         addController(PanoramaPublicController.NAME, PanoramaPublicController.class);
         PanoramaPublicSchema.register(this);
+        // AttachmentService.get().registerAttachmentType(FileSystemAttachmentType.get());
     }
 
     @Override

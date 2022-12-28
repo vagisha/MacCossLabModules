@@ -81,7 +81,7 @@ public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
             // If we don't add these here then the lookups in the schema browser will show null schema values: e.g. null.ExperimentAnnotations.Id
             // See Issue 40229: targetedms lookups target DB schema TableInfo instead of UserSchema version
             ForeignKey fk = columnInfo.getFk();
-            if (fk != null && PanoramaPublicSchema.SCHEMA_NAME.equalsIgnoreCase(fk.getLookupSchemaName()))
+            if (fk != null && PanoramaPublicSchema.SCHEMA_NAME.equalsIgnoreCase(fk.getLookupSchemaKey().toString()))
             {
                 columnInfo.setFk(new QueryForeignKey(getUserSchema(), getContainerFilter(), getUserSchema(), null,
                         fk.getLookupTableName(), fk.getLookupColumnName(), fk.getLookupDisplayName()));
@@ -93,10 +93,20 @@ public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
                 {
                     columnInfo.setFk(new ContainerForeignKey(getUserSchema()));
                 }
-                if ("CreatedBy".equalsIgnoreCase(columnInfo.getName()) || "ModifiedBy".equalsIgnoreCase(columnInfo.getName()))
+                else if ("CreatedBy".equalsIgnoreCase(columnInfo.getName()) || "ModifiedBy".equalsIgnoreCase(columnInfo.getName()))
                 {
                     columnInfo.setFk(new UserIdQueryForeignKey(getUserSchema(), true));
                 }
+/*
+                else if ("ShortUrl".equalsIgnoreCase(columnInfo.getName()))
+                {
+                    // QueryService.get().getUserSchema(_user, _currentContainer, "core")
+                    columnInfo.setFk(new QueryForeignKey(getUserSchema(), getContainerFilter(),
+                            QueryService.get().getUserSchema(getUserSchema().getUser(), getUserSchema().getContainer(), "core"), null,
+                            // CoreSchema.getInstance().getTableInfoShortURL().getUserSchema(), null,
+                            fk.getLookupTableName(), fk.getLookupColumnName(), fk.getLookupDisplayName()));
+                }
+*/
             }
         }
     }
