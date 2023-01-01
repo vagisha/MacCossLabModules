@@ -25,6 +25,10 @@ import java.util.List;
 
 public class CatalogEntryManager
 {
+    public static CatalogEntry getEntry(int catalogEntryId)
+    {
+        return new TableSelector(PanoramaPublicManager.getTableInfoCatalogEntry(),null, null).getObject(catalogEntryId, CatalogEntry.class);
+    }
     public static void save(CatalogEntry entry, User user)
     {
         Table.insert(user, PanoramaPublicManager.getTableInfoCatalogEntry(), entry);
@@ -35,20 +39,20 @@ public class CatalogEntryManager
         Table.update(user, PanoramaPublicManager.getTableInfoCatalogEntry(), entry, entry.getId());
     }
 
-    public static void saveEntry(@NotNull CatalogEntry entry, @NotNull ExperimentAnnotations expAnnotations,
-                                 @NotNull MultipartFile imageFile, User user) throws IOException
+    public static void saveEntry(@NotNull CatalogEntry entry, @NotNull MultipartFile imageFile,
+                                 @NotNull ExperimentAnnotations expAnnotations, User user) throws IOException
     {
         try(DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
             save(entry, user);
 
-            saveImageAttachment(expAnnotations, imageFile, user);
+            saveImageAttachment(imageFile, expAnnotations, user);
 
             transaction.commit();
         }
     }
 
-    private static void saveImageAttachment(@NotNull ExperimentAnnotations expAnnotations, @NotNull MultipartFile imageFile, User user) throws IOException
+    private static void saveImageAttachment(@NotNull MultipartFile imageFile, @NotNull ExperimentAnnotations expAnnotations, User user) throws IOException
     {
         AttachmentParent ap = new CatalogImageAttachmentParent(expAnnotations.getShortUrl(), expAnnotations);
         AttachmentService svc = AttachmentService.get();
@@ -68,7 +72,7 @@ public class CatalogEntryManager
             if (imageFile != null)
             {
                 // Save the new image file if one was uploaded.
-                saveImageAttachment(expAnnotations, imageFile, user);
+                saveImageAttachment(imageFile, expAnnotations, user);
             }
 
             transaction.commit();

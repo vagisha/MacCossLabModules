@@ -43,7 +43,7 @@ public class ContainerJoin
 
     public ContainerJoin(@NotNull String joinCol, @NotNull TableInfo joinTable, @NotNull String joinTableCol)
     {
-        this(List.of(new InnerJoinClause(null, joinCol, joinTable, JOIN_TABLE_ALIAS_PREFIX + "1", joinTableCol)));
+        this(List.of(new InnerJoinClause(joinCol, joinTable, JOIN_TABLE_ALIAS_PREFIX + "1", joinTableCol)));
     }
 
     // Example:
@@ -60,7 +60,7 @@ public class ContainerJoin
     {
         List<InnerJoinClause> newJoinList = new ArrayList<>();
         int aliasIndex = 1;
-        newJoinList.add(new InnerJoinClause(null, joinCol, table, JOIN_TABLE_ALIAS_PREFIX + aliasIndex, joinTableCol));
+        newJoinList.add(new InnerJoinClause(joinCol, table, JOIN_TABLE_ALIAS_PREFIX + aliasIndex, joinTableCol));
         for (InnerJoinClause join: _joinList)
         {
             newJoinList.add(new InnerJoinClause(JOIN_TABLE_ALIAS_PREFIX + aliasIndex++, join.getJoinCol(),
@@ -110,6 +110,11 @@ public class ContainerJoin
         private final TableInfo _joinTable;
         private final String _joinTableAlias;
         private final String _joinTableCol;
+
+        public InnerJoinClause(@NotNull String joinCol, @NotNull TableInfo joinTable, @NotNull String joinTableAlias, @NotNull String joinTableCol)
+        {
+            this(PanoramaPublicTable.TABLE_ALIAS, joinCol, joinTable, joinTableAlias, joinTableCol);
+        }
 
         public InnerJoinClause(@Nullable String tableAlias, @NotNull String joinCol, @NotNull TableInfo joinTable, @NotNull String joinTableAlias, @NotNull String joinTableCol)
         {

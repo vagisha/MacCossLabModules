@@ -19,6 +19,8 @@ public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
     private final FieldKey _containerFieldKey;
     private final boolean _noContainerFilter;
 
+    public static final String TABLE_ALIAS = "X";
+
     public PanoramaPublicTable(TableInfo table, PanoramaPublicSchema schema, ContainerFilter cf, @NotNull ContainerJoin joinType)
     {
         this(table, schema, cf, joinType, false);
@@ -51,8 +53,8 @@ public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
     @NotNull
     public SQLFragment getFromSQL(String alias)
     {
-        SQLFragment sql = new SQLFragment("(SELECT X.* FROM ");
-        sql.append(super.getFromSQL("X"));
+        SQLFragment sql = new SQLFragment("(SELECT " + TABLE_ALIAS + ".* FROM ");
+        sql.append(super.getFromSQL(TABLE_ALIAS));
         sql.append(" ");
 
         if (getContainerFilter() != ContainerFilter.EVERYTHING)

@@ -63,11 +63,7 @@
             },
             items: [
                 { xtype: 'hidden', name: 'X-LABKEY-CSRF', value: LABKEY.CSRF },
-                {
-                    xtype:'hidden',
-                    name: 'id',
-                    value: <%=form.getId()%>
-                },
+                { xtype: 'hidden', name: 'returnUrl', value: getReturnUrl() },
                 {
                     xtype: 'textarea',
                     fieldLabel: 'Description',
@@ -81,8 +77,9 @@
                     fieldLabel: 'Image',
                     width: 650,
                     buttonText: 'Browse',
+                    value: <%=q(form.getImageFile())%>,
                     msgTarget: 'side',
-                    afterBodyEl: attachmentHtml,
+                    afterBodyEl: attachmentHtml
                 }
             ],
             buttonAlign: 'left',
@@ -93,7 +90,7 @@
                     handler: function() {
                         var values = form.getForm().getValues();
                         form.submit({
-                            url: <%=q(urlFor(PanoramaPublicController.AddCatalogEntryAction.class))%>,
+                            url: <%=q(getActionURL())%>,
                             method: 'POST',
                             params: values
                         });
@@ -108,5 +105,11 @@
                 }
             ]
         });
+
+        function getReturnUrl()
+        {
+            var returnUrl = LABKEY.ActionURL.getReturnUrl();
+            return (returnUrl === undefined ? "" : returnUrl);
+        }
     });
 </script>

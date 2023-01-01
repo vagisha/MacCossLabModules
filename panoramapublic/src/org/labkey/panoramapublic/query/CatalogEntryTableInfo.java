@@ -22,12 +22,13 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class CatalogEntryTableInfo extends PanoramaPublicTable
 {
     public CatalogEntryTableInfo(@NotNull PanoramaPublicSchema userSchema, ContainerFilter cf)
     {
-        super(PanoramaPublicManager.getTableInfoDataValidation(), userSchema, cf, ContainerJoin.ShortUrlJoin);
+        super(PanoramaPublicManager.getTableInfoCatalogEntry(), userSchema, cf, ContainerJoin.ShortUrlJoin);
 
         var accessUrlCol = wrapColumn("ShortURL", getRealTable().getColumn("ShortUrlEntityId"));
         accessUrlCol.setDisplayColumnFactory(new ShortUrlDisplayColumnFactory(FieldKey.fromParts("ShortUrl")));
@@ -50,28 +51,23 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
         });
         addColumn(experimentTitleCol);
 
-        var imageFileNameCol = wrapColumn("ImageFile", getRealTable().getColumn("ShortUrlEntityId"));
-        experimentTitleCol.setDisplayColumnFactory(colInfo -> new DataColumn(colInfo)
+        var imageFileNameCol = wrapColumn("ImageFile", getRealTable().getColumn("ImageFileName"));
+        imageFileNameCol.setDisplayColumnFactory(colInfo -> new DataColumn(colInfo)
         {
             private ActionURL _downloadLink;
 
             @Override
             public Object getValue(RenderContext ctx)
             {
-                ShortURLRecord shortUrl = ctx.get(getColumnInfo().getFieldKey(), ShortURLRecord.class);
+                String fileName = ctx.get(getColumnInfo().getFieldKey(), String.class);
+                ShortURLRecord shortUrl = ctx.get(FieldKey.fromParts("ShortUrlEntityId"), ShortURLRecord.class);
                 ExperimentAnnotations expAnnotations = shortUrl != null ? ExperimentAnnotationsManager.getExperimentForShortUrl(shortUrl) : null;
                 if (expAnnotations != null)
                 {
                     AttachmentParent ap = new CatalogImageAttachmentParent(shortUrl, expAnnotations);
                     AttachmentService svc = AttachmentService.get();
-                    List<Attachment> attachments = svc.getAttachments(ap);
-                    // There should be only one
-                    if (attachments.size() > 0)
-                    {
-                        String fileName = attachments.get(0).getName();
-                        _downloadLink = PanoramaPublicController.getCatalogImageDownloadURL(expAnnotations, fileName);
-                        return fileName;
-                    }
+                    _downloadLink = PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, fileName);
+                    return fileName;
                 }
                 return null;
             }
@@ -85,10 +81,18 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
 
                     out.write(fileName);
                     out.write(PageFlowUtil.iconLink("fa fa-download", null).href(_downloadLink).style("margin-left:10px;").toString());
+                    return;
 //                    out.write("&nbsp;");)
 //                    SPAN(fileName, new Link.LinkBuilder().href(_downloadLink).addClass("fa fa-download")LINK(at(style, "padding:5px;"), DOM.LK.FA("download"))
                 }
                 super.renderGridCellContents(ctx, out);
+            }
+
+            @Override
+            public void addQueryFieldKeys(Set<FieldKey> keys)
+            {
+                super.addQueryFieldKeys(keys);
+                keys.add(FieldKey.fromParts("ShortUrlEntityId"));
             }
         });
         addColumn(imageFileNameCol);
