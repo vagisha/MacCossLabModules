@@ -8,19 +8,19 @@ import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 
 public class CatalogEntry extends DbEntity
 {
-    private ShortURLRecord _shortUrlEntityId;
+    private ShortURLRecord _shortUrl;
     private String _imageFileName;
     private String _description;
     private Boolean _approved;
 
-    public ShortURLRecord getShortUrlEntityId()
+    public ShortURLRecord getShortUrl()
     {
-        return _shortUrlEntityId;
+        return _shortUrl;
     }
 
-    public void setShortUrlEntityId(ShortURLRecord shortUrlEntityId)
+    public void setShortUrl(ShortURLRecord shortUrl)
     {
-        _shortUrlEntityId = shortUrlEntityId;
+        _shortUrl = shortUrl;
     }
 
     public String getImageFileName()
@@ -43,7 +43,7 @@ public class CatalogEntry extends DbEntity
         _description = description;
     }
 
-    public Boolean isApproved()
+    public Boolean getApproved()
     {
         return _approved;
     }
@@ -55,11 +55,11 @@ public class CatalogEntry extends DbEntity
 
     public Attachment getAtachment()
     {
-        if (_shortUrlEntityId != null && _imageFileName != null)
+        if (_shortUrl != null && _imageFileName != null)
         {
-            ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getExperimentForShortUrl(_shortUrlEntityId);
+            ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getExperimentForShortUrl(_shortUrl);
             return expAnnotations != null
-                    ? AttachmentService.get().getAttachment(new CatalogImageAttachmentParent(_shortUrlEntityId, expAnnotations), _imageFileName)
+                    ? AttachmentService.get().getAttachment(new CatalogImageAttachmentParent(_shortUrl, expAnnotations), _imageFileName)
                     : null;
         }
         return null;
@@ -68,5 +68,10 @@ public class CatalogEntry extends DbEntity
     public boolean isPendingApproval()
     {
         return _approved == null;
+    }
+
+    public static String getStatusText(Boolean status)
+    {
+        return status == null ? "Pending approval" : status ? "Approved" : "Rejected";
     }
 }

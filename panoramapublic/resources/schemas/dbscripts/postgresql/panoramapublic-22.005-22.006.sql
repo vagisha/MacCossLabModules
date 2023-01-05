@@ -23,16 +23,16 @@ CREATE TABLE panoramapublic.CatalogEntry
     ModifiedBy        USERID,
     Modified          TIMESTAMP,
 
-    ShortUrlEntityId  ENTITYID NOT NULL,
+    ShortUrl          ENTITYID NOT NULL,
     ImageFileName     VARCHAR(300) NOT NULL,
     Description       TEXT NOT NULL,
     Approved          BOOLEAN,
 
     CONSTRAINT PK_CatalogEntry PRIMARY KEY (Id),
 
-    CONSTRAINT FK_CatalogEntry_ShortUrl FOREIGN KEY (ShortUrlEntityId) REFERENCES core.shorturl (entityId),
+    CONSTRAINT FK_CatalogEntry_ShortUrl FOREIGN KEY (ShortUrl) REFERENCES core.shorturl (entityId),
 
-    CONSTRAINT UQ_CatalogEntry_ShortUrl UNIQUE (ShortUrlEntityId)
+    CONSTRAINT UQ_CatalogEntry_ShortUrl UNIQUE (ShortUrl)
 );
-CREATE INDEX IX_CatalogEntry_ShortUrl ON panoramapublic.CatalogEntry(ShortUrlEntityId);
+CREATE INDEX IX_CatalogEntry_ShortUrl ON panoramapublic.CatalogEntry(ShortUrl);
 

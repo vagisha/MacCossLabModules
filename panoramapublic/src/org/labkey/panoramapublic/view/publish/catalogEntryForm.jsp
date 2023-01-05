@@ -69,7 +69,9 @@
                     fieldLabel: 'Description',
                     name: 'datasetDescription',
                     width: 650,
-                    value: <%=q(form.getDatasetDescription())%>
+                    value: <%=q(form.getDatasetDescription())%>,
+                    msgTarget: 'side',
+                    afterBodyEl: 'Maximum <b>75</b> words'
                 },
                 {
                     xtype: 'filefield',
@@ -79,7 +81,7 @@
                     buttonText: 'Browse',
                     value: <%=q(form.getImageFile())%>,
                     msgTarget: 'side',
-                    afterBodyEl: attachmentHtml
+                    afterBodyEl: 'Image should be <b>600 x 400</b> pixels for best results. Maximum attachment size: <b>5MB</b>'
                 }
             ],
             buttonAlign: 'left',
@@ -95,7 +97,7 @@
                             params: values
                         });
                     },
-                    margin: '20 10 0 10'
+                    margin: '30 10 0 0'
                 },
                 {
                     text: 'Cancel',

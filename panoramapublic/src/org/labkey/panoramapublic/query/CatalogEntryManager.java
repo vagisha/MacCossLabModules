@@ -84,7 +84,7 @@ public class CatalogEntryManager
         if (record != null)
         {
             SimpleFilter filter = new SimpleFilter();
-            filter.addCondition(FieldKey.fromParts("ShortUrlEntityId"), record.getEntityId());
+            filter.addCondition(FieldKey.fromParts("ShortUrl"), record.getEntityId());
             return new TableSelector(PanoramaPublicManager.getTableInfoCatalogEntry(), filter, null).getObject(CatalogEntry.class);
         }
         return null;
@@ -125,5 +125,12 @@ public class CatalogEntryManager
             AttachmentParent ap = new CatalogImageAttachmentParent(targetExperiment.getShortUrl(), previousCopy);
             svc.moveAttachments(targetExperiment.getContainer(), List.of(ap), user);
         }
+    }
+
+    public static List<CatalogEntry> getEntries(boolean approvedOnly)
+    {
+        return new TableSelector(PanoramaPublicManager.getTableInfoCatalogEntry(),
+                approvedOnly ? new SimpleFilter(FieldKey.fromParts("Approved"), true) : null,
+                null).getArrayList(CatalogEntry.class);
     }
 }

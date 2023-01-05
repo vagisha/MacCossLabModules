@@ -17,7 +17,10 @@ import org.labkey.panoramapublic.security.PanoramaPublicSubmitterPermission;
 
 import java.util.Set;
 
+import static org.labkey.api.util.DOM.Attribute.height;
 import static org.labkey.api.util.DOM.Attribute.src;
+import static org.labkey.api.util.DOM.Attribute.style;
+import static org.labkey.api.util.DOM.Attribute.width;
 import static org.labkey.api.util.DOM.B;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
@@ -47,20 +50,22 @@ public class CatalogEntryWebPart extends VBox
         }
         else
         {
-            Button changeApprovedStateBtn = null;
+            Button changeStatusBtn = null;
             if (user.hasSiteAdminPermission())
             {
-                String btnTxt = entry.isPendingApproval() || !entry.isApproved() ? "Approve" : "Reject";
-                changeApprovedStateBtn = new Button.ButtonBuilder(btnTxt).href(
-                        new ActionURL(PanoramaPublicController.EditCatalogEntryAction.class, container)
-                                .addParameter("id", expAnnotations.getId())
-                                .addReturnURL(getContextURLHelper())).build();
+                boolean approve = entry.isPendingApproval() || !entry.getApproved();
+                String btnTxt = approve ? "Approve" : "Reject";
+                changeStatusBtn = changeStatusButtonBuilder(entry.getApproved(), expAnnotations.getId(), entry.getId(), container)
+                        .style("margin-left: 10px")
+                        .build();
             }
             addView(new HtmlView(DIV(
-                    DIV(B("Approved: "), entry.isPendingApproval() ? "Pending approval" : entry.isApproved() ? "Yes" : "No",
-                            changeApprovedStateBtn == null ? "" : changeApprovedStateBtn),
+                    DIV(B(at(style, "margin-right:5px"), U("Status: ")), CatalogEntry.getStatusText(entry.getApproved()),
+                            changeStatusBtn == null ? "" : changeStatusBtn),
+                    DIV(B(at(style, "margin-right:5px"), U("Title:")), expAnnotations.getTitle()),
                     DIV(B(U("Description:")), BR(), entry.getDescription()),
-                    IMG(at(src, PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, entry.getImageFileName()))),
+                    IMG(at(src, PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, entry.getImageFileName()))
+                            .at(width, 600).at(height, 400)),
                     BR(), BR(),
                     new Button.ButtonBuilder("Edit").href(
                             new ActionURL(PanoramaPublicController.EditCatalogEntryAction.class, container)
@@ -71,38 +76,9 @@ public class CatalogEntryWebPart extends VBox
                                     new ActionURL(PanoramaPublicController.DeleteCatalogEntryAction.class, container)
                                             .addParameter("id", expAnnotations.getId())
                                             .addReturnURL(getContextURLHelper()))
-                            .usePost("Are you sure you want to delete the Panorama Public catalog slideshow entry for this experiment?")
+                            .usePost("Are you sure you want to delete the Panorama Public catalog entry for this experiment?")
             )));
         }
-
-//        else if(expAnnotations.getContainer().equals(container))
-//        {
-//            // There is already an experiment defined in this container.
-//            PanoramaPublicController.ExperimentAnnotationsDetails experimentDetails = new PanoramaPublicController.ExperimentAnnotationsDetails(getViewContext().getUser(), expAnnotations, fullDetails);
-//            JspView<PanoramaPublicController.ExperimentAnnotationsDetails> view = new JspView<>("/org/labkey/panoramapublic/view/expannotations/experimentDetails.jsp", experimentDetails);
-//            addView(view);
-//            ActionURL url = PanoramaPublicController.getViewExperimentDetailsURL(expAnnotations.getId(), container);
-//            setTitleHref(url);
-//            if (portalCtx.hasPermission(AdminOperationsPermission.class))
-//            {
-//                NavTree navTree = new NavTree();
-//                navTree.addChild("ProteomeXchange", new ActionURL(PanoramaPublicController.GetPxActionsAction.class, container).addParameter("id", expAnnotations.getId()));
-//                navTree.addChild("Data Validation", new ActionURL(PanoramaPublicController.ViewPxValidationsAction.class, container).addParameter("id", expAnnotations.getId()));
-//                navTree.addChild("DOI", new ActionURL(PanoramaPublicController.DoiOptionsAction.class, container).addParameter("id", expAnnotations.getId()));
-//                navTree.addChild("Make Data Public", new ActionURL(PanoramaPublicController.MakePublicAction.class, container).addParameter("id", expAnnotations.getId()));
-//
-//                if (expAnnotations.isJournalCopy())
-//                {
-//                    JournalSubmission submission = SubmissionManager.getSubmissionForJournalCopy(expAnnotations);
-//                    ExperimentAnnotations sourceExpt = submission != null ? ExperimentAnnotationsManager.get(submission.getExperimentAnnotationsId()) : null;
-//                    if (sourceExpt != null)
-//                    {
-//                        navTree.addChild("Source Experiment", PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(sourceExpt.getContainer()));
-//                    }
-//                }
-//                setNavMenu(navTree);
-//            }
-//        }
     }
 
     public static boolean canBeDisplayed(ExperimentAnnotations expAnnotations, User user)
@@ -110,5 +86,18 @@ public class CatalogEntryWebPart extends VBox
         return expAnnotations.isJournalCopy() // This is an experiment in the Panorama Public project
                 && expAnnotations.isPublic() // The folder is public
                 && expAnnotations.getContainer().hasOneOf(user, Set.of(AdminPermission.class, PanoramaPublicSubmitterPermission.class));
+    }
+
+    public static Button.ButtonBuilder changeStatusButtonBuilder(Boolean status, int expAnnotationsId, int catalogEntryId, Container container)
+    {
+        boolean approve = status == null || !status;
+        String btnTxt = approve ? "Approve" : "Reject";
+        return new Button.ButtonBuilder(btnTxt).href(
+                        new ActionURL(PanoramaPublicController.ChangeCatalogEntryStateAction.class, container)
+                                .addParameter("id", expAnnotationsId)
+                                .addParameter("catalogEntryId", catalogEntryId)
+                                .addParameter("approve", approve)
+                                .addReturnURL(getContextURLHelper()))
+                .usePost("Are you sure you want to " + btnTxt.toLowerCase() + " this catalog entry?");
     }
 }

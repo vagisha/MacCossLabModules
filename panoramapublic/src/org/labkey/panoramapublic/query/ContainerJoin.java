@@ -29,7 +29,7 @@ public class ContainerJoin
     public static final ContainerJoin ModificationJoin = DataValidationJoin.addJoin("ModificationValidationId", PanoramaPublicManager.getTableInfoModificationValidation());
 
     public static final ContainerJoin ShortUrlJoin = new ContainerJoin("EntityId", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "ShortUrl")
-            .addJoin("ShortUrlEntityId", CoreSchema.getInstance().getTableInfoShortURL(), "EntityId");
+            .addJoin("ShortUrl", CoreSchema.getInstance().getTableInfoShortURL(), "EntityId");
 
     private ContainerJoin(List<InnerJoinClause> joinList)
     {
