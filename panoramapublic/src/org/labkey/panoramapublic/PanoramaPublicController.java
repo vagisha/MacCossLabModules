@@ -21,6 +21,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.validator.routines.EmailValidator;
 import org.apache.commons.validator.routines.UrlValidator;
 import org.apache.logging.log4j.Logger;
+import org.apache.xerces.impl.dv.util.Base64;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.old.JSONObject;
@@ -37,9 +38,11 @@ import org.labkey.api.action.SimpleStreamAction;
 import org.labkey.api.action.SimpleViewAction;
 import org.labkey.api.action.SpringActionController;
 import org.labkey.api.attachments.Attachment;
+import org.labkey.api.attachments.AttachmentFile;
 import org.labkey.api.attachments.AttachmentForm;
 import org.labkey.api.attachments.AttachmentParent;
 import org.labkey.api.attachments.BaseDownloadAction;
+import org.labkey.api.attachments.ByteArrayAttachmentFile;
 import org.labkey.api.audit.AuditLogService;
 import org.labkey.api.audit.provider.GroupAuditProvider;
 import org.labkey.api.data.ActionButton;
@@ -196,10 +199,12 @@ import org.springframework.web.servlet.ModelAndView;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -8404,8 +8409,9 @@ public class PanoramaPublicController extends SpringActionController
         abstract CatalogEntryBean getViewBean(CatalogEntryForm form, ExperimentAnnotations expAnnotations, boolean reshow, BindException errors);
         abstract String getFormTitle();
         abstract CatalogEntry getCatalogEntry(ExperimentAnnotations expAnnotations, String description, String imageFileName, Errors errors);
-        abstract MultipartFile getValidatedImageFile(Errors errors);
-        abstract void saveEntry(CatalogEntry entry, MultipartFile imageFile, ExperimentAnnotations expAnnotations) throws IOException;
+        abstract AttachmentFile getValidatedImageFile(CatalogEntryForm form, Errors errors);
+        // abstract void saveEntry(CatalogEntry entry, MultipartFile imageFile, ExperimentAnnotations expAnnotations) throws IOException;
+        abstract void saveEntry(CatalogEntry entry, AttachmentFile imageFile, ExperimentAnnotations expAnnotations) throws IOException;
 
         @Override
         public ModelAndView getView(CatalogEntryForm form, boolean reshow, BindException errors)
@@ -8457,9 +8463,10 @@ public class PanoramaPublicController extends SpringActionController
                 errors.reject(ERROR_MSG, "Description must be " + WORD_LIMIT + " words or less.");
             }
 
-            MultipartFile imageFile = getValidatedImageFile(errors);
+            // MultipartFile imageFile = getValidatedImageFile(errors);
+            AttachmentFile imageFile = getValidatedImageFile(form, errors);
             CatalogEntry entry = getCatalogEntry(_expAnnot, form.getDatasetDescription(),
-                    imageFile != null ? imageFile.getOriginalFilename() : null, errors);
+                    imageFile != null ? form.getImageFileName()/*imageFile.getOriginalFilename()*/ : null, errors);
 
             if (errors.hasErrors())
             {
@@ -8477,30 +8484,44 @@ public class PanoramaPublicController extends SpringActionController
             return !errors.hasErrors();
         }
 
-        MultipartFile getValidatedImageFile(boolean required, Errors errors)
+        @Nullable AttachmentFile getValidatedImageFile(CatalogEntryForm form, boolean required, Errors errors)
         {
-            MultipartFile imageFile = getFileMap().get("imageFile");
-            boolean imageUploaded = imageFile != null && !imageFile.isEmpty() && imageFile.getSize() > 0;
+            // MultipartFile imageFile = getFileMap().get("imageFile"); // TODO: check map size if (map.size() > 1)
+            // boolean imageUploaded = imageFile != null && !imageFile.isEmpty() && imageFile.getSize() > 0;
+            boolean imageUploaded = !StringUtils.isBlank(form.getImageFile());
             if (required && !imageUploaded)
             {
                 errors.reject(ERROR_MSG, "Please upload an image file");
                 return null;
             }
-            if (imageUploaded && ! imageFile.getContentType().startsWith("image/"))
+            if (!imageUploaded)
             {
-                errors.reject(ERROR_MSG, imageFile.getOriginalFilename() + " does not appear to be an image file");
                 return null;
             }
+            String imageString = form.getImageFile();
+            String prefix = "data:image/png;base64,";
+            if (!imageString.startsWith(prefix))
+            {
+                errors.reject(ERROR_MSG, "Attached file does not appear to be an image");
+                return null;
+            }
+//            if (imageUploaded && ! imageFile.getContentType().startsWith("image/"))
+//            {
+//                errors.reject(ERROR_MSG, imageFile.getOriginalFilename() + " does not appear to be an image file");
+//                return null;
+//            }
+            imageString = imageString.substring(prefix.length());
+            byte[] decodedBytes = Base64.decode(imageString);
 
             int maxSize = Math.min(MAX_FILE_SIZE, AppProps.getInstance().getMaxBLOBSize());
-            if (imageFile.getSize() > maxSize)
+            if (decodedBytes.length > maxSize)
             {
                 errors.reject(ERROR_MSG, "File size cannot be more than " + MAX_FILE_SIZE_MB);
                 return null;
             }
-            try
+            try (InputStream is = new ByteArrayInputStream(decodedBytes))
             {
-                BufferedImage image = ImageIO.read(imageFile.getInputStream());
+                BufferedImage image = ImageIO.read(is);
                 int width = image.getWidth();
                 int height = image.getHeight();
                 if (width > 600 || height > 400)
@@ -8514,7 +8535,8 @@ public class PanoramaPublicController extends SpringActionController
                 errors.reject(ERROR_MSG, "Unable to read image file.");
                 return null;
             }
-            return imageUploaded ? imageFile : null;
+            return new ByteArrayAttachmentFile(form.getImageFileName(), decodedBytes, "image/png");
+            // return imageUploaded ? imageFile : null;
         }
 
         @Override
@@ -8561,9 +8583,9 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        MultipartFile getValidatedImageFile(Errors errors)
+        AttachmentFile getValidatedImageFile(CatalogEntryForm form, Errors errors)
         {
-            return getValidatedImageFile(true, errors);
+            return getValidatedImageFile(form, true, errors);
         }
 
         @Override
@@ -8582,7 +8604,7 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        void saveEntry(CatalogEntry entry, MultipartFile imageFile, ExperimentAnnotations expAnnotations) throws IOException
+        void saveEntry(CatalogEntry entry, AttachmentFile imageFile, ExperimentAnnotations expAnnotations) throws IOException
         {
             CatalogEntryManager.saveEntry(entry, imageFile, expAnnotations, getUser());
         }
@@ -8603,7 +8625,7 @@ public class PanoramaPublicController extends SpringActionController
             if (!reshow)
             {
                 form.setDatasetDescription(entry.getDescription());
-                form.setImageFile(entry.getImageFileName());
+                form.setImageFileName(entry.getImageFileName());
             }
             return new CatalogEntryBean(form, expAnnotations, entry);
         }
@@ -8615,9 +8637,9 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        MultipartFile getValidatedImageFile(Errors errors)
+        AttachmentFile getValidatedImageFile(CatalogEntryForm form, Errors errors)
         {
-            return getValidatedImageFile(false, errors);
+            return getValidatedImageFile(form, false, errors);
         }
 
         @Override
@@ -8641,7 +8663,7 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        void saveEntry(CatalogEntry entry, MultipartFile imageFile, ExperimentAnnotations expAnnotations) throws IOException
+        void saveEntry(CatalogEntry entry, AttachmentFile imageFile, ExperimentAnnotations expAnnotations) throws IOException
         {
             CatalogEntryManager.updateEntry(entry, expAnnotations, imageFile, getUser());
         }
@@ -8817,6 +8839,7 @@ public class PanoramaPublicController extends SpringActionController
     {
         private String _datasetDescription;
         private String _imageFile;
+        private String _imageFileName;
         private Boolean approved;
 
         public String getDatasetDescription()
@@ -8837,6 +8860,16 @@ public class PanoramaPublicController extends SpringActionController
         public void setImageFile(String imageFile)
         {
             _imageFile = imageFile;
+        }
+
+        public String getImageFileName()
+        {
+            return _imageFileName;
+        }
+
+        public void setImageFileName(String imageFileName)
+        {
+            _imageFileName = imageFileName;
         }
 
         public Boolean getApproved()

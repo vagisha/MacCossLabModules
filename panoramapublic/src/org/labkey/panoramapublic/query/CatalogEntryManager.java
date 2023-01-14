@@ -2,6 +2,7 @@ package org.labkey.panoramapublic.query;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.labkey.api.attachments.AttachmentFile;
 import org.labkey.api.attachments.AttachmentParent;
 import org.labkey.api.attachments.AttachmentService;
 import org.labkey.api.attachments.SpringAttachmentFile;
@@ -39,7 +40,7 @@ public class CatalogEntryManager
         Table.update(user, PanoramaPublicManager.getTableInfoCatalogEntry(), entry, entry.getId());
     }
 
-    public static void saveEntry(@NotNull CatalogEntry entry, @NotNull MultipartFile imageFile,
+    public static void saveEntry(@NotNull CatalogEntry entry, @NotNull AttachmentFile imageFile,
                                  @NotNull ExperimentAnnotations expAnnotations, User user) throws IOException
     {
         try(DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
@@ -62,8 +63,19 @@ public class CatalogEntryManager
                 user);
     }
 
+    private static void saveImageAttachment(@NotNull AttachmentFile imageFile, @NotNull ExperimentAnnotations expAnnotations, User user) throws IOException
+    {
+        AttachmentParent ap = new CatalogImageAttachmentParent(expAnnotations.getShortUrl(), expAnnotations);
+        AttachmentService svc = AttachmentService.get();
+        svc.deleteAttachments(ap); // If there is an existing attachment, delete it.
+        svc.addAttachments(ap, Collections.singletonList(imageFile), user);
+//        svc.addAttachments(ap,
+//                SpringAttachmentFile.createList(Collections.singletonMap(imageFile.getOriginalFilename(), imageFile)),
+//                user);
+    }
+
     public static void updateEntry(@NotNull CatalogEntry entry, @NotNull ExperimentAnnotations expAnnotations,
-                                   @Nullable MultipartFile imageFile, User user) throws IOException
+                                   @Nullable AttachmentFile imageFile, User user) throws IOException
     {
         try(DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
         {
