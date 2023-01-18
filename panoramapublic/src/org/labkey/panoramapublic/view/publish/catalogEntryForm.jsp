@@ -84,7 +84,7 @@
                             </canvas>
                         </div>
                     </div>
-                    <div id="result" style="margin-top:10px; padding:10px;"></div>
+                    <div id="preview" style="margin-top:10px; padding:10px;"></div>
                 </td>
             </tr>
         </table>
@@ -108,7 +108,6 @@
     /* Ensure the size of the image fit the container perfectly */
     .cropperBox img {
         display: block;
-
         /* This rule is very important, please don't ignore this */
         max-width: 100%;
     }
@@ -136,10 +135,10 @@
 
         const canvas  = $("#canvas");
         const context = canvas.get(0).getContext("2d");
-        const result = $('#result');
+        const preview = $('#preview');
         const maxFileSize = 5 * 1024 * 1024;
-        const minWidth = 600;
-        const minHeight = 400;
+        const preferredWidth = 600;
+        const preferredHeight = 400;
 
         $('#imageFileInput').on( 'change', function(){
 
@@ -168,7 +167,7 @@
                     cropper.destroy();
                     context.clearRect(0, 0, canvas.width, canvas.height);
                     $("#imageFileName").val("");
-                    result.empty();
+                    preview.empty();
                 }
                 const reader = new FileReader();
                 reader.onload = function(evt) {
@@ -178,75 +177,75 @@
 
                         let w = img.width;
                         let h = img.height;
-                        if (w < minWidth || h < minHeight)
+                        if (w < preferredWidth || h < preferredHeight)
                         {
-                            alert("Image must be at least 600 pixels in width and 400 pixels in height. Selected image dimensions are: "
-                                    + w + " x " + h);
+                            alert("Image must be at least 600 pixels in width and 400 pixels in height. Dimensions of the selected image are: "
+                                    + w + " x " + h + " pixels.");
                             return;
                         }
 
-                        $("#imageFileName").val(fileName);
-                        $("#cropperContainer").show();
-                        // $("#cropperDiv").dialog({
-                        //     modal: true,
-                        //     width: '100%'
-                        // });
+                        // If the image is too large, scale it down for display
+                        let scaleFactor = Math.min(900/img.width, 600/img.height);
+                        scaleFactor = Math.min(1, scaleFactor);
 
-                        // get the scale
-                        // it is the min of the 2 ratios
-                        let scale_factor = 1; // Math.min(900/img.width, 600/img.height);
-                        scale_factor = Math.min(1, scale_factor);
-
-                        // Lets get the new width and height based on the scale factor
-                        let newWidth = w * scale_factor;
-                        let newHeight = h * scale_factor;
-                        console.log("newWidth: " + newWidth);
-                        $("#cropperContainer").width(newWidth + 35);
+                        // Get the new width and height based on the scale factor
+                        let newWidth = w * scaleFactor;
+                        let newHeight = h * scaleFactor;
+                        $("#cropperContainer").width(newWidth + 30);
                         context.canvas.width  = newWidth;
                         context.canvas.height = newHeight;
 
                         // get the top left position of the image
                         // in order to center the image within the canvas
-                        let x = (canvas.width/2) - (newWidth/2);
-                        let y = (canvas.height/2) - (newHeight/2);
-
-                        // When drawing the image, we have to scale down the image
-                        // width and height in order to fit within the canvas
-                        //ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                        // let x = (canvas.width/2) - (newWidth/2);
+                        // let y = (canvas.height/2) - (newHeight/2);
 
                         console.log("Drawing on canvas: " +newWidth + " x " +newHeight);
                         context.drawImage(img, 0, 0, newWidth, newHeight);
+
+                        $("#imageFileName").val(fileName);
+                        $("#cropperContainer").show();
+
                         cropper = new Cropper(document.getElementById("canvas"), {
                             viewMode: 2,
                             dragMode: 'move',
                             aspectRatio: 3 / 2,
                             cropBoxResizable: true,
-                            zoomable: false,
+                            movable: false,
                             rotatable: false,
+                            scalable: false,
+                            zoomable: false,
+                            zoomOnTouch: false,
+                            zoomOnWheel: false,
+                            cropBoxMovable: true,
+                            cropBoxResizable: true,
+                            toggleDragModeOnDblclick: false,
+                            autoCrop: true,
+                            autoCropArea: 1, // If the image is already the preferred size (600 x 400) the crop-box should fit exactly
                             // minContainerWidth: w,
                             // minContainerHeight: h,
-                            //minCanvasWidth: img.width,
-                            //minCanvasHeight: img.height,
-                            minCropBoxWidth: 600,
-                            minCropBoxHeight: 400
+                            minCanvasWidth: newWidth,
+                            minCanvasHeight: newHeight,
+                            minCropBoxWidth: preferredWidth,
+                            minCropBoxHeight: preferredHeight
                         });
                         $('#btnCrop').click(function() {
-                            // croppedImageDataUrl = canvas.cropper('getCroppedCanvas', 600, 400,
                             croppedImageDataUrl = cropper.getCroppedCanvas(
-                                    {width:600, height:400, imageSmoothingQuality: 'high'})
+                                    {width:preferredWidth, height:preferredHeight, imageSmoothingQuality: 'high'})
                                     // https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toDataURL
                                     // https://stackoverflow.com/questions/56573339/using-cropper-js-image-quality-get-reduced-after-cropping
                                     .toDataURL("image/png", 1); // string base 64 data url
-                            result.append( $('<img>').attr('src', croppedImageDataUrl) );
-                            // console.log(croppedImageDataUrl);
+
+                            preview.append( $('<img>').attr('src', croppedImageDataUrl) );
                             $("#modifiedImage").val(croppedImageDataUrl);
+
                             cropper.destroy();
                             $("#cropperContainer").hide();
                         });
                         $('#btnRestore').click(function() {
                             // canvas.show();
                             cropper.reset();
-                            result.empty();
+                            preview.empty();
                         });
                     };
                     img.src = evt.target.result;
