@@ -8486,7 +8486,7 @@ public class PanoramaPublicController extends SpringActionController
 
         @Nullable AttachmentFile getValidatedImageFile(CatalogEntryForm form, boolean required, Errors errors)
         {
-            // MultipartFile imageFile = getFileMap().get("imageFile"); // TODO: check map size if (map.size() > 1)
+            MultipartFile imageFile = getFileMap().get("imageFile"); // TODO: check map size if (map.size() > 1)
             // boolean imageUploaded = imageFile != null && !imageFile.isEmpty() && imageFile.getSize() > 0;
             boolean imageUploaded = !StringUtils.isBlank(form.getImageFile());
             if (required && !imageUploaded)
