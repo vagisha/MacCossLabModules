@@ -63,7 +63,6 @@
     {
         color:red;
     }
-    /* http://jsfiddle.net/r77K8/1/ */
     #mask{
         position: absolute;
         top: 0;
@@ -74,7 +73,6 @@
         display: none;
         z-index: 10000;
     }
-
     #cropperContainer
     {
         position: absolute;
@@ -127,8 +125,9 @@
         <%=button("Cancel").href(cancelUrl)%>
     </form>
 </div>
+<!-- Example modal div: http://jsfiddle.net/r77K8/1/ -->
 <div id='mask'></div>
-<div id="cropperContainer" class="cropperBox">
+<div id="cropperContainer">
     <div id="cropperDiv">
         <canvas id="canvas">
             Your browser does not support the HTML5 canvas element.
@@ -136,33 +135,39 @@
     </div>
     <div style="margin-top:5px; text-align:center">
         Drag and resize the crop-box over the image, and click the "Crop" button to fit the slideshow dimensions.
-        <div>
-            <span style="margin-left:5px;">
-                <a class="labkey-button" id="btnCrop">Crop</a>
-            </span>
-            <span style="margin-left:5px;">
-                <a class="labkey-button" id="btnCancel">Cancel</a>
-            </span>
+        <div style="margin-top:5px;">
+            <a class="labkey-button" id="btnCrop">Crop</a>
+            <a class="labkey-button" style="margin-left:5px;" id="btnCancel">Cancel</a>
         </div>
     </div>
 </div>
 
 <script type="text/javascript">
 
+    let cropper;
+    let croppedImageDataUrl;
+    let fileName;
+    let canvas;
+    let context;
+    let preview;
+
+    const maxFileSize = 5 * 1024 * 1024;
+    const preferredWidth = 600;
+    const preferredHeight = 400;
+
     (function($) {
 
         $(document).ready(function() {
 
-            let cropper;
-            let croppedImageDataUrl;
-            let fileName;
+            canvas  = $("#canvas");
+            context = canvas.get(0).getContext("2d");
+            preview = $('#preview');
 
-            const canvas  = $("#canvas");
-            const context = canvas.get(0).getContext("2d");
-            const preview = $('#preview');
-            const maxFileSize = 10 * 1024 * 1024;
-            const preferredWidth = 600;
-            const preferredHeight = 400;
+            <% if (attachedFile != null) { %>
+                // If we are editing an entry, show the attached image file in the preview box.
+                preview.append($('<img>').attr('src', <%=q(attachmentUrl)%>));
+                preview.append($('<div>').text(<%=q(attachedFile)%>)); // jQuery escapes the provided string (http://api.jquery.com/text/#text2)
+            <% } %>
 
             $('#imageFileInput').on( 'change', function(){
 
@@ -179,73 +184,11 @@
                     }
                     if (file.size > maxFileSize)
                     {
-                        alert("File size cannot be more than 10MB.");
+                        alert("File size cannot be more than 5MB.");
                         $("#imageFileInput").val('');
                         return;
                     }
-
-                    const reader = new FileReader();
-                    reader.onload = function(evt) {
-
-                        const img = new Image();
-                        img.onload = function() {
-
-                            let w = img.width;
-                            let h = img.height;
-                            if (w < preferredWidth || h < preferredHeight)
-                            {
-                                alert("Image must be at least " + preferredWidth + " pixels in width and "
-                                        + preferredHeight + " pixels in height. Dimensions of the selected image are: "
-                                        + w + " x " + h + " pixels.");
-                                $("#imageFileInput").val('');
-                                return;
-                            }
-
-                            clearCanvas(cropper);
-
-                            // If the image is too large, scale it down for display
-                            let scaleFactor = Math.min(900/img.width, 600/img.height);
-                            scaleFactor = Math.min(1, scaleFactor);
-
-                            // Get the new width and height based on the scale factor
-                            let newWidth = w * scaleFactor;
-                            let newHeight = h * scaleFactor;
-                            $("#cropperContainer").width(newWidth + 30);
-                            context.canvas.width  = newWidth;
-                            context.canvas.height = newHeight;
-
-                            context.drawImage(img, 0, 0, newWidth, newHeight);
-
-                            $("#mask").fadeTo(500, 0.60);
-                            $("#cropperContainer").show();
-
-                            cropper = new Cropper(document.getElementById("canvas"), {
-                                viewMode: 2,
-                                dragMode: 'move',
-                                aspectRatio: 3 / 2,
-                                cropBoxResizable: true,
-                                movable: false,
-                                rotatable: false,
-                                scalable: false,
-                                zoomable: false,
-                                zoomOnTouch: false,
-                                zoomOnWheel: false,
-                                cropBoxMovable: true,
-                                cropBoxResizable: true,
-                                toggleDragModeOnDblclick: false,
-                                autoCrop: true,
-                                autoCropArea: 1, // If the image is already the preferred size (600 x 400) the crop-box should fit exactly
-                                minCanvasWidth: newWidth,
-                                minCanvasHeight: newHeight,
-                                minCropBoxWidth: preferredWidth,
-                                minCropBoxHeight: preferredHeight,
-                                restore: false // set to false to avoid problems when resizing the browser window
-                                               // (https://github.com/fengyuanchen/cropper/issues/488)
-                            });
-                        };
-                        img.src = evt.target.result;
-                    };
-                    reader.readAsDataURL(this.files[0]);
+                    displayCropper(this.files[0]);
                 }
             });
 
@@ -256,22 +199,29 @@
                         // https://stackoverflow.com/questions/56573339/using-cropper-js-image-quality-get-reduced-after-cropping
                         .toDataURL("image/png", 1); // string base 64 data url
 
-                $('#preview').empty();
+                preview.empty(); // Clear the preview div first
                 preview.append($('<img>').attr('src', croppedImageDataUrl));
-                preview.append($('<div>').text(fileName)); // JQuery escapes the provided string
+                preview.append($('<div>').text(fileName)); // jQuery escapes the provided string (http://api.jquery.com/text/#text2)
+                preview.append($('<a>').addClass("labkey-button").attr('id', "btnEdit")
+                        .text("Edit").click(function() {
+                            const files = $('#imageFileInput').prop('files');
+                            if (files && files[0])
+                            {
+                                displayCropper(files[0]);
+                            }
+                        }));
 
                 $("#imageFileName").val(fileName);
                 $("#modifiedImage").val(croppedImageDataUrl);
-                cropper.destroy();
-                $("#cropperContainer").hide();
-                $("#mask").hide();
+                clearCropper(cropper);
             });
             $('#btnCancel').click(function() {
-                cropper.destroy();
-                $("#cropperContainer").hide();
-                $("#mask").hide();
-                $("#imageFileInput").val('');
-
+                clearCropper(cropper);
+                const selectedFile = $("#imageFileInput").prop('files') ? $("#imageFileInput").prop('files')[0] : null;
+                if (selectedFile && selectedFile.name !== $("#imageFileName").val())
+                {
+                    $("#imageFileInput").val('');
+                }
             });
 
             const descInput = $('#descFieldInput')
@@ -307,14 +257,80 @@
             }
         }
 
-        function clearCanvas(cropper) {
+        function displayCropper(file)
+        {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+
+                const img = new Image();
+                img.onload = function() {
+
+                    let w = img.width;
+                    let h = img.height;
+                    if (w < preferredWidth || h < preferredHeight)
+                    {
+                        alert("Image must be at least " + preferredWidth + " pixels in width and "
+                                + preferredHeight + " pixels in height. Dimensions of the selected image are: "
+                                + w + " x " + h + " pixels.");
+                        $("#imageFileInput").val('');
+                        return;
+                    }
+
+                    clearCropper(cropper);
+
+                    // If the image is too large, scale it down for display
+                    let scaleFactor = Math.min(900/img.width, 600/img.height);
+                    scaleFactor = Math.min(1, scaleFactor);
+
+                    // Get the new width and height based on the scale factor
+                    let newWidth = w * scaleFactor;
+                    let newHeight = h * scaleFactor;
+                    $("#cropperContainer").width(newWidth + 30);
+                    context.canvas.width  = newWidth;
+                    context.canvas.height = newHeight;
+
+                    context.drawImage(img, 0, 0, newWidth, newHeight);
+
+                    $("#mask").fadeTo(500, 0.60);
+                    $("#cropperContainer").show();
+
+                    cropper = new Cropper(document.getElementById("canvas"), {
+                        viewMode: 2,
+                        dragMode: 'move',
+                        aspectRatio: 3 / 2,
+                        cropBoxResizable: true,
+                        movable: false,
+                        rotatable: false,
+                        scalable: false,
+                        zoomable: false,
+                        zoomOnTouch: false,
+                        zoomOnWheel: false,
+                        cropBoxMovable: true,
+                        cropBoxResizable: true,
+                        toggleDragModeOnDblclick: false,
+                        autoCrop: true,
+                        autoCropArea: 1, // If the image is already the preferred size (600 x 400) the crop-box should fit exactly
+                        minCanvasWidth: newWidth,
+                        minCanvasHeight: newHeight,
+                        minCropBoxWidth: preferredWidth,
+                        minCropBoxHeight: preferredHeight,
+                        restore: false // set to false to avoid problems when resizing the browser window
+                                       // (https://github.com/fengyuanchen/cropper/issues/488)
+                    });
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        function clearCropper(cropper)
+        {
             if (cropper) cropper.destroy();
+            $("#cropperContainer").hide();
+            $("#mask").hide();
             const canvas  = $("#canvas");
             const context = canvas.get(0).getContext("2d");
             context.clearRect(0, 0, canvas.width, canvas.height);
-            // $("#cropperContainer").hide();
-            // $("#imageFileName").val('');
-            // $('#preview').empty();
         }
     })(jQuery);
+
 </script>
