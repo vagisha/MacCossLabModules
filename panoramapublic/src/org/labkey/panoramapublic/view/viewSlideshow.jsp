@@ -16,11 +16,7 @@
      */
 %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
-<%@ page import="org.labkey.api.view.HttpView" %>
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
-<%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
-<%@ page import="org.labkey.api.view.JspView" %>
-<%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%!
     @Override
@@ -30,33 +26,38 @@
     }
 %>
 
+<!-- The HTML, CSS and JavaScript to display the slideshow have been copied from the Wiki page on PanoramaWeb. -->
+
 <labkey:errors/>
 
 <script type="text/javascript">
 
-    var slideIndex;
-    var slides,dots,text;
-    var wait;
+    let slideIndex;
+    let slides, dots, text;
+    let wait;
 
-    Ext4.onReady(function(){
+    Ext4.onReady(function() {
 
         slideIndex = 0;
         initSlides();
-        // showSlides();
     });
 
     window.onresize = function() {
         setDescSize(false);
     }
-    function setDescSize(fixed) {
-        desc = document.getElementById("description");
+
+    function setDescSize(fixed)
+    {
+        let desc = document.getElementById("description");
         if (fixed) {
             desc.style.width = desc.offsetWidth + "px";
         } else {
             desc.style.width = "90%";
         }
     }
-    function showSlidesTimer() {
+
+    function showSlidesTimer()
+    {
         if (!wait) {
             showSlides();
         }
@@ -64,6 +65,7 @@
 
     function initSlides()
     {
+        // Get a list of the approved catalog entries.
         Ext4.Ajax.request({
             url: LABKEY.ActionURL.buildURL('panoramapublic', 'getCatalogApi.api'),
             method: 'GET',
@@ -74,9 +76,8 @@
         });
     }
 
-    function addSlides(json) {
-
-        console.log("Adding slides");
+    function addSlides(json)
+    {
         if (json) {
 
             if (json["error"])
@@ -85,34 +86,31 @@
                 return;
             }
             const catalog = json["catalog"];
-            console.log(catalog);
 
-            let allSlides = document.getElementsByClassName("coverslide");
-            const slideCnt = allSlides.length;
             let slideshowContainer = document.getElementsByClassName('slideshow-container')[0];
             let slideshowDots = document.getElementsByClassName('slideshow-dots')[0];
             let slideshowTexts = document.getElementsByClassName('slideshow-texts')[0];
 
-            console.log("Catalog length: " + catalog.length);
-            let index = 1;
-            for(let i = 0; i < catalog.length; i++) {
+            // console.log("Catalog length: " + catalog.length);
+            for(let i = 0; i < catalog.length; i++)
+            {
                 let entry = catalog[i];
-
-                console.log("Entry: " + entry.accessUrl + ", " + entry.title + ", " + entry.imageUrl);
+                // console.log("Entry: " + entry.accessUrl + ", " + entry.title + ", " + entry.imageUrl);
                 appendCoverSlide(entry, slideshowContainer);
-                appendDot(slideshowDots, index);
+                appendDot(slideshowDots, i + 1);
                 appendText(entry, slideshowTexts);
-                index++;
             }
             showSlides();
         }
-        else {
+        else
+        {
             onFailure("Server did not return a valid response.");
         }
     }
 
     function appendCoverSlide(entry, coverslideContainer)
     {
+        // Example:
         // <div class="coverslide" style="display: block;">
         // <a href="https://panoramaweb.org/SkylineForSmallMolecules.url">
         // <img src="/labkey/_webdav/home/%40files/Slides/Thompson_600x400.png" class="slideimg" alt="" border="0" width="600" height="400" />
@@ -121,13 +119,16 @@
         const coverslide = document.createElement('div');
         coverslide.setAttribute('class', 'coverslide');
         coverslide.setAttribute('style', 'display: block;')
-        const html = '<a href="' + entry.accessUrl + '"><img src="' + entry.imageUrl + '" class="slideimg" alt="" border="0" width="600" height="400" /></a>';
+        const html = '<a href="' + entry.accessUrl + '">' +
+                '<img src="' + entry.imageUrl + '" class="slideimg" style="border:0;" width="600" height="400" alt="Image"/>' +
+                '</a>';
         coverslide.innerHTML += html;
         coverslideContainer.appendChild(coverslide);
     }
 
     function appendDot(dotsContainer, index)
     {
+        // Examples:
         // <span class="dot active" onclick="currentSlide(1)"></span>
         // <span class="dot" onclick="currentSlide(2)"></span>
         const dot = document.createElement('span');
@@ -140,6 +141,7 @@
     function appendText(entry, textsContainer)
     {
         /*
+        Example:
         <div class="text">
          <em>Panorama Public dataset</em></br>
          <em><strong>Skyline for Small Molecules: A Unifying Software Package for Quantitative Metabolomics</strong></em></br>
@@ -148,57 +150,68 @@
          */
         const txt = document.createElement('div');
         txt.setAttribute('class', 'text');
-        let html = '<em>Panorama Public dataset</em></br>';
-        html += '<em><strong>' + entry.title + '</strong></em></br>';
-        html += entry.description;
+        const html = '<em>Panorama Public dataset</em></br>'
+                   + '<em><strong>' + Ext4.htmlEncode(entry.title) + '</strong></em></br>'
+                   + Ext4.htmlEncode(entry.description);
         txt.innerHTML += html;
         textsContainer.appendChild(txt);
     }
 
     function onFailure(message)
     {
-        setTimeout(function() { console.log(message); /*alert(message);*/ }, 500);
+        setTimeout(function() { console.log(message);}, 500);
     }
 
-    function showSlides() {
-        if (slideIndex > 0) {
+    function showSlides()
+    {
+        if (slideIndex > 0)
+        {
             setDescSize(true);
         }
         slides = document.getElementsByClassName("coverslide");
         dots = document.getElementsByClassName("dot");
         text = document.getElementsByClassName("text");
-        var i;
-        for (i = 0; i < slides.length; i++) {
+        let i;
+        for (i = 0; i < slides.length; i++)
+        {
             slides[i].style.display = "none";
         }
-        for (i = 0; i < text.length; i++) {
+        for (i = 0; i < text.length; i++)
+        {
             text[i].style.display = "none";
         }
         slideIndex++;
-        if (slideIndex> slides.length) {slideIndex = 1}
-        for (i = 0; i < dots.length; i++) {
+        if (slideIndex > slides.length) { slideIndex = 1; }
+        for (i = 0; i < dots.length; i++)
+        {
             dots[i].className = dots[i].className.replace(" active", "");
         }
         slides[slideIndex-1].style.display = "block";
         text[slideIndex-1].style.display = "block";
         dots[slideIndex-1].className += " active";
-        if (!wait) {
+        if (!wait)
+        {
             setTimeout(showSlidesTimer, 10000); // Change image every 10 seconds
         }
     }
 
-    function plusSlides(position) {
+    function plusSlides(position)
+    {
+        let i;
         setDescSize(true);
-        slideIndex +=position;
-        if (slideIndex> slides.length) {slideIndex = 1}
-        else if(slideIndex<1){slideIndex = slides.length}
-        for (i = 0; i < slides.length; i++) {
+        slideIndex += position;
+        if (slideIndex > slides.length) { slideIndex = 1; }
+        else if (slideIndex < 1){ slideIndex = slides.length; }
+        for (i = 0; i < slides.length; i++)
+        {
             slides[i].style.display = "none";
         }
-        for (i = 0; i < text.length; i++) {
+        for (i = 0; i < text.length; i++)
+        {
             text[i].style.display = "none";
         }
-        for (i = 0; i < dots.length; i++) {
+        for (i = 0; i < dots.length; i++)
+        {
             dots[i].className = dots[i].className.replace(" active", "");
         }
         slides[slideIndex-1].style.display = "block";
@@ -207,17 +220,21 @@
         wait = true;
     }
 
-    function currentSlide(index) {
-        if (index> slides.length) {index = 1}
-        else if(index<1){index = slides.length}
-        for (i = 0; i < slides.length; i++) {
+    function currentSlide(index)
+    {
+        let i;
+        if (index > slides.length) { index = 1; }
+        else if (index < 1) { index = slides.length; }
+        for (i = 0; i < slides.length; i++)
+        {
             slides[i].style.display = "none";
         }
-        for (i = 0; i < text.length; i++) {
+        for (i = 0; i < text.length; i++)
+        {
             text[i].style.display = "none";
         }
-
-        for (i = 0; i < dots.length; i++) {
+        for (i = 0; i < dots.length; i++)
+        {
             dots[i].className = dots[i].className.replace(" active", "");
         }
         text[index-1].style.display = "block";
@@ -229,13 +246,6 @@
 </script>
 
 <style>
-    #slide {
-        width:100%;
-    }
-    * {
-        box-sizing: border-box
-    }
-
     .slideimg {
         margin-right: 60px;
         margin-left: 60px;
@@ -246,7 +256,6 @@
     .slideshow-container {
         position: relative;
     }
-
     .prev, .next {
         cursor: pointer;
         position: absolute;
@@ -267,21 +276,15 @@
     .prev:hover, .next:hover {
         background-color: rgba(128,128,128,128.8);
     }
-
     .text {
         color: black;
-        /*font-size: .8vw;*/
+        font-size: 1.0vw;
         width: 100%;
         height: 100%;
         text-align: left;
         display:none;
         margin-left: 20px;
     }
-
-    img {
-
-    }
-
     .dot {
         cursor: pointer;
         height: 13px;
@@ -302,7 +305,7 @@
     }
 
     div.banner {
-        margin-top: 15px;
+        margin-top: 30px;
         background: #ffffff; /* Old browsers */
         /* IE9 SVG, needs conditional override of 'filter' to 'none' */
         background: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgdmlld0JveD0iMCAwIDEgMSIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+CiAgPGxpbmVhckdyYWRpZW50IGlkPSJncmFkLXVjZ2ctZ2VuZXJhdGVkIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIwJSIgeTI9IjEwMCUiPgogICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2ZmZmZmZiIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjcwJSIgc3RvcC1jb2xvcj0iI2UwZTZlYiIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjcwJSIgc3RvcC1jb2xvcj0iI2ZmZmZmZiIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNmZmZmZmYiIHN0b3Atb3BhY2l0eT0iMSIvPgogIDwvbGluZWFyR3JhZGllbnQ+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNncmFkLXVjZ2ctZ2VuZXJhdGVkKSIgLz4KPC9zdmc+);
@@ -314,110 +317,30 @@
         background: linear-gradient(to bottom,  #ffffff 0%,#e0e6eb 70%,#ffffff 70%,#ffffff 100%); /* W3C */
         filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#ffffff', endColorstr='#e0e6eb',GradientType=0 ); /* IE6-8 */
     }
-
-    a.banner-button {
-        display: table-cell;
-        width: 210px;
-        height: 40px;
-        vertical-align: middle;
-        color: #fff;
-        border-radius: 15px;
-        font-size: 120%;
-        font-weight: bold;
-        border: 0px solid #215da0;
-        padding-top: 0px;
-        text-shadow: -1px -1px #2e6db3;
-        box-shadow: 0 0px #ccc;
-
-        background: #73a0e2; /* Old browsers */
-        /* IE9 SVG, needs conditional override of 	'filter' to 'none' */
-        background: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgdmlld0JveD0iMCAwIDEgMSIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+CiAgPGxpbmVhckdyYWRpZW50IGlkPSJncmFkLXVjZ2ctZ2VuZXJhdGVkIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIwJSIgeTI9IjEwMCUiPgogICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzczYTBlMiIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMyMTVkYTAiIHN0b3Atb3BhY2l0eT0iMSIvPgogIDwvbGluZWFyR3JhZGllbnQ+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNncmFkLXVjZ2ctZ2VuZXJhdGVkKSIgLz4KPC9zdmc+);
-        background: -moz-linear-gradient(top,  #73a0e2 0%, #215da0 100%); /* FF3.6+ */
-        background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#73a0e2), color-stop(100%,#215da0)); /* Chrome,Safari4+ */
-        background: -webkit-linear-gradient(top,  #73a0e2 0%,#215da0 100%); /* Chrome10+,Safari5.1+ */
-        background: -o-linear-gradient(top,  #73a0e2 0%,#215da0 100%); /* Opera 11.10+ */
-        background: -ms-linear-gradient(top,  #73a0e2 0%,#215da0 100%); /* IE10+ */
-        background: linear-gradient(to bottom,  #73a0e2 0%,#215da0 100%); /* W3C */
-        filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#73a0e2', endColorstr='#215da0',GradientType=0 ); /* IE6-8 */
-
-    }
-
-    p.banner {
-        font-size: 125%;
-        line-height: 150%;
-        margin-right: 50px;
-        margin-left: 20px;
-    }
-
-    p.banner-links {
-        line-height: 180%;
-        margin-top: 20px;
-    }
-
-    div.labkey-wiki h2 {
-        font-size: 150%;
-        font-weight: normal;
-        border-bottom: 1px solid #e5e5e5;
-        margin: 30px 20px 10px 20px;
-    }
-
-    div.labkey-wiki h3 {
-        font-size: 125%;
-    }
-
-    span.new {
-        color: #e25f10;
-    }
-
-    table.format {
-        width: 100%;
-        padding: 0 20px;
-    }
 </style>
 
 
 <div class="banner">
 <table style="width: 100%;"><tbody>
-<tr height="100%">
-<td height="100%" width="100%">
+<tr>
+<td height="100%" style="width: 100%">
 <table style="width: 100%;">
   <tbody>
-    <tr height="100%">
+    <tr>
       <td height="100%">
-        <div id="slide">
+        <div id="slides" style="width:100%;">
           <div class="slideshow-container">
-<%--              <div class="coverslide" style="display: block;"><a href="https://panoramaweb.org/SkylineForSmallMolecules.url"><img src="/labkey/_webdav/home/%40files/Slides/Thompson_600x400.png" class="slideimg" alt="" border="0" width="600" height="400" /></a></div>--%>
-<%--              <div class="coverslide"><a href="https://panoramaweb.org/SARS-CoV-2.url"><img src="/labkey/_webdav/home/%40files/Slides/Ludwig_600x400.png" class="slideimg" alt="" border="0" width="600" height="400" /></a></div>--%>
-            <a class="prev" onclick="plusSlides(-1)">&#10094;</a> <a class="next" onclick="plusSlides(1)">&#10095;</a>
+              <a class="prev" onclick="plusSlides(-1)">&#10094;</a> <a class="next" onclick="plusSlides(1)">&#10095;</a>
           </div>
             <br />
-              <div style="text-align:center" class="slideshow-dots">
-<%--                <span class="dot active" onclick="currentSlide(1)"></span>--%>
-<%--                <span class="dot" onclick="currentSlide(2)"></span>--%>
-              </div>
+              <div style="text-align:center" class="slideshow-dots"></div>
         </div>
         </td>
-        <td height="100%" width="100%" valign="middle">
+        <td height="100%" style="width:100%;vertical-align: middle;">
           <table id="description">
             <tbody>
               <tr>
-                <td class="slideshow-texts">
-<%--                  <div class="text">--%>
-<%--                    <em>Panorama Public dataset</em></br>--%>
-<%--                    <em><strong>Skyline for Small Molecules: A Unifying Software Package for Quantitative Metabolomics</strong></em></br>--%>
-<%--                                Describes the expansion of Skyline to data for small molecule analysis, including selected reaction monitoring (SRM), high-resolution mass spectrometry (HRMS), and calibrated quantification. Includes step-by-step instructions on using Skyline for small molecule quantitative method development and analysis of data acquired with a variety of mass spectrometers from multiple instrument vendors. All the Skyline documents containing the demonstrated workflows are available on Panorama Public.--%>
-<%--                  </div>--%>
-<%--                  <div class="text" style="display: block;">--%>
-<%--                    <em>Panorama Public dataset</em></br>--%>
-<%--                    <em><strong>Data, reagents, assays and merits of proteomics for SARS-CoV-2 research and testing</strong></em></br>--%>
-<%--                    <ul>--%>
-<%--                        <li>In-depth proteomes of 4 SARS-CoV-2 cell line models (Vero E6, Calu-3, Caco-2, A549)</li>--%>
-<%--                        <li>Proteomic evidence for thousands of <i>Chlorecebus sabaeus</i> proteins</li>--%>
-<%--                        <li>Proteomic response of Vero E6 cells to SARS-CoV-2 infection</li>--%>
-<%--                        <li>Synthetic peptides, spectral libraries, and targeted assays for SARS-CoV-2 proteins</li>--%>
-<%--                    </ul>--%>
-<%--                  </div>--%>
-                </td>
+                <td class="slideshow-texts"></td>
               </tr>
               <tr><td height="100">&nbsp;</td></tr>
             </tbody>
@@ -428,7 +351,7 @@
   </table>
   </td>
   <!-- Add an empty cell with padding so that the description text stays inside the background -->
-  <td valign="top" align="center" style="padding-right: 50px;">&nbsp;</td>
+  <td style="padding-right: 50px;text-align: center; vertical-align: top">&nbsp;</td>
   </tr>
   </tbody>
   </table>

@@ -21,6 +21,7 @@
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
 <%@ page import="org.labkey.api.view.JspView" %>
 <%@ page import="org.labkey.api.view.ActionURL" %>
+<%@ page import="org.labkey.panoramapublic.PanoramaPublicController.AbstractCatalogEntryAction" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%!
     @Override
@@ -100,16 +101,18 @@
                 <td>
                     <textarea id="descFieldInput" rows="8" cols="60" name="datasetDescription" ><%=h(form.getDatasetDescription())%></textarea>
                     <br/>
-                    <div id="remainingChars" style="margin-bottom:15px;color:darkgray"><span id="rchars">500</span> characters remaining</div>
+                    <div id="remainingChars" style="margin-bottom:15px;color:darkgray">
+                        <span id="rchars"><%=AbstractCatalogEntryAction.CHAR_LIMIT%></span> characters remaining
+                    </div>
                 </td>
             </tr>
             <tr>
                 <td class="labkey-form-label" style="text-align:center;">Image:</br>
                     <span style="font-size:0.8em;">png, jpeg</span>
                     <br>
-                    <span style="font-size:0.8em;">Size: < 10MB</span>
+                    <span style="font-size:0.8em;">Size: < <%=h(AbstractCatalogEntryAction.MAX_FILE_SIZE_MB)%></span>
                     <br>
-                    <span style="font-size:0.8em;">Preferred: 600 x 400 pixels</span>
+                    <span style="font-size:0.8em;">Preferred: <%=AbstractCatalogEntryAction.IMG_WIDTH%> x <%=AbstractCatalogEntryAction.IMG_HEIGHT%> pixels</span>
                 </td>
                 <td>
                     <input id="imageFileInput" type="file" size="50" style="border: none; background-color: transparent;" accept="image/png,image/jpeg" />
@@ -151,9 +154,12 @@
     let context;
     let preview;
 
-    const maxFileSize = 5 * 1024 * 1024;
-    const preferredWidth = 600;
-    const preferredHeight = 400;
+    const maxFileSize = <%=AbstractCatalogEntryAction.MAX_FILE_SIZE%>;
+    const maxFileSizeMb = <%=h(AbstractCatalogEntryAction.MAX_FILE_SIZE_MB)%>
+    const preferredWidth = <%=AbstractCatalogEntryAction.IMG_WIDTH%>;
+    const preferredHeight = <%=AbstractCatalogEntryAction.IMG_HEIGHT%>;
+    const maxDisplayWidth = Math.max(900, preferredWidth);
+    const maxDisplayHeight = Math.max(600, preferredHeight);
 
     (function($) {
 
@@ -178,13 +184,13 @@
                     if (!(file.type.match(/^image\/png/) || file.type.match(/^image\/jpeg/)))
                     {
                         // https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
-                        alert("Invalid file type. Please select an image file (e.g. png, jpeg)");
+                        alert("Invalid file type. Please select an image file (e.g. png, jpeg).");
                         $("#imageFileInput").val('');
                         return;
                     }
                     if (file.size > maxFileSize)
                     {
-                        alert("File size cannot be more than 5MB.");
+                        alert("File size cannot be more than " + maxFileSizeMb + ".");
                         $("#imageFileInput").val('');
                         return;
                     }
@@ -208,6 +214,10 @@
                             if (files && files[0])
                             {
                                 displayCropper(files[0]);
+                            }
+                            else
+                            {
+                                alert("No file is selected.");
                             }
                         }));
 
@@ -241,7 +251,7 @@
             });
         });
 
-        const maxDescriptionLen = 500;
+        const maxDescriptionLen = <%=AbstractCatalogEntryAction.CHAR_LIMIT%>>;
         function limitDescription(inputField)
         {
             inputField.val(inputField.val().substring(0, maxDescriptionLen));
@@ -279,7 +289,7 @@
                     clearCropper(cropper);
 
                     // If the image is too large, scale it down for display
-                    let scaleFactor = Math.min(900/img.width, 600/img.height);
+                    let scaleFactor = Math.min(maxDisplayWidth/img.width, maxDisplayHeight/img.height);
                     scaleFactor = Math.min(1, scaleFactor);
 
                     // Get the new width and height based on the scale factor
@@ -327,9 +337,7 @@
             if (cropper) cropper.destroy();
             $("#cropperContainer").hide();
             $("#mask").hide();
-            const canvas  = $("#canvas");
-            const context = canvas.get(0).getContext("2d");
-            context.clearRect(0, 0, canvas.width, canvas.height);
+            if (canvas && context) { context.clearRect(0, 0, canvas.width, canvas.height); }
         }
     })(jQuery);
 
