@@ -132,6 +132,8 @@ import org.labkey.api.util.URLHelper;
 import org.labkey.api.util.logging.LogHelper;
 import org.labkey.api.view.*;
 import org.labkey.api.view.template.ClientDependency;
+import org.labkey.panoramapublic.catalog.CatalogEntrySettings;
+import org.labkey.panoramapublic.catalog.CatalogImageAttachmentParent;
 import org.labkey.panoramapublic.chromlib.ChromLibStateManager;
 import org.labkey.panoramapublic.datacite.DataCiteException;
 import org.labkey.panoramapublic.datacite.DataCiteService;
@@ -198,14 +200,10 @@ import org.springframework.validation.ObjectError;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -218,7 +216,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.StringTokenizer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -1204,7 +1201,64 @@ public class PanoramaPublicController extends SpringActionController
     public static class ManageCatalogEntrySettings extends FormViewAction<ManageCatalogEntryForm>
     {
         @Override
+        public ModelAndView getView(ManageCatalogEntryForm form, boolean reshow, BindException errors)
+        {
+            if(!reshow)
+            {
+                CatalogEntrySettings settings = CatalogEntryManager.getCatalogEntrySettings();
+                form.setEnabled(settings.isEnabled());
+                if (settings.isEnabled())
+                {
+                    form.setMaxFileSize(settings.getMaxFileSize());
+                    form.setMinImgWidth(settings.getMinImgWidth());
+                    form.setMinImgHeight(settings.getMinImgHeight());
+                    form.setMaxTextChars(settings.getMaxTextChars());
+                }
+            }
+            HtmlView view = new HtmlView(
+                    DIV(
+                            ERRORS(errors),
+                            "Settings for Panorama Public slideshow catalog entries", BR(),
+                            FORM(at(method, "POST", action, new ActionURL(ManageCatalogEntrySettings.class, getContainer())),
+                                    TABLE(TBODY(
+                                            TR(
+                                                    TD(cl("labkey-form-label"), "Enable Catalog Entries: "),
+                                                    TD(INPUT(at(type, "checkbox", name, "enabled", checked, form.getEnabled())))
+                                            ),
+                                            TR(
+                                                    TD(cl("labkey-form-label"), "Maximum File Size (bytes): "),
+                                                    TD(INPUT(at(type, "Text", name, "maxFileSize", value, form.getMaxFileSize())))
+                                            ),
+                                            TR(
+                                                    TD(cl("labkey-form-label"), "Minimum image width (pixels): "),
+                                                    TD(INPUT(at(type, "Text", name, "minImgWidth", value, form.getMinImgWidth())))
+                                            ),
+                                            TR(
+                                                    TD(cl("labkey-form-label"), "Minimum image height (pixels): "),
+                                                    TD(INPUT(at(type, "Text", name, "minImgHeight", value, form.getMinImgHeight())))
+                                            ),
+                                            TR(
+                                                    TD(cl("labkey-form-label"), "Character limit for description: "),
+                                                    TD(INPUT(at(type, "Text", name, "maxTextChars", value, form.getMaxTextChars())))
+                                            )
+                                    )),
+                                    new Button.ButtonBuilder("Save").submit(true).build(),
+                                    new Button.ButtonBuilder("Cancel").submit(false).href(new ActionURL(JournalGroupsAdminViewAction.class, getContainer())).build()
+                            )
+                    )
+            );
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            view.setTitle("Catalog Entry Settings");
+            return view;
+        }
+
+        @Override
         public void validateCommand(ManageCatalogEntryForm form, Errors errors)
+        {
+        }
+
+        @Override
+        public boolean handlePost(ManageCatalogEntryForm form, BindException errors)
         {
             if (form.getEnabled())
             {
@@ -1228,19 +1282,14 @@ public class PanoramaPublicController extends SpringActionController
                     errors.reject(ERROR_MSG, "Character limit for description cannot be empty");
                 }
             }
-        }
+            if (errors.hasErrors())
+            {
+                return false;
+            }
 
-        @Override
-        public boolean handlePost(ManageCatalogEntryForm form, BindException errors)
-        {
-            PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(CatalogEntryManager.PANORAMA_PUBLIC_CATALOG, true);
-            map.put(CatalogEntryManager.CATALOG_ENTRY_ENABLED, Boolean.toString(form.getEnabled()));
-            map.put(CatalogEntryManager.CATALOG_MAX_FILE_SIZE, form.getEnabled() ? String.valueOf(form.getMaxFileSize()) : null);
-            map.put(CatalogEntryManager.CATALOG_MIN_IMG_WIDTH, form.getEnabled() ? String.valueOf(form.getMinImgWidth()) : null);
-            map.put(CatalogEntryManager.CATALOG_MIN_IMG_HEIGHT, form.getEnabled() ? String.valueOf(form.getMinImgHeight()) : null);
-            map.put(CatalogEntryManager.CATALOG_TEXT_CHAR_LIMIT, form.getEnabled() ? String.valueOf(form.getMaxTextChars()) : null);
+            CatalogEntryManager.saveCatalogEntrySettings(form.getEnabled(), form.getMaxFileSize(), form.getMinImgWidth(),
+                    form.getMinImgHeight(), form.getMaxTextChars());
 
-            map.save();
             return true;
         }
 
@@ -1261,61 +1310,6 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        public ModelAndView getView(ManageCatalogEntryForm form, boolean reshow, BindException errors)
-        {
-            if(!reshow)
-            {
-                PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(CatalogEntryManager.PANORAMA_PUBLIC_CATALOG, false);
-                if(map != null)
-                {
-                    form.setEnabled(Boolean.valueOf(map.get(CatalogEntryManager.CATALOG_ENTRY_ENABLED)));
-                    if (form.getEnabled())
-                    {
-                        form.setMaxFileSize(Integer.parseInt(map.get(CatalogEntryManager.CATALOG_MAX_FILE_SIZE)));
-                        form.setMinImgWidth(Integer.parseInt(map.get(CatalogEntryManager.CATALOG_MIN_IMG_WIDTH)));
-                        form.setMinImgHeight(Integer.parseInt(map.get(CatalogEntryManager.CATALOG_MIN_IMG_HEIGHT)));
-                        form.setMaxTextChars(Integer.parseInt(map.get(CatalogEntryManager.CATALOG_TEXT_CHAR_LIMIT)));
-                    }
-                }
-            }
-            HtmlView view = new HtmlView(
-                    DIV(
-                        ERRORS(errors),
-                        "Settings for Panorama Public slideshow catalog entries", BR(),
-                        FORM(at(method, "POST", action, new ActionURL(ManageCatalogEntrySettings.class, getContainer())),
-                                TABLE(TBODY(
-                                    TR(
-                                        TD(cl("labkey-form-label"), "Enable Catalog Entries: "),
-                                        TD(INPUT(at(type, "checkbox", name, "enabled", checked, form.getEnabled())))
-                                    ),
-                                    TR(
-                                        TD(cl("labkey-form-label"), "Maximum File Size (bytes): "),
-                                        TD(INPUT(at(type, "Text", name, "maxFileSize", value, form.getMaxFileSize())))
-                                    ),
-                                    TR(
-                                            TD(cl("labkey-form-label"), "Minimum image width (pixels): "),
-                                            TD(INPUT(at(type, "Text", name, "minImgWidth", value, form.getMinImgWidth())))
-                                    ),
-                                    TR(
-                                            TD(cl("labkey-form-label"), "Minimum image height (pixels): "),
-                                            TD(INPUT(at(type, "Text", name, "minImgHeight", value, form.getMinImgHeight())))
-                                    ),
-                                    TR(
-                                            TD(cl("labkey-form-label"), "Character limit for description: "),
-                                            TD(INPUT(at(type, "Text", name, "maxTextChars", value, form.getMaxTextChars())))
-                                    )
-                                )),
-                                new Button.ButtonBuilder("Save").submit(true).build(),
-                                new Button.ButtonBuilder("Cancel").submit(false).href(new ActionURL(JournalGroupsAdminViewAction.class, getContainer())).build()
-                        )
-                    )
-            );
-            view.setFrame(WebPartView.FrameType.PORTAL);
-            view.setTitle("Catalog Entry Settings");
-            return view;
-        }
-
-        @Override
         public void addNavTrail(NavTree root)
         {
             root.addChild("Panorama Public Catalog Settings");
@@ -1325,7 +1319,7 @@ public class PanoramaPublicController extends SpringActionController
     public static class ManageCatalogEntryForm
     {
         private boolean _enabled;
-        private Integer _maxFileSize;
+        private Long _maxFileSize;
         private Integer _minImgWidth;
         private Integer _minImgHeight;
         private Integer _maxTextChars;
@@ -1340,12 +1334,12 @@ public class PanoramaPublicController extends SpringActionController
             _enabled = enable;
         }
 
-        public Integer getMaxFileSize()
+        public Long getMaxFileSize()
         {
             return _maxFileSize;
         }
 
-        public void setMaxFileSize(Integer maxFileSize)
+        public void setMaxFileSize(Long maxFileSize)
         {
             _maxFileSize = maxFileSize;
         }
@@ -6735,14 +6729,13 @@ public class PanoramaPublicController extends SpringActionController
 
         private boolean canAddCatalogEntry(ExperimentAnnotations expAnnot)
         {
-            PanoramaPublicModule module = ModuleLoader.getInstance().getModule(PanoramaPublicModule.class);
-            return module.catalogEntriesEnabled() && CatalogEntryManager.getEntryForExperiment(expAnnot) == null;
+            return CatalogEntryManager.getCatalogEntrySettings().isEnabled() && CatalogEntryManager.getEntryForExperiment(expAnnot) == null;
         }
 
         private Button getAddCatalogEntryButton(ExperimentAnnotations expAnnot)
         {
             return new Button.ButtonBuilder("Add Catalog Entry")
-                    .href(getAddCatalogEntryUrl(_copiedExperiment)).style("margin-left: 10px").build();
+                    .href(getAddCatalogEntryUrl(expAnnot)).style("margin-left: 10px").build();
         }
 
         @Override
@@ -8604,7 +8597,7 @@ public class PanoramaPublicController extends SpringActionController
         abstract CatalogEntryBean getViewBean(CatalogEntryForm form, ExperimentAnnotations expAnnotations, boolean reshow, BindException errors);
         abstract String getFormTitle();
         abstract CatalogEntry getCatalogEntry(ExperimentAnnotations expAnnotations, String description, String imageFileName, Errors errors);
-        abstract AttachmentFile getValidatedImageFile(CatalogEntryForm form, Errors errors);
+        abstract AttachmentFile getValidatedImageFile(CatalogEntryForm form, CatalogEntrySettings settings, Errors errors);
         abstract void saveEntry(CatalogEntry entry, AttachmentFile imageFile, ExperimentAnnotations expAnnotations) throws IOException;
 
         @Override
@@ -8648,20 +8641,20 @@ public class PanoramaPublicController extends SpringActionController
                 return false;
             }
 
+            CatalogEntrySettings settings = CatalogEntryManager.getCatalogEntrySettings();
             if(StringUtils.isBlank(form.getDatasetDescription()))
             {
                 errors.reject(ERROR_MSG, "Please enter a short description");
             }
             else
             {
-                int descriptionCharLimit = CatalogEntryManager.getTextCharLimit();
-                if (form.getDatasetDescription().length() > descriptionCharLimit)
+                if (form.getDatasetDescription().length() > settings.getMaxTextChars())
                 {
-                    errors.reject(ERROR_MSG, "Description must be " + descriptionCharLimit + " characters or less");
+                    errors.reject(ERROR_MSG, "Description must be " + settings.getMaxTextChars() + " characters or less");
                 }
             }
 
-            AttachmentFile imageFile = getValidatedImageFile(form, errors);
+            AttachmentFile imageFile = getValidatedImageFile(form, settings, errors);
             CatalogEntry entry = getCatalogEntry(_expAnnot, form.getDatasetDescription(),
                     imageFile != null ? form.getImageFileName() : null, errors);
 
@@ -8682,7 +8675,7 @@ public class PanoramaPublicController extends SpringActionController
             return true;
         }
 
-        @Nullable AttachmentFile getValidatedImageFile(CatalogEntryForm form, boolean required, Errors errors)
+        @Nullable AttachmentFile getValidatedImageFile(CatalogEntryForm form, CatalogEntrySettings settings, boolean required, Errors errors)
         {
             MultipartFile imageFile = getFileMap().get("imageFile"); // TODO: check map size if (map.size() > 1)
             boolean imageUploaded = !StringUtils.isBlank(form.getImageFile());
@@ -8706,7 +8699,7 @@ public class PanoramaPublicController extends SpringActionController
             imageString = imageString.substring(prefix.length());
             byte[] decodedBytes = Base64.decode(imageString);
 
-            int maxSize = Math.min(CatalogEntryManager.getMaxFileSize(), AppProps.getInstance().getMaxBLOBSize());
+            long maxSize = Math.min(settings.getMaxFileSize(), AppProps.getInstance().getMaxBLOBSize());
             if (decodedBytes.length > maxSize)
             {
 
@@ -8761,9 +8754,9 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        AttachmentFile getValidatedImageFile(CatalogEntryForm form, Errors errors)
+        AttachmentFile getValidatedImageFile(CatalogEntryForm form, CatalogEntrySettings settings, Errors errors)
         {
-            return getValidatedImageFile(form, true, errors);
+            return getValidatedImageFile(form, settings,true, errors);
         }
 
         @Override
@@ -8823,9 +8816,9 @@ public class PanoramaPublicController extends SpringActionController
         }
 
         @Override
-        AttachmentFile getValidatedImageFile(CatalogEntryForm form, Errors errors)
+        AttachmentFile getValidatedImageFile(CatalogEntryForm form, CatalogEntrySettings settings, Errors errors)
         {
-            return getValidatedImageFile(form, false, errors);
+            return getValidatedImageFile(form, settings,false, errors);
         }
 
         @Override

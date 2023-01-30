@@ -6,7 +6,6 @@ import org.jetbrains.annotations.Nullable;
 import org.labkey.api.attachments.AttachmentFile;
 import org.labkey.api.attachments.AttachmentParent;
 import org.labkey.api.attachments.AttachmentService;
-import org.labkey.api.attachments.SpringAttachmentFile;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.data.PropertyManager;
 import org.labkey.api.data.SimpleFilter;
@@ -14,13 +13,12 @@ import org.labkey.api.data.Table;
 import org.labkey.api.data.TableSelector;
 import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
-import org.labkey.api.util.NumberUtilsLabKey;
 import org.labkey.api.view.ShortURLRecord;
-import org.labkey.panoramapublic.CatalogImageAttachmentParent;
+import org.labkey.panoramapublic.catalog.CatalogEntrySettings;
+import org.labkey.panoramapublic.catalog.CatalogImageAttachmentParent;
 import org.labkey.panoramapublic.PanoramaPublicManager;
 import org.labkey.panoramapublic.model.CatalogEntry;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -143,34 +141,72 @@ public class CatalogEntryManager
                 null).getArrayList(CatalogEntry.class);
     }
 
-    public static Integer getMaxFileSize()
+    public static CatalogEntrySettings getCatalogEntrySettings()
     {
-        return getIntProperty(CATALOG_MAX_FILE_SIZE, 5 * 1024 * 1024);
-    }
-
-    public static Integer getMinImageWidth()
-    {
-        return getIntProperty(CATALOG_MIN_IMG_WIDTH, 600);
-    }
-
-    public static Integer getMinImageHeight()
-    {
-        return getIntProperty(CATALOG_MIN_IMG_HEIGHT, 400);
-    }
-
-    public static Integer getTextCharLimit()
-    {
-        return getIntProperty(CATALOG_TEXT_CHAR_LIMIT, 500);
-    }
-
-    private static int getIntProperty(String propName, int defaultValue)
-    {
-        int ret = defaultValue;
         PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(PANORAMA_PUBLIC_CATALOG, false);
         if (map != null)
         {
-            ret = NumberUtils.toInt(map.get(propName), defaultValue);
+            if (Boolean.parseBoolean(map.get(CATALOG_ENTRY_ENABLED)))
+            {
+                return new CatalogEntrySettings(
+                        NumberUtils.toLong(map.get(CATALOG_MAX_FILE_SIZE), CatalogEntrySettings.MAX_FILE_SIZE),
+                        NumberUtils.toInt(map.get(CATALOG_MIN_IMG_WIDTH), CatalogEntrySettings.MIN_IMG_WIDTH),
+                        NumberUtils.toInt(map.get(CATALOG_MIN_IMG_HEIGHT), CatalogEntrySettings.MIN_IMG_HEIGHT),
+                        NumberUtils.toInt(map.get(CATALOG_TEXT_CHAR_LIMIT), CatalogEntrySettings.MAX_TEXT_CHARS));
+            }
         }
-        return ret;
+        return new CatalogEntrySettings(false);
+    }
+
+    public static void saveCatalogEntrySettings(boolean enabled, Long maxFileSize, Integer minImgWidth, Integer minImgHeight, Integer maxTextChars)
+    {
+        PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(CatalogEntryManager.PANORAMA_PUBLIC_CATALOG, true);
+        map.put(CatalogEntryManager.CATALOG_ENTRY_ENABLED, Boolean.toString(enabled));
+        map.put(CatalogEntryManager.CATALOG_MAX_FILE_SIZE, maxFileSize != null ? String.valueOf(maxFileSize) : null);
+        map.put(CatalogEntryManager.CATALOG_MIN_IMG_WIDTH, minImgWidth !=null ? String.valueOf(minImgWidth) : null);
+        map.put(CatalogEntryManager.CATALOG_MIN_IMG_HEIGHT, minImgHeight != null ? String.valueOf(minImgHeight) : null);
+        map.put(CatalogEntryManager.CATALOG_TEXT_CHAR_LIMIT, maxTextChars != null ? String.valueOf(maxTextChars) : null);
+        map.save();
+    }
+
+//    public static boolean catalogEntriesEnabled()
+//    {
+//        return Boolean.parseBoolean(getPropertyValue(CATALOG_ENTRY_ENABLED));
+//    }
+//
+//    public static long getMaxFileSize()
+//    {
+//        return getLongProperty(CATALOG_MAX_FILE_SIZE, 5 * 1024 * 1024);
+//    }
+//
+//    public static int getMinImageWidth()
+//    {
+//        return getIntProperty(CATALOG_MIN_IMG_WIDTH, 600);
+//    }
+//
+//    public static int getMinImageHeight()
+//    {
+//        return getIntProperty(CATALOG_MIN_IMG_HEIGHT, 400);
+//    }
+//
+//    public static int getTextCharLimit()
+//    {
+//        return getIntProperty(CATALOG_TEXT_CHAR_LIMIT, 500);
+//    }
+
+    private static int getIntProperty(String propName, int defaultValue)
+    {
+        return NumberUtils.toInt(getPropertyValue(propName), defaultValue);
+    }
+
+    private static long getLongProperty(String propName, long defaultValue)
+    {
+        return NumberUtils.toLong(getPropertyValue(propName), defaultValue);
+    }
+
+    private static String getPropertyValue(String propName)
+    {
+        PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(PANORAMA_PUBLIC_CATALOG, false);
+        return map != null ? map.get(propName) : null;
     }
 }

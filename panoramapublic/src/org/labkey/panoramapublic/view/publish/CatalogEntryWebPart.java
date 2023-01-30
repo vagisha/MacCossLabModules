@@ -79,7 +79,8 @@ public class CatalogEntryWebPart extends VBox
 
     public static boolean canBeDisplayed(ExperimentAnnotations expAnnotations, User user)
     {
-        return expAnnotations.isJournalCopy() // This is an experiment in the Panorama Public project
+        return CatalogEntryManager.getCatalogEntrySettings().isEnabled()
+                && expAnnotations.isJournalCopy() // This is an experiment in the Panorama Public project
                 && expAnnotations.isPublic() // The folder is public
                 && expAnnotations.getContainer().hasOneOf(user, Set.of(AdminPermission.class, PanoramaPublicSubmitterPermission.class));
     }

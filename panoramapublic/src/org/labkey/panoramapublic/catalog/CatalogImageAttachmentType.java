@@ -1,4 +1,4 @@
-package org.labkey.panoramapublic;
+package org.labkey.panoramapublic.catalog;
 
 import org.jetbrains.annotations.NotNull;
 import org.labkey.api.attachments.AttachmentType;

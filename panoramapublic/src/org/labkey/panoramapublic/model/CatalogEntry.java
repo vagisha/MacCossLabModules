@@ -3,7 +3,7 @@ package org.labkey.panoramapublic.model;
 import org.labkey.api.attachments.Attachment;
 import org.labkey.api.attachments.AttachmentService;
 import org.labkey.api.view.ShortURLRecord;
-import org.labkey.panoramapublic.CatalogImageAttachmentParent;
+import org.labkey.panoramapublic.catalog.CatalogImageAttachmentParent;
 import org.labkey.panoramapublic.query.ExperimentAnnotationsManager;
 
 public class CatalogEntry extends DbEntity

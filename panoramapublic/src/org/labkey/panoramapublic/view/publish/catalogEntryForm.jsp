@@ -16,12 +16,14 @@
      */
 %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
+<%@ page import="org.apache.commons.io.FileUtils" %>
+<%@ page import="org.labkey.api.view.ActionURL" %>
 <%@ page import="org.labkey.api.view.HttpView" %>
+<%@ page import="org.labkey.api.view.JspView" %>
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
-<%@ page import="org.labkey.api.view.JspView" %>
-<%@ page import="org.labkey.api.view.ActionURL" %>
-<%@ page import="org.labkey.panoramapublic.PanoramaPublicController.AbstractCatalogEntryAction" %>
+<%@ page import="org.labkey.panoramapublic.catalog.CatalogEntrySettings" %>
+<%@ page import="org.labkey.panoramapublic.query.CatalogEntryManager" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%!
     @Override
@@ -42,6 +44,13 @@
 
     var attachedFile = bean.getImageFileName();
     var attachmentUrl = bean.getImageUrl();
+
+    CatalogEntrySettings settings = CatalogEntryManager.getCatalogEntrySettings();
+    int descriptionCharLimit = settings.getMaxTextChars();
+    long maxFileSize = settings.getMaxFileSize();
+    String maxFileSizeMb = FileUtils.byteCountToDisplaySize(maxFileSize);
+    int minImageWidth = settings.getMinImgWidth();
+    int minImageHeight = settings.getMinImgHeight();
 
     ActionURL cancelUrl = PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), form.getContainer());
 
@@ -102,7 +111,7 @@
                     <textarea id="descFieldInput" rows="8" cols="60" name="datasetDescription" ><%=h(form.getDatasetDescription())%></textarea>
                     <br/>
                     <div id="remainingChars" style="margin-bottom:15px;color:darkgray">
-                        <span id="rchars"><%=AbstractCatalogEntryAction.CHAR_LIMIT%></span> characters remaining
+                        <span id="rchars"><%=descriptionCharLimit%></span> characters remaining
                     </div>
                 </td>
             </tr>
@@ -110,9 +119,9 @@
                 <td class="labkey-form-label" style="text-align:center;">Image:</br>
                     <span style="font-size:0.8em;">png, jpeg</span>
                     <br>
-                    <span style="font-size:0.8em;">Size: < <%=h(AbstractCatalogEntryAction.MAX_FILE_SIZE_MB)%></span>
+                    <span style="font-size:0.8em;">Size: < <%=h(maxFileSizeMb)%></span>
                     <br>
-                    <span style="font-size:0.8em;">Preferred: <%=AbstractCatalogEntryAction.IMG_WIDTH%> x <%=AbstractCatalogEntryAction.IMG_HEIGHT%> pixels</span>
+                    <span style="font-size:0.8em;">Preferred: <%=minImageWidth%> x <%=minImageHeight%> pixels</span>
                 </td>
                 <td>
                     <input id="imageFileInput" type="file" size="50" style="border: none; background-color: transparent;" accept="image/png,image/jpeg" />
@@ -154,10 +163,10 @@
     let context;
     let preview;
 
-    const maxFileSize = <%=AbstractCatalogEntryAction.MAX_FILE_SIZE%>;
-    const maxFileSizeMb = <%=h(AbstractCatalogEntryAction.MAX_FILE_SIZE_MB)%>
-    const preferredWidth = <%=AbstractCatalogEntryAction.IMG_WIDTH%>;
-    const preferredHeight = <%=AbstractCatalogEntryAction.IMG_HEIGHT%>;
+    const maxFileSize = <%=maxFileSize%>;
+    const maxFileSizeMb = <%=h(maxFileSizeMb)%>
+    const preferredWidth = <%=minImageWidth%>;
+    const preferredHeight = <%=minImageHeight%>;
     const maxDisplayWidth = Math.max(900, preferredWidth);
     const maxDisplayHeight = Math.max(600, preferredHeight);
 
@@ -251,7 +260,7 @@
             });
         });
 
-        const maxDescriptionLen = <%=AbstractCatalogEntryAction.CHAR_LIMIT%>>;
+        const maxDescriptionLen = <%=descriptionCharLimit%>>;
         function limitDescription(inputField)
         {
             inputField.val(inputField.val().substring(0, maxDescriptionLen));
