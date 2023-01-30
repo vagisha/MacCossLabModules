@@ -23,9 +23,11 @@ import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.exp.api.ExperimentService;
 import org.labkey.api.module.ModuleContext;
+import org.labkey.api.module.ModuleProperty;
 import org.labkey.api.module.SpringModule;
 import org.labkey.api.pipeline.PipelineService;
 import org.labkey.api.protein.ProteinService;
+import org.labkey.api.security.permissions.AdminOperationsPermission;
 import org.labkey.api.security.permissions.AdminPermission;
 import org.labkey.api.security.roles.RoleManager;
 import org.labkey.api.settings.AdminConsole;
@@ -74,6 +76,34 @@ public class PanoramaPublicModule extends SpringModule
     public static final String NAME = "PanoramaPublic";
     public static final String DOWNLOAD_DATA_INFO_WP = "Download Data";
 
+    public static String ENABLE_CATALOG_ENTRY = "Enable Panorama Public catalog entries";
+    public static String CATALOG_MAX_FILE_SIZE = "Catalog image maximum file size (bytes)";
+    public static String CATALOG_IMG_WIDTH = "Catalog image minimum width (pixels)";
+    public static String CATALOG_IMG_HEIGHT = "Catalog image minimum height (pixels)";
+
+
+    public PanoramaPublicModule()
+    {
+        registerModuleProperty(ENABLE_CATALOG_ENTRY, ModuleProperty.InputType.checkbox, "false");
+        registerModuleProperty(CATALOG_MAX_FILE_SIZE, ModuleProperty.InputType.text, "5242880"); // 5MB
+        registerModuleProperty(CATALOG_IMG_WIDTH, ModuleProperty.InputType.text, "600");
+        registerModuleProperty(CATALOG_IMG_HEIGHT, ModuleProperty.InputType.text, "400");
+    }
+
+    private void registerModuleProperty(String name, ModuleProperty.InputType inputType, String defaultValue)
+    {
+        ModuleProperty prop = new ModuleProperty(this, name, inputType);
+        prop.setDefaultValue(defaultValue);
+        prop.setCanSetPerContainer(false);
+        prop.setEditPermissions(List.of(AdminOperationsPermission.class));
+        addModuleProperty(prop);
+    }
+
+    public boolean catalogEntriesEnabled()
+    {
+        return Boolean.parseBoolean(getModuleProperties().get(PanoramaPublicModule.ENABLE_CATALOG_ENTRY).getEffectiveValue(ContainerManager.getRoot()));
+    }
+
     @Override
     public String getName()
     {
@@ -84,7 +114,7 @@ public class PanoramaPublicModule extends SpringModule
     public @Nullable Double getSchemaVersion()
     {
         return 22.005;
-    }
+    } // TODO: change this
 
     @Override
     public boolean hasScripts()

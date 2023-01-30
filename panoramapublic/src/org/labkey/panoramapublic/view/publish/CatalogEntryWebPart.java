@@ -43,18 +43,14 @@ public class CatalogEntryWebPart extends VBox
             addView(new HtmlView(DIV("This dataset does not have an entry in the Panorama Public slideshow catalog. " +
                             "Click the button below to add an entry.",
                     BR(),
-                    new Button.ButtonBuilder("Add Catalog Entry").href(
-                            new ActionURL(PanoramaPublicController.AddCatalogEntryAction.class, container)
-                                    .addParameter("id", expAnnotations.getId())
-                    ))));
+                    new Button.ButtonBuilder("Add Catalog Entry").href(PanoramaPublicController.getAddCatalogEntryUrl(expAnnotations))
+            )));
         }
         else
         {
             Button changeStatusBtn = null;
             if (user.hasSiteAdminPermission())
             {
-                boolean approve = entry.isPendingApproval() || !entry.getApproved();
-                String btnTxt = approve ? "Approve" : "Reject";
                 changeStatusBtn = changeStatusButtonBuilder(entry.getApproved(), expAnnotations.getId(), entry.getId(), container)
                         .style("margin-left: 10px")
                         .build();
