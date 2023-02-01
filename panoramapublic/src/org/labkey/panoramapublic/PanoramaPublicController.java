@@ -8609,7 +8609,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             CatalogEntryBean bean = getViewBean(form, expAnnot, reshow, errors);
-            if (errors.hasErrors())
+            if (!reshow && errors.hasErrors())
             {
                 return new SimpleErrorView(errors);
             }

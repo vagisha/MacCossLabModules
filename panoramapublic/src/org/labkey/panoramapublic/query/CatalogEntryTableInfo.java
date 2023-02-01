@@ -27,7 +27,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.DIV;
+import static org.labkey.api.util.DOM.SPAN;
+import static org.labkey.api.util.DOM.at;
 
 public class CatalogEntryTableInfo extends PanoramaPublicTable
 {
@@ -37,20 +40,37 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
                 new ContainerJoin("ShortUrl", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "ShortUrl"));
 
         var viewCol = wrapColumn("View", getRealTable().getColumn("Id"));
+        viewCol.setJdbcType(JdbcType.VARCHAR);
         viewCol.setDisplayColumnFactory(colInfo -> new DataColumn(colInfo)
         {
             @Override
-            public void renderGridCellContents(RenderContext ctx, Writer out) throws IOException
+            public Object getValue(RenderContext ctx)
             {
                 Integer id = ctx.get(getColumnInfo().getFieldKey(), Integer.class);
                 CatalogEntry entry = id != null ? CatalogEntryManager.get(id) : null;
                 ExperimentAnnotations expAnnotations = entry != null ? ExperimentAnnotationsManager.getExperimentForShortUrl(entry.getShortUrl()) : null;
                 if (entry != null && expAnnotations != null)
                 {
-                    var viewButton = new Button.ButtonBuilder("View").href(
-                                    new ActionURL(PanoramaPublicController.ViewCatalogEntryAction.class, expAnnotations.getContainer())
-                                            .addParameter("id", entry.getId())
-                                            .addReturnURL(ctx.getViewContext().getActionURL())).build();
+                    return new ActionURL(PanoramaPublicController.ViewCatalogEntryAction.class, expAnnotations.getContainer())
+                                    .addParameter("id", entry.getId());
+                }
+                return super.getValue(ctx);
+            }
+
+            @Override
+            public Object getDisplayValue(RenderContext ctx)
+            {
+                return getValue(ctx);
+            }
+
+            @Override
+            public void renderGridCellContents(RenderContext ctx, Writer out) throws IOException
+            {
+                Object viewCatalogEntryUrl = getValue(ctx);
+                if (viewCatalogEntryUrl instanceof ActionURL url)
+                {
+                    url.addReturnURL(ctx.getViewContext().getActionURL());
+                    var viewButton = new Button.ButtonBuilder("View").href(url).build();
                     viewButton.appendTo(out);
                     return;
                 }
@@ -80,19 +100,10 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
         var imageFileNameCol = wrapColumn("ImageFile", getRealTable().getColumn("ImageFileName"));
         imageFileNameCol.setDisplayColumnFactory(colInfo -> new DataColumn(colInfo)
         {
-            private ActionURL _downloadLink;
-
             @Override
             public Object getValue(RenderContext ctx)
             {
-                String fileName = ctx.get(getColumnInfo().getFieldKey(), String.class);
-                ShortURLRecord shortUrl = ctx.get(FieldKey.fromParts("ShortUrl"), ShortURLRecord.class);
-                ExperimentAnnotations expAnnotations = shortUrl != null ? ExperimentAnnotationsManager.getExperimentForShortUrl(shortUrl) : null;
-                if (expAnnotations != null)
-                {
-                    _downloadLink = PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, fileName);
-                }
-                return fileName;
+                return ctx.get(getColumnInfo().getFieldKey(), String.class);
             }
 
             @Override
@@ -105,11 +116,15 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
             public void renderGridCellContents(RenderContext ctx, Writer out) throws IOException
             {
                 String fileName = (String) getValue(ctx);
-                if (fileName != null && _downloadLink != null)
+                ShortURLRecord shortUrl = ctx.get(FieldKey.fromParts("ShortUrl"), ShortURLRecord.class);
+                ExperimentAnnotations expAnnotations = shortUrl != null ? ExperimentAnnotationsManager.getExperimentForShortUrl(shortUrl) : null;
+                if (fileName != null && expAnnotations != null)
                 {
-                    out.write("<nobr>" + PageFlowUtil.encode(fileName));
-                    out.write(PageFlowUtil.iconLink("fa fa-download", null).href(_downloadLink).style("margin-left:10px;").toString());
-                    out.write("</nobr>");
+                    ActionURL downloadLink = PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, fileName);
+                    SPAN(at(style, "white-space: nowrap;"),
+                            fileName,
+                            PageFlowUtil.iconLink("fa fa-download", null).href(downloadLink).style("margin-left:10px;").build())
+                            .appendTo(out);
                     return;
                 }
                 super.renderGridCellContents(ctx, out);

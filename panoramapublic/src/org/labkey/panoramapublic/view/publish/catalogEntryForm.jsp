@@ -33,8 +33,6 @@
         dependencies.add("PanoramaPublic/cropperjs/cropper.min.js");
         dependencies.add("PanoramaPublic/cropperjs/cropper.min.css");
         dependencies.add("PanoramaPublic/cropperjs/jquery-cropper.min.js");
-        dependencies.add("PanoramaPublic/jQuery/jquery-ui.min.css");
-        dependencies.add("PanoramaPublic/jQuery/jquery-ui.min.js");
     }
 %>
 <%
@@ -146,7 +144,7 @@
         </canvas>
     </div>
     <div style="margin-top:5px; text-align:center">
-        Drag and resize the crop-box over the image, and click the "Crop" button to fit the slideshow dimensions.
+        Drag and resize the crop-box over the image, and click the "Crop" button to fit image to the slideshow dimensions.
         <div style="margin-top:5px;">
             <a class="labkey-button" id="btnCrop">Crop</a>
             <a class="labkey-button" style="margin-left:5px;" id="btnCancel">Cancel</a>
