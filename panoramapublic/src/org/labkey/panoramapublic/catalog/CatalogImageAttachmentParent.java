@@ -3,18 +3,18 @@ package org.labkey.panoramapublic.catalog;
 import org.jetbrains.annotations.NotNull;
 import org.labkey.api.attachments.AttachmentParent;
 import org.labkey.api.attachments.AttachmentType;
+import org.labkey.api.data.Container;
 import org.labkey.api.view.ShortURLRecord;
-import org.labkey.panoramapublic.model.ExperimentAnnotations;
 
 public class CatalogImageAttachmentParent implements AttachmentParent
 {
-    private final String _containerId;
     private final String _entityId;
+    private final String _containerId;
 
-    public CatalogImageAttachmentParent(ShortURLRecord shortUrl, ExperimentAnnotations experimentAnnotations)
+    public CatalogImageAttachmentParent(@NotNull ShortURLRecord shortUrl, @NotNull Container container)
     {
-        _containerId = experimentAnnotations.getContainer().getId();
         _entityId = shortUrl.getEntityId().toString();
+        _containerId = container.getId();
     }
     @Override
     public String getEntityId()

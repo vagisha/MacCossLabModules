@@ -30,15 +30,15 @@ public class CatalogEntryManager
     public static String PANORAMA_PUBLIC_CATALOG = "Panorama Public catalog";
     public static String CATALOG_ENTRY_ENABLED = "Catalog entry enabled";
     public static String CATALOG_MAX_FILE_SIZE = "Catalog entry max file size";
-    public static String CATALOG_MIN_IMG_WIDTH = "Catalog image min width";
-    public static String CATALOG_MIN_IMG_HEIGHT = "Catalog image min height";
+    public static String CATALOG_IMG_WIDTH = "Catalog image preferred width";
+    public static String CATALOG_IMG_HEIGHT = "Catalog image preferred height";
     public static String CATALOG_TEXT_CHAR_LIMIT = "Catalog text character limit";
 
-    public static CatalogEntry getEntry(int catalogEntryId)
+    public static CatalogEntry get(int catalogEntryId)
     {
         return new TableSelector(PanoramaPublicManager.getTableInfoCatalogEntry(),null, null).getObject(catalogEntryId, CatalogEntry.class);
     }
-    public static void save(CatalogEntry entry, User user)
+    private static void save(CatalogEntry entry, User user)
     {
         Table.insert(user, PanoramaPublicManager.getTableInfoCatalogEntry(), entry);
     }
@@ -61,9 +61,9 @@ public class CatalogEntryManager
         }
     }
 
-    public static void saveImageAttachment(@NotNull AttachmentFile imageFile, @NotNull ExperimentAnnotations expAnnotations, User user) throws IOException
+    private static void saveImageAttachment(@NotNull AttachmentFile imageFile, @NotNull ExperimentAnnotations expAnnotations, User user) throws IOException
     {
-        AttachmentParent ap = new CatalogImageAttachmentParent(expAnnotations.getShortUrl(), expAnnotations);
+        AttachmentParent ap = new CatalogImageAttachmentParent(expAnnotations.getShortUrl(), expAnnotations.getContainer());
         AttachmentService svc = AttachmentService.get();
         svc.deleteAttachments(ap); // If there is an existing attachment, delete it.
         svc.addAttachments(ap, Collections.singletonList(imageFile), user);
@@ -108,7 +108,7 @@ public class CatalogEntryManager
         {
             try(DbScope.Transaction transaction = PanoramaPublicManager.getSchema().getScope().ensureTransaction())
             {
-                AttachmentParent ap = new CatalogImageAttachmentParent(expAnnotations.getShortUrl(), expAnnotations);
+                AttachmentParent ap = new CatalogImageAttachmentParent(expAnnotations.getShortUrl(), expAnnotations.getContainer());
                 AttachmentService.get().deleteAttachment(ap, entry.getImageFileName(), user);
 
                 Table.delete(PanoramaPublicManager.getTableInfoCatalogEntry(), new SimpleFilter(FieldKey.fromParts("id"), entry.getId()));
@@ -129,7 +129,7 @@ public class CatalogEntryManager
         CatalogEntry entry = getEntryForShortUrl(targetExperiment.getShortUrl());
         if (entry != null)
         {
-            AttachmentParent ap = new CatalogImageAttachmentParent(targetExperiment.getShortUrl(), previousCopy);
+            AttachmentParent ap = new CatalogImageAttachmentParent(targetExperiment.getShortUrl(), previousCopy.getContainer());
             svc.moveAttachments(targetExperiment.getContainer(), List.of(ap), user);
         }
     }
@@ -150,63 +150,23 @@ public class CatalogEntryManager
             {
                 return new CatalogEntrySettings(
                         NumberUtils.toLong(map.get(CATALOG_MAX_FILE_SIZE), CatalogEntrySettings.MAX_FILE_SIZE),
-                        NumberUtils.toInt(map.get(CATALOG_MIN_IMG_WIDTH), CatalogEntrySettings.MIN_IMG_WIDTH),
-                        NumberUtils.toInt(map.get(CATALOG_MIN_IMG_HEIGHT), CatalogEntrySettings.MIN_IMG_HEIGHT),
+                        NumberUtils.toInt(map.get(CATALOG_IMG_WIDTH), CatalogEntrySettings.IMG_WIDTH),
+                        NumberUtils.toInt(map.get(CATALOG_IMG_HEIGHT), CatalogEntrySettings.IMG_HEIGHT),
                         NumberUtils.toInt(map.get(CATALOG_TEXT_CHAR_LIMIT), CatalogEntrySettings.MAX_TEXT_CHARS));
             }
         }
-        return new CatalogEntrySettings(false);
+        return CatalogEntrySettings.DISABLED;
     }
 
-    public static void saveCatalogEntrySettings(boolean enabled, Long maxFileSize, Integer minImgWidth, Integer minImgHeight, Integer maxTextChars)
+    public static void saveCatalogEntrySettings(boolean enabled, @Nullable Long maxFileSize, @Nullable Integer imgWidth,
+                                                @Nullable Integer imgHeight, @Nullable Integer maxTextChars)
     {
         PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(CatalogEntryManager.PANORAMA_PUBLIC_CATALOG, true);
         map.put(CatalogEntryManager.CATALOG_ENTRY_ENABLED, Boolean.toString(enabled));
         map.put(CatalogEntryManager.CATALOG_MAX_FILE_SIZE, maxFileSize != null ? String.valueOf(maxFileSize) : null);
-        map.put(CatalogEntryManager.CATALOG_MIN_IMG_WIDTH, minImgWidth !=null ? String.valueOf(minImgWidth) : null);
-        map.put(CatalogEntryManager.CATALOG_MIN_IMG_HEIGHT, minImgHeight != null ? String.valueOf(minImgHeight) : null);
+        map.put(CatalogEntryManager.CATALOG_IMG_WIDTH, imgWidth !=null ? String.valueOf(imgWidth) : null);
+        map.put(CatalogEntryManager.CATALOG_IMG_HEIGHT, imgHeight != null ? String.valueOf(imgHeight) : null);
         map.put(CatalogEntryManager.CATALOG_TEXT_CHAR_LIMIT, maxTextChars != null ? String.valueOf(maxTextChars) : null);
         map.save();
-    }
-
-//    public static boolean catalogEntriesEnabled()
-//    {
-//        return Boolean.parseBoolean(getPropertyValue(CATALOG_ENTRY_ENABLED));
-//    }
-//
-//    public static long getMaxFileSize()
-//    {
-//        return getLongProperty(CATALOG_MAX_FILE_SIZE, 5 * 1024 * 1024);
-//    }
-//
-//    public static int getMinImageWidth()
-//    {
-//        return getIntProperty(CATALOG_MIN_IMG_WIDTH, 600);
-//    }
-//
-//    public static int getMinImageHeight()
-//    {
-//        return getIntProperty(CATALOG_MIN_IMG_HEIGHT, 400);
-//    }
-//
-//    public static int getTextCharLimit()
-//    {
-//        return getIntProperty(CATALOG_TEXT_CHAR_LIMIT, 500);
-//    }
-
-    private static int getIntProperty(String propName, int defaultValue)
-    {
-        return NumberUtils.toInt(getPropertyValue(propName), defaultValue);
-    }
-
-    private static long getLongProperty(String propName, long defaultValue)
-    {
-        return NumberUtils.toLong(getPropertyValue(propName), defaultValue);
-    }
-
-    private static String getPropertyValue(String propName)
-    {
-        PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(PANORAMA_PUBLIC_CATALOG, false);
-        return map != null ? map.get(propName) : null;
     }
 }

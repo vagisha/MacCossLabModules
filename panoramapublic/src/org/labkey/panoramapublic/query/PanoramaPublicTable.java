@@ -99,16 +99,6 @@ public class PanoramaPublicTable extends FilteredTable<PanoramaPublicSchema>
                 {
                     columnInfo.setFk(new UserIdQueryForeignKey(getUserSchema(), true));
                 }
-/*
-                else if ("ShortUrl".equalsIgnoreCase(columnInfo.getName()))
-                {
-                    // QueryService.get().getUserSchema(_user, _currentContainer, "core")
-                    columnInfo.setFk(new QueryForeignKey(getUserSchema(), getContainerFilter(),
-                            QueryService.get().getUserSchema(getUserSchema().getUser(), getUserSchema().getContainer(), "core"), null,
-                            // CoreSchema.getInstance().getTableInfoShortURL().getUserSchema(), null,
-                            fk.getLookupTableName(), fk.getLookupColumnName(), fk.getLookupDisplayName()));
-                }
-*/
             }
         }
     }

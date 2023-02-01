@@ -49,8 +49,8 @@
     int descriptionCharLimit = settings.getMaxTextChars();
     long maxFileSize = settings.getMaxFileSize();
     String maxFileSizeMb = FileUtils.byteCountToDisplaySize(maxFileSize);
-    int minImageWidth = settings.getMinImgWidth();
-    int minImageHeight = settings.getMinImgHeight();
+    int minImageWidth = settings.getImgWidth();
+    int minImageHeight = settings.getImgHeight();
 
     ActionURL cancelUrl = PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), form.getContainer());
 
@@ -164,7 +164,7 @@
     let preview;
 
     const maxFileSize = <%=maxFileSize%>;
-    const maxFileSizeMb = <%=h(maxFileSizeMb)%>
+    const maxFileSizeMb = <%=qh(maxFileSizeMb)%>;
     const preferredWidth = <%=minImageWidth%>;
     const preferredHeight = <%=minImageHeight%>;
     const maxDisplayWidth = Math.max(900, preferredWidth);
@@ -260,7 +260,7 @@
             });
         });
 
-        const maxDescriptionLen = <%=descriptionCharLimit%>>;
+        const maxDescriptionLen = <%=descriptionCharLimit%>;
         function limitDescription(inputField)
         {
             inputField.val(inputField.val().substring(0, maxDescriptionLen));

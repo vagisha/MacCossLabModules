@@ -305,7 +305,6 @@ public class PanoramaPublicSchema extends UserSchema
 
         if (TABLE_CATALOG_ENTRY.equalsIgnoreCase(name))
         {
-            // return new PanoramaPublicTable(PanoramaPublicManager.getTableInfoCatalogEntry(), this, cf, ContainerJoin.ShortUrlJoin);
             return new CatalogEntryTableInfo(this, cf);
         }
 

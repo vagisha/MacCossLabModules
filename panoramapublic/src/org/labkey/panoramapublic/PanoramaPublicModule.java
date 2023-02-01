@@ -83,8 +83,8 @@ public class PanoramaPublicModule extends SpringModule
     @Override
     public @Nullable Double getSchemaVersion()
     {
-        return 22.005;
-    } // TODO: change this
+        return 22.006;
+    }
 
     @Override
     public boolean hasScripts()
@@ -97,7 +97,6 @@ public class PanoramaPublicModule extends SpringModule
     {
         addController(PanoramaPublicController.NAME, PanoramaPublicController.class);
         PanoramaPublicSchema.register(this);
-        // AttachmentService.get().registerAttachmentType(FileSystemAttachmentType.get());
     }
 
     @Override

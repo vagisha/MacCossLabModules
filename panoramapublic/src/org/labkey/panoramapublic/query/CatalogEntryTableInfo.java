@@ -21,7 +21,6 @@ import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.view.publish.CatalogEntryWebPart;
 import org.labkey.panoramapublic.view.publish.ShortUrlDisplayColumnFactory;
 
-import javax.xml.catalog.Catalog;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -43,13 +42,14 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
             public void renderGridCellContents(RenderContext ctx, Writer out) throws IOException
             {
                 Integer id = ctx.get(getColumnInfo().getFieldKey(), Integer.class);
-                CatalogEntry entry = id != null ? CatalogEntryManager.getEntry(id) : null;
+                CatalogEntry entry = id != null ? CatalogEntryManager.get(id) : null;
                 ExperimentAnnotations expAnnotations = entry != null ? ExperimentAnnotationsManager.getExperimentForShortUrl(entry.getShortUrl()) : null;
                 if (entry != null && expAnnotations != null)
                 {
                     var viewButton = new Button.ButtonBuilder("View").href(
                                     new ActionURL(PanoramaPublicController.ViewCatalogEntryAction.class, expAnnotations.getContainer())
-                                            .addParameter("id", entry.getId())).build();
+                                            .addParameter("id", entry.getId())
+                                            .addReturnURL(ctx.getViewContext().getActionURL())).build();
                     viewButton.appendTo(out);
                     return;
                 }
@@ -60,7 +60,6 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
             {
                 super.addQueryFieldKeys(keys);
                 keys.add(FieldKey.fromParts("Id"));
-                keys.add(FieldKey.fromParts("Title","Id")); // ExperimentAnnotationsId
             }
         });
         addColumn(viewCol);
@@ -91,9 +90,8 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
                 if (expAnnotations != null)
                 {
                     _downloadLink = PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, fileName);
-                    return fileName;
                 }
-                return null;
+                return fileName;
             }
 
             @Override
@@ -108,7 +106,7 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
                 String fileName = (String) getValue(ctx);
                 if (fileName != null && _downloadLink != null)
                 {
-                    out.write("<nobr>" + fileName);
+                    out.write("<nobr>" + PageFlowUtil.encode(fileName));
                     out.write(PageFlowUtil.iconLink("fa fa-download", null).href(_downloadLink).style("margin-left:10px;").toString());
                     out.write("</nobr>");
                     return;
@@ -148,12 +146,12 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
         reviewCol.setDisplayColumnFactory(colInfo -> new DataColumn(colInfo)
         {
             @Override
-            public void renderGridCellContents(RenderContext ctx, Writer out) throws IOException
+            public void renderGridCellContents(RenderContext ctx, Writer out)
             {
                 Integer catalogEntryId = ctx.get(getColumnInfo().getFieldKey(), Integer.class);
                 if (catalogEntryId != null && ctx.getViewContext().getUser().hasSiteAdminPermission())
                 {
-                    CatalogEntry entry = CatalogEntryManager.getEntry(catalogEntryId);
+                    CatalogEntry entry = CatalogEntryManager.get(catalogEntryId);
                     ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getExperimentForShortUrl(entry.getShortUrl());
                     if (expAnnotations != null)
                     {

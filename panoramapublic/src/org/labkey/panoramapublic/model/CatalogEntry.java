@@ -1,5 +1,6 @@
 package org.labkey.panoramapublic.model;
 
+import org.jetbrains.annotations.Nullable;
 import org.labkey.api.attachments.Attachment;
 import org.labkey.api.attachments.AttachmentService;
 import org.labkey.api.view.ShortURLRecord;
@@ -53,21 +54,16 @@ public class CatalogEntry extends DbEntity
         _approved = approved;
     }
 
-    public Attachment getAtachment()
+    public @Nullable Attachment getAttachment()
     {
         if (_shortUrl != null && _imageFileName != null)
         {
             ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getExperimentForShortUrl(_shortUrl);
             return expAnnotations != null
-                    ? AttachmentService.get().getAttachment(new CatalogImageAttachmentParent(_shortUrl, expAnnotations), _imageFileName)
+                    ? AttachmentService.get().getAttachment(new CatalogImageAttachmentParent(_shortUrl, expAnnotations.getContainer()), _imageFileName)
                     : null;
         }
         return null;
-    }
-
-    public boolean isPendingApproval()
-    {
-        return _approved == null;
     }
 
     public static String getStatusText(Boolean status)
