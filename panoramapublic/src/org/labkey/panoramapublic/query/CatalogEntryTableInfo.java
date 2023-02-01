@@ -33,7 +33,8 @@ public class CatalogEntryTableInfo extends PanoramaPublicTable
 {
     public CatalogEntryTableInfo(@NotNull PanoramaPublicSchema userSchema, ContainerFilter cf)
     {
-        super(PanoramaPublicManager.getTableInfoCatalogEntry(), userSchema, cf, ContainerJoin.ShortUrlJoin);
+        super(PanoramaPublicManager.getTableInfoCatalogEntry(), userSchema, cf,
+                new ContainerJoin("ShortUrl", PanoramaPublicManager.getTableInfoExperimentAnnotations(), "ShortUrl"));
 
         var viewCol = wrapColumn("View", getRealTable().getColumn("Id"));
         viewCol.setDisplayColumnFactory(colInfo -> new DataColumn(colInfo)

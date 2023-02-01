@@ -71,12 +71,12 @@ public class CatalogEntryWebPart extends VBox
                     .addReturnURL(ctxReturnUrl != null ? ctxReturnUrl : getContextURLHelper());
 
             addView(new HtmlView(DIV(
-                    DIV(B(at(style, "margin-right:5px"), U("Status: ")), CatalogEntry.getStatusText(entry.getApproved()),
+                    DIV(B(at(style, "margin:0 5px 5px 0"), U("Status: ")), CatalogEntry.getStatusText(entry.getApproved()),
                             changeStatusBtn == null ? "" : changeStatusBtn),
-                    DIV(B(at(style, "margin-right:5px"), U("Title:")), expAnnotations.getTitle()),
+                    DIV(B(at(style, "margin:0 5px 5px 0"), U("Title:")), expAnnotations.getTitle()),
                     DIV(B(U("Description:")), BR(), entry.getDescription()),
                     IMG(at(src, PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, entry.getImageFileName()))
-                            .at(width, 600).at(height, 400)),
+                            .at(width, 600).at(height, 400).at(style, "margin-top:10px;")),
                     BR(), BR(),
                     new Button.ButtonBuilder("Edit").href(editUrl),
                     HtmlString.NBSP,
