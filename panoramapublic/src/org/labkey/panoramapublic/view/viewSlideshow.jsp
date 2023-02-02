@@ -119,9 +119,10 @@
         const coverslide = document.createElement('div');
         coverslide.setAttribute('class', 'coverslide');
         coverslide.setAttribute('style', 'display: block;')
-        const html = '<a href="' + entry.accessUrl + '">' +
-                '<img src="' + entry.imageUrl + '" class="slideimg" style="border:0;" width="600" height="400" alt="Image"/>' +
-                '</a>';
+        const html = '<a href="' + entry.accessUrl + '">' // accessUrl is already encoded in GetCatalogApiAction
+                + '<img src="' + entry.imageUrl // imageUrl is already encoded in GetCatalogApiAction
+                + '" class="slideimg" style="border:0;" width="600" height="400" alt="Image"/>'
+                + '</a>';
         coverslide.innerHTML += html;
         coverslideContainer.appendChild(coverslide);
     }
