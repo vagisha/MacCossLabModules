@@ -1212,6 +1212,7 @@ public class PanoramaPublicController extends SpringActionController
                     form.setImgWidth(settings.getImgWidth());
                     form.setImgHeight(settings.getImgHeight());
                     form.setMaxTextChars(settings.getMaxTextChars());
+                    form.setMaxEntries(settings.getMaxDisplayEntries());
                 }
             }
             HtmlView view = new HtmlView(
@@ -1239,6 +1240,10 @@ public class PanoramaPublicController extends SpringActionController
                             TR(
                                     TD(cl("labkey-form-label"), "Character limit for description: "),
                                     TD(INPUT(at(type, "Text", name, "maxTextChars", value, form.getMaxTextChars())))
+                            ),
+                            TR(
+                                    TD(cl("labkey-form-label"), "Maximum entries in slideshow: "),
+                                    TD(INPUT(at(type, "Text", name, "maxEntries", value, form.getMaxEntries())))
                             )
                         )),
                             new Button.ButtonBuilder("Save").submit(true).build(),
@@ -1263,22 +1268,23 @@ public class PanoramaPublicController extends SpringActionController
             {
                 if (form.getMaxFileSize() == null)
                 {
-                    errors.reject(ERROR_MSG, "Max file size cannot be empty");
+                    errors.reject(ERROR_MSG, "Please enter a value for maximum file size");
                 }
-
                 if (form.getImgWidth() == null)
                 {
-                    errors.reject(ERROR_MSG, "Preferred image width cannot be empty");
+                    errors.reject(ERROR_MSG, "Please enter a value for preferred image width");
                 }
-
                 if (form.getImgHeight() == null)
                 {
-                    errors.reject(ERROR_MSG, "Preferred image height cannot be empty");
+                    errors.reject(ERROR_MSG, "Please enter a value for preferred image height");
                 }
-
                 if (form.getMaxTextChars() == null)
                 {
-                    errors.reject(ERROR_MSG, "Character limit for description cannot be empty");
+                    errors.reject(ERROR_MSG, "Please enter character limit for description");
+                }
+                if (form.getMaxEntries() == null)
+                {
+                    errors.reject(ERROR_MSG, "Please enter a value for the maximum catalog entries to be displayed");
                 }
             }
             if (errors.hasErrors())
@@ -1287,7 +1293,7 @@ public class PanoramaPublicController extends SpringActionController
             }
 
             CatalogEntryManager.saveCatalogEntrySettings(form.getEnabled(), form.getMaxFileSize(), form.getImgWidth(),
-                    form.getImgHeight(), form.getMaxTextChars());
+                    form.getImgHeight(), form.getMaxTextChars(), form.getMaxEntries());
 
             return true;
         }
@@ -1322,6 +1328,7 @@ public class PanoramaPublicController extends SpringActionController
         private Integer _imgWidth;
         private Integer _imgHeight;
         private Integer _maxTextChars;
+        private Integer _maxEntries;
 
         public boolean getEnabled()
         {
@@ -1371,6 +1378,16 @@ public class PanoramaPublicController extends SpringActionController
         public void setMaxTextChars(Integer maxTextChars)
         {
             _maxTextChars = maxTextChars;
+        }
+
+        public Integer getMaxEntries()
+        {
+            return _maxEntries;
+        }
+
+        public void setMaxEntries(Integer maxEntries)
+        {
+            _maxEntries = maxEntries;
         }
     }
 
@@ -9082,15 +9099,18 @@ public class PanoramaPublicController extends SpringActionController
     }
 
     @RequiresPermission(ReadPermission.class)
-    public static class GetCatalogApiAction extends ReadOnlyApiAction
+    public static class GetCatalogApiAction extends ReadOnlyApiAction<CatalogForm>
     {
         @Override
-        public Object execute(Object form, BindException errors) throws Exception
+        public Object execute(CatalogForm form, BindException errors) throws Exception
         {
             ApiSimpleResponse response = new ApiSimpleResponse();
             List<JSONObject> jsonEntryList = new ArrayList<>();
 
-            List<CatalogEntry> entryList = CatalogEntryManager.getEntries(true);
+            int maxEntries = form.getMaxEntries() != null ? form.getMaxEntries()
+                    : CatalogEntryManager.getCatalogEntrySettings().getMaxDisplayEntries();
+
+            List<CatalogEntry> entryList = CatalogEntryManager.getApprovedEntries(maxEntries);
             for (CatalogEntry entry : entryList)
             {
                 ExperimentAnnotations expAnnotations = ExperimentAnnotationsManager.getExperimentForShortUrl(entry.getShortUrl());
@@ -9106,6 +9126,21 @@ public class PanoramaPublicController extends SpringActionController
             }
             response.put("catalog", jsonEntryList);
             return response;
+        }
+    }
+
+    public static class CatalogForm
+    {
+        private Integer _maxEntries;
+
+        public Integer getMaxEntries()
+        {
+            return _maxEntries;
+        }
+
+        public void setMaxEntries(Integer maxEntries)
+        {
+            _maxEntries = maxEntries;
         }
     }
 

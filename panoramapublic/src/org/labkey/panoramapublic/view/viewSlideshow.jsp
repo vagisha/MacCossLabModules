@@ -67,7 +67,7 @@
     {
         // Get a list of the approved catalog entries.
         Ext4.Ajax.request({
-            url: LABKEY.ActionURL.buildURL('panoramapublic', 'getCatalogApi.api'),
+            url: LABKEY.ActionURL.buildURL('panoramapublic', 'getCatalogApi.api'/*, null, {maxEntries : 3}*/),
             method: 'GET',
             success: LABKEY.Utils.getCallbackWrapper(addSlides),
             failure: function () {

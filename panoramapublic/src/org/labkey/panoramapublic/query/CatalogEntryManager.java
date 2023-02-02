@@ -21,8 +21,10 @@ import org.labkey.panoramapublic.model.CatalogEntry;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 
 public class CatalogEntryManager
@@ -33,6 +35,7 @@ public class CatalogEntryManager
     public static String CATALOG_IMG_WIDTH = "Catalog image preferred width";
     public static String CATALOG_IMG_HEIGHT = "Catalog image preferred height";
     public static String CATALOG_TEXT_CHAR_LIMIT = "Catalog text character limit";
+    public static String CATALOG_MAX_ENTRIES = "Maximum entries to display in the slideshow";
 
     public static CatalogEntry get(int catalogEntryId)
     {
@@ -134,10 +137,29 @@ public class CatalogEntryManager
         }
     }
 
-    public static List<CatalogEntry> getEntries(boolean approvedOnly)
+    public static List<CatalogEntry> getApprovedEntries(int entryCount)
     {
+        SimpleFilter filter = new SimpleFilter(FieldKey.fromParts("Approved"), true);
+        List<Integer> entryIdList = new TableSelector(PanoramaPublicManager.getTableInfoCatalogEntry(),
+                Collections.singleton("Id"),
+                filter,
+                null).getArrayList(Integer.class);
+
+        if (entryCount <= entryIdList.size())
+        {
+            Random random = new Random();
+            List<Integer> toFilter = new ArrayList<>(entryCount);
+            for (int i = 0; i < entryCount; i++)
+            {
+                int randomIdx = random.nextInt(entryIdList.size());
+                toFilter.add(entryIdList.get(randomIdx));
+                entryIdList.remove(randomIdx);
+            }
+            filter.addInClause(FieldKey.fromParts("Id"), toFilter);
+        }
+
         return new TableSelector(PanoramaPublicManager.getTableInfoCatalogEntry(),
-                approvedOnly ? new SimpleFilter(FieldKey.fromParts("Approved"), true) : null,
+                filter,
                 null).getArrayList(CatalogEntry.class);
     }
 
@@ -152,14 +174,17 @@ public class CatalogEntryManager
                         NumberUtils.toLong(map.get(CATALOG_MAX_FILE_SIZE), CatalogEntrySettings.MAX_FILE_SIZE),
                         NumberUtils.toInt(map.get(CATALOG_IMG_WIDTH), CatalogEntrySettings.IMG_WIDTH),
                         NumberUtils.toInt(map.get(CATALOG_IMG_HEIGHT), CatalogEntrySettings.IMG_HEIGHT),
-                        NumberUtils.toInt(map.get(CATALOG_TEXT_CHAR_LIMIT), CatalogEntrySettings.MAX_TEXT_CHARS));
+                        NumberUtils.toInt(map.get(CATALOG_TEXT_CHAR_LIMIT), CatalogEntrySettings.MAX_TEXT_CHARS),
+                        NumberUtils.toInt(map.get(CATALOG_MAX_ENTRIES), CatalogEntrySettings.MAX_ENTRIES)
+                        );
             }
         }
         return CatalogEntrySettings.DISABLED;
     }
 
     public static void saveCatalogEntrySettings(boolean enabled, @Nullable Long maxFileSize, @Nullable Integer imgWidth,
-                                                @Nullable Integer imgHeight, @Nullable Integer maxTextChars)
+                                                @Nullable Integer imgHeight, @Nullable Integer maxTextChars,
+                                                @Nullable Integer maxEntries)
     {
         PropertyManager.PropertyMap map = PropertyManager.getNormalStore().getWritableProperties(CatalogEntryManager.PANORAMA_PUBLIC_CATALOG, true);
         map.put(CatalogEntryManager.CATALOG_ENTRY_ENABLED, Boolean.toString(enabled));
@@ -167,6 +192,7 @@ public class CatalogEntryManager
         map.put(CatalogEntryManager.CATALOG_IMG_WIDTH, imgWidth !=null ? String.valueOf(imgWidth) : null);
         map.put(CatalogEntryManager.CATALOG_IMG_HEIGHT, imgHeight != null ? String.valueOf(imgHeight) : null);
         map.put(CatalogEntryManager.CATALOG_TEXT_CHAR_LIMIT, maxTextChars != null ? String.valueOf(maxTextChars) : null);
+        map.put(CatalogEntryManager.CATALOG_MAX_ENTRIES, maxEntries != null ? String.valueOf(maxEntries) : null);
         map.save();
     }
 }
