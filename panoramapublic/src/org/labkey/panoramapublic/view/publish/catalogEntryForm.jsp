@@ -41,14 +41,14 @@
     var form = bean.getForm();
 
     var attachedFile = bean.getImageFileName();
-    var attachmentUrl = bean.getImageUrl();
+    var attachmentUrl = bean.getImageUrl().getLocalURIString();
 
     CatalogEntrySettings settings = CatalogEntryManager.getCatalogEntrySettings();
     int descriptionCharLimit = settings.getMaxTextChars();
     long maxFileSize = settings.getMaxFileSize();
     String maxFileSizeMb = FileUtils.byteCountToDisplaySize(maxFileSize);
-    int minImageWidth = settings.getImgWidth();
-    int minImageHeight = settings.getImgHeight();
+    int imgWidth = settings.getImgWidth();
+    int imgHeight = settings.getImgHeight();
 
     ActionURL cancelUrl = PanoramaPublicController.getViewExperimentDetailsURL(form.getId(), form.getContainer());
 
@@ -67,10 +67,6 @@
         cursor: default;
         border: 1px solid black;
     }
-    .noRemainingChars
-    {
-        color:red;
-    }
     #mask{
         position: absolute;
         top: 0;
@@ -83,18 +79,21 @@
     }
     #cropperContainer
     {
-        position: absolute;
+        position: fixed;
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        margin: 10px auto;
         padding: 15px;
         background-color: #ffffff;
         cursor: pointer;
         z-index: 10001;
         display: none;
-        box-shadow: 0px 0px 5px darkgray;
+        box-shadow: 0 0 5px darkgray;
         border-radius:5px;
+    }
+    .noRemainingChars
+    {
+        color:red;
     }
 </style>
 
@@ -114,12 +113,12 @@
                 </td>
             </tr>
             <tr>
-                <td class="labkey-form-label" style="text-align:center;">Image:</br>
+                <td class="labkey-form-label" style="text-align:center;">Image:<br>
                     <span style="font-size:0.8em;">png, jpeg</span>
                     <br>
                     <span style="font-size:0.8em;">Size: < <%=h(maxFileSizeMb)%></span>
                     <br>
-                    <span style="font-size:0.8em;">Preferred: <%=minImageWidth%> x <%=minImageHeight%> pixels</span>
+                    <span style="font-size:0.8em;">Preferred: <%=imgWidth%> x <%=imgHeight%> pixels</span>
                 </td>
                 <td>
                     <input id="imageFileInput" type="file" size="50" style="border: none; background-color: transparent;" accept="image/png,image/jpeg" />
@@ -143,7 +142,7 @@
             Your browser does not support the HTML5 canvas element.
         </canvas>
     </div>
-    <div style="margin-top:5px; text-align:center">
+    <div id="cropperButtons" style="margin-top:5px; text-align:center">
         Drag and resize the crop-box over the image, and click the "Crop" button to fit image to the slideshow dimensions.
         <div style="margin-top:5px;">
             <a class="labkey-button" id="btnCrop">Crop</a>
@@ -152,6 +151,7 @@
     </div>
 </div>
 
+
 <script type="text/javascript">
 
     let cropper;
@@ -159,14 +159,12 @@
     let fileName;
     let canvas;
     let context;
-    let preview;
+    let imageFileInput;
 
     const maxFileSize = <%=maxFileSize%>;
     const maxFileSizeMb = <%=qh(maxFileSizeMb)%>;
-    const preferredWidth = <%=minImageWidth%>;
-    const preferredHeight = <%=minImageHeight%>;
-    const maxDisplayWidth = Math.max(900, preferredWidth);
-    const maxDisplayHeight = Math.max(600, preferredHeight);
+    const preferredWidth = <%=imgWidth%>;
+    const preferredHeight = <%=imgHeight%>;
 
     (function($) {
 
@@ -174,15 +172,14 @@
 
             canvas  = $("#canvas");
             context = canvas.get(0).getContext("2d");
-            preview = $('#preview');
+            imageFileInput = $("#imageFileInput");
 
             <% if (attachedFile != null) { %>
                 // If we are editing an entry, show the attached image file in the preview box.
-                preview.append($('<img>').attr('src', <%=q(attachmentUrl)%>));
-                preview.append($('<div>').text(<%=q(attachedFile)%>)); // jQuery escapes the provided string (http://api.jquery.com/text/#text2)
+               initPreview(<%=q(attachmentUrl)%>, <%=q(attachedFile)%>);
             <% } %>
 
-            $('#imageFileInput').on( 'change', function(){
+            imageFileInput.on('change', function(){
 
                 if (this.files && this.files[0])
                 {
@@ -191,57 +188,40 @@
                     if (!(file.type.match(/^image\/png/) || file.type.match(/^image\/jpeg/)))
                     {
                         // https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
-                        alert("Invalid file type. Please select an image file (e.g. png, jpeg).");
-                        $("#imageFileInput").val('');
+                        alert("Invalid file type. Please select an image file (png, jpeg).");
+                        imageFileInput.val("");
                         return;
                     }
                     if (file.size > maxFileSize)
                     {
                         alert("File size cannot be more than " + maxFileSizeMb + ".");
-                        $("#imageFileInput").val('');
+                        imageFileInput.val("");
                         return;
                     }
                     displayCropper(this.files[0]);
                 }
             });
 
-            $('#btnCrop').click(function() {
-                croppedImageDataUrl = cropper.getCroppedCanvas(
-                        {width:preferredWidth, height:preferredHeight, imageSmoothingQuality: 'high'})
+            $("#btnCrop").click(function() {
+                croppedImageDataUrl = cropper.getCroppedCanvas({fillColor: "#fff", imageSmoothingEnabled: true, imageSmoothingQuality: 'high'})
                         // https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toDataURL
-                        // https://stackoverflow.com/questions/56573339/using-cropper-js-image-quality-get-reduced-after-cropping
-                        .toDataURL("image/png", 1); // string base 64 data url
+                        .toDataURL("image/png");
 
-                preview.empty(); // Clear the preview div first
-                preview.append($('<img>').attr('src', croppedImageDataUrl));
-                preview.append($('<div>').text(fileName)); // jQuery escapes the provided string (http://api.jquery.com/text/#text2)
-                preview.append($('<a>').addClass("labkey-button").attr('id', "btnEdit")
-                        .text("Edit").click(function() {
-                            const files = $('#imageFileInput').prop('files');
-                            if (files && files[0])
-                            {
-                                displayCropper(files[0]);
-                            }
-                            else
-                            {
-                                alert("No file is selected.");
-                            }
-                        }));
-
+                initPreview(croppedImageDataUrl, fileName, true);
                 $("#imageFileName").val(fileName);
                 $("#modifiedImage").val(croppedImageDataUrl);
                 clearCropper(cropper);
             });
-            $('#btnCancel').click(function() {
+            $("#btnCancel").click(function() {
                 clearCropper(cropper);
-                const selectedFile = $("#imageFileInput").prop('files') ? $("#imageFileInput").prop('files')[0] : null;
+                const selectedFile = imageFileInput.prop('files') ? imageFileInput.prop('files')[0] : null;
                 if (selectedFile && selectedFile.name !== $("#imageFileName").val())
                 {
-                    $("#imageFileInput").val('');
+                    imageFileInput.val('');
                 }
             });
 
-            const descInput = $('#descFieldInput')
+            const descInput = $("#descFieldInput")
             if (descInput.val().length > 0)
             {
                 limitDescription(descInput);
@@ -263,7 +243,7 @@
         {
             inputField.val(inputField.val().substring(0, maxDescriptionLen));
             const remaining = maxDescriptionLen - inputField.val().length;
-            $('#rchars').text(remaining);
+            $("#rchars").text(remaining);
             const remainingChars = $("#remainingChars");
             const hasNoRemainingCls = remainingChars.hasClass("noRemainingChars");
             if (remaining <= 0) {
@@ -289,33 +269,41 @@
                         alert("Image must be at least " + preferredWidth + " pixels in width and "
                                 + preferredHeight + " pixels in height. Dimensions of the selected image are: "
                                 + w + " x " + h + " pixels.");
-                        $("#imageFileInput").val('');
+                        imageFileInput.val("");
                         return;
                     }
 
                     clearCropper(cropper);
 
-                    // If the image is too large, scale it down for display
-                    let scaleFactor = Math.min(maxDisplayWidth/img.width, maxDisplayHeight/img.height);
+                    // Try to fit the image in the viewport without needing to scroll
+                    const cropperContainer = $("#cropperContainer");
+                    cropperContainer.css("width", "95vw") // 95% of viewport width
+                                    .css("height", "95vh"); // 95% of viewport height
+                    $("#mask").fadeTo(500, 0.60);
+                    cropperContainer.show();
+
+                    const maxDisplayWidth = cropperContainer.width();
+                    const maxDisplayHeight = cropperContainer.height() - $("#cropperButtons").outerHeight(true);
+
+                    let scaleFactor = Math.min(maxDisplayWidth/w, maxDisplayHeight/h);
                     scaleFactor = Math.min(1, scaleFactor);
 
                     // Get the new width and height based on the scale factor
                     let newWidth = w * scaleFactor;
                     let newHeight = h * scaleFactor;
-                    $("#cropperContainer").width(newWidth + 30);
+                    cropperContainer.width(newWidth);
+                    cropperContainer.height(newHeight + $("#cropperButtons").outerHeight(true));
+
                     context.canvas.width  = newWidth;
                     context.canvas.height = newHeight;
 
                     context.drawImage(img, 0, 0, newWidth, newHeight);
 
-                    $("#mask").fadeTo(500, 0.60);
-                    $("#cropperContainer").show();
-
                     cropper = new Cropper(document.getElementById("canvas"), {
                         viewMode: 2,
                         dragMode: 'move',
-                        aspectRatio: 3 / 2,
-                        cropBoxResizable: true,
+                        background: false,
+                        aspectRatio: preferredWidth / preferredHeight,
                         movable: false,
                         rotatable: false,
                         scalable: false,
@@ -327,8 +315,8 @@
                         toggleDragModeOnDblclick: false,
                         autoCrop: true,
                         autoCropArea: 1, // If the image is already the preferred size (600 x 400) the crop-box should fit exactly
-                        minCanvasWidth: newWidth,
-                        minCanvasHeight: newHeight,
+                        minCanvasWidth: preferredWidth,
+                        minCanvasHeight: preferredHeight,
                         minCropBoxWidth: preferredWidth,
                         minCropBoxHeight: preferredHeight,
                         restore: false // set to false to avoid problems when resizing the browser window
@@ -345,6 +333,32 @@
             $("#cropperContainer").hide();
             $("#mask").hide();
             if (canvas && context) { context.clearRect(0, 0, canvas.width, canvas.height); }
+        }
+        function initPreview(url, filename, addEditBtn)
+        {
+            const preview = $("#preview");
+            if (preview) {
+                preview.empty();
+                preview.append($("<img>").attr("src", url).css("border", "solid 1px lightgrey")
+                        .attr("width", preferredWidth).attr("height", preferredHeight).attr("alt", ""));
+                preview.append($("<div>").text(filename)); // jQuery escapes the provided string (http://api.jquery.com/text/#text2)
+
+                if (addEditBtn === true)
+                {
+                    preview.append($("<a>").addClass("labkey-button").attr("id", "btnEdit")
+                            .text("Edit").click(function() {
+                                const files = imageFileInput.prop("files");
+                                if (files && files[0])
+                                {
+                                    displayCropper(files[0]);
+                                }
+                                else
+                                {
+                                    alert("No file is selected.");
+                                }
+                            }));
+                }
+            }
         }
     })(jQuery);
 

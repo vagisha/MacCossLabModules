@@ -11,6 +11,7 @@ import org.labkey.api.view.HtmlView;
 import org.labkey.api.view.VBox;
 import org.labkey.api.view.WebPartView;
 import org.labkey.panoramapublic.PanoramaPublicController;
+import org.labkey.panoramapublic.catalog.CatalogEntrySettings;
 import org.labkey.panoramapublic.model.CatalogEntry;
 import org.labkey.panoramapublic.model.ExperimentAnnotations;
 import org.labkey.panoramapublic.query.CatalogEntryManager;
@@ -70,13 +71,15 @@ public class CatalogEntryWebPart extends VBox
                     .addParameter("id", expAnnotations.getId())
                     .addReturnURL(ctxReturnUrl != null ? ctxReturnUrl : getContextURLHelper());
 
+            CatalogEntrySettings settings = CatalogEntryManager.getCatalogEntrySettings();
             addView(new HtmlView(DIV(
                     DIV(B(at(style, "margin:0 5px 5px 0"), U("Status: ")), CatalogEntry.getStatusText(entry.getApproved()),
                             changeStatusBtn == null ? "" : changeStatusBtn),
                     DIV(B(at(style, "margin:0 5px 5px 0"), U("Title:")), expAnnotations.getTitle()),
                     DIV(B(U("Description:")), BR(), entry.getDescription()),
                     IMG(at(src, PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, entry.getImageFileName()))
-                            .at(width, 600).at(height, 400).at(style, "margin-top:10px;")),
+                            .at(width, settings.getImgWidth()).at(height, settings.getImgHeight())
+                            .at(style, "margin-top:10px;border: 1px solid lightgrey;")),
                     BR(), BR(),
                     new Button.ButtonBuilder("Edit").href(editUrl),
                     HtmlString.NBSP,
