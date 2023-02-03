@@ -23,10 +23,12 @@ import static org.labkey.api.util.DOM.Attribute.height;
 import static org.labkey.api.util.DOM.Attribute.src;
 import static org.labkey.api.util.DOM.Attribute.style;
 import static org.labkey.api.util.DOM.Attribute.width;
-import static org.labkey.api.util.DOM.B;
 import static org.labkey.api.util.DOM.BR;
 import static org.labkey.api.util.DOM.DIV;
 import static org.labkey.api.util.DOM.IMG;
+import static org.labkey.api.util.DOM.TABLE;
+import static org.labkey.api.util.DOM.TD;
+import static org.labkey.api.util.DOM.TR;
 import static org.labkey.api.util.DOM.U;
 import static org.labkey.api.util.DOM.at;
 
@@ -72,15 +74,27 @@ public class CatalogEntryWebPart extends VBox
                     .addReturnURL(ctxReturnUrl != null ? ctxReturnUrl : getContextURLHelper());
 
             CatalogEntrySettings settings = CatalogEntryManager.getCatalogEntrySettings();
-            addView(new HtmlView(DIV(
-                    DIV(B(at(style, "margin:0 5px 5px 0"), U("Status: ")), CatalogEntry.getStatusText(entry.getApproved()),
-                            changeStatusBtn == null ? "" : changeStatusBtn),
-                    DIV(B(at(style, "margin:0 5px 5px 0"), U("Title:")), expAnnotations.getTitle()),
-                    DIV(B(U("Description:")), BR(), entry.getDescription()),
-                    IMG(at(src, PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, entry.getImageFileName()))
+            addView(new HtmlView(
+                    DIV(
+                    TABLE(
+                        TR(
+                            TD(at(style, "padding:0 10px 15px 0; vertical-align:top;"), U("Status:")),
+                            TD(at(style, "vertical-align:top;"),
+                                    CatalogEntry.getStatusText(entry.getApproved()),
+                                    changeStatusBtn == null ? "" : changeStatusBtn)
+                        ),
+                        TR(
+                            TD(at(style, "padding:0 10px 15px 0; vertical-align:top;"), U("Title:")),
+                            TD(at(style, "vertical-align:top;"), expAnnotations.getTitle())
+                        ),
+                        TR(
+                            TD(at(style, "padding:0 10px 15px 0; vertical-align:top;"), U("Description:")),
+                            TD(at(style, "vertical-align:top;"), entry.getDescription())
+                        )
+                    ),
+                    DIV(IMG(at(src, PanoramaPublicController.getCatalogImageDownloadUrl(expAnnotations, entry.getImageFileName()))
                             .at(width, settings.getImgWidth()).at(height, settings.getImgHeight())
-                            .at(style, "margin-top:10px;border: 1px solid lightgrey;")),
-                    BR(), BR(),
+                            .at(style, "margin:10px 0 15px 0;border: 1px solid lightgrey;"))),
                     new Button.ButtonBuilder("Edit").href(editUrl),
                     HtmlString.NBSP,
                     new Button.ButtonBuilder("Delete").href(deleteUrl)

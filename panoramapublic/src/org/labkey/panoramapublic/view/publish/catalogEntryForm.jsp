@@ -24,6 +24,7 @@
 <%@ page import="org.labkey.panoramapublic.PanoramaPublicController" %>
 <%@ page import="org.labkey.panoramapublic.catalog.CatalogEntrySettings" %>
 <%@ page import="org.labkey.panoramapublic.query.CatalogEntryManager" %>
+<%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%!
     @Override
@@ -97,7 +98,18 @@
     }
 </style>
 
-<div style="margin-top:15px;">
+<div style="margin-top:10px;">
+    <div style="margin-bottom:15px;">
+        Use the form below to provide a brief description and a title figure for your data that will be displayed in a
+        slideshow on <%=h(AppProps.getInstance().getBaseServerUrl())%>.
+        <ul>
+            <li>The description must be <%=descriptionCharLimit%> characters or less. </li>
+            <li>The image must be a PNG or JPEG/JPG file that is less that <%=h(maxFileSizeMb)%>, and preferably
+                <%=imgWidth%> (width) x <%=imgHeight%> (height) pixels in dimensions.</li>
+        </ul>
+        You will be able to crop the image to fit the required aspect ratio for the slideshow. For best quality, however,
+        the image should be resized in an image processing software before uploading.
+    </div>
     <form id="catalogEntryForm" method="post" enctype="multipart/form-data">
         <labkey:csrf />
         <%=generateReturnUrlFormField(form.getReturnActionURL())%>
@@ -113,13 +125,7 @@
                 </td>
             </tr>
             <tr>
-                <td class="labkey-form-label" style="text-align:center;">Image:<br>
-                    <span style="font-size:0.8em;">png, jpeg</span>
-                    <br>
-                    <span style="font-size:0.8em;">Size: < <%=h(maxFileSizeMb)%></span>
-                    <br>
-                    <span style="font-size:0.8em;">Preferred: <%=imgWidth%> x <%=imgHeight%> pixels</span>
-                </td>
+                <td class="labkey-form-label" style="text-align:center;">Image:</td>
                 <td>
                     <input id="imageFileInput" type="file" size="50" style="border: none; background-color: transparent;" accept="image/png,image/jpeg" />
                     <input id="modifiedImage" name="imageFile" type="hidden"/>
