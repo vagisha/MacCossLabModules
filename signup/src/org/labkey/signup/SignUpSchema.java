@@ -87,7 +87,8 @@ public class SignUpSchema extends UserSchema
             var userIdCol = result.getMutableColumn(FieldKey.fromParts("labkeyUserId"));
             userIdCol.setDisplayColumnFactory(colInfo -> {
                 DataColumn col = new DataColumn(colInfo);
-                StringExpression strExpr = StringExpressionFactory.create(PageFlowUtil.urlProvider(UserUrls.class).getUserDetailsURL(getContainer(), null) + "userId=${labkeyUserId}");
+                StringExpression strExpr = StringExpressionFactory.create(PageFlowUtil.urlProvider(UserUrls.class).getUserDetailsURL(getContainer(), null)
+                        .addParameter("userId", "${labkeyUserId}").getLocalURIString(true));
                 col.setURLExpression(strExpr);
                 return col;
             });

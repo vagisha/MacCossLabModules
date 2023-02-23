@@ -17,6 +17,7 @@
 package org.labkey.signup;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.Form;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.labkey.api.action.ApiResponse;
@@ -36,7 +37,11 @@ import org.labkey.api.data.CoreSchema;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.data.PropertyManager;
 import org.labkey.api.data.Table;
+import org.labkey.api.portal.ProjectUrls;
+import org.labkey.api.security.AuthenticationConfiguration;
+import org.labkey.api.security.AuthenticationManager;
 import org.labkey.api.security.Group;
+import org.labkey.api.security.PasswordRule;
 import org.labkey.api.security.RequiresLogin;
 import org.labkey.api.security.RequiresNoPermission;
 import org.labkey.api.security.RequiresPermission;
@@ -48,10 +53,14 @@ import org.labkey.api.security.UserManager;
 import org.labkey.api.security.ValidEmail;
 import org.labkey.api.security.permissions.ReadPermission;
 import org.labkey.api.settings.LookAndFeelProperties;
+import org.labkey.api.util.Button;
+import org.labkey.api.util.DOM;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.util.URLHelper;
+import org.labkey.api.util.element.CsrfInput;
 import org.labkey.api.view.ActionURL;
 import org.labkey.api.view.HtmlView;
+import org.labkey.api.view.HttpView;
 import org.labkey.api.view.JspView;
 import org.labkey.api.view.NavTree;
 import org.labkey.api.view.WebPartView;
@@ -62,7 +71,26 @@ import org.springframework.web.servlet.view.RedirectView;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+
+import static org.labkey.api.security.AuthenticationManager.AuthenticationStatus.Success;
+import static org.labkey.api.util.DOM.Attribute.checked;
+import static org.labkey.api.util.DOM.Attribute.method;
+import static org.labkey.api.util.DOM.Attribute.name;
+import static org.labkey.api.util.DOM.Attribute.style;
+import static org.labkey.api.util.DOM.Attribute.type;
+import static org.labkey.api.util.DOM.Attribute.value;
+import static org.labkey.api.util.DOM.BR;
+import static org.labkey.api.util.DOM.DIV;
+import static org.labkey.api.util.DOM.FORM;
+import static org.labkey.api.util.DOM.INPUT;
+import static org.labkey.api.util.DOM.LABEL;
+import static org.labkey.api.util.DOM.LK.CHECKBOX;
+import static org.labkey.api.util.DOM.TABLE;
+import static org.labkey.api.util.DOM.TD;
+import static org.labkey.api.util.DOM.TR;
+import static org.labkey.api.util.DOM.at;
 
 public class SignUpController extends SpringActionController
 {
@@ -313,102 +341,173 @@ public class SignUpController extends SpringActionController
     // Class ConfirmAction handles a user trying to confirm an account creation.  If the email and confirmation code match
     // that in our database they will be added to the LabKey user base
     @RequiresNoPermission
-    public class ConfirmAction extends SimpleViewAction<SignupConfirmForm>
+    public class ConfirmAction extends FormViewAction<SignupConfirmForm>
     {
+        protected URLHelper _successUrl;
+        private TempUser _tempUser;
+        private ValidEmail _email;
+
         @Override
-        public ModelAndView getView(SignupConfirmForm form, BindException errors) throws Exception
+        public ModelAndView getView(SignupConfirmForm form, boolean reshow, BindException errors) throws Exception
         {
-            ValidEmail email;
-            try
+            validate(form, errors);
+            if (errors.hasErrors() && !reshow)
             {
-                email = new ValidEmail(form.getEmail());
-            }
-            catch (ValidEmail.InvalidEmailException iee)
-            {
-                errors.reject(ERROR_MSG, "Invalid email address " + form.getEmail() + " in account confirmation request.");
                 return new SimpleErrorView(errors, false);
             }
 
-            String key = form.getKey();
-
-            // Check parameter email & verification(key) match that in database
-            TempUser tempUser = SignUpManager.get().verifyUser(email, key);
-            if (tempUser != null)
-            {
-                if (UserManager.getUser(email) != null)
-                {
-                    // First check if user already exists.
-                    errors.addError(new LabKeyError(String.format(SignUpManager.USER_ALREADY_EXISTS, form.getEmail())));
-                    return new SimpleErrorView(errors, false);
-                }
-                else
-                {
-                    SecurityManager.NewUserStatus newUserStatus;
-
-                    // User creation should be in a transaction
-                    try (DbScope.Transaction transaction = CoreSchema.getInstance().getSchema().getScope().ensureTransaction())
-                    {
-                        // Add user to LabKey core database
-                        newUserStatus = SecurityManager.addUser(new ValidEmail(email.getEmailAddress()), null);
-                        User newUser = newUserStatus.getUser();
-                        // Set user's first, last, and organization name
-                        newUser.setFirstName(tempUser.getFirstName());
-                        newUser.setLastName(tempUser.getLastName());
-                        newUser.setDescription(StringUtils.isBlank(tempUser.getOrganization()) ? "" : "Organization: " + tempUser.getOrganization()); // don't add anything if organization is empty
-
-                        Container c = tempUser.getContainer();
-                        PropertyManager.PropertyMap property = PropertyManager.getWritableProperties(c, SignUpModule.SIGNUP_CATEGORY, false);
-                        if (property != null && property.get(SignUpModule.SIGNUP_GROUP_NAME) != null)
-                        {
-                            Integer groupId = SecurityManager.getGroupId(c.getProject(), property.get(SignUpModule.SIGNUP_GROUP_NAME));
-                            if (groupId != null)
-                            {
-                                final Group group = SecurityManager.getGroup(groupId);
-                                SecurityManager.addMember(group, newUser);
-                                UserManager.updateUser(newUser, newUser); // Update user in LabKey core database.
-                            }
-                        }
-                        tempUser.setLabkeyUserId(newUser.getUserId());
-                        Table.update(null, SignUpManager.getTableInfoTempUsers(), tempUser, tempUser.getUserId());
-
-                        transaction.commit();
-                    }
-
-                    // Send email to site admin
-                    ActionURL confirmationUrl = getConfirmationURL(getContainer(), email, tempUser.getKey());
-                    // _log.info("Confirmation URL: " + confirmationUrl.getLocalURIString());
-                    String siteAdminEmail = LookAndFeelProperties.getInstance(getContainer()).getSystemEmailAddress();
-                    // _log.info("Site admin email: " + siteAdminEmail);
-                    User newUser = newUserStatus.getUser();
-                    // _log.info("New user: " + newUser.getEmail());
-                    try
-                    {
-                        SecurityMessage msg = SecurityManager.getRegistrationMessage(null, true);
-                        msg.setTo(email.getEmailAddress()); // This will add the new user's email address to
-                                                            // the message body and subject.
-                        // newUser is used for auditing purposes, the user who originated the message
-                        SecurityManager.sendEmail(getContainer(), newUser, msg, siteAdminEmail, confirmationUrl);
-                    }
-                    catch(Exception e)
-                    {
-                        _log.error(e);
-                    }
-
-                    // creates and redirects the new user to their setPasswordAction page
-                    ActionURL url = SecurityManager.createVerificationURL(getContainer(), email, newUserStatus.getVerification(), null);
-                    return new ModelAndView(new RedirectView(url.getURIString()));
-                }
-            }
-            else
-            {
-                errors.addError(new LabKeyError(SignUpManager.CONFIRMATION_DID_NOT_MATCH));
-                return new SimpleErrorView(errors, false);
-            }
+            HtmlView view = new HtmlView("Set Password", DIV(
+                    DIV(DOM.LK.ERRORS(errors)),
+                FORM(at(method, "POST"),
+                    new CsrfInput(HttpView.currentContext()),
+                    TABLE(
+                        TR(TD(at(style, "padding-right:10px;"), LABEL("Password: ")),
+                           TD(INPUT(at(type, "password", name, "password", value, form.getPassword())))),
+                        TR(TD(at(style, "padding-right:10px;"), LABEL("Confirm Password: ")),
+                           TD(INPUT(at(type, "password", name, "password2", value, form.getPassword2()))))
+                    ),
+                    DIV(at(style, "margin-top:10px"),
+                            new Button.ButtonBuilder("Submit").submit(true).style("margin-right:10px").build(),
+                            new Button.ButtonBuilder("Cancel").href(PageFlowUtil.urlProvider(ProjectUrls.class).getHomeURL()).build()
+                    )
+                )
+            ));
+            view.setFrame(WebPartView.FrameType.PORTAL);
+            return view;
         }
 
         @Override
         public void addNavTrail(NavTree root)
         {
+        }
+
+        public void validate(SignupConfirmForm form, BindException errors)
+        {
+            try
+            {
+                _email = new ValidEmail(form.getEmail());
+            }
+            catch (ValidEmail.InvalidEmailException iee)
+            {
+                errors.reject(ERROR_MSG, "Invalid email address " + form.getEmail() + " in account confirmation request.");
+                return;
+            }
+
+            String key = form.getKey();
+
+            // Check parameter email & verification(key) match that in database
+            _tempUser = SignUpManager.get().verifyUser(_email, key);
+            if (_tempUser == null)
+            {
+                errors.addError(new LabKeyError(SignUpManager.CONFIRMATION_DID_NOT_MATCH));
+            }
+            else
+            {
+                if (UserManager.getUser(_email) != null)
+                {
+                    // First check if user already exists.
+                    errors.addError(new LabKeyError(String.format(SignUpManager.USER_ALREADY_EXISTS, form.getEmail())));
+                }
+            }
+            return;
+        }
+
+        @Override
+        public void validateCommand(SignupConfirmForm form, Errors errors)
+        {
+        }
+
+        @Override
+        public boolean handlePost(SignupConfirmForm form, BindException errors) throws Exception
+        {
+            validate(form, errors);
+            if (errors.hasErrors())
+            {
+                return false;
+            }
+                SecurityManager.NewUserStatus newUserStatus;
+
+                // User creation should be in a transaction
+                try (DbScope.Transaction transaction = CoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+                {
+                    // Add user to LabKey core database
+                    newUserStatus = SecurityManager.addUser(_email, null);
+                    User newUser = newUserStatus.getUser();
+                    // Set user's first, last, and organization name
+                    newUser.setFirstName(_tempUser.getFirstName());
+                    newUser.setLastName(_tempUser.getLastName());
+                    newUser.setDescription(StringUtils.isBlank(_tempUser.getOrganization()) ? "" : "Organization: " + _tempUser.getOrganization()); // don't add anything if organization is empty
+
+                    Container c = _tempUser.getContainer();
+                    PropertyManager.PropertyMap property = PropertyManager.getWritableProperties(c, SignUpModule.SIGNUP_CATEGORY, false);
+                    if (property != null && property.get(SignUpModule.SIGNUP_GROUP_NAME) != null)
+                    {
+                        Integer groupId = SecurityManager.getGroupId(c.getProject(), property.get(SignUpModule.SIGNUP_GROUP_NAME));
+                        if (groupId != null)
+                        {
+                            final Group group = SecurityManager.getGroup(groupId);
+                            SecurityManager.addMember(group, newUser);
+                            UserManager.updateUser(newUser, newUser); // Update user in LabKey core database.
+                        }
+                    }
+
+                    List<String> messages = new ArrayList<>();
+
+//                    Collection<AuthenticationConfiguration.LoginFormAuthenticationConfiguration> formConfigs =
+//                            AuthenticationManager.getActiveConfigurations(AuthenticationConfiguration.LoginFormAuthenticationConfiguration.class);
+
+                    if (!PasswordRule.Weak.isValidToStore(form.getPassword(), form.getPassword2(), newUser, messages))
+                    {
+                        for (String message : messages)
+                            errors.reject("setPassword", message);
+                        return false;
+                    }
+
+                    try
+                    {
+                        SecurityManager.setPassword(_email, form.getPassword());
+                    }
+                    catch (SecurityManager.UserManagementException e)
+                    {
+                        errors.reject("setPassword", "Setting password failed: " + e.getMessage()
+                                + ". Contact the " + LookAndFeelProperties.getInstance(ContainerManager.getRoot()).getShortName() + " team.");
+                        return false;
+                    }
+
+                    SecurityManager.setVerification(_email, null);
+                    UserManager.addToUserHistory(newUser, "Created user and password chosen via the signup module.");
+
+                    _tempUser.setLabkeyUserId(newUser.getUserId());
+                    Table.update(null, SignUpManager.getTableInfoTempUsers(), _tempUser, _tempUser.getUserId());
+
+                    transaction.commit();
+                }
+
+                if (getUser().isGuest())
+                {
+                    AuthenticationManager.PrimaryAuthenticationResult result = AuthenticationManager.authenticate(getViewContext().getRequest(),
+                            _email.getEmailAddress(), form.getPassword(), PageFlowUtil.urlProvider(ProjectUrls.class).getHomeURL(), true);
+
+                    if (result.getStatus() == Success)
+                    {
+                        // This user has passed primary authentication
+                        AuthenticationManager.setPrimaryAuthenticationResult(getViewContext().getRequest(), result);
+                    }
+                }
+
+                AuthenticationManager.AuthenticationResult result = AuthenticationManager.handleAuthentication(getViewContext().getRequest(), getContainer());
+                if (result != null)
+                {
+                    _successUrl = result.getRedirectURL();
+                }
+
+            return true;
+        }
+
+        @Override
+        public URLHelper getSuccessURL(SignupConfirmForm signupConfirmForm)
+        {
+            return _successUrl;
         }
     }
 
@@ -416,6 +515,8 @@ public class SignUpController extends SpringActionController
     {
         private String _email;
         private String _key;
+        private String _password;
+        private String _password2;
 
         public String getEmail()
         {
@@ -435,6 +536,26 @@ public class SignUpController extends SpringActionController
         public void setKey(String key)
         {
             _key = key;
+        }
+
+        public String getPassword()
+        {
+            return _password;
+        }
+
+        public void setPassword(String password)
+        {
+            _password = password;
+        }
+
+        public String getPassword2()
+        {
+            return _password2;
+        }
+
+        public void setPassword2(String password2)
+        {
+            _password2 = password2;
         }
     }
 
