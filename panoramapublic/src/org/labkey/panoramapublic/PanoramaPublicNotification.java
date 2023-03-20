@@ -326,7 +326,12 @@ public class PanoramaPublicNotification
     private static String getContainerLink(Container container)
     {
         ActionURL url = PageFlowUtil.urlProvider(ProjectUrls.class).getBeginURL(container);
-        return link(container.getPath(), url.getEncodedLocalURIString());
+        return link(container.getPath(), getFullUrl(url));
+    }
+
+    private static String getFullUrl(ActionURL url)
+    {
+        return AppProps.getInstance().getBaseServerUrl() + AppProps.getInstance().getContextPath() + "/" + url.getEncodedLocalURIString();
     }
 
     public static String bolditalics(String text)
@@ -437,7 +442,7 @@ public class PanoramaPublicNotification
         {
             message.append(NL2)
                     .append("When you are ready to make the data public you can click the \"Make Public\" button in your data folder or click this link: ")
-                    .append(bold(link("Make Data Public", PanoramaPublicController.getMakePublicUrl(targetExperiment.getId(), targetExperiment.getContainer()).getEncodedLocalURIString())));
+                    .append(bold(link("Make Data Public", getFullUrl(PanoramaPublicController.getMakePublicUrl(targetExperiment.getId(), targetExperiment.getContainer())))));
         }
 
         message.append(NL2).append("Best regards,");

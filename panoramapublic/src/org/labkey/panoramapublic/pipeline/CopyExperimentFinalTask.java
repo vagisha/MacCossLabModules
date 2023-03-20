@@ -38,6 +38,7 @@ import org.labkey.api.portal.ProjectUrls;
 import org.labkey.api.query.BatchValidationException;
 import org.labkey.api.query.ValidationException;
 import org.labkey.api.security.Group;
+import org.labkey.api.security.InvalidGroupMembershipException;
 import org.labkey.api.security.MutableSecurityPolicy;
 import org.labkey.api.security.SecurityManager;
 import org.labkey.api.security.SecurityPolicy;
@@ -327,6 +328,15 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
                 assignReader(reviewer, targetExperiment.getContainer());
                 js.getJournalExperiment().setReviewer(reviewer.getUserId());
                 SubmissionManager.updateJournalExperiment(js.getJournalExperiment(), user);
+
+                // Add reviewer to the "Reviewers" group
+                Container project = targetExperiment.getContainer().getProject();
+                Integer reviewersGroupId = SecurityManager.getGroupId(project, "Reviewer");
+                if (reviewersGroupId != null)
+                {
+                    addToGroup(reviewer, SecurityManager.getGroup(reviewersGroupId), log);
+                }
+                
                 return new Pair<>(reviewer, reviewerPassword);
             }
         }
@@ -507,10 +517,19 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         {
             newPolicy.addRoleAssignment(folderAdmin, ReaderRole.class);
         }
+
+        // In the Panorama Public project on panoramaweb.org, we have a "Panorama Public Submitters" group. Add all submitters to this group.
+        Container project = target.getProject();
+        Integer submittersGroupId = SecurityManager.getGroupId(project, "Panorama Public Submitters");
+        Group submittersGroup = null;
+        if (submittersGroupId != null)
+        {
+            submittersGroup = SecurityManager.getGroup(submittersGroupId);
+        }
         // Assign the PanoramaPublicSubmitterRole so that the submitter or lab head is able to make the copied folder public, and add publication information.
-        assignPanoramaPublicSubmitterRole(targetExperiment.getSubmitterUser(), newPolicy);
-        assignPanoramaPublicSubmitterRole(targetExperiment.getLabHeadUser(), newPolicy);
-        assignPanoramaPublicSubmitterRole(formSubmitter, newPolicy); // User that submitted the form. Can be different from the user selected as the data "submitter".
+        assignPanoramaPublicSubmitterRole(targetExperiment.getSubmitterUser(), newPolicy, submittersGroup, log);
+        assignPanoramaPublicSubmitterRole(targetExperiment.getLabHeadUser(), newPolicy, submittersGroup, log);
+        assignPanoramaPublicSubmitterRole(formSubmitter, newPolicy, submittersGroup, log); // User that submitted the form. Can be different from the user selected as the data "submitter".
 
         if (previousCopy != null)
         {
@@ -524,11 +543,28 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         SecurityPolicyManager.savePolicy(newPolicy);
     }
 
-    private void assignPanoramaPublicSubmitterRole(User user, MutableSecurityPolicy policy)
+    private void assignPanoramaPublicSubmitterRole(User user, MutableSecurityPolicy policy, Group submittersGroup, Logger log)
     {
         if (user != null)
         {
             policy.addRoleAssignment(user, PanoramaPublicSubmitterRole.class, false);
+
+            addToGroup(user, submittersGroup, log);
+        }
+    }
+
+    private void addToGroup(User user, Group group, Logger log)
+    {
+        if (group != null)
+        {
+            try
+            {
+                SecurityManager.addMember(group, user);
+            }
+            catch (InvalidGroupMembershipException e)
+            {
+                log.warn("Unable to add user " + user.getEmail() + " to group " + group.getName(), e);
+            }
         }
     }
 
