@@ -19,6 +19,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbScope;
@@ -55,7 +56,6 @@ import org.labkey.api.security.roles.RoleManager;
 import org.labkey.api.targetedms.ITargetedMSRun;
 import org.labkey.api.targetedms.TargetedMSService;
 import org.labkey.api.util.FileType;
-import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.PageFlowUtil;
 import org.labkey.api.util.Pair;
 import org.labkey.api.view.ActionURL;
@@ -92,6 +92,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -191,7 +192,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             updatePermissions(UserManager.getUser(currentSubmission.getCreatedBy()), targetExperiment, sourceExperiment, previousCopy, jobSupport.getJournal(), user, log);
 
             // Update the DataFileUrl in exp.data and FilePathRoot in exp.experimentRun to point to the files in the Panorama Public container file root
-            updateDataPathsAndRawDataTab(targetExperiment, user, log);
+            updateDataPathsAndRawDataTab(targetExperiment, sourceExperiment, user, log);
 
 
             // Copy any Spectral library information provided by the user in the source container
@@ -208,6 +209,9 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             hideDataPipelineTab(targetExperiment.getContainer());
 
             js = updateSubmissionAndDeletePreviousCopy(js, currentSubmission, latestCopiedSubmission, targetExperiment, previousCopy, jobSupport, user, log);
+
+            // Assign the ProteomeXchange ID and DOI at the end so that we don't end up re-creating these identifiers in case the task has to be rerun due to an error.
+            assignExternalIdentifiers(targetExperiment, previousCopy, jobSupport, log);
 
             // Create notifications. Do this at the end after everything else is done.
             PanoramaPublicNotification.notifyCopied(sourceExperiment, targetExperiment, jobSupport.getJournal(), js.getJournalExperiment(), currentSubmission,
@@ -349,7 +353,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         return new Pair<>(null, null);
     }
 
-    private void updateDataPathsAndRawDataTab(ExperimentAnnotations targetExperiment, User user, Logger log) throws BatchValidationException, PipelineJobException
+    private void updateDataPathsAndRawDataTab(ExperimentAnnotations targetExperiment, ExperimentAnnotations sourceExperiment, User user, Logger log) throws BatchValidationException, PipelineJobException
     {
         FileContentService service = FileContentService.get();
         if (service != null)
@@ -364,7 +368,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             // DataFileUrl in exp.data and FilePathRoot in exp.experimentRun point to locations in the 'export' directory.
             // We are now copying all files from the source container to the target container file root. Update the paths
             // to point to locations in the target container file root, and delete the 'export' directory
-            if (!updateDataPaths(targetExperiment.getContainer(), service, user, log))
+            if (!updateDataPaths(targetExperiment.getContainer(), sourceExperiment.getContainer(), service, user, log))
             {
                 throw new PipelineJobException("Unable to update all data file paths.");
             }
@@ -415,6 +419,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
                 try
                 {
                     assignPxId(targetExperiment, jobSupport.usePxTestDb());
+                    log.info("Assigned ProteomeXchange ID: " + targetExperiment.getPxid());
                 }
                 catch(ProteomeXchangeServiceException e)
                 {
@@ -457,8 +462,8 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         log.info("Setting version on new experiment to " + version);
         targetExperiment.setDataVersion(version);
 
-        assignPxId(jobSupport, log, targetExperiment, previousCopy);
-        assignDoi(jobSupport, log, targetExperiment, previousCopy);
+//        assignPxId(jobSupport, log, targetExperiment, previousCopy);
+//        assignDoi(jobSupport, log, targetExperiment, previousCopy);
 
         targetExperiment = ExperimentAnnotationsManager.save(targetExperiment, user);
 
@@ -475,6 +480,13 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         }
 
         return targetExperiment;
+    }
+
+    private void assignExternalIdentifiers(ExperimentAnnotations targetExperiment, ExperimentAnnotations previousCopy, CopyExperimentJobSupport jobSupport,
+                                           Logger log) throws PipelineJobException
+    {
+        assignPxId(jobSupport, log, targetExperiment, previousCopy);
+        assignDoi(jobSupport, log, targetExperiment, previousCopy);
     }
 
     private ExperimentAnnotations createExperimentCopy(ExperimentAnnotations source)
@@ -507,39 +519,44 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         Group journalGroup = SecurityManager.getGroup(journal.getLabkeyGroupId());
         JournalManager.removeJournalPermissions(sourceExperiment, journalGroup, pipelineJobUser);
 
+        Set<User> allReaders = new HashSet<>();
+
         // Give read permissions to the authors (all users that are folder admins)
         log.info("Adding read permissions to all users that are folder admins in the source folder.");
-        List<User> sourceFolderAdmins = getUsersWithRole(sourceExperiment.getContainer(), RoleManager.getRole(FolderAdminRole.class));
+        allReaders.addAll(getUsersWithRole(sourceExperiment.getContainer(), RoleManager.getRole(FolderAdminRole.class)));
 
-        Container target = targetExperiment.getContainer();
-        MutableSecurityPolicy newPolicy = new MutableSecurityPolicy(target, target.getPolicy());
-        for (User folderAdmin: sourceFolderAdmins)
-        {
-            newPolicy.addRoleAssignment(folderAdmin, ReaderRole.class);
-        }
-
-        // Assign the PanoramaPublicSubmitterRole so that the submitter or lab head is able to make the copied folder public, and add publication information.
-        assignPanoramaPublicSubmitterRole(newPolicy, log, targetExperiment.getSubmitterUser(), targetExperiment.getLabHeadUser(),
-                formSubmitter); // User that submitted the form. Can be different from the user selected as the data submitter
-
-        addToSubmittersGroup(target.getProject(), log, targetExperiment.getSubmitterUser(), targetExperiment.getLabHeadUser(), formSubmitter);
-
+        // If the submitter and lab head user are members of a permission group in the source folder, they will not
+        // be included in the set of users returned by getUsersWithRole(). So add them here
+        allReaders.add(formSubmitter);  // User that submitted the form. Can be different from the user selected as the data submitter
+        allReaders.add(targetExperiment.getSubmitterUser());
+        allReaders.add(targetExperiment.getLabHeadUser());
 
         if (previousCopy != null)
         {
             // Users that had read access to the previous copy should be given read access to the new copy. This will include the reviewer
             // account if one was created for the previous copy.
             log.info("Adding read permissions to all users that had read access to previous copy.");
-            List<User> previousCopyReaders = getUsersWithRole(previousCopy.getContainer(), RoleManager.getRole(ReaderRole.class));
-            previousCopyReaders.forEach(u -> newPolicy.addRoleAssignment(u, ReaderRole.class));
+            allReaders.addAll(getUsersWithRole(previousCopy.getContainer(), RoleManager.getRole(ReaderRole.class)));
         }
 
+        Container target = targetExperiment.getContainer();
+        MutableSecurityPolicy newPolicy = new MutableSecurityPolicy(target, target.getPolicy());
+        log.info("Assigning reader role to " + allReaders.size() + " users.");
+        allReaders.stream().filter(Objects::nonNull).forEach(u -> newPolicy.addRoleAssignment(u, ReaderRole.class));
+
+
+        // Assign the PanoramaPublicSubmitterRole so that the submitter or lab head is able to make the copied folder public, and add publication information.
+        assignPanoramaPublicSubmitterRole(newPolicy, log, targetExperiment.getSubmitterUser(), targetExperiment.getLabHeadUser(),
+                formSubmitter); // User that submitted the form. Can be different from the user selected as the data submitter
+
         SecurityPolicyManager.savePolicy(newPolicy);
+
+        addToSubmittersGroup(target.getProject(), log, targetExperiment.getSubmitterUser(), targetExperiment.getLabHeadUser(), formSubmitter);
     }
 
     private void assignPanoramaPublicSubmitterRole(MutableSecurityPolicy policy, Logger log, User... users)
     {
-        Arrays.stream(users).filter(Objects::nonNull).forEach(user -> {
+        Arrays.stream(users).filter(Objects::nonNull).collect(Collectors.toSet()).forEach(user -> {
             log.info("Assigning " + PanoramaPublicSubmitterRole.class.getSimpleName() + " to " + user.getEmail());
             policy.addRoleAssignment(user, PanoramaPublicSubmitterRole.class, false);
         });
@@ -551,7 +568,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         Group group = getGroup(groupName, project, log);
         if (group != null)
         {
-            Arrays.stream(users).filter(Objects::nonNull).forEach(user -> {
+            Arrays.stream(users).filter(Objects::nonNull).collect(Collectors.toSet()).forEach(user -> {
                 // This group already exists in the Panorama Public project on panoramaweb.org.
                 // CONSIDER: Make this configurable through the Panorama Public admin console.
                 addToGroup(user, group, log);
@@ -604,13 +621,13 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         return group;
     }
 
-    private List<User> getUsersWithRole(Container container, Role role)
+    private Set<User> getUsersWithRole(Container container, Role role)
     {
         SecurityPolicy securityPolicy = container.getPolicy();
         return securityPolicy.getAssignments().stream()
                 .filter(r -> r.getRole().equals(role)
                         && UserManager.getUser(r.getUserId()) != null) // Ignore user groups
-                .map(r -> UserManager.getUser(r.getUserId())).collect(Collectors.toList());
+                .map(r -> UserManager.getUser(r.getUserId())).collect(Collectors.toSet());
 
     }
 
@@ -673,48 +690,103 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         targetExpt.setDoi(doi.getDoi());
     }
 
-    private boolean updateDataPaths(Container target, FileContentService service, User user, Logger logger) throws BatchValidationException
+    private boolean updateDataPaths(Container target, Container source, FileContentService service, User user, Logger logger) throws BatchValidationException
     {
-        List<ExpRun> allRuns = getAllExpRuns(target);
-
-        for(ExpRun run: allRuns)
+        List<Container> children = ContainerManager.getChildren(target);
+        for (Container child: children)
         {
-            Path fileRootPath = service.getFileRootPath(run.getContainer(), FileContentService.ContentType.files);
-            if(fileRootPath == null || !Files.exists(fileRootPath))
+            Container sourceChild = ContainerManager.getChild(source, child.getName());
+            if (!ContainerManager.exists(sourceChild))
             {
-                logger.error("File root path for container " + run.getContainer().getPath() + " does not exist: " + fileRootPath);
+                logger.error("Could not find source subfolder  " + child.getName() + " in  " + source.getPath());
                 return false;
             }
 
-            List<ExpData> allData = new ArrayList<>(run.getAllDataUsedByRun());
+            if (!updateDataPaths(child, sourceChild, service, user, logger))
+            {
+                return false;
+            }
+        }
+        logger.info("Updating dataFileUrls in folder " + target.getPath());
 
+        Path fileRootPath = service.getFileRootPath(target, FileContentService.ContentType.files);
+        if(fileRootPath == null || !Files.exists(fileRootPath))
+        {
+            logger.error("File root path for folder " + target.getPath() + " does not exist: " + fileRootPath);
+            return false;
+        }
+
+        Path sourceFileRootPath = service.getFileRootPath(source, FileContentService.ContentType.files);
+        if(sourceFileRootPath == null || !Files.exists(sourceFileRootPath))
+        {
+            logger.error("File root path for source folder " + source.getPath() + " does not exist: " + sourceFileRootPath);
+            return false;
+        }
+
+        ExperimentService expService = ExperimentService.get();
+        List<? extends ExpRun> targetRuns = expService.getExpRuns(target, null, null);
+        List<? extends ExpRun> sourceRuns = expService.getExpRuns(source, null, null);
+
+        for (ExpRun run: targetRuns)
+        {
             ITargetedMSRun tmsRun = PanoramaPublicManager.getRunByLsid(run.getLSID(), run.getContainer());
             if(tmsRun == null)
             {
-                logger.error("Could not find a targetedms run for exprun: " + run.getLSID() + " in container " + run.getContainer());
+                logger.error("Could not find a targetedms run for LSID: " + run.getLSID() + " in folder " + run.getContainer());
                 return false;
             }
             logger.info("Updating dataFileUrls for run " + tmsRun.getFileName() + "; targetedms run ID " + tmsRun.getId());
 
-            // list returned by run.getAllDataUsedByRun() may not include rows in exp.data that do not have a corresponding row in exp.dataInput.
-            // This is known to happen for entries for .skyd datas.
-            if(!addMissingDatas(allData, tmsRun, logger))
+            List<ExpData> targetRunData = getAllRunData(run, tmsRun, logger);
+            if (targetRunData == null) return false;
+
+
+            // Run / Skyline document names in a container should be unique. Find a run in the source container with the same name.
+            List<? extends ExpRun> matchingRuns = sourceRuns.stream().filter(sRun -> sRun.getName().equals(run.getName())).collect(Collectors.toList());
+            if (matchingRuns.size() == 0)
             {
+                logger.error("Run with name " + run.getName() + " was not found in the submitted folder: " + source.getPath());
                 return false;
             }
-
-            for(ExpData data: allData)
+            if (matchingRuns.size() > 1)
             {
-                String fileName = FileUtil.getFileName(data.getFilePath());
-                Path newDataPath = fileRootPath.resolve(fileName);
-                if(!Files.exists(newDataPath))
+                logger.error(matchingRuns.size() + " runs with name " + run.getName() + " found in the submitted folder: " + source.getPath());
+                return false;
+            }
+            ExpRun sourceRun = matchingRuns.get(0);
+
+            ITargetedMSRun sourceTmsRun = TargetedMSService.get().getRunByLsid(sourceRun.getLSID(), source);
+            if (sourceTmsRun == null)
+            {
+                logger.error("Targeted MS run with name " + sourceRun.getName() + " does not exist in the submitted folder: " + source.getPath());
+                return false;
+            }
+            List<ExpData> sourceExpData = getAllRunData(sourceRun, sourceTmsRun, logger);
+            if (sourceExpData == null) return false;
+
+            for(ExpData data: targetRunData)
+            {
+                ExpData srcExpData = sourceExpData.stream().filter(d -> data.getName().equals(d.getName())).findFirst().orElse(null);
+                if (srcExpData == null)
                 {
-                    // This may be the .skyd file which is inside the exploded parent directory
-                    String parentDir = tmsRun.getBaseName();
-                    newDataPath = fileRootPath.resolve(parentDir) // Name of the exploded directory
-                                              .resolve(fileName); // Name of the file
+                    logger.error("ExpData with name " + data.getName() + " for run " + sourceTmsRun.getFileName() + " was not found in the submitted folder: " + source.getPath());
+                    return false;
                 }
-                if(Files.exists(newDataPath))
+
+                Path relPath = sourceFileRootPath.relativize(srcExpData.getFilePath());
+                logger.info("Relative path in source folder: " + relPath);
+                Path newDataPath = fileRootPath.resolve(relPath);
+
+//                String fileName = FileUtil.getFileName(data.getFilePath());
+//                Path newDataPath = fileRootPath.resolve(fileName);
+//                if(!Files.exists(newDataPath))
+//                {
+//                    // This may be the .skyd file which is inside the exploded parent directory
+//                    String parentDir = tmsRun.getBaseName();
+//                    newDataPath = fileRootPath.resolve(parentDir) // Name of the exploded directory
+//                            .resolve(fileName); // Name of the file
+//                }
+                if (Files.exists(newDataPath))
                 {
                     logger.info("Updating dataFileUrl...");
                     logger.info("from: " + data.getDataFileURI().toString());
@@ -732,7 +804,22 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             run.setFilePathRootPath(fileRootPath);
             run.save(user);
         }
+
         return true;
+    }
+
+    @Nullable
+    private List<ExpData> getAllRunData(ExpRun run, ITargetedMSRun tmsRun, Logger logger)
+    {
+        List<ExpData> targetRunData = new ArrayList<>(run.getAllDataUsedByRun());
+        // list returned by run.getAllDataUsedByRun() may not include rows in exp.data that do not have a corresponding row in exp.dataInput.
+        // This is known to happen for entries for .skyd datas.
+        if(!addMissingDatas(targetRunData, tmsRun, logger))
+        {
+            logger.error("Could not add missing datas for run: " + tmsRun.getFileName() + " in folder " + tmsRun.getContainer().getPath());
+            return null;
+        }
+        return targetRunData;
     }
 
     private boolean addMissingDatas(List<ExpData> allData, ITargetedMSRun tmsRun, Logger logger)

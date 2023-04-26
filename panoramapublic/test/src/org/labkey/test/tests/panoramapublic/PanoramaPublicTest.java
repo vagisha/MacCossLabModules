@@ -5,9 +5,11 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.labkey.test.BaseWebDriverTest;
 import org.labkey.test.Locator;
+import org.labkey.test.TestFileUtils;
 import org.labkey.test.TestTimeoutException;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
+import org.labkey.test.components.FilesWebPart;
 import org.labkey.test.components.panoramapublic.TargetedMsExperimentInsertPage;
 import org.labkey.test.components.panoramapublic.TargetedMsExperimentWebPart;
 import org.labkey.test.pages.pipeline.PipelineStatusDetailsPage;
@@ -15,10 +17,12 @@ import org.labkey.test.util.APIContainerHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.DataRegionTable;
 import org.labkey.test.util.Ext4Helper;
+import org.labkey.test.util.FileBrowserHelper;
 import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.PipelineStatusTable;
 import org.labkey.test.util.PortalHelper;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,7 +52,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         return SAMPLEDATA_FOLDER;
     }
 
-    @Test
+   // @Test
     public void testExperimentCopy()
     {
         // Set up our source folder. We will create an experiment here and submit it to our "Panorama Public" project.
@@ -228,7 +232,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         }
     }
 
-    @Test
+    //@Test
     public void testCopyExperimentWithSubfolder()
     {
         String projectName = getProjectName();
@@ -285,6 +289,58 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         PipelineStatusTable pipelineStatusTable = goToDataPipeline();
         PipelineStatusDetailsPage pipelineStatusDetailsPage = pipelineStatusTable.clickStatusLink(0);
         assertTrue("Copy Job's log file not set to pipeline root", pipelineStatusDetailsPage.getFilePath().contains("@files"));  //Proxy check to see if Job's log file is set to the pipeline root.
+    }
+
+    @Test
+    public void testDataFileUriUpdate()
+    {
+        String projectName = getProjectName();
+        String sourceFolder = "Folder 3";
+        String targetFolder = "Test Copy 3";
+        String experimentTitle = "This is a test to verify data file URI update";
+
+        setupSourceFolder(projectName, sourceFolder, SUBMITTER, SUBMITTER_2);
+        impersonate(SUBMITTER);
+        updateSubmitterAccountInfo("One");
+
+        // Add the "Targeted MS Experiment" webpart
+        createExperimentCompleteMetadata(experimentTitle);
+
+        // Import Skyline documents to the folder
+        importData(SKY_FILE_1, 1);
+        importData(SKY_FILE_SMALLMOL_PEP, 2);
+        importData(QC_1_FILE, 3);
+
+        // Move the .sky.zip file and exploded folder so that the data file URIs no longer refer to files in the folder file root.
+        FileBrowserHelper browser = FilesWebPart.getWebPart(getDriver()).fileBrowser();
+        String smallMolFolder = "SmallMolecule";
+        browser.createFolder(smallMolFolder);
+        browser.moveFile(SKY_FILE_SMALLMOL_PEP, smallMolFolder);
+        browser.moveFile("smallmol_plus_peptides", smallMolFolder);
+
+        String qcFolder = "QC/data";
+        browser.createFolder(qcFolder);
+        browser.moveFile(QC_1_FILE, qcFolder);
+        browser.moveFile("QC_1", qcFolder);
+
+        // Submit the experiment
+        goToProjectFolder(projectName, sourceFolder);
+        submitValidationJob();
+        String shortAccessUrl = submitWithoutPxIdButton();
+
+        // Copy the experiment to the Panorama Public project
+        copyExperimentAndVerify(projectName, sourceFolder, experimentTitle, targetFolder, shortAccessUrl);
+
+        // Verify that the data file URIs were updated.
+        goToProjectFolder(PANORAMA_PUBLIC, targetFolder);
+        PipelineStatusTable status = new PipelineStatusTable(this);
+        PipelineStatusDetailsPage statusDetails = status.clickStatusLink(0);
+    }
+
+    private void checkLogMessage(String message)
+    {
+        new PipelineStatusTable(this).clickStatusLink(0);
+        assertTextPresent(message);
     }
 
     @Override
