@@ -24,6 +24,7 @@ import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.data.PropertyManager;
+import org.labkey.api.exp.OntologyManager;
 import org.labkey.api.exp.api.ExpData;
 import org.labkey.api.exp.api.ExpExperiment;
 import org.labkey.api.exp.api.ExpRun;
@@ -94,6 +95,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -105,6 +107,10 @@ import java.util.stream.Collectors;
  */
 public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFinalTask.Factory>
 {
+    // Constants copied from XarReader. Can be moved from XarReader to an API class (e.g. XarConstants)
+    private static final String ORIGINAL_URL_PROPERTY = "terms.fhcrc.org#Data.OriginalURL";
+    // private static final String ORIGINAL_URL_PROPERTY_NAME = "OriginalURL";
+
     private CopyExperimentFinalTask(Factory factory, PipelineJob job)
     {
         super(factory, job);
@@ -176,7 +182,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             ExperimentAnnotations previousCopy = getPreviousCopyRemoveShortUrl(latestCopiedSubmission, user);
 
             // Create a new row in panoramapublic.ExperimentAnnotations and link it to the new experiment created during folder import.
-            ExperimentAnnotations targetExperiment = createNewExperimentAnnotations(experiment, sourceExperiment, js, previousCopy, jobSupport, user, log);
+            ExperimentAnnotations targetExperiment = createNewExperimentAnnotations(experiment, sourceExperiment, js, user, log);
 
             // If there is a Panorama Public data catalog entry associated with the previous copy of the experiment, move it to the
             // new container.
@@ -367,7 +373,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
 
             // DataFileUrl in exp.data and FilePathRoot in exp.experimentRun point to locations in the 'export' directory.
             // We are now copying all files from the source container to the target container file root. Update the paths
-            // to point to locations in the target container file root, and delete the 'export' directory
+            // to point to locations in the target container file root. The 'export' directory will be deleted when the job completes.
             if (!updateDataPaths(targetExperiment.getContainer(), sourceExperiment.getContainer(), service, user, log))
             {
                 throw new PipelineJobException("Unable to update all data file paths.");
@@ -447,7 +453,6 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
 
     @NotNull
     private ExperimentAnnotations createNewExperimentAnnotations(ExpExperiment experiment, ExperimentAnnotations sourceExperiment, JournalSubmission js,
-                                                                 ExperimentAnnotations previousCopy, CopyExperimentJobSupport jobSupport,
                                                                  User user, Logger log) throws PipelineJobException
     {
         log.info("Creating a new TargetedMS experiment entry in panoramapublic.ExperimentAnnotations.");
@@ -461,9 +466,6 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         int version =  currentVersion == null ? 1 : currentVersion + 1;
         log.info("Setting version on new experiment to " + version);
         targetExperiment.setDataVersion(version);
-
-//        assignPxId(jobSupport, log, targetExperiment, previousCopy);
-//        assignDoi(jobSupport, log, targetExperiment, previousCopy);
 
         targetExperiment = ExperimentAnnotationsManager.save(targetExperiment, user);
 
@@ -519,11 +521,9 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         Group journalGroup = SecurityManager.getGroup(journal.getLabkeyGroupId());
         JournalManager.removeJournalPermissions(sourceExperiment, journalGroup, pipelineJobUser);
 
-        Set<User> allReaders = new HashSet<>();
-
         // Give read permissions to the authors (all users that are folder admins)
         log.info("Adding read permissions to all users that are folder admins in the source folder.");
-        allReaders.addAll(getUsersWithRole(sourceExperiment.getContainer(), RoleManager.getRole(FolderAdminRole.class)));
+        Set<User> allReaders = new HashSet<>(getUsersWithRole(sourceExperiment.getContainer(), RoleManager.getRole(FolderAdminRole.class)));
 
         // If the submitter and lab head user are members of a permission group in the source folder, they will not
         // be included in the set of users returned by getUsersWithRole(). So add them here
@@ -582,7 +582,6 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         if (group != null)
         {
             addToGroup(user, group, log);
-            return;
         }
     }
 
@@ -690,18 +689,13 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
         targetExpt.setDoi(doi.getDoi());
     }
 
-    private boolean updateDataPaths(Container target, Container source, FileContentService service, User user, Logger logger) throws BatchValidationException
+    private boolean updateDataPaths(Container target, @Nullable Container source, FileContentService service, User user, Logger logger) throws BatchValidationException
+
     {
         List<Container> children = ContainerManager.getChildren(target);
         for (Container child: children)
         {
-            Container sourceChild = ContainerManager.getChild(source, child.getName());
-            if (!ContainerManager.exists(sourceChild))
-            {
-                logger.error("Could not find source subfolder  " + child.getName() + " in  " + source.getPath());
-                return false;
-            }
-
+            Container sourceChild = source != null ? ContainerManager.getChild(source, child.getName()) : null;
             if (!updateDataPaths(child, sourceChild, service, user, logger))
             {
                 return false;
@@ -716,76 +710,142 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
             return false;
         }
 
-        Path sourceFileRootPath = service.getFileRootPath(source, FileContentService.ContentType.files);
-        if(sourceFileRootPath == null || !Files.exists(sourceFileRootPath))
-        {
-            logger.error("File root path for source folder " + source.getPath() + " does not exist: " + sourceFileRootPath);
-            return false;
-        }
+        Path sourceFileRootPath = null;
 
         ExperimentService expService = ExperimentService.get();
         List<? extends ExpRun> targetRuns = expService.getExpRuns(target, null, null);
-        List<? extends ExpRun> sourceRuns = expService.getExpRuns(source, null, null);
-
         for (ExpRun run: targetRuns)
         {
+            run.setFilePathRootPath(fileRootPath);
+            run.save(user);
+
             ITargetedMSRun tmsRun = PanoramaPublicManager.getRunByLsid(run.getLSID(), run.getContainer());
-            if(tmsRun == null)
+            if (tmsRun == null)
             {
-                logger.error("Could not find a targetedms run for LSID: " + run.getLSID() + " in folder " + run.getContainer());
+                logger.error("Could not find a targetedms run for LSID: " + run.getLSID() + " in folder " + run.getContainer().getPath());
                 return false;
             }
-            logger.info("Updating dataFileUrls for run " + tmsRun.getFileName() + "; targetedms run ID " + tmsRun.getId());
+            logger.info("Updating dataFileUrls for expdata for run " + tmsRun.getFileName() + "; targetedms run ID " + tmsRun.getId());
 
             List<ExpData> targetRunData = getAllRunData(run, tmsRun, logger);
             if (targetRunData == null) return false;
-
-
-            // Run / Skyline document names in a container should be unique. Find a run in the source container with the same name.
-            List<? extends ExpRun> matchingRuns = sourceRuns.stream().filter(sRun -> sRun.getName().equals(run.getName())).collect(Collectors.toList());
-            if (matchingRuns.size() == 0)
+            List<ExpData> dataNotUpdated = new ArrayList<>();
+            for (ExpData data : targetRunData)
             {
-                logger.error("Run with name " + run.getName() + " was not found in the submitted folder: " + source.getPath());
-                return false;
+                if (!updateDataFileUrlFromOriginalFileProperty(target, user, logger, fileRootPath, data))
+                {
+                    dataNotUpdated.add(data);
+                }
             }
-            if (matchingRuns.size() > 1)
+            if (dataNotUpdated.size() > 0)
             {
-                logger.error(matchingRuns.size() + " runs with name " + run.getName() + " found in the submitted folder: " + source.getPath());
-                return false;
+                if (sourceFileRootPath == null)
+                {
+                    if (source == null || !ContainerManager.exists(source))
+                    {
+                        logger.error("Could not find source folder  " + (source != null ? source.getPath() : ""));
+                        return false;
+                    }
+                    sourceFileRootPath = FileContentService.get().getFileRootPath(source, FileContentService.ContentType.files);
+                    if (sourceFileRootPath == null || !Files.exists(sourceFileRootPath))
+                    {
+                        logger.error("File root path for source folder " + source.getPath() + " does not exist.");
+                        return false;
+                    }
+                }
+                if (!updateDataFileUrlFromSourceExperiment(tmsRun, dataNotUpdated, fileRootPath, sourceFileRootPath, source, user, logger))
+                {
+                    return false;
+                }
             }
-            ExpRun sourceRun = matchingRuns.get(0);
+        }
+        return true;
+    }
 
-            ITargetedMSRun sourceTmsRun = TargetedMSService.get().getRunByLsid(sourceRun.getLSID(), source);
-            if (sourceTmsRun == null)
+    private boolean updateDataFileUrlFromOriginalFileProperty(Container target, User user, Logger logger, Path fileRootPath, ExpData data)
+    {
+        Map<String, Object> properties = OntologyManager.getProperties(target, data.getLSID());
+        for (Map.Entry<String, Object> prop : properties.entrySet())
+        {
+            if (prop.getKey().equals(ORIGINAL_URL_PROPERTY))
             {
-                logger.error("Targeted MS run with name " + sourceRun.getName() + " does not exist in the submitted folder: " + source.getPath());
-                return false;
+                String originalUrl = (String) prop.getValue();
+                logger.info("OriginalURL property for " + data.getName() + ": " + originalUrl);
+                int idx = originalUrl.indexOf(FileContentService.FILES_LINK);
+                if (idx != -1)
+                {
+                    // Get everything after @files/
+                    String relUrl = originalUrl.substring(idx + FileContentService.FILES_LINK.length() + 1);
+
+                    Path newDataPath = fileRootPath.resolve(relUrl);
+                    if (Files.exists(newDataPath))
+                    {
+                        logger.info("Updating dataFileUrl based on OriginalURL property...");
+                        logger.info("from: " + data.getDataFileURI().toString());
+                        logger.info("to: " + newDataPath.toUri());
+                        data.setDataFileURI(newDataPath.toUri());
+                        data.save(user);
+                        return true;
+                    }
+                    else
+                    {
+                        logger.warn("Data path does not exist: " + newDataPath);
+                        return false;
+                    }
+                }
+                else
+                {
+                    logger.warn("OriginalURL property does not contain " + FileContentService.FILES_LINK + " for data " + data.getName() + ". Property value is " + prop.getValue());
+                    return false;
+                }
             }
-            List<ExpData> sourceExpData = getAllRunData(sourceRun, sourceTmsRun, logger);
-            if (sourceExpData == null) return false;
+        }
+        logger.warn("OriginalURL property was not found for data " + data.getName());
+        return false;
+    }
 
-            for(ExpData data: targetRunData)
+    private boolean updateDataFileUrlFromSourceExperiment(ITargetedMSRun targetRun, List<ExpData> notUpdatedData, Path fileRootPath,
+                                                          Path sourceFileRootPath, Container source, User user, Logger logger)
+    {
+        logger.info("Updating dataFileUrls based on paths in the source folder");
+
+        ITargetedMSRun sourceRun = TargetedMSService.get().getRunByFileName(targetRun.getFileName(), source);
+        if (sourceRun == null)
+        {
+            logger.error("Run with name " + targetRun.getFileName() + " was not found in the submitted folder: " + source.getPath());
+            return false;
+        }
+
+        ExpRun sourceExpRun = ExperimentService.get().getExpRun(sourceRun.getExperimentRunLSID());
+        if (sourceExpRun == null)
+        {
+            logger.error("Could not find exprun for targeted MS run " + sourceRun.getFileName() + " and LSID: " + sourceRun.getExperimentRunLSID());
+            return false;
+        }
+
+        List<ExpData> sourceData = getAllRunData(sourceExpRun, sourceRun, logger);
+        if (sourceData != null)
+        {
+            for (ExpData data: notUpdatedData)
             {
-                ExpData srcExpData = sourceExpData.stream().filter(d -> data.getName().equals(d.getName())).findFirst().orElse(null);
+                ExpData srcExpData = sourceData.stream().filter(d -> data.getName().equals(d.getName())).findFirst().orElse(null);
                 if (srcExpData == null)
                 {
-                    logger.error("ExpData with name " + data.getName() + " for run " + sourceTmsRun.getFileName() + " was not found in the submitted folder: " + source.getPath());
+                    logger.error("ExpData with name " + data.getName() + " for run " + sourceRun.getFileName() + " was not found in the submitted folder: " + source.getPath());
                     return false;
                 }
 
-                Path relPath = sourceFileRootPath.relativize(srcExpData.getFilePath());
-                logger.info("Relative path in source folder: " + relPath);
+                Path srcExpDataPath = srcExpData.getFilePath();
+                if (srcExpDataPath == null)
+                {
+                    logger.error("Data path for expdata " + srcExpData.getName() + " in folder " + source.getPath() + " is null.");
+                    return false;
+                }
+                logger.info("expdata path in source folder is: " +  srcExpDataPath);
+                logger.info("file root path in source folder is :" + sourceFileRootPath);
+                Path relPath = sourceFileRootPath.relativize(srcExpDataPath);
+                logger.info("Relatived path in source folder: " + relPath);
                 Path newDataPath = fileRootPath.resolve(relPath);
-
-//                String fileName = FileUtil.getFileName(data.getFilePath());
-//                Path newDataPath = fileRootPath.resolve(fileName);
-//                if(!Files.exists(newDataPath))
-//                {
-//                    // This may be the .skyd file which is inside the exploded parent directory
-//                    String parentDir = tmsRun.getBaseName();
-//                    newDataPath = fileRootPath.resolve(parentDir) // Name of the exploded directory
-//                            .resolve(fileName); // Name of the file
-//                }
                 if (Files.exists(newDataPath))
                 {
                     logger.info("Updating dataFileUrl...");
@@ -800,11 +860,7 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
                     return false;
                 }
             }
-
-            run.setFilePathRootPath(fileRootPath);
-            run.save(user);
         }
-
         return true;
     }
 
@@ -908,20 +964,6 @@ public class CopyExperimentFinalTask extends PipelineJob.Task<CopyExperimentFina
                 Portal.updatePart(user, wp);
             }
         }
-    }
-
-    private List<ExpRun> getAllExpRuns(Container container)
-    {
-        Set<Container> children = ContainerManager.getAllChildren(container);
-        ExperimentService expService = ExperimentService.get();
-        List<ExpRun> allRuns = new ArrayList<>();
-
-        for(Container child: children)
-        {
-            List<? extends ExpRun> runs = expService.getExpRuns(child, null, null);
-            allRuns.addAll(runs);
-        }
-        return allRuns;
     }
 
     private static int[] getAllExpRunRowIdsInSubfolders(Container container)

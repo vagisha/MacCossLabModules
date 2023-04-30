@@ -3,9 +3,9 @@ package org.labkey.test.tests.panoramapublic;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.labkey.api.util.FileUtil;
 import org.labkey.test.BaseWebDriverTest;
 import org.labkey.test.Locator;
-import org.labkey.test.TestFileUtils;
 import org.labkey.test.TestTimeoutException;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
@@ -22,8 +22,8 @@ import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.PipelineStatusTable;
 import org.labkey.test.util.PortalHelper;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -52,7 +52,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         return SAMPLEDATA_FOLDER;
     }
 
-   // @Test
+   @Test
     public void testExperimentCopy()
     {
         // Set up our source folder. We will create an experiment here and submit it to our "Panorama Public" project.
@@ -232,7 +232,7 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         }
     }
 
-    //@Test
+    @Test
     public void testCopyExperimentWithSubfolder()
     {
         String projectName = getProjectName();
@@ -249,20 +249,41 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         // Add the "Targeted MS Experiment" webpart
         TargetedMsExperimentWebPart expWebPart = createExperimentCompleteMetadata(experimentTitle);
 
-        // Import a Skyline document to the folder
+        // Import Skyline documents
         importData(SKY_FILE_1, 1);
+        importData(SKY_FILE_SMALLMOL_PEP, 2);
+
+        // Move one of the .sky.zip files and its exploded folders to a subfolder
+        goToDashboard();
+        goToModule("FileContent");
+        String skyDocsFolder = "SkylineFiles";
+        _fileBrowserHelper.createFolder(skyDocsFolder);
+        _fileBrowserHelper.moveFile(SKY_FILE_SMALLMOL_PEP, skyDocsFolder);
+        _fileBrowserHelper.moveFile(FileUtil.getBaseName(SKY_FILE_SMALLMOL_PEP, 2), skyDocsFolder);
 
         // Create a Collaboration type subfolder
         _containerHelper.createSubfolder(projectName, sourceFolder, subfolder_collab, "Collaboration", null, false);
 
         // Create a TargetedMS (MAM) type subfolder
         setupSubfolder(projectName, sourceFolder, subfolder_mam, FolderType.ExperimentMAM);
+        importData(QC_1_FILE, 1, false);
+
+        // Move the .sky.zip file (but not the exploded folder) to a subfolder
+        goToDashboard();
+        goToModule("FileContent");
+        _fileBrowserHelper.createFolder(skyDocsFolder);
+        _fileBrowserHelper.moveFile(QC_1_FILE, skyDocsFolder);
 
         goToProjectFolder(projectName, sourceFolder);
         String shortAccessUrl = testSubmitWithSubfolders(expWebPart);
 
         // Copy the experiment to the Panorama Public project
         copyExperimentAndVerify(projectName, sourceFolder, List.of(subfolder_collab, subfolder_mam), experimentTitle, targetFolder, shortAccessUrl);
+
+        // Verify that the dataFileUrls were updated
+        verifyDataFileUrls(targetFolder, Map.of(SKY_FILE_1, List.of("", ""), SKY_FILE_SMALLMOL_PEP, List.of(skyDocsFolder, skyDocsFolder)));
+        verifyDataFileUrls(targetFolder + "/" + subfolder_mam, Map.of(QC_1_FILE, List.of(skyDocsFolder, "")));
+
 
         // Remove permissions for SUBMITTER_2 from a subfolder, and try to resubmit the experiment as SUBMITTER_2. This user
         // should not be able to resubmit because the experiment was configured by SUBMITTER to include subfolders, and read permissions
@@ -291,50 +312,40 @@ public class PanoramaPublicTest extends PanoramaPublicBaseTest
         assertTrue("Copy Job's log file not set to pipeline root", pipelineStatusDetailsPage.getFilePath().contains("@files"));  //Proxy check to see if Job's log file is set to the pipeline root.
     }
 
-    @Test
-    public void testDataFileUriUpdate()
+    private void verifyDataFileUrls(String targetFolder, Map<String, List<String>> docNameAndLocation)
     {
-        String projectName = getProjectName();
-        String sourceFolder = "Folder 3";
-        String targetFolder = "Test Copy 3";
-        String experimentTitle = "This is a test to verify data file URI update";
+        int expectedRows = docNameAndLocation.size() * 2;
 
-        setupSourceFolder(projectName, sourceFolder, SUBMITTER, SUBMITTER_2);
-        impersonate(SUBMITTER);
-        updateSubmitterAccountInfo("One");
-
-        // Add the "Targeted MS Experiment" webpart
-        createExperimentCompleteMetadata(experimentTitle);
-
-        // Import Skyline documents to the folder
-        importData(SKY_FILE_1, 1);
-        importData(SKY_FILE_SMALLMOL_PEP, 2);
-        importData(QC_1_FILE, 3);
-
-        // Move the .sky.zip file and exploded folder so that the data file URIs no longer refer to files in the folder file root.
-        FileBrowserHelper browser = FilesWebPart.getWebPart(getDriver()).fileBrowser();
-        String smallMolFolder = "SmallMolecule";
-        browser.createFolder(smallMolFolder);
-        browser.moveFile(SKY_FILE_SMALLMOL_PEP, smallMolFolder);
-        browser.moveFile("smallmol_plus_peptides", smallMolFolder);
-
-        String qcFolder = "QC/data";
-        browser.createFolder(qcFolder);
-        browser.moveFile(QC_1_FILE, qcFolder);
-        browser.moveFile("QC_1", qcFolder);
-
-        // Submit the experiment
-        goToProjectFolder(projectName, sourceFolder);
-        submitValidationJob();
-        String shortAccessUrl = submitWithoutPxIdButton();
-
-        // Copy the experiment to the Panorama Public project
-        copyExperimentAndVerify(projectName, sourceFolder, experimentTitle, targetFolder, shortAccessUrl);
-
-        // Verify that the data file URIs were updated.
         goToProjectFolder(PANORAMA_PUBLIC, targetFolder);
-        PipelineStatusTable status = new PipelineStatusTable(this);
-        PipelineStatusDetailsPage statusDetails = status.clickStatusLink(0);
+        goToSchemaBrowser();
+        DataRegionTable table = viewQueryData("exp", "Data");
+        table.setFilter("Run", "Is Not Blank");
+        assertEquals("Expected " +expectedRows + " rows, 2 for each imported Skyline document", expectedRows, table.getDataRowCount());
+
+        for (String docName: docNameAndLocation.keySet())
+        {
+            verifyDataFileUrls(table, docName, docNameAndLocation.get(docName).get(0), docNameAndLocation.get(docName).get(1));
+        }
+    }
+
+    private void verifyDataFileUrls(DataRegionTable table, String skylineDocName, String skydocSubfolder, String skydSubfolder)
+    {
+        String baseName = FileUtil.getBaseName(skylineDocName, 2);
+        String skydName = baseName + ".skyd";
+
+        table.clearAllFilters();
+        table.setFilter("Run", "Equals", skylineDocName);
+        assertEquals("Expected 2 exp.data rows for run " + skylineDocName, 2, table.getDataRowCount());
+
+        int rowIndex = table.getRowIndex("Name", skylineDocName);
+        assertNotEquals("Expected to find a row where Name is " + skylineDocName, -1, rowIndex);
+        List<String> dataFileUrl = table.getRowDataAsText(rowIndex, "Data File Url");
+        assertTrue("Unexpected dataFileUrl", dataFileUrl.get(0).endsWith("@files/" + (StringUtils.isEmpty(skydocSubfolder) ? "" : skydocSubfolder + "/") + skylineDocName));
+
+        rowIndex = table.getRowIndex("Name", skydName);
+        assertNotEquals("Expected to find a row where Name is " + skydName, -1, rowIndex);
+        dataFileUrl = table.getRowDataAsText(rowIndex, "Data File Url");
+        assertTrue("Unexpected dataFileUrl", dataFileUrl.get(0).endsWith("@files/" + (StringUtils.isEmpty(skydSubfolder) ? "" : skydSubfolder + "/") + baseName + "/" + skydName));
     }
 
     private void checkLogMessage(String message)
