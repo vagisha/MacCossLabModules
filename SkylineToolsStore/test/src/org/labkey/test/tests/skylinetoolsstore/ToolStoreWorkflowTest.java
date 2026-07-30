@@ -71,6 +71,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
     private static File _formsToolV1;
     private static File _formsToolV2;
+    private static File _formsToolV3;
+
+    // A site user with no stake in any tool, used to prove an owner cannot hand out Editor.
+    private static final String OTHER_USER = "toolstore_bystander@toolstore.test";
 
     // An ordinary site user. Gets Editor on their tool's folder only after the admin names them.
     private static final String TOOL_AUTHOR = "toolstore_author@toolstore.test";
@@ -112,8 +116,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         _userHelper.createUser(TOOL_AUTHOR);
 
+        _userHelper.createUser(OTHER_USER);
+
         _formsToolV1 = writeMinimalToolZip("1.0");
         _formsToolV2 = writeMinimalToolZip("2.0");
+        _formsToolV3 = writeMinimalToolZip("3.0");
 
         ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME,
                 TestFileUtils.getSampleData(TOOL_V1), TestFileUtils.getSampleData(TOOL_OTHER),
@@ -339,8 +346,25 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         // Read the version from the catalog rather than the page - the details page carries script
         // constants that a bare text search for a version number picks up.
+        JSONObject afterDelete = onlyToolInStore(FORMS_STORE);
         assertEquals("Deleting the newest version should leave 1.0 as the latest",
-                "1.0", onlyToolInStore(FORMS_STORE).getString("Version"));
+                "1.0", afterDelete.getString("Version"));
+
+        // UpdateToolAction shares its form with InsertToolAction, so toolOwners binds on this path
+        // too, and an owner who could name owners while publishing could hand Editor on their folder
+        // to anyone. Two things stop that: the action passes an empty owner list, and
+        // copyContainerPermissions then replaces the new folder's policy with the previous version's.
+        // The second is the one that actually holds - removing only the first still leaves the policy
+        // overwritten. This asserts the outcome, so it survives either being reworked.
+        log("Publishing a version cannot grant ownership");
+        int status = uploadToolTo(toolFolderPath(FORMS_STORE, afterDelete), _formsToolV3,
+                rowId(afterDelete), OTHER_USER);
+        assertTrue("Publishing 3.0 should be accepted, got HTTP " + status, status < 400);
+
+        JSONObject afterGrantAttempt = onlyToolInStore(FORMS_STORE);
+        assertEquals("3.0", afterGrantAttempt.getString("Version"));
+        assertFalse("Naming an owner while publishing must not grant Editor",
+                hasEditorRole(toolFolderPath(FORMS_STORE, afterGrantAttempt), OTHER_USER));
     }
 
     // -------------------------------------------------------------------------
@@ -416,7 +440,12 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private int uploadToolTo(String containerPath, String sampleDataRelativePath, int updateTarget,
                              String toolOwners)
     {
-        File zip = TestFileUtils.getSampleData(sampleDataRelativePath);
+        return uploadToolTo(containerPath, TestFileUtils.getSampleData(sampleDataRelativePath),
+                updateTarget, toolOwners);
+    }
+
+    private int uploadToolTo(String containerPath, File zip, int updateTarget, String toolOwners)
+    {
         boolean newVersion = updateTarget >= 0;
         HttpPost request = new HttpPost(
                 WebTestHelper.buildURL("skyts", containerPath, newVersion ? "updateTool" : "insertTool"));
@@ -528,7 +557,13 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     private String toolFolderPath(JSONObject tool)
     {
-        return "/" + PROJECT_NAME + "/" +
+        return toolFolderPath(PROJECT_NAME, tool);
+    }
+
+    /** A tool's version folder sits directly under the store that holds it. */
+    private String toolFolderPath(String storePath, JSONObject tool)
+    {
+        return "/" + storePath + "/" +
                 ToolStoreTestHelper.toolFolderName(tool.getString("Name"), tool.getString("Version"));
     }
 

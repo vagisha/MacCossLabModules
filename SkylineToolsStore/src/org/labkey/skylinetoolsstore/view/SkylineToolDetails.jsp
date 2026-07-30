@@ -246,6 +246,8 @@ a { text-decoration: none; }
 <% } %>
 </div>
 <!--Manage Tool Owners Form-->
+<%-- Site admin only, matching SetOwnersAction and the menu item that opens it. --%>
+<% if (admin) { %>
 <div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
     <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
         <p>
@@ -257,6 +259,7 @@ a { text-decoration: none; }
         </p>
     </labkey:form>
 </div>
+<% } %>
 <!--Upload New Version Form-->
 <div id="uploadPop" title="Upload tool zip file" style="display:none;">
     <labkey:form action="<%=SkylineToolStoreUrls.getUpdateToolUrl(tool)%>" enctype="multipart/form-data" method="post">

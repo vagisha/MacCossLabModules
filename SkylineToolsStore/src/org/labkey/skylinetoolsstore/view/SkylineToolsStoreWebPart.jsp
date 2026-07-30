@@ -112,6 +112,9 @@
 </div>
 <% } %>
 <!--Manage Tool Owners Form-->
+<%-- Site admin only, matching SetOwnersAction. Rendering it for everyone and relying on the menu
+     item being hidden would put a live owners form in every visitor's page, guests included. --%>
+<% if (admin) { %>
 <div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
     <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
         <p>
@@ -125,6 +128,7 @@
         </p>
     </labkey:form>
 </div>
+<% } %>
 <!--Add Tool / Upload New Version Form-->
 <div id="uploadPop" title="Upload tool zip file" style="display:none;">
     <%-- Serves both "Add New Tool" and per-tool "Upload new version", which are different actions in
@@ -133,10 +137,14 @@
         <p>
             Browse to the zip file containing the tool you would like to upload.<br/><br />
             <input type="file" name="toolZip" /><br /><br />
+<%-- Only "Add New Tool" uses this, and that is site admin only. Publishing a new version hides it
+     with script, but hiding is not removing - a hidden input still posts, so it is gated here. --%>
+<% if (admin) { %>
             <span id="uploadPopOwners">
                 <label for="toolOwnersNew">Tool owners </label><br />
                 <input type="text" id="toolOwnersNew" class="toolOwners" name="toolOwners" /><br /><br /><br />
             </span>
+<% } %>
             <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
             <%-- Zero for "Add New Tool", which InsertToolAction ignores. A blank value would not
                  bind to the form's int, so the upload would fail before reaching the action. --%>
