@@ -378,7 +378,8 @@
 <% if (storeAdmin) { %>
     var toolOwners = new Array();
 <% for (SkylineTool tool : tools) { %>
-    toolOwners[<%= h(tool.getRowId()) %>] = "<%= h(toolOwners.get(tool.getRowId())) %>";
+    <%-- q() and not h(). See SkylineToolManageOwners.jsp. --%>
+    toolOwners[<%= tool.getRowId() %>] = <%= q(toolOwners.get(tool.getRowId())) %>;
 <%
         }
         SafeToRender users = SkylineToolsStoreController.getUsersForAutocomplete();
@@ -415,12 +416,21 @@
         return $(parsedData).find('.tablewrap[data-toolLsid="' + lsid + '"]:first');
     }
 
-    function showDeleteLatestError(toolTable) {
-        $("#delToolLatestDlg").empty().append($("<p></p>").text(
-                "An error occurred trying to delete the latest version of " +
-                toolTable.attr("data-toolName") + "."));
+    // A delete the action refused still comes back with status 200, so .fail() does not run. The
+    // message it was refused with is rendered in a labkey-error block.
+    function serverRejection(data) {
+        return $($.parseHTML(data)).find(".labkey-error").text().trim();
+    }
+
+    function showDeleteError(dlg, message) {
+        $(dlg).empty().append($("<p></p>").text(message));
         $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
         setButtonsEnabled(true);
+    }
+
+    function showDeleteLatestError(toolTable) {
+        showDeleteError("#delToolLatestDlg", "An error occurred trying to delete the latest version of " +
+                toolTable.attr("data-toolName") + ".");
     }
 
     var DLG_EFFECT_SHOW = "fade";
@@ -439,13 +449,17 @@
                 $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteAction.class))%>", {
                     "toolId": toolTable.attr("data-toolId"),
                     "X-LABKEY-CSRF": LABKEY.CSRF
-                }).done(function() {
+                }).done(function(data) {
+                    var rejection = serverRejection(data);
+                    if (rejection) {
+                        showDeleteError("#delToolAllDlg", rejection);
+                        return;
+                    }
                     $("#delToolAllDlg").dialog("close");
                     toolTable.hide("explode");
                 }).fail(function() {
-                    $("#delToolAllDlg").html("<p>An error occurred trying to delete " + toolTable.attr("data-toolName") + ".</p>");
-                    $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                    setButtonsEnabled(true);
+                    showDeleteError("#delToolAllDlg",
+                            "An error occurred trying to delete " + toolTable.attr("data-toolName") + ".");
                 });
             },
             Cancel: function() {$(this).dialog("close");}

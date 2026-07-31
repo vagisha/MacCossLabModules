@@ -22,10 +22,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.junit.Assert;
+import org.junit.Test;
 import org.labkey.api.action.ApiUsageException;
 import org.labkey.api.action.FormHandlerAction;
 import org.labkey.api.action.FormViewAction;
@@ -39,6 +43,7 @@ import org.labkey.api.action.SpringActionController;
 import org.labkey.api.collections.LabKeyCollectors;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerManager;
+import org.labkey.api.data.DbScope;
 import org.labkey.api.data.NormalContainerType;
 import org.labkey.api.files.FileContentService;
 import org.labkey.api.module.FolderTypeManager;
@@ -126,6 +131,7 @@ import java.util.zip.ZipOutputStream;
 
 public class SkylineToolsStoreController extends SpringActionController
 {
+    private static final Logger LOG = LogManager.getLogger(SkylineToolsStoreController.class);
     private static final DefaultActionResolver _actionResolver = new DefaultActionResolver(SkylineToolsStoreController.class);
     private static final String[] VALID_ICON_EXTENSIONS = new String[] { "png", "jpg", "jpeg", "gif" };
     private static final String STORE_NOT_AVAILABLE = "The Skyline Tool Store is not available in this folder.";
@@ -475,7 +481,8 @@ public class SkylineToolsStoreController extends SpringActionController
     /** Font Awesome class for a supplementary file, chosen by extension. */
     private static String suppFileIconClass(String suppFile)
     {
-        return switch (FileUtil.getExtension(suppFile).toLowerCase())
+        // getExtension returns null for a name with no dot, and switching on null throws.
+        return switch (StringUtils.trimToEmpty(FileUtil.getExtension(suppFile)).toLowerCase())
         {
             case "pdf" -> "fa fa-file-pdf-o";
             case "zip" -> "fa fa-file-archive-o";
@@ -563,8 +570,23 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
 
-            _tool = storeToolVersion(getContainer(), tool, getFileMap().get("toolZip"),
-                    parsedOwners.first, null);
+            Container versionContainer = storeToolVersion(getContainer(), tool,
+                    getFileMap().get("toolZip"), parsedOwners.first, null, errors);
+            if (versionContainer == null)
+                return false;
+
+            boolean stored = false;
+            try
+            {
+                tool.setLatest(true);
+                _tool = SkylineToolsStoreManager.get().insertTool(versionContainer, getUser(), tool);
+                stored = true;
+            }
+            finally
+            {
+                if (!stored)
+                    discardVersionFolder(versionContainer);
+            }
             return true;
         }
 
@@ -641,13 +663,36 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
 
-            previousVersion.setLatest(false);
-            SkylineToolsStoreManager.get().updateTool(getContainer(), getUser(), previousVersion);
-
             // We are in the tool's own folder, so the store folder that holds every version is its parent.
             // Owners are not passed - copyContainerPermissions carries the previous version's policy over.
-            _tool = storeToolVersion(getContainer().getParent(), tool, getFileMap().get("toolZip"),
-                    Collections.emptyList(), previousVersion);
+            Container versionContainer = storeToolVersion(getContainer().getParent(), tool,
+                    getFileMap().get("toolZip"), Collections.emptyList(), previousVersion, errors);
+            if (versionContainer == null)
+                return false;
+
+            // Inserting the new version and demoting the old one have to land together. Either one
+            // alone leaves the tool wrong - no row marked latest takes it out of the catalog Skyline
+            // clients read, and two rows marked latest list it twice.
+            boolean stored = false;
+            try (DbScope.Transaction transaction =
+                         SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+            {
+                tool.setLatest(true);
+                _tool = SkylineToolsStoreManager.get().insertTool(versionContainer, getUser(), tool);
+
+                previousVersion.setLatest(false);
+                SkylineToolsStoreManager.get().updateTool(getContainer(), getUser(), previousVersion);
+
+                transaction.commit();
+                stored = true;
+            }
+            finally
+            {
+                // The folder and the zip are not covered by the transaction, so a rollback would
+                // otherwise leave a folder with no row, blocking a retry of this same version.
+                if (!stored)
+                    discardVersionFolder(versionContainer);
+            }
             return true;
         }
 
@@ -708,16 +753,24 @@ public class SkylineToolsStoreController extends SpringActionController
 
 
     /**
-     * Creates the child folder for a tool version and stores its zip, icon and docs, then inserts the
-     * row. Shared by InsertToolAction and UpdateToolAction, which differ only in what they check first.
+     * Creates the child folder for a tool version and stores its zip, icon and docs. Shared by
+     * InsertToolAction and UpdateToolAction, which differ only in what they check first.
+     *
+     * Deliberately does not insert the row. The caller owns that, so it can put the insert in a
+     * transaction with whatever else has to succeed alongside it, and can hand the folder to
+     * discardVersionFolder if that transaction does not commit. None of the work here is
+     * transactional, so it must not sit inside one - it creates a container and moves the zip.
      *
      * @param storeContainer  the tool store folder to create the version's folder under
      * @param previousVersion the version being superseded, or null for a brand-new tool. Supplies the
      *                        permissions, supplementary files and docs that carry forward, which is
      *                        how a tool's owners keep their access across versions.
+     * @return the new version's folder, or null if it could not be created, in which case the reason
+     *         has been added to errors.
      */
-    private SkylineTool storeToolVersion(Container storeContainer, SkylineTool tool, MultipartFile zip,
-                                         List<User> owners, @Nullable SkylineTool previousVersion)
+    private Container storeToolVersion(Container storeContainer, SkylineTool tool, MultipartFile zip,
+                                       List<User> owners, @Nullable SkylineTool previousVersion,
+                                       BindException errors)
             throws IOException
     {
         Container previousContainer = previousVersion != null ? previousVersion.lookupContainer() : null;
@@ -726,6 +779,14 @@ public class SkylineToolsStoreController extends SpringActionController
 
         Container c = makeContainer(storeContainer, toolFolderName(tool), owners,
                 RoleManager.getRole(EditorRole.class));
+        // makeContainer returns null rather than throwing when the folder name is not legal or is
+        // already taken, for example by a folder left behind by an upload that failed part way.
+        if (c == null)
+        {
+            errors.reject(ERROR_MSG, "Could not create a folder named " + toolFolderName(tool) +
+                    " for this version. Check whether a folder by that name already exists.");
+            return null;
+        }
         copyContainerPermissions(previousContainer, c);
 
         File storedZip = makeFile(c, zip.getOriginalFilename());
@@ -745,9 +806,28 @@ public class SkylineToolsStoreController extends SpringActionController
             for (String copyFile : carryForward)
                 FileUtils.copyFile(makeFile(previousContainer, copyFile), makeFile(c, copyFile), true);
 
-        tool.setLatest(true);
-        SkylineToolsStoreManager.get().insertTool(c, getUser(), tool);
-        return tool;
+        return c;
+    }
+
+    /**
+     * Removes a version folder that was created but never got a row, so an upload that fails part way
+     * does not leave one behind. An orphan folder is not harmless - makeContainer refuses to create a
+     * folder whose name is already taken, so it would block the next attempt at the same version.
+     *
+     * Failing to clean up must not replace the failure that brought us here, so this logs rather than
+     * throws.
+     */
+    private void discardVersionFolder(Container versionContainer)
+    {
+        try
+        {
+            ContainerManager.delete(versionContainer, getUser());
+        }
+        catch (Exception e)
+        {
+            LOG.error("Could not remove the folder for a tool version that was never stored: {}",
+                    versionContainer.getPath(), e);
+        }
     }
 
     /** The child folder a tool version lives in, for example _tool_MSstats_4.0 */
@@ -813,6 +893,10 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public ModelAndView getView(SupplementUploadForm form, boolean reshow, BindException errors)
         {
+            // Fail before the form is drawn. Otherwise a request with no tool id renders a working
+            // looking upload form and the file is thrown away on post.
+            requireToolInContainer(form.getToolId(), getContainer());
+
             return new JspView<>("/org/labkey/skylinetoolsstore/view/SkylineToolSupplementUpload.jsp", form, errors);
         }
 
@@ -901,7 +985,13 @@ public class SkylineToolsStoreController extends SpringActionController
                 throw new NotFoundException("No supplementary file named " + form.getSuppFile() +
                         " for tool " + _tool.getName());
             }
-            targetDel.delete();
+            // delete() returns false rather than throwing when the file is read-only or held open by
+            // another process. Reporting success would leave the page showing the file as gone.
+            if (!targetDel.delete())
+            {
+                errors.reject(ERROR_MSG, "Could not delete " + form.getSuppFile() + ". The file may be in use.");
+                return false;
+            }
             return true;
         }
 
@@ -1059,11 +1149,8 @@ public class SkylineToolsStoreController extends SpringActionController
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
 
-            Container toolContainer = tool.lookupContainer();
-            if (toolContainer == null)
+            if (tool.lookupContainer() == null)
                 throw new NotFoundException("Failed to look up the tool's container: " + tool.getName());
-            if (!toolContainer.hasPermission(getUser(), DeletePermission.class))
-                throw new UnauthorizedException("User does not have permission to delete the tool.");
 
             ActionURL senderUrl = form.getSender() != null ? new ActionURL(form.getSender()) : null;
 
@@ -1080,7 +1167,16 @@ public class SkylineToolsStoreController extends SpringActionController
                 return false;
             }
 
-            ContainerManager.delete(tools[0].lookupContainer(), getUser());
+            // The posted row id can name any version, but this action always deletes the newest one.
+            // Every version has its own folder with its own policy, so the permission has to be
+            // checked on the folder that is about to go, not on the one the caller named.
+            Container latestContainer = tools[0].lookupContainer();
+            if (latestContainer == null)
+                throw new NotFoundException("Failed to look up the tool's container: " + tools[0].getName());
+            if (!latestContainer.hasPermission(getUser(), DeletePermission.class))
+                throw new UnauthorizedException("User does not have permission to delete the tool.");
+
+            ContainerManager.delete(latestContainer, getUser());
 
             if (senderUrl != null)
             {
@@ -1751,6 +1847,21 @@ public class SkylineToolsStoreController extends SpringActionController
         public void checkPermissions() throws UnauthorizedException
         {
 
+        }
+    }
+
+    public static class TestCase extends Assert
+    {
+        @Test
+        public void testSuppFileIconClass()
+        {
+            assertEquals("fa fa-file-pdf-o", suppFileIconClass("manual.pdf"));
+            assertEquals("fa fa-file-archive-o", suppFileIconClass("sources.zip"));
+            assertEquals("fa fa-file-pdf-o", suppFileIconClass("MANUAL.PDF"));
+            assertEquals("fa fa-file-o", suppFileIconClass("notes.txt"));
+            // Supplementary files are uploaded under whatever name the owner chose, so a name with
+            // no extension has to work. Throwing here takes out the store listing for every tool.
+            assertEquals("fa fa-file-o", suppFileIconClass("README"));
         }
     }
 }

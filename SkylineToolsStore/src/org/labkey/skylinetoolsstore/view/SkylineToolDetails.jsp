@@ -87,7 +87,8 @@
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
     Iterator suppIter = suppFiles.entrySet().iterator();
 
-    final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
+    // Only the owners dialog uses this, and only a store admin gets that dialog.
+    final String toolOwners = storeAdmin ? StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ") : "";
 
     final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), InsertPermission.class);
     final boolean canDeleteSuppFiles = tool.lookupContainer().hasPermission(getUser(), DeletePermission.class);
@@ -502,9 +503,18 @@ a:hover .editToolIcon {color: #126495;}
             "toolId": <%= h(tool.getRowId()) %>,
             "suppFile": targetDel,
             "X-LABKEY-CSRF": LABKEY.CSRF
-        }).done(function() {
+        }).done(function(data) {
+            // A refused delete comes back as an error view with status 200, so .fail() does not run.
+            // The message the action refused with is rendered in a labkey-error block.
+            var rejection = $($.parseHTML(data)).find(".labkey-error").text().trim();
+            if (rejection) {
+                alert(rejection);
+                return;
+            }
             suppFileItem.remove();
-            if ($("#documentationbox").children(".suppfile").length === 0)
+            // The box also holds the Online Documentation link, so hide it only when no row of any
+            // kind is left. Counting .suppfile would take the documentation link down with it.
+            if ($("#documentationbox").children(".barItem").length === 0)
                 $("#documentationbox").hide();
         }).fail(function() {
             alert("An error occurred while trying to delete the file.");
@@ -551,13 +561,18 @@ a:hover .editToolIcon {color: #126495;}
         window.location.href = <%= q(urlFor(SkylineToolsStoreController.DownloadToolAction.class).addParameter("id", tool.getRowId())) %>;
     }
 
+<%-- The owner addresses go in the page for whoever loads it, so this has to sit behind the same
+     check as the form itself. Gating only the form would still publish the list to every visitor. --%>
+<% if (storeAdmin) { %>
     function popToolOwners() {
         var ownersTxt = $("#toolOwners");
         $("#manageOwnersPop").dialog("open");
-        ownersTxt.focus().val("<%= h(toolOwners) %>");
+        <%-- q() and not h(). See SkylineToolManageOwners.jsp. --%>
+        ownersTxt.focus().val(<%= q(toolOwners) %>);
         if (ownersTxt.val())
             ownersTxt.val(ownersTxt.val() + ", ");
     }
+<% } %>
 
     var DLG_EFFECT_SHOW = "fade";
     var DLG_EFFECT_HIDE = "fade";
