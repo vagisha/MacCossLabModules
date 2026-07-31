@@ -448,20 +448,25 @@ public class SkylineToolsStoreController extends SpringActionController
 
     public static HashMap<String, String> getSupplementaryFiles(SkylineTool tool) throws IOException
     {
-        // Store supporting files in map <url, icon url>
-        final String[] knownExtensions = {"pdf", "zip"};
-        final String imgDir = AppProps.getInstance().getContextPath() + "/skylinetoolsstore/img/";
-
+        // Supporting files in map <download url, Font Awesome class for the file type>
         HashMap<String, String> suppFiles = new HashMap<>();
         for (String suppFile : getSupplementaryFileBasenames(tool))
         {
-            final String suppFileExtension = FileUtil.getExtension(suppFile).toLowerCase();
-            final String suppFileIcon = (Arrays.asList(knownExtensions).contains(suppFileExtension)) ?
-                imgDir + suppFileExtension + "-icon.png" : imgDir + "unknown-icon.jpg";
-            suppFiles.put(tool.getFolderUrl() + suppFile, suppFileIcon);
+            suppFiles.put(tool.getFolderUrl() + suppFile, suppFileIconClass(suppFile));
         }
 
         return suppFiles;
+    }
+
+    /** Font Awesome class for a supplementary file, chosen by extension. */
+    private static String suppFileIconClass(String suppFile)
+    {
+        return switch (FileUtil.getExtension(suppFile).toLowerCase())
+        {
+            case "pdf" -> "fa fa-file-pdf-o";
+            case "zip" -> "fa fa-file-archive-o";
+            default -> "fa fa-file-o";
+        };
     }
 
     public static HashSet<String> getSupplementaryFileBasenames(SkylineTool tool) throws IOException
@@ -743,14 +748,14 @@ public class SkylineToolsStoreController extends SpringActionController
     {
         if (zip == null || StringUtils.isEmpty(zip.getOriginalFilename()))
         {
-            errors.reject(ERROR_MSG, "You did not submit a file.");
+            errors.reject(ERROR_MSG, "Please submit a Skyline tool zip file.");
             return null;
         }
 
         SkylineTool tool = getToolFromZip(zip);
         if (tool == null)
         {
-            errors.reject(ERROR_MSG, "The file was not a valid Skyline Tool zip file.");
+            errors.reject(ERROR_MSG, "The file was not a valid Skyline tool zip file.");
             return null;
         }
         if (!tool.getMissingValues().isEmpty())

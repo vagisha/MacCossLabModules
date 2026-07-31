@@ -34,7 +34,17 @@
         dependencies.add("skylinetoolsstore/js/functions.js");
     }
 %>
+<%-- See SkylineToolDetails.jsp: jQuery UI replaces Bootstrap's $.fn.tooltip, and LabKey's ready
+     handler then applies a jQuery UI tooltip to every [title] on the page. --%>
+<script nonce="<%=getScriptNonce()%>">
+    var lkBootstrapTooltip = jQuery.fn.tooltip && jQuery.fn.tooltip.noConflict
+            ? jQuery.fn.tooltip.noConflict() : null;
+</script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
+<script nonce="<%=getScriptNonce()%>">
+    if (lkBootstrapTooltip)
+        jQuery.fn.tooltip = lkBootstrapTooltip;
+</script>
 <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.min.css">
 
 <%

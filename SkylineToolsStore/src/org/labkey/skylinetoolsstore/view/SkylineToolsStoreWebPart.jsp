@@ -45,7 +45,17 @@
         dependencies.add("skylinetoolsstore/js/functions.js");
     }
 %>
+<%-- See SkylineToolDetails.jsp: jQuery UI replaces Bootstrap's $.fn.tooltip, and LabKey's ready
+     handler then applies a jQuery UI tooltip to every [title] on the page. --%>
+<script nonce="<%=getScriptNonce()%>">
+    var lkBootstrapTooltip = jQuery.fn.tooltip && jQuery.fn.tooltip.noConflict
+            ? jQuery.fn.tooltip.noConflict() : null;
+</script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
+<script nonce="<%=getScriptNonce()%>">
+    if (lkBootstrapTooltip)
+        jQuery.fn.tooltip = lkBootstrapTooltip;
+</script>
 <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.min.css">
 
 <%
@@ -97,8 +107,22 @@
     .ui-menu {width:240px;}
     .dropMenu {position: absolute;}
     .menuMouseArea {display: inline;}
-    .sprocket {cursor: pointer; float: right;}
+    /* Floated, so it is a block box and the top margin applies. Keeps the gear off the row's
+       top and right edges. */
+    .sprocket {cursor: pointer; float: right; margin: 8px 10px 0 0;}
+    .sprocketIcon {font-size: 26px; color: #666;}
+    .sprocket:hover .sprocketIcon {color: #126495;}
+    /* jQuery UI's menu paints a border and background behind the item under the pointer, and shifts
+       it a pixel with a negative margin. */
+    .dropMenu .ui-state-active {
+        background: none;
+        border: none;
+        color: inherit;
+        margin: 0;
+    }
     .menuIconImg {width: 16px; height: 16px;}
+    /* Supplementary file type icons in the menu. */
+    .suppFileIcon {font-size: 14px; color: #666; margin-right: 5px;}
     .noCloseDlg .ui-dialog-titlebar-close {display: none;}
 
 </style>
@@ -190,7 +214,7 @@
         final String tableId = "table-" + tool.getName().replaceAll("[^A-Za-z0-9]", "");
         final ActionURL detailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
 
-        // Get supporting files in map <url, icon url>
+        // Supporting files in map <download url, icon class>
         HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
         Iterator suppIter = suppFiles.entrySet().iterator();
         boolean hasDocs = tool.hasDocumentation();
@@ -217,7 +241,7 @@
                 <span class="title"><a href="<%=h(detailsUrl)%>"><%= h(tool.getName()) %></a></span>
 <% if (toolEditor) { %>
                 <div class="menuMouseArea sprocket" alt="<%= h(tool.getName()) %>">
-                    <img src="<%= h(imgDir) %>gear.png" title="Settings" />
+                    <span class="fa fa-cogs sprocketIcon" title="Settings"></span>
                     <ul class="dropMenu">
                         <li><%=simpleLink("Upload new version").onClick(
                                 "$('#uploadForm').attr('action', " + q(SkylineToolStoreUrls.getUpdateToolUrl(tool)) + "); " +
@@ -268,7 +292,7 @@
         while (suppIter.hasNext()) {
             Map.Entry suppPair = (Map.Entry)suppIter.next();
 %>
-                                <li><a href="<%=h(suppPair.getKey())%>"><img class="menuIconImg" src="<%=h(suppPair.getValue())%>" alt="Supplementary file"><%= h(new File(suppPair.getKey().toString()).getName()) %></a></li>
+                                <li><a href="<%=h(suppPair.getKey())%>"><span class="<%=h(suppPair.getValue())%> suppFileIcon"></span><%= h(new File(suppPair.getKey().toString()).getName()) %></a></li>
 <% } %>
                             </ul>
                         </div>

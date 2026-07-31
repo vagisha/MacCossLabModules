@@ -40,9 +40,7 @@
 <%@ page import="java.util.Iterator" %>
 <%@ page import="java.util.List" %>
 <%@ page import="java.util.Map" %>
-<%@ page import="static org.labkey.api.util.DOM.IMG" %>
-<%@ page import="static org.labkey.api.util.DOM.Attribute.src" %>
-<%@ page import="static org.labkey.api.util.DOM.Attribute.alt" %>
+<%@ page import="static org.labkey.api.util.DOM.SPAN" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 
 <%!
@@ -53,9 +51,23 @@
         dependencies.add("skylinetoolsstore/js/functions.js");
     }
 
-    public final HtmlString editIconImgHtml = DOM.createHtml(IMG(DOM.at(src, getWebappURL("skylinetoolsstore/img/pencil.png")).at(alt, "Pencil")));
+    // LabKey's theme bundle ships Font Awesome 4.7.0 and no glyphicons, so this is the icon set
+    // already present on every page.
+    public final HtmlString editIconImgHtml = DOM.createHtml(SPAN(DOM.cl("fa", "fa-pencil", "editToolIcon")));
 %>
+<%-- LabKey's Bootstrap bundle owns $.fn.tooltip and on DOM ready delegates from body to
+     [data-tt="tooltip"]. jQuery UI replaces $.fn.tooltip, and its widget ignores that selector,
+     falling back to matching every [title] on the page - so LabKey's own elements grow jQuery UI
+     tooltips. Hand Bootstrap's function back once jQuery UI has loaded. --%>
+<script nonce="<%=getScriptNonce()%>">
+    var lkBootstrapTooltip = jQuery.fn.tooltip && jQuery.fn.tooltip.noConflict
+            ? jQuery.fn.tooltip.noConflict() : null;
+</script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
+<script nonce="<%=getScriptNonce()%>">
+    if (lkBootstrapTooltip)
+        jQuery.fn.tooltip = lkBootstrapTooltip;
+</script>
 <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.min.css">
 
 <%
@@ -68,13 +80,14 @@
 
     final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
 
-    // Get supporting files in map <url, icon url>
+    // Supporting files in map <download url, icon class>
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
     Iterator suppIter = suppFiles.entrySet().iterator();
 
     final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
 
     final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), InsertPermission.class);
+    final boolean canDeleteSuppFiles = tool.lookupContainer().hasPermission(getUser(), DeletePermission.class);
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
     final boolean isLatestVersion = SkylineToolsStoreManager.get().getToolLatestByIdentifier(tool.getIdentifier()).getVersion().equals(tool.getVersion());
@@ -92,7 +105,17 @@ a { text-decoration: none; }
     margin: 4px;
     border: 2px solid #dcdcdc;
 }
-#editIcon {opacity: 0.6; filter: alpha(opacity=60);}
+/* This pencil sits on top of the uploaded tool logo, so no single colour is readable on every
+   image. A translucent chip behind it gives the glyph something to sit on. */
+#editIcon {opacity: 1;}
+#editIcon .editToolIcon {
+    color: #333;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 3px;
+    padding: 2px 3px;
+    margin: 0;
+    font-size: 14px;
+}
 .headerwrap {display: block; overflow: hidden;}
 .headerwrap h3 {margin: 0 !important; padding: 5px 0 0; font-weight: 500 !important;}
 .headerwrap p {margin: 0;}
@@ -121,18 +144,22 @@ a { text-decoration: none; }
 #editToolDlg textarea {height: 80%; min-height: 200px;}
 #toolDescription {text-align: justify;}
 #downloadArea {margin: 15px auto 0 auto; text-align: center;}
-#trashcan {
-    position: fixed;
-    left: 0;
-    bottom: -300px;
-    margin: 0;
-    padding: 0;
-    width: 300px;
-    height: 300px;
-    background: url('<%= h(imgDir) %>trashcan.png') no-repeat center center;
-    background-size: cover;
-    z-index: 99;
+.deleteSuppFile {
+    cursor: pointer;
+    color: #999;
+    margin-left: 8px;
 }
+.deleteSuppFile:hover {color: #cd0a0a;}
+/* Edit pencils. Font glyphs size from font-size - the ".barItem img" rule below covers only
+   images. */
+.editToolIcon {
+    font-size: 13px;
+    color: #999;
+    margin-left: 6px;
+}
+a:hover .editToolIcon {color: #126495;}
+/* Supplementary file type icons, sized like the pencils above. */
+.suppFileIcon {font-size: 14px; color: #666; margin-right: 5px;}
 .noCloseDlg .ui-dialog-titlebar-close {display: none;}
 .itemsbox {
     min-height: 60px;
@@ -221,10 +248,19 @@ a { text-decoration: none; }
 .dropMenu {position: absolute;}
 .menuMouseArea {display: inline;}
 .sprocket {cursor: pointer; float: right; margin: 0 0 8px 12px;}
+.sprocketIcon {font-size: 26px; color: #666;}
+.sprocket:hover .sprocketIcon {color: #126495;}
+/* jQuery UI's menu paints a border and background behind the item under the pointer, and shifts
+   it a pixel with a negative margin. */
+.dropMenu .ui-state-active {
+    background: none;
+    border: none;
+    color: inherit;
+    margin: 0;
+}
 .noCloseDlg .ui-dialog-titlebar-close {display: none;}
 .boldfont {font-weight: 700;}
 </style>
-<div id="trashcan"></div>
 <div id="allVersionsPop" title="All versions" style="display:none;">
 <%
     for (SkylineTool iVersion : allVersions) {
@@ -301,7 +337,7 @@ a { text-decoration: none; }
     <div style="float:left; width:351px;">
         <img id="toolIcon" src="<%= h(tool.getIconUrl()) %>" class="logoWrap" alt="<%= h(tool.getName()) %>">
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).addClass("toolProperty").id("editIcon").title("Icon").onClick("editTool($(this), 'Icon')")%>
+        <%=simpleLink(editIconImgHtml).addClass("toolProperty").id("editIcon").title("Edit Icon").onClick("editTool($(this), 'Icon')")%>
 <% } %>
         <div class="block">
             <h2><%= h(tool.getName()) %></h2>
@@ -334,7 +370,7 @@ a { text-decoration: none; }
     </div>
 <% if (toolEditor) { %>
     <div class="menuMouseArea sprocket">
-        <img src="<%= h(imgDir) %>gear.png" title="Settings" alt="Sprocket" />
+        <span class="fa fa-cogs sprocketIcon" title="Settings"></span>
         <ul class="dropMenu">
             <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').dialog('open')")%></li>
             <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').dialog('open')")%></li>
@@ -352,7 +388,7 @@ a { text-decoration: none; }
     <p id="toolDescription" class="toolProperty" title="Description">
         <span class="toolPropertyValue"><%= h(tool.getDescription(), true) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Description").onClick("editTool($(this))")%>
 <% } %>
     </p>
     <div id="downloadArea">
@@ -383,9 +419,12 @@ a { text-decoration: none; }
 %>
     <div class="barItem suppfile">
         <a href="<%=h(suppPair.getKey())%>">
-        <img src="<%=h(suppPair.getValue())%>" alt="Supplementary file" />
+        <span class="<%=h(suppPair.getValue())%> suppFileIcon"></span>
         <span class="suppfilename"><%= h(new File(suppPair.getKey().toString()).getName()) %></span>
         </a>
+<% if (canDeleteSuppFiles) { %>
+        <span class="fa fa-trash deleteSuppFile" title="Delete this file" role="button" tabindex="0"></span>
+<% } %>
     </div>
 <% } %>
 </div>
@@ -398,7 +437,7 @@ a { text-decoration: none; }
         <span class="boldfont">Organization:</span>
         <span class="toolPropertyValue"><%= h(tool.getOrganization()) %></span>
 <% if (toolEditor) { %>
-       <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+       <%=simpleLink(editIconImgHtml).title("Edit Organization").onClick("editTool($(this))")%>
 <% } %>
     </div>
 <% } %>
@@ -408,7 +447,7 @@ a { text-decoration: none; }
         <span class="boldfont">Authors:</span>
         <span class="toolPropertyValue"><%= h(tool.getAuthors()) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this), 'author')")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Authors").onClick("editTool($(this), 'author')")%>
 <% } %>
     </div>
 <% } %>
@@ -418,7 +457,7 @@ a { text-decoration: none; }
         <span class="boldfont">Languages:</span>
         <span class="toolPropertyValue"><%= h(tool.getLanguages()) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Languages").onClick("editTool($(this))")%>
 <% } %>
     </div>
 <% } %>
@@ -428,7 +467,7 @@ a { text-decoration: none; }
         <span class="boldfont">More Information:</span>
         <a href="<%= h(tool.getProvider()) %>" target="_blank" rel="noopener noreferrer"><span class="toolPropertyValue"><%= h(tool.getProvider()) %></span></a>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this), 'provider')")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Provider's Website").onClick("editTool($(this), 'provider')")%>
 <% } %>
     </div>
 
@@ -439,54 +478,32 @@ a { text-decoration: none; }
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
     $(function() {
-        $("#editIcon").position({my: "right bottom", at: "right bottom", of: $("#editIcon").siblings(".logoWrap:first")});
+        // Inset from the corner so the logo's 2px border does not clip the chip.
+        $("#editIcon").position({my: "right-4 bottom-4", at: "right bottom", of: $("#editIcon").siblings(".logoWrap:first")});
     });
 
 <% if (tool.lookupContainer().hasPermission(getUser(), DeletePermission.class)) { %>
-    $("#trashcan").droppable({
-        accept: ".suppfile",
-        drop: function(event, ui) {
-            var offset = (ui.draggable).data("offset");
-            var targetDel = (ui.draggable).find(".suppfilename").html().trim();
-            if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?")) {
-                (ui.draggable).offset({top: offset.top, left: offset.left});
-                return;
-            }
-            $.post("<%=h(SkylineToolStoreUrls.getDeleteSupplementUrl(tool))%>", {
-                "toolId": <%= h(tool.getRowId()) %>,
-                "suppFile": targetDel,
-                "X-LABKEY-CSRF": LABKEY.CSRF
-            }).done(function() {
-                (ui.draggable).hide("explode");
-                if ($("#documentationbox").children(".suppfile:visible").length <= 1)
-                    $("#documentationbox").hide("fade");
-            }).fail(function() {
-                (ui.draggable).offset({top: offset.top, left: offset.left});
-                alert("An error occurred while trying to delete the file.");
-            });
-        }
-    });
+    $(".deleteSuppFile").on("click keypress", function(e) {
+        // The icon can be reached by keyboard, where only Enter (13) and Space (32) should delete.
+        if (e.type === "keypress" && e.which !== 13 && e.which !== 32)
+            return;
 
-    var TRASH_SLIDE_DURATION = 200;
-    $(".suppfile").each(function() {
-        $(this).draggable({
-            start: function() {
-                $(this).tooltip("disable")
-                       .data("offset", $(this).offset())
-                       .css("box-shadow", "10px 10px 5px #888888").css("padding", "8px")
-                       .css("z-index", "500")
-                       .css("border-radius", "8px").css("border", "1px solid #cccccc");
-                $("#trashcan").animate({bottom: 0}, TRASH_SLIDE_DURATION);
-            },
-            stop: function() {
-                $(this).tooltip("enable")
-                       .css("box-shadow", "").css("padding", "").css("border-radius", "")
-                       .css("border", "").css("z-index", "");
-                $("#trashcan").animate({bottom: "-300px"}, TRASH_SLIDE_DURATION)
-            },
-            revert: "invalid"
-        })
-        .attr("title", "Click and drag this file to delete it").tooltip();
+        var suppFileItem = $(this).closest(".suppfile");
+        var targetDel = suppFileItem.find(".suppfilename").text().trim();
+        if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?"))
+            return;
+
+        $.post("<%=h(SkylineToolStoreUrls.getDeleteSupplementUrl(tool))%>", {
+            "toolId": <%= h(tool.getRowId()) %>,
+            "suppFile": targetDel,
+            "X-LABKEY-CSRF": LABKEY.CSRF
+        }).done(function() {
+            suppFileItem.remove();
+            if ($("#documentationbox").children(".suppfile").length === 0)
+                $("#documentationbox").hide();
+        }).fail(function() {
+            alert("An error occurred while trying to delete the file.");
+        });
     });
 <% } %>
     var MENU_SLIDE_TIME = 100;
