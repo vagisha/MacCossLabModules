@@ -17,6 +17,7 @@
  */
 %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
+<%@ page import="org.labkey.api.security.permissions.AdminPermission" %>
 <%@ page import="org.labkey.api.security.permissions.UpdatePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.SafeToRender"%>
@@ -63,6 +64,10 @@
     List<SkylineTool> tools = (List<SkylineTool>)me.getModelBean();
 
     final boolean admin = getUser().hasSiteAdminPermission();
+    // Matches InsertToolAction and SetOwnersAction, both of which check admin on this folder. On
+    // skyline.ms only site admins are admins of the store folder, so this is the same set of people
+    // there, but it lets a folder admin curate the store elsewhere.
+    final boolean storeAdmin = getContainer().hasPermission(getUser(), AdminPermission.class);
     final boolean loggedIn = !getUser().isGuest();
 
     final String contextPath = AppProps.getInstance().getContextPath();
@@ -127,7 +132,7 @@
 
 </style>
 
-<% if (admin) { %>
+<% if (storeAdmin) { %>
 <div style="float: left;">
     <button type="button" id="add-new-tool-btn" class="styled-button">Add New Tool</button>
     <% addHandler("add-new-tool-btn", "click",
@@ -136,9 +141,9 @@
 </div>
 <% } %>
 <!--Manage Tool Owners Form-->
-<%-- Site admin only, matching SetOwnersAction. Rendering it for everyone and relying on the menu
+<%-- Store admins only, matching SetOwnersAction. Rendering it for everyone and relying on the menu
      item being hidden would put a live owners form in every visitor's page, guests included. --%>
-<% if (admin) { %>
+<% if (storeAdmin) { %>
 <div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
     <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
         <p>
@@ -161,9 +166,9 @@
         <p>
             Browse to the zip file containing the tool you would like to upload.<br/><br />
             <input type="file" name="toolZip" /><br /><br />
-<%-- Only "Add New Tool" uses this, and that is site admin only. Publishing a new version hides it
-     with script, but hiding is not removing - a hidden input still posts, so it is gated here. --%>
-<% if (admin) { %>
+<%-- Only "Add New Tool" uses this, so it follows the same permission. Publishing a new version hides
+     it with script, but hiding is not removing - a hidden input still posts, so it is gated here. --%>
+<% if (storeAdmin) { %>
             <span id="uploadPopOwners">
                 <label for="toolOwnersNew">Tool owners </label><br />
                 <input type="text" id="toolOwnersNew" class="toolOwners" name="toolOwners" /><br /><br /><br />
@@ -255,6 +260,8 @@
 <% } %>
 <% if (admin) { %>
                         <li><%=simpleLink("Delete").onClick("delToolAll($(this))")%></li>
+<% } %>
+<% if (storeAdmin) { %>
                         <li><%=simpleLink("Manage tool owners").onClick("popToolOwners(" + tool.getRowId() + ")")%></li>
 <% } %>
                     </ul>
@@ -368,7 +375,7 @@
         $(".content").each(function() {adjustContent($(this));});
     });
 
-<% if (admin) { %>
+<% if (storeAdmin) { %>
     var toolOwners = new Array();
 <% for (SkylineTool tool : tools) { %>
     toolOwners[<%= h(tool.getRowId()) %>] = "<%= h(toolOwners.get(tool.getRowId())) %>";

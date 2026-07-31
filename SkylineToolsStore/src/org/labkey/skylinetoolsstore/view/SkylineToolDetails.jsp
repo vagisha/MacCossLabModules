@@ -20,6 +20,7 @@
 <%@ page import="org.labkey.api.data.Container" %>
 <%@ page import="org.labkey.api.data.ContainerManager" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
+<%@ page import="org.labkey.api.security.permissions.AdminPermission" %>
 <%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
 <%@ page import="org.labkey.api.security.permissions.InsertPermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
@@ -74,11 +75,13 @@
     JspView<?> me = HttpView.currentView();
     final SkylineTool tool = (SkylineTool)me.getModelBean();
     final boolean admin = getUser().hasSiteAdminPermission();
+    // This page renders in the store folder, which is the container SetOwnersAction checks.
+    final boolean storeAdmin = getContainer().hasPermission(getUser(), AdminPermission.class);
 
     final String contextPath = AppProps.getInstance().getContextPath();
     final String imgDir = contextPath + "/skylinetoolsstore/img/";
 
-    final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
+    final SafeToRender autocompleteUsers = storeAdmin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
 
     // Supporting files in map <download url, icon class>
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
@@ -279,8 +282,8 @@ a:hover .editToolIcon {color: #126495;}
 <% } %>
 </div>
 <!--Manage Tool Owners Form-->
-<%-- Site admin only, matching SetOwnersAction and the menu item that opens it. --%>
-<% if (admin) { %>
+<%-- Store admins only, matching SetOwnersAction and the menu item that opens it. --%>
+<% if (storeAdmin) { %>
 <div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
     <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
         <p>
@@ -379,6 +382,8 @@ a:hover .editToolIcon {color: #126495;}
 <% } %>
 <% if (admin) { %>
             <li><%=simpleLink("Delete").onClick("$('#delToolAllDlg').dialog('open')")%></li>
+<% } %>
+<% if (storeAdmin) { %>
             <li><%=simpleLink("Manage tool owners").onClick("popToolOwners()")%></li>
 <% } %>
         </ul>

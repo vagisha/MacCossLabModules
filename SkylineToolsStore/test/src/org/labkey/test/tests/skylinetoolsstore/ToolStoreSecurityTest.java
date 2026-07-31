@@ -211,16 +211,16 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     }
 
     // -------------------------------------------------------------------------
-    // InsertAction - new tools are site admin only, matching the Add New Tool button
+    // InsertAction - new tools need admin on the store folder, matching the Add New Tool button
     // -------------------------------------------------------------------------
 
     /**
-     * Adding a new tool is offered only to site admins in the web part, so the action must enforce
+     * Adding a new tool is offered only to folder admins in the web part, so the action must enforce
      * that too rather than settling for InsertPermission on the folder.
      * <p>
      * CONTRIBUTOR holds Editor here, so it passes the old InsertPermission check and is refused only
-     * by the site-admin rule. TOOL_OTHER is a different tool, so a successful upload would show up as
-     * a new identifier in the catalog.
+     * by the admin rule. TOOL_OTHER is a different tool, so a successful upload would show up as a
+     * new identifier in the catalog.
      */
     @Test
     public void testInsertRejectsNonAdminNewTool()
@@ -237,11 +237,11 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
             stopImpersonating();
         }
 
-        assertEquals("SECURITY: a folder Editor who is not a site admin added a tool to the store",
+        assertEquals("SECURITY: a folder Editor who is not an admin added a tool to the store",
                 before, catalogIdentifiers());
-        // @RequiresSiteAdmin on InsertToolAction means the framework rejects this before the action
+        // AdminPermission on InsertToolAction means the framework rejects this before the action
         // body runs, so the refusal is a status rather than a message rendered into the form.
-        assertTrue("Expected the site-admin refusal, got HTTP " + status, status >= 400);
+        assertTrue("Expected the admin refusal, got HTTP " + status, status >= 400);
     }
 
     /**

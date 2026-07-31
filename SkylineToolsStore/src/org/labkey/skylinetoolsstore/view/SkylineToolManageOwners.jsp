@@ -18,6 +18,7 @@
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreController" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
+<%@ page import="org.labkey.api.security.permissions.AdminPermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
 <%@ page import="org.labkey.api.util.SafeToRender" %>
@@ -38,8 +39,10 @@
     final String toolOwners = StringUtils.trimToEmpty(form.getToolOwners());
     final String sender = form.getSender();
 
-    final boolean admin = getUser().hasSiteAdminPermission();
-    final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
+    // Same check SetOwnersAction makes, so a folder admin who is not a site admin still gets the
+    // autocomplete list rather than an empty one.
+    final boolean storeAdmin = getContainer().hasPermission(getUser(), AdminPermission.class);
+    final SafeToRender autocompleteUsers = storeAdmin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
     pageContext.setAttribute("autocompleteUsers", autocompleteUsers);
 %>
 

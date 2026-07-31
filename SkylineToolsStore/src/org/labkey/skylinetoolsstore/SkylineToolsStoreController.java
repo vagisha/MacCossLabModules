@@ -49,13 +49,13 @@ import org.labkey.api.security.MutableSecurityPolicy;
 import org.labkey.api.security.RequiresLogin;
 import org.labkey.api.security.RequiresNoPermission;
 import org.labkey.api.security.RequiresPermission;
-import org.labkey.api.security.RequiresSiteAdmin;
 import org.labkey.api.security.RoleAssignment;
 import org.labkey.api.security.SecurityPolicy;
 import org.labkey.api.security.SecurityPolicyManager;
 import org.labkey.api.security.User;
 import org.labkey.api.security.UserManager;
 import org.labkey.api.security.ValidEmail;
+import org.labkey.api.security.permissions.AdminPermission;
 import org.labkey.api.security.permissions.DeletePermission;
 import org.labkey.api.security.permissions.InsertPermission;
 import org.labkey.api.security.permissions.ReadPermission;
@@ -295,6 +295,20 @@ public class SkylineToolsStoreController extends SpringActionController
         return tool;
     }
 
+    /**
+     * Resolves a tool row id and confirms the tool's folder sits directly under the given store folder.
+     *
+     * For actions that are addressed to the store folder but act on one of its tools. Tool row ids are
+     * unique across the server, so without this an admin of one store could name a tool in another.
+     */
+    private static SkylineTool requireToolInStore(int toolId, Container storeContainer)
+    {
+        SkylineTool tool = SkylineToolsStoreManager.get().getTool(toolId);
+        if (tool == null || !storeContainer.equals(tool.getContainerParent()))
+            throw new NotFoundException("Could not find tool with Id " + toolId + " in this store.");
+        return tool;
+    }
+
 
 
     public static Path getLocalPath(Container c)
@@ -485,13 +499,13 @@ public class SkylineToolsStoreController extends SpringActionController
     /**
      * Adds a brand-new tool to this store folder.
      *
-     * Site admin only. Tool authors do not upload here - they attach a zip to a message board post and
-     * an admin adds it.
+     * Admins of the store folder only. Tool authors do not upload here - they attach a zip to a
+     * message board post and an admin adds it.
      *
      * Split from the old combined InsertAction because adding a tool and publishing a new tool version
      * need different permissions on different containers. See UpdateToolAction.
      */
-    @RequiresSiteAdmin
+    @RequiresPermission(AdminPermission.class)
     @ActionNames("insertTool, insert")
     public class InsertToolAction extends FormViewAction<ToolUploadForm>
     {
@@ -1398,13 +1412,13 @@ public class SkylineToolsStoreController extends SpringActionController
         }
     }
 
-    @RequiresSiteAdmin
     /**
      * Replaces the set of users holding Editor on a tool's folder.
      *
-     * Stays addressed to the store folder rather than the tool's, because @RequiresSiteAdmin is
-     * checked against the whole site and not a container, so there is nothing to gain by moving it.
+     * Addressed to the store folder, so the permission is checked there and curating a store is one
+     * capability rather than one per tool. handlePost confirms the tool belongs to this store.
      */
+    @RequiresPermission(AdminPermission.class)
     public class SetOwnersAction extends FormViewAction<SetOwnersForm>
     {
         private URLHelper _successURL;
@@ -1434,12 +1448,10 @@ public class SkylineToolsStoreController extends SpringActionController
                 return false;
             }
 
-            final SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
-            if (tool == null)
-                throw new NotFoundException("Could not find tool with Id " + form.getToolId());
+            // AdminPermission is checked against the store folder, so this is what keeps an admin of
+            // one store from renaming the owners of a tool in another.
+            final SkylineTool tool = requireToolInStore(form.getToolId(), getContainer());
             final Container c = tool.lookupContainer();
-            if (c == null)
-                throw new NotFoundException("Failed to look up the tool's container: " + tool.getName());
 
             ArrayList<User> newToolEditors = new ArrayList<>(toolOwnersUsers);
 
@@ -1464,9 +1476,9 @@ public class SkylineToolsStoreController extends SpringActionController
             policy = filterPolicy(policy, toolOwnersUsers, new Role[]{RoleManager.getRole(EditorRole.class), RoleManager.getRole(FolderAdminRole.class)});
             SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
 
-            Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
+            // requireToolInStore established that this folder is the tool's store.
             _successURL = form.getSender() != null ? new ActionURL(form.getSender())
-                    : SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser());
+                    : SkylineToolStoreUrls.getToolStoreHomeUrl(getContainer(), getUser());
             return true;
         }
 
@@ -1479,7 +1491,8 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public void addNavTrail(NavTree root)
         {
-            root.addChild(getToolStoreNavFromToolFolder(getContainer()));
+            // This action is addressed to the store folder, so link back to it rather than its parent.
+            root.addChild(getToolStoreNav(getContainer()));
             root.addChild("Manage Tool Owners");
         }
     }
