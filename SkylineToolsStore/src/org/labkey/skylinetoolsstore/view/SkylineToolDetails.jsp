@@ -344,9 +344,9 @@ a:hover .editToolIcon {color: #126495;}
         <%=simpleLink(editIconImgHtml).addClass("toolProperty").id("editIcon").title("Edit Icon").onClick("editTool($(this), 'Icon')")%>
 <% } %>
         <div class="block">
-            <h2><%= h(tool.getName()) %></h2>
+            <h2 id="toolName"><%= h(tool.getName()) %></h2>
             <p>
-                Version <%= h(tool.getVersion()) %>
+                Version <span id="toolVersion"><%= h(tool.getVersion()) %></span>
 <% if (allVersions.length > 1) { %>
                 [<%=simpleLink("View All").onClick("$('#allVersionsPop').dialog('open')")%>]
             </p>
@@ -483,10 +483,14 @@ a:hover .editToolIcon {color: #126495;}
 
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
+<%-- Only a tool editor gets the pencil. Running this without one throws, because jQuery UI's
+     position() reads nodeType off the target before it checks whether there is anything to move. --%>
+<% if (toolEditor) { %>
     $(function() {
         // Inset from the corner so the logo's 2px border does not clip the chip.
         $("#editIcon").position({my: "right-4 bottom-4", at: "right bottom", of: $("#editIcon").siblings(".logoWrap:first")});
     });
+<% } %>
 
 <% if (tool.lookupContainer().hasPermission(getUser(), DeletePermission.class)) { %>
     $(".deleteSuppFile").on("click keypress", function(e) {

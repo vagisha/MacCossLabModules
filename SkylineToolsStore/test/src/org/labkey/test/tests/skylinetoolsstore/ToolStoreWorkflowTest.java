@@ -32,6 +32,10 @@ import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
+import org.labkey.test.components.skylinetoolsstore.SkylineToolStoreWebPart;
+import org.labkey.test.components.skylinetoolsstore.ToolUploadDialog;
+import org.labkey.test.pages.skylinetoolsstore.ManageToolOwnersPage;
+import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.LogMethod;
@@ -44,6 +48,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -70,6 +76,15 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OTHER_STORE = "ToolStoreWorkflowTestOtherStore";
     // Its own store so the tools this test adds cannot disturb the single-tool assertions elsewhere.
     private static final String FORMS_STORE = "ToolStoreWorkflowTestForms";
+
+    // One store per regression test below, for the same reason. Listed so doCleanup can clear them.
+    private static final String FAILED_UPLOAD_STORE = "ToolStoreWorkflowTestFailedUpload";
+    private static final String NO_EXTENSION_STORE = "ToolStoreWorkflowTestNoExtension";
+    private static final String OWNER_PRIVACY_STORE = "ToolStoreWorkflowTestOwnerPrivacy";
+    private static final String STALE_DELETE_STORE = "ToolStoreWorkflowTestStaleDelete";
+    private static final String OWNER_ESCAPING_STORE = "ToolStoreWorkflowTestOwnerEscaping";
+    private static final List<String> REGRESSION_STORES = List.of(FAILED_UPLOAD_STORE,
+            NO_EXTENSION_STORE, OWNER_PRIVACY_STORE, STALE_DELETE_STORE, OWNER_ESCAPING_STORE);
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -189,11 +204,17 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         clickAndWait(Locator.linkWithText(SUBMISSION_TITLE));
         assertTextPresent("user1-v1.zip");
 
+        // Two claims here, and the UI can only make the first. That the button is absent says the
+        // store does not offer the author the option; it says nothing about what happens if they
+        // post anyway. The hand-built post is what proves the action refuses, so it stays.
         log("The author cannot add the tool to the store themselves");
         Set<String> beforeAdminAdd = catalogIdentifiers();
         impersonate(TOOL_AUTHOR);
         try
         {
+            goToProjectHome(PROJECT_NAME);
+            assertFalse("A submitter must not be offered Add New Tool",
+                    new SkylineToolStoreWebPart(getDriver()).canAddTool());
             uploadTool(TOOL_V1, null);
         }
         finally
@@ -204,31 +225,41 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 beforeAdminAdd, catalogIdentifiers());
 
         log("A site admin adds the tool and names the author as an owner");
-        uploadTool(TOOL_V1, TOOL_AUTHOR);
+        goToProjectHome(PROJECT_NAME);
+        SkylineToolStoreWebPart store = new SkylineToolStoreWebPart(getDriver());
+        assertTrue("A site admin should be offered Add New Tool", store.canAddTool());
+        store.addTool(TestFileUtils.getSampleData(TOOL_V1), TOOL_AUTHOR);
+
         JSONObject tool = onlyToolInThisStore();
         String identifier = tool.getString("Identifier");
+        String toolName = tool.getString("Name");
         String v1Folder = toolFolderPath(tool);
+        String v1Version = tool.getString("Version");
         assertTrue("The author should own their tool's folder", hasEditorRole(v1Folder, TOOL_AUTHOR));
 
         log("The store lists the tool");
         goToProjectHome(PROJECT_NAME);
-        assertTextPresent(tool.getString("Name"));
+        store = new SkylineToolStoreWebPart(getDriver());
+        assertTrue("The store should list " + toolName, store.hasTool(toolName));
+        assertEquals("The listed version should be the one that was added",
+                v1Version, store.getTool(toolName).getVersion());
 
         log("The author can attach a supplementary file to their own tool");
-        int v1RowId = rowId(tool);
-        String v1Version = tool.getString("Version");
         impersonate(TOOL_AUTHOR);
         try
         {
-            int status = uploadSupplementaryFile(v1Folder, v1RowId);
-            assertTrue("Supplementary upload should be accepted, got HTTP " + status, status < 400);
+            goToProjectHome(PROJECT_NAME);
+            SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
+                    .getTool(toolName).clickToolName();
+            assertTrue("The owner should get the tool's settings menu", details.hasSettingsMenu());
+            details = details.uploadSupplementaryFile(TestFileUtils.getSampleData(SUPP_FILE));
+            assertTrue("The supplementary file should be listed on the details page",
+                    details.getSupplementaryFileNames().contains("test.pdf"));
         }
         finally
         {
             stopImpersonating();
         }
-        goToProjectHome(PROJECT_NAME);
-        assertTextPresent("test.pdf");
 
         // The supplementary file is attached BEFORE the new version is published on purpose. A new
         // version copies the previous version's supplementary files into its own folder, and that
@@ -237,7 +268,12 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         impersonate(TOOL_AUTHOR);
         try
         {
-            uploadNewVersion(v1Folder, TOOL_V2, v1RowId);
+            goToProjectHome(PROJECT_NAME);
+            SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
+                    .getTool(toolName).clickToolName();
+            details = details.uploadNewVersion(TestFileUtils.getSampleData(TOOL_V2));
+            assertNotEquals("The details page should be showing the version just published",
+                    v1Version, details.getVersion());
         }
         finally
         {
@@ -257,8 +293,15 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("The supplementary file carries forward to the new version");
         goToProjectHome(PROJECT_NAME);
-        assertTextPresent("test.pdf");
+        SkylineToolDetailsPage latestDetails = new SkylineToolStoreWebPart(getDriver())
+                .getTool(toolName).clickToolName();
+        assertEquals("The details page should be showing the new version",
+                latest.getString("Version"), latestDetails.getVersion());
+        assertTrue("The supplementary file should have carried forward to the new version",
+                latestDetails.getSupplementaryFileNames().contains("test.pdf"));
 
+        // Hand-built posts on purpose, as above. The point is what the actions do with a request the
+        // UI would never send, so going through the UI would prove nothing here.
         log("Owning one tool does not let the author add another, or reassign ownership");
         Set<String> beforeAuthorAttempts = catalogIdentifiers();
         impersonate(TOOL_AUTHOR);
@@ -287,16 +330,19 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.enableModule(OTHER_STORE, "SkylineToolsStore");
         new PortalHelper(this).addWebPart("Skyline Tool Store");
 
-        uploadToolTo(OTHER_STORE, TOOL_OTHER);
+        goToProjectHome(OTHER_STORE);
+        new SkylineToolStoreWebPart(getDriver()).addTool(TestFileUtils.getSampleData(TOOL_OTHER), null);
 
         JSONObject otherTool = onlyToolInStore(OTHER_STORE);
         String otherName = otherTool.getString("Name");
 
         goToProjectHome(OTHER_STORE);
-        assertTextPresent(otherName);
+        assertTrue("The store it was added to should list it",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(otherName));
 
         goToProjectHome(PROJECT_NAME);
-        assertTextNotPresent(otherName);
+        assertFalse("One store must not list another store's tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(otherName));
 
         // The catalog is global, so the other store's tool is still there for Skyline.
         assertTrue("getToolsApi must keep returning tools from every container",
@@ -320,38 +366,40 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Add a tool through the web part's Add New Tool dialog");
         goToProjectHome(FORMS_STORE);
-        click(Locator.id("add-new-tool-btn"));
-        setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV1);
-        clickAndWait(Locator.css("#uploadPop input[type='submit']"));
+        SkylineToolStoreWebPart store = new SkylineToolStoreWebPart(getDriver());
+        ToolUploadDialog upload = store.clickAddNewTool();
+        assertTrue("Adding a new tool should offer the owners field", upload.hasOwnersField());
+        SkylineToolDetailsPage added = upload.setToolZip(_formsToolV1).clickUpload();
+        assertEquals("Adding a tool should land on its details page", FORMS_TOOL_NAME, added.getToolName());
 
         goToProjectHome(FORMS_STORE);
-        assertTextPresent(FORMS_TOOL_NAME);
-        assertEquals("The dialog should have added exactly one tool", 1, toolsInStore(FORMS_STORE));
+        store = new SkylineToolStoreWebPart(getDriver());
+        assertTrue("The dialog should have added the tool", store.hasTool(FORMS_TOOL_NAME));
+        assertEquals("The dialog should have added exactly one tool", 1, store.getToolCount());
 
         log("Publish a new version through the details page dialog");
-        clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
-        clickSprocketMenuItem("Upload new version");
-        setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV2);
-        clickAndWait(Locator.css("#uploadPop input[type='submit']"));
+        SkylineToolDetailsPage details = store.getTool(FORMS_TOOL_NAME).clickToolName();
+        // A new version inherits its owners, so this dialog must not offer to set them.
+        ToolUploadDialog newVersion = details.clickUploadNewVersion();
+        assertFalse("Publishing a version must not offer the owners field", newVersion.hasOwnersField());
+        details = newVersion.setToolZip(_formsToolV2).clickUpload();
+        assertEquals("The details page should show the version just published", "2.0", details.getVersion());
 
-        assertEquals("The dialog should have published 2.0",
-                "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
-        assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
+        goToProjectHome(FORMS_STORE);
+        store = new SkylineToolStoreWebPart(getDriver());
+        assertEquals("Publishing a version must not add a second tool", 1, store.getToolCount());
+        assertEquals("The listing should show the new version", "2.0",
+                store.getTool(FORMS_TOOL_NAME).getVersion());
 
-        log("Delete the newest version through the details page dialog");
-        clickSprocketMenuItem("Delete latest version");
-        // Scoped to this dialog's own wrapper. The page holds several jQuery UI dialogs and the
-        // hidden ones have an Ok button too.
-        Locator.XPathLocator ok = Locator.xpath(
-                "//div[contains(@class,'ui-dialog')][.//div[@id='delToolLatestDlg']]" +
-                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
-        waitForElement(ok.notHidden());
-        clickAndWait(ok.notHidden());
+        log("Delete the newest version through the store's own dialog");
+        store.getTool(FORMS_TOOL_NAME).clickDeleteLatestVersion().confirm();
 
-        // Read the version from the catalog rather than the page - the details page carries script
-        // constants that a bare text search for a version number picks up.
-        JSONObject afterDelete = onlyToolInStore(FORMS_STORE);
+        goToProjectHome(FORMS_STORE);
+        store = new SkylineToolStoreWebPart(getDriver());
         assertEquals("Deleting the newest version should leave 1.0 as the latest",
+                "1.0", store.getTool(FORMS_TOOL_NAME).getVersion());
+        JSONObject afterDelete = onlyToolInStore(FORMS_STORE);
+        assertEquals("The catalog should agree with the listing",
                 "1.0", afterDelete.getString("Version"));
 
         // UpdateToolAction shares its form with InsertToolAction, so toolOwners binds on this path
@@ -372,26 +420,198 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     // -------------------------------------------------------------------------
+    // Regression tests for the defects the code review found
+    // -------------------------------------------------------------------------
+
+    /**
+     * A version that cannot be stored must not take the tool out of the catalog.
+     *
+     * UpdateToolAction used to demote the previous version before the new one existed, so a failure
+     * in between left no row marked latest and the tool disappeared from the store and from the
+     * catalog Skyline clients read, with no way for the owner to get it back.
+     *
+     * A folder already using the new version's name is the reachable way to make storing fail -
+     * makeContainer refuses a name that is taken, which is what a half-finished upload leaves behind.
+     */
+    @Test
+    public void testAFailedVersionUploadLeavesTheToolInTheCatalog()
+    {
+        String store = FAILED_UPLOAD_STORE;
+        String tool = "FailedUploadProbe";
+        File v1 = writeMinimalToolZip(tool, "URN:LSID:toolstore.test:failedupload", "1.0");
+        File v2 = writeMinimalToolZip(tool, "URN:LSID:toolstore.test:failedupload", "2.0");
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(v1, null);
+
+        log("Take the folder name that publishing 2.0 would need");
+        _containerHelper.createSubfolder(store, "_tool_" + tool + "_2.0");
+
+        log("Publishing 2.0 is refused");
+        goToProjectHome(store);
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickToolName();
+        String error = details.clickUploadNewVersion().setToolZip(v2).clickUploadExpectingError();
+        assertTrue("The refusal should name the folder that is in the way, got: " + error,
+                error.contains("_tool_" + tool + "_2.0"));
+
+        log("The tool is still listed, still at 1.0");
+        goToProjectHome(store);
+        SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
+        assertTrue("A refused upload must not remove the tool from the store", webPart.hasTool(tool));
+        assertEquals("The previous version must still be the latest one",
+                "1.0", webPart.getTool(tool).getVersion());
+
+        assertEquals("A refused upload must leave the catalog Skyline reads alone",
+                "1.0", onlyToolInStore(store).getString("Version"));
+    }
+
+    /**
+     * A supplementary file whose name has no extension used to throw out of the icon lookup, which
+     * took out the whole store listing for every visitor rather than just that tool's page.
+     */
+    @Test
+    public void testASupplementaryFileWithNoExtensionDoesNotBreakTheStore()
+    {
+        String store = NO_EXTENSION_STORE;
+        String tool = "NoExtensionProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver()).addTool(
+                writeMinimalToolZip(tool, "URN:LSID:toolstore.test:noextension", "1.0"), null);
+
+        details = details.uploadSupplementaryFile(writeFileNamed("README"));
+        assertTrue("The details page should list the file",
+                details.getSupplementaryFileNames().contains("README"));
+
+        log("The store listing still renders, which is what used to break");
+        goToProjectHome(store);
+        assertTrue("The listing must still show the tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(tool));
+    }
+
+    /**
+     * Gating the owners form was not enough on its own - the addresses were still written into the
+     * page for whoever loaded it, so anyone who viewed source could read them.
+     */
+    @Test
+    public void testOwnerAddressesAreNotInThePageForOtherUsers()
+    {
+        String store = OWNER_PRIVACY_STORE;
+        String tool = "OwnerPrivacyProbe";
+        createStore(store);
+        _permissionsHelper.setSiteGroupPermissions("All Site Users", "Reader");
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                writeMinimalToolZip(tool, "URN:LSID:toolstore.test:ownerprivacy", "1.0"), TOOL_AUTHOR);
+
+        impersonate(OTHER_USER);
+        try
+        {
+            goToProjectHome(store);
+            new SkylineToolStoreWebPart(getDriver()).getTool(tool).clickToolName();
+            assertFalse("SECURITY: a reader can read the tool's owners out of the page source",
+                    getDriver().getPageSource().contains(TOOL_AUTHOR));
+        }
+        finally
+        {
+            stopImpersonating();
+        }
+    }
+
+    /**
+     * A delete the server refuses used to look like one that worked.
+     *
+     * The actions render a refusal as an error view with status 200, so the browser's .fail() never
+     * runs. The handler took that for success, closed the dialog and removed the row, telling the
+     * admin the tool was gone when it was the server saying no.
+     */
+    @Test
+    public void testDeletingAToolThatIsAlreadyGoneReportsTheRefusal()
+    {
+        String store = STALE_DELETE_STORE;
+        String tool = "StaleDeleteProbe";
+        File zip = writeMinimalToolZip(tool, "URN:LSID:toolstore.test:staledelete", "1.0");
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(zip, null);
+
+        goToProjectHome(store);
+        SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
+
+        // Someone else deletes it while this page sits there, which is the state the handler got wrong.
+        ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
+
+        String message = webPart.getTool(tool).clickDelete().confirmExpectingRefusal();
+        assertTrue("The dialog should report what the server said, got: " + message,
+                message.contains("does not exist"));
+    }
+
+    /**
+     * The owners box is prefilled from a script, so the value has to be escaped for JavaScript.
+     * Escaping it as HTML put the entities themselves in the box, and an admin correcting one bad
+     * address had to retype the whole list.
+     */
+    @Test
+    public void testARefusedOwnerListComesBackUnchanged()
+    {
+        String store = OWNER_ESCAPING_STORE;
+        String tool = "OwnerEscapingProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                writeMinimalToolZip(tool, "URN:LSID:toolstore.test:ownerescaping", "1.0"), null);
+
+        goToProjectHome(store);
+        String submitted = "a&b@toolstore.test";
+        ManageToolOwnersPage reshow = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners()
+                .setOwners(submitted)
+                .clickUpdateExpectingError();
+
+        assertTrue("An unknown address should be reported, got: " + reshow.getError(),
+                reshow.getError().contains("unknown"));
+        assertEquals("The address must come back exactly as it was typed",
+                submitted, reshow.getOwners());
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    /** Opens the gear menu on the tool details page and clicks one of its items. */
-    private void clickSprocketMenuItem(String item)
+    /** A store folder of its own, so one test's tools cannot disturb another's counts. */
+    private void createStore(String projectName)
     {
-        click(Locator.css(".menuMouseArea.sprocket"));
-
-        // The menu slides open, so the item is in the DOM before it is visible, and once a tool has
-        // more than one version the menu is long enough to run past the bottom of the window.
-        Locator.XPathLocator link = Locator.linkWithText(item);
-        waitForElement(link.notHidden());
-        scrollIntoView(link.notHidden());
-        click(link.notHidden());
+        _containerHelper.createProject(projectName, "Collaboration");
+        _containerHelper.enableModule(projectName, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
     }
 
-    /** Number of tools the given store folder lists. */
-    private int toolsInStore(String storeContainerPath)
+    /**
+     * A small file with an exact name. createTempFile always appends a suffix, and the name is the
+     * whole point when the extension is what is being tested, so this puts the file in a directory
+     * of its own instead.
+     */
+    private static File writeFileNamed(String name)
     {
-        return toolsInStoreJson(storeContainerPath).length();
+        try
+        {
+            Path dir = Files.createTempDirectory("toolstore-supp");
+            dir.toFile().deleteOnExit();
+            Path file = dir.resolve(name);
+            Files.writeString(file, "supplementary file for the tool store tests");
+            file.toFile().deleteOnExit();
+            return file.toFile();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not write a file named " + name, e);
+        }
     }
 
     /**
@@ -401,16 +621,27 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      */
     private static File writeMinimalToolZip(String version)
     {
+        return writeMinimalToolZip(FORMS_TOOL_NAME, FORMS_TOOL_IDENTIFIER, version);
+    }
+
+    /**
+     * Identifiers are unique across the whole server, not per folder, so a test that adds its own
+     * tool needs its own name and identifier or it collides with every other store on the server.
+     */
+    private static File writeMinimalToolZip(String name, String identifier, String version)
+    {
         try
         {
-            File zip = File.createTempFile("toolstore-forms-" + version + "-", ".zip");
+            // ZipName is a 50 character column and createTempFile appends up to 19 random digits, so
+            // the prefix has to stay short. The tool's name comes from info.properties, not from here.
+            File zip = File.createTempFile("ts-" + version + "-", ".zip");
             zip.deleteOnExit();
             try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(zip)))
             {
                 out.putNextEntry(new ZipEntry("tool-inf/info.properties"));
-                out.write(("Name = " + FORMS_TOOL_NAME + "\n" +
+                out.write(("Name = " + name + "\n" +
                            "Version = " + version + "\n" +
-                           "Identifier = " + FORMS_TOOL_IDENTIFIER + "\n").getBytes(StandardCharsets.UTF_8));
+                           "Identifier = " + identifier + "\n").getBytes(StandardCharsets.UTF_8));
                 out.closeEntry();
             }
             return zip;
@@ -441,17 +672,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         return uploadToolTo(PROJECT_NAME, sampleDataRelativePath, -1, toolOwners);
     }
 
-    /** Publishes a new version, which is addressed to the tool's own folder. */
-    private int uploadNewVersion(String toolContainerPath, String sampleDataRelativePath, int toolId)
-    {
-        return uploadToolTo(toolContainerPath, sampleDataRelativePath, toolId, null);
-    }
-
-    private void uploadToolTo(String containerPath, String sampleDataRelativePath)
-    {
-        uploadToolTo(containerPath, sampleDataRelativePath, -1, null);
-    }
-
     /**
      * @param containerPath  the store folder for a new tool, or the TOOL's own folder for a new
      *                       version - the two actions are addressed to different containers
@@ -477,21 +697,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         if (toolOwners != null)
             entity.addTextBody("toolOwners", toolOwners);
         request.setEntity(entity.build());
-        return execute(request);
-    }
-
-    /**
-     * insertSupplement is addressed to the tool's own container, so its permission annotation checks
-     * the folder that holds the tool. The author holds Editor there and nothing on the store folder.
-     */
-    private int uploadSupplementaryFile(String toolContainerPath, int toolRowId)
-    {
-        File pdf = TestFileUtils.getSampleData(SUPP_FILE);
-        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", toolContainerPath, "insertSupplement"));
-        request.setEntity(MultipartEntityBuilder.create()
-                .addTextBody("toolId", String.valueOf(toolRowId))
-                .addBinaryBody("suppFile", pdf, ContentType.create("application/pdf"), pdf.getName())
-                .build());
         return execute(request);
     }
 
@@ -604,6 +809,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(PROJECT_NAME, afterTest);
         _containerHelper.deleteProject(OTHER_STORE, false);
         _containerHelper.deleteProject(FORMS_STORE, false);
+        // A store of its own per regression test, so each has to be cleared here too. A run that
+        // fails leaves its projects behind, and createProject then throws on the next run.
+        for (String store : REGRESSION_STORES)
+            _containerHelper.deleteProject(store, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR);
     }
 

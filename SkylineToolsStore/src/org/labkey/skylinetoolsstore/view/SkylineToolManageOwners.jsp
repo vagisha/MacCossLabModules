@@ -25,7 +25,16 @@
 <%@ page import="org.labkey.api.view.HttpView" %>
 <%@ page import="org.labkey.api.view.JspView" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
+<%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
+<%!
+    @Override
+    public void addClientDependencies(ClientDependencies dependencies)
+    {
+        dependencies.add("internal/jQuery");
+        dependencies.add("skylinetoolsstore/js/functions.js");
+    }
+%>
 <%
     JspView<SkylineToolsStoreController.SetOwnersForm> me =
             (JspView<SkylineToolsStoreController.SetOwnersForm>) HttpView.currentView();
@@ -64,10 +73,18 @@
 <br />
 <%= PageFlowUtil.generateBackButton() %>
 
-<link rel="stylesheet" type="text/css" href="<%= h(cssDir) %>jquery-ui.css">
-<script type="text/javascript" src="<%= h(jsDir) %>functions.js"></script>
-<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-<script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
+<%-- See SkylineToolDetails.jsp: jQuery UI replaces Bootstrap's $.fn.tooltip, and LabKey's ready
+     handler then applies a jQuery UI tooltip to every [title] on the page. --%>
+<script nonce="<%=getScriptNonce()%>">
+    var lkBootstrapTooltip = jQuery.fn.tooltip && jQuery.fn.tooltip.noConflict
+            ? jQuery.fn.tooltip.noConflict() : null;
+</script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
+<script nonce="<%=getScriptNonce()%>">
+    if (lkBootstrapTooltip)
+        jQuery.fn.tooltip = lkBootstrapTooltip;
+</script>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.min.css">
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
     var ownersTxt = $("#toolOwners");
