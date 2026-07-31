@@ -294,6 +294,22 @@ public class SkylineToolsStoreController extends SpringActionController
         return tool;
     }
 
+    /**
+     * Resolves a tool row id and confirms the tool's folder sits directly under the given store folder.
+     *
+     * For actions that are addressed to the store folder but act on one of its tools. Tool row ids are
+     * unique across the server, so a row id naming a tool in some other store binds to the form just
+     * as well. Answering 404 keeps the action from editing a tool it was not addressed to and then
+     * sending the caller to a store that does not hold it.
+     */
+    private static SkylineTool requireToolInStore(int toolId, Container storeContainer)
+    {
+        SkylineTool tool = SkylineToolsStoreManager.get().getTool(toolId);
+        if (tool == null || !storeContainer.equals(tool.getContainerParent()))
+            throw new NotFoundException("Could not find tool with Id " + toolId + " in this store.");
+        return tool;
+    }
+
     public static Path getLocalPath(Container c)
     {
         return FileContentService.get().getFileRootPath(c, FileContentService.ContentType.files);
@@ -1505,6 +1521,7 @@ public class SkylineToolsStoreController extends SpringActionController
      *
      * Stays addressed to the store folder rather than the tool's, because @RequiresSiteAdmin is
      * checked against the whole site and not a container, so there is nothing to gain by moving it.
+     * handlePost still confirms the tool belongs to the store it was addressed to.
      */
     @RequiresSiteAdmin
     public class SetOwnersAction extends FormViewAction<SetOwnersForm>
@@ -1547,12 +1564,12 @@ public class SkylineToolsStoreController extends SpringActionController
                 return false;
             }
 
-            final SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
-            if (tool == null)
-                throw new NotFoundException("Could not find tool with Id " + form.getToolId());
+            // The row id is bound from the form, so confirm the tool is one this store holds rather
+            // than editing whichever tool the id happens to name.
+            final SkylineTool tool = requireToolInStore(form.getToolId(), getContainer());
+            // Not null - requireToolInStore matched on getContainerParent(), which returns null
+            // whenever lookupContainer() does.
             final Container c = tool.lookupContainer();
-            if (c == null)
-                throw new NotFoundException("Failed to look up the tool's container: " + tool.getName());
 
             ArrayList<User> newToolEditors = new ArrayList<>(toolOwnersUsers);
 
@@ -1577,9 +1594,9 @@ public class SkylineToolsStoreController extends SpringActionController
             policy = filterPolicy(policy, toolOwnersUsers, new Role[]{RoleManager.getRole(EditorRole.class), RoleManager.getRole(FolderAdminRole.class)});
             SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
 
-            Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
+            // requireToolInStore established that this folder is the tool's store.
             _successURL = form.getSender() != null ? new ActionURL(form.getSender())
-                    : SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser());
+                    : SkylineToolStoreUrls.getToolStoreHomeUrl(getContainer(), getUser());
             return true;
         }
 
@@ -1592,8 +1609,7 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public void addNavTrail(NavTree root)
         {
-            // This action runs in the store folder, not a tool folder, so the store is getContainer()
-            // itself rather than its parent.
+            // This action is addressed to the store folder, so link back to it rather than its parent.
             root.addChild(getToolStoreNav(getContainer()));
             root.addChild("Manage Tool Owners");
         }

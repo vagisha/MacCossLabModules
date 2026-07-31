@@ -297,6 +297,14 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         // The catalog is global, so the other store's tool is still there for Skyline.
         assertTrue("getToolsApi must keep returning tools from every container",
                 catalogIdentifiers().contains(otherTool.getString("Identifier")));
+
+        // setOwners is addressed to the store folder, but its row id is bound from the form and row
+        // ids are unique server-wide, so nothing about the URL stops it naming another store's tool.
+        // Addressed to this store, naming the tool that lives in the other one.
+        int status = setOwners(rowId(otherTool), OTHER_USER);
+        assertEquals("Naming a tool from another store must be refused", 404, status);
+        assertFalse("A refused setOwners must not grant Editor on the named tool's folder",
+                hasEditorRole(toolFolderPath(OTHER_STORE, otherTool), OTHER_USER));
     }
 
     /**
@@ -474,6 +482,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         return execute(request);
     }
 
+    /** Addressed to the STORE folder, which is what SetOwnersAction checks its permission on. */
     private int setOwners(int toolRowId, String owner)
     {
         HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", PROJECT_NAME, "setOwners"));
