@@ -513,9 +513,80 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 "2.0", toolInCatalog(identifier).getString("Version"));
     }
 
+    /**
+     * Publishing demotes the version it supersedes, so doing it from an older version's page left the
+     * real latest flagged as well. The tool then appeared twice in the store and twice in the catalog
+     * Skyline reads, and the new version inherited the older one's owners and files.
+     */
+    @Test
+    public void testZZPublishingFromAnOldVersionIsRefused()
+    {
+        String name = "StaleParentPublishProbe";
+        String identifier = "URN:LSID:toolstore.test:staleparent";
+        File v1 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "1.0");
+        File v2 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "2.0");
+        File v3 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "3.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME, v1);
+
+        uploadToolOwnedBy(v1, CONTRIBUTOR);
+        int v1RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
+        uploadNewVersionTo(toolFolderPath(name, "1.0"), v2, v1RowId);
+        assertEquals("2.0 should be the latest before the probe",
+                "2.0", toolInCatalog(identifier).getString("Version"));
+
+        // Publish 3.0 naming 1.0 as its parent, which is what the details page of an old version does.
+        HttpPost request = new HttpPost(
+                WebTestHelper.buildURL("skyts", toolFolderPath(name, "1.0"), "updateTool"));
+        request.setEntity(MultipartEntityBuilder.create()
+                .addBinaryBody("toolZip", v3, ContentType.create("application/zip"), v3.getName())
+                .addTextBody("toolId", String.valueOf(v1RowId))
+                .build());
+        execute(request, true, true);
+
+        // The catalog holds one row per tool only if exactly one row is flagged latest. Two rows
+        // flagged latest is what this used to produce, and it lists the tool twice.
+        assertEquals("Publishing from 1.0 must not add a second latest row",
+                1, catalogEntriesFor(identifier));
+        assertEquals("2.0 must still be the latest version",
+                "2.0", toolInCatalog(identifier).getString("Version"));
+    }
+
+    /**
+     * ValidEmail rejects anything that is not an address, and the exception used to escape both
+     * callers as a 500 and a mothership report. A bare word belongs in the "unknown users" message
+     * the very next lines already render.
+     */
+    @Test
+    public void testAMalformedOwnerAddressIsReportedNotAServerError()
+    {
+        // Not an address under any configuration. A bare word will not do - with a default domain
+        // configured, ValidEmail completes it and it parses.
+        String reply = postOwnersOnly("not a valid address@@example.test");
+
+        assertFalse("A malformed owner address produced a server fault. The reply carried a stack " +
+                        "trace instead of the refusal the next lines of the action already render",
+                reply.contains("Exception") || reply.contains("at org.labkey"));
+        assertTrue("The refusal should name the entry it could not use, got: " +
+                        StringUtils.abbreviate(reply, 500),
+                reply.contains(UNKNOWN_USERS_MESSAGE));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /** How many rows the catalog holds for a tool. More than one means two rows are flagged latest. */
+    private int catalogEntriesFor(String identifier)
+    {
+        JSONArray tools = getToolsFromApi();
+        int count = 0;
+        for (int i = 0; i < tools.length(); i++)
+        {
+            if (identifier.equals(tools.getJSONObject(i).optString("Identifier")))
+                count++;
+        }
+        return count;
+    }
 
     /** Adds a new tool to the store folder as the site admin, naming who owns it. */
     private void uploadToolOwnedBy(File zip, String owners)

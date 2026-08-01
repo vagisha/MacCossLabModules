@@ -449,7 +449,13 @@ public class SkylineToolsStoreController extends SpringActionController
         return JavaScriptFragment.unsafe(jsonArray.toString());
     }
 
-    protected static Pair<ArrayList<User>, ArrayList<String>> parseToolOwnerString(String toolOwners) throws ValidEmail.InvalidEmailException
+    /**
+     * Splits the owners box into known users and everything else. An entry that is not a valid email
+     * address goes in the second list rather than throwing, so both callers report it the same way
+     * they report an address that parses but belongs to no account. A malformed entry used to be a
+     * server fault and a mothership report.
+     */
+    protected static Pair<ArrayList<User>, ArrayList<String>> parseToolOwnerString(String toolOwners)
     {
         ArrayList<User> toolOwnersUsers = new ArrayList<>();
         ArrayList<String> toolOwnersInvalid = new ArrayList<>();
@@ -460,7 +466,16 @@ public class SkylineToolsStoreController extends SpringActionController
                 toolOwner = toolOwner.trim();
                 if (!toolOwner.isEmpty())
                 {
-                    User u = UserManager.getUser(new ValidEmail(toolOwner));
+                    User u;
+                    try
+                    {
+                        u = UserManager.getUser(new ValidEmail(toolOwner));
+                    }
+                    catch (ValidEmail.InvalidEmailException e)
+                    {
+                        toolOwnersInvalid.add(toolOwner);
+                        continue;
+                    }
                     if (u == null)
                         toolOwnersInvalid.add(toolOwner);
                     else
@@ -669,6 +684,19 @@ public class SkylineToolsStoreController extends SpringActionController
         public boolean handlePost(ToolUploadForm form, BindException errors) throws Exception
         {
             SkylineTool previousVersion = requireToolInContainer(form.getToolId(), getContainer());
+
+            // Publishing demotes the version it supersedes, so it only leaves one row flagged latest
+            // if that version is the latest one. From an older version's page the real latest kept
+            // its flag and the new row got one too, so the store and Skyline's catalog both listed
+            // the tool twice and getToolLatestByIdentifier picked arbitrarily. The new version also
+            // inherited the older version's owners, docs and supplementary files.
+            if (!previousVersion.getLatest())
+            {
+                errors.reject(ERROR_MSG, "Version " + previousVersion.getVersion() + " is not the " +
+                        "latest version of " + previousVersion.getName() + ". Publish a new version " +
+                        "from the latest one.");
+                return false;
+            }
 
             SkylineTool tool = readToolFromUpload(getFileMap().get("toolZip"), errors);
             if (tool == null)
