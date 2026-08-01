@@ -69,7 +69,9 @@
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
     var ownersTxt = $("#toolOwners");
     ownersTxt.focus();
-    ownersTxt.val("<%= h(toolOwners) %>");
+    <%-- q() and not h(). A script element holds raw text, so the entities h() writes would show up
+         literally in the box, and a backslash would end the string early. --%>
+    ownersTxt.val(<%= q(toolOwners) %>);
 
     autocomplete(ownersTxt, ${autocompleteUsers});
     initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");

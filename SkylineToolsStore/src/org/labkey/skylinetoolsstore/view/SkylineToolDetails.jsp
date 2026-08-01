@@ -74,7 +74,8 @@
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
     Iterator suppIter = suppFiles.entrySet().iterator();
 
-    final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
+    // Only the owners dialog uses this, and only a site admin gets that dialog.
+    final String toolOwners = admin ? StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ") : "";
 
     // A tool owner is granted the Editor role on the tool's own folder, which carries Insert, Update
     // and Delete together, so one check covers every control in the settings menu.
@@ -532,13 +533,18 @@ a { text-decoration: none; }
         window.location.href = <%= q(urlFor(SkylineToolsStoreController.DownloadToolAction.class).addParameter("id", tool.getRowId())) %>;
     }
 
+<%-- The owner addresses go in the page for whoever loads it, so this has to sit behind the same
+     check as the form itself. Gating only the form would still publish the list to every visitor. --%>
+<% if (admin) { %>
     function popToolOwners() {
         var ownersTxt = $("#toolOwners");
         $("#manageOwnersPop").dialog("open");
-        ownersTxt.focus().val("<%= h(toolOwners) %>");
+        <%-- q() and not h(). See SkylineToolManageOwners.jsp. --%>
+        ownersTxt.focus().val(<%= q(toolOwners) %>);
         if (ownersTxt.val())
             ownersTxt.val(ownersTxt.val() + ", ");
     }
+<% } %>
 
     var DLG_EFFECT_SHOW = "fade";
     var DLG_EFFECT_HIDE = "fade";

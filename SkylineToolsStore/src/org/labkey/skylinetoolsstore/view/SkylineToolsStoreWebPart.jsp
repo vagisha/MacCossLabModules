@@ -347,7 +347,8 @@
 <% if (admin) { %>
     var toolOwners = new Array();
 <% for (SkylineTool tool : tools) { %>
-    toolOwners[<%= h(tool.getRowId()) %>] = "<%= h(toolOwners.get(tool.getRowId())) %>";
+    <%-- q() and not h(). See SkylineToolManageOwners.jsp. --%>
+    toolOwners[<%= tool.getRowId() %>] = <%= q(toolOwners.get(tool.getRowId())) %>;
 <%
         }
         SafeToRender users = SkylineToolsStoreController.getUsersForAutocomplete();

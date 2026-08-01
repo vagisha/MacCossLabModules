@@ -28,6 +28,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.junit.Assert;
+import org.junit.Test;
 import org.labkey.api.action.FormHandlerAction;
 import org.labkey.api.action.FormViewAction;
 import org.labkey.api.action.PermissionCheckable;
@@ -1156,11 +1158,11 @@ public class SkylineToolsStoreController extends SpringActionController
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
 
-            Container toolContainer = tool.lookupContainer();
-            if (toolContainer == null)
+            // The posted row's own container is not used below, only the newest version's. This
+            // rejects a row whose folder is already gone, which would otherwise fall through to the
+            // getContainer() branch on the next line and resolve the wrong store.
+            if (tool.lookupContainer() == null)
                 throw new NotFoundException("Failed to look up the tool's container: " + tool.getName());
-            if (!toolContainer.hasPermission(getUser(), DeletePermission.class))
-                throw new UnauthorizedException("User does not have permission to delete the tool.");
 
             ActionURL senderUrl = form.getSender() != null ? new ActionURL(form.getSender()) : null;
 
@@ -1177,7 +1179,16 @@ public class SkylineToolsStoreController extends SpringActionController
                 return false;
             }
 
-            ContainerManager.delete(tools[0].lookupContainer(), getUser());
+            // The posted row id can name any version, but this action always deletes the newest one.
+            // Every version has its own folder with its own policy, so the permission has to be
+            // checked on the folder that is about to go, not on the one the caller named.
+            Container latestContainer = tools[0].lookupContainer();
+            if (latestContainer == null)
+                throw new NotFoundException("Failed to look up the tool's container: " + tools[0].getName());
+            if (!latestContainer.hasPermission(getUser(), DeletePermission.class))
+                throw new UnauthorizedException("User does not have permission to delete the tool.");
+
+            ContainerManager.delete(latestContainer, getUser());
 
             if (senderUrl != null)
             {
@@ -1539,11 +1550,9 @@ public class SkylineToolsStoreController extends SpringActionController
             // Fail before the form is drawn, and fill it with the owners the tool already has. An
             // empty box here is not harmless - handlePost replaces the whole owner list, so
             // submitting a blank form strips every Editor and FolderAdmin off the tool's folder.
-            // This action runs in the store folder and the tool lives in a child of it, so
-            // requireToolInContainer is not the right check here.
-            SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
-            if (tool == null)
-                throw new NotFoundException("Could not find tool with Id " + form.getToolId());
+            // Scoped to this store the same way handlePost is, so a row id naming a tool this store
+            // does not hold answers 404 rather than filling the form from it.
+            SkylineTool tool = requireToolInStore(form.getToolId(), getContainer());
             if (!reshow)
                 form.setToolOwners(StringUtils.join(getToolOwners(tool), ", "));
 
@@ -1887,5 +1896,9 @@ public class SkylineToolsStoreController extends SpringActionController
         {
 
         }
+    }
+
+    public static class TestCase extends Assert
+    {
     }
 }
