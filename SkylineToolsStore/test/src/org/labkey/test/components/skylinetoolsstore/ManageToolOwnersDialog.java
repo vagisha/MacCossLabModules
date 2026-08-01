@@ -31,13 +31,15 @@ import org.openqa.selenium.WebElement;
  */
 public class ManageToolOwnersDialog extends WebDriverComponent<ManageToolOwnersDialog.ElementCache>
 {
+    public static final String DIALOG_ID = "manageOwnersPop";
+
     private final WebElement _el;
     private final WebDriver _driver;
 
     public ManageToolOwnersDialog(WebDriver driver)
     {
         _driver = driver;
-        _el = Locator.id("manageOwnersPop").waitForElement(driver, WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
+        _el = Locator.id(DIALOG_ID).waitForElement(driver, WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
         WebDriverWrapper.waitFor(_el::isDisplayed, "The manage tool owners dialog did not open",
                 WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
     }

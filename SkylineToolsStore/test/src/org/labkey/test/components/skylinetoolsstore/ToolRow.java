@@ -20,6 +20,7 @@ import org.labkey.test.WebDriverWrapper;
 import org.labkey.test.components.Component;
 import org.labkey.test.components.WebDriverComponent;
 import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
+import org.labkey.test.util.TestLogger;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -32,6 +33,9 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
  */
 public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
 {
+    /** Long enough for a dialog that is opening, short enough that a lost click is retried quickly. */
+    private static final int WAIT_FOR_DIALOG = 5_000;
+
     private final WebElement _el;
     private final WebDriver _driver;
 
@@ -100,31 +104,31 @@ public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
 
     public ToolUploadDialog clickUploadNewVersion()
     {
-        clickMenuItem("Upload new version");
+        clickMenuItem("Upload new version", ToolUploadDialog.DIALOG_ID);
         return ToolUploadDialog.forNewVersion(_driver);
     }
 
     public SupplementaryFileDialog clickUploadSupplementaryFile()
     {
-        clickMenuItem("Upload supplementary file");
+        clickMenuItem("Upload supplementary file", SupplementaryFileDialog.DIALOG_ID);
         return new SupplementaryFileDialog(_driver);
     }
 
     public ManageToolOwnersDialog clickManageToolOwners()
     {
-        clickMenuItem("Manage tool owners");
+        clickMenuItem("Manage tool owners", ManageToolOwnersDialog.DIALOG_ID);
         return new ManageToolOwnersDialog(_driver);
     }
 
     public ConfirmDeleteDialog clickDelete()
     {
-        clickMenuItem("Delete");
+        clickMenuItem("Delete", ConfirmDeleteDialog.DELETE_TOOL_DIALOG_ID);
         return ConfirmDeleteDialog.deleteTool(_driver);
     }
 
     public ConfirmDeleteDialog clickDeleteLatestVersion()
     {
-        clickMenuItem("Delete latest version");
+        clickMenuItem("Delete latest version", ConfirmDeleteDialog.DELETE_LATEST_DIALOG_ID);
         return ConfirmDeleteDialog.deleteLatestVersion(_driver);
     }
 
@@ -143,10 +147,28 @@ public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
     }
 
     /**
+     * Clicks a settings menu item and checks that the dialog it should open actually opened,
+     * clicking once more if it did not. The page closes any open menu on a document click, so a
+     * click can land in the gap between the item becoming clickable and the menu closing under it,
+     * which leaves no dialog and no error. dialogId names what the item is meant to open.
+     *
+     * This is a stopgap. The real fix is to stop the menus animating, which is tracked separately.
+     */
+    private void clickMenuItem(String item, String dialogId)
+    {
+        clickMenuItemOnce(item);
+        if (WebDriverWrapper.waitFor(() -> isDialogOpen(dialogId), WAIT_FOR_DIALOG))
+            return;
+
+        TestLogger.log("The '" + item + "' menu item opened no dialog. Clicking it again.");
+        clickMenuItemOnce(item);
+    }
+
+    /**
      * The menu slides open, so an item is in the DOM and inside a displayed list before it has any
      * height of its own. Waiting for the item itself to be clickable is what makes this reliable.
      */
-    private void clickMenuItem(String item)
+    private void clickMenuItemOnce(String item)
     {
         openSettingsMenu();
         WebElement link = Locator.linkWithText(item)
@@ -154,6 +176,13 @@ public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
         getWrapper().scrollIntoView(link);
         getWrapper().shortWait().until(ExpectedConditions.elementToBeClickable(link));
         link.click();
+    }
+
+    /** Every dialog is in the page from the start, so being present is not the same as being open. */
+    private boolean isDialogOpen(String dialogId)
+    {
+        WebElement dialog = Locator.id(dialogId).findElementOrNull(getDriver());
+        return dialog != null && dialog.isDisplayed();
     }
 
     @Override

@@ -410,9 +410,95 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 _containerHelper.doesContainerExist(_toolV1FolderPath));
     }
 
+    /**
+     * deleteLatest removes the NEWEST version, so the permission has to be checked on that version's
+     * folder rather than on the folder of whatever row id the post carried. Every version has its own
+     * policy, so naming an old version was enough to destroy a newer one, and there is no undo.
+     */
+    @Test
+    public void testZZDeleteLatestChecksPermissionOnTheFolderItDeletes()
+    {
+        String name = "DeleteLatestPermissionProbe";
+        String identifier = "URN:LSID:toolstore.test:deletelatestperm";
+        File v1 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "1.0");
+        File v2 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "2.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME, v1);
+
+        uploadToolOwnedBy(v1, CONTRIBUTOR);
+        int v1RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
+        String v1Folder = toolFolderPath(name, "1.0");
+        String v2Folder = toolFolderPath(name, "2.0");
+
+        uploadNewVersionTo(v1Folder, v2, v1RowId);
+        assertTrue("Publishing 2.0 should have created " + v2Folder,
+                _containerHelper.doesContainerExist(v2Folder));
+
+        // Ownership carries forward, so take it off the newest version only. That is the split.
+        _permissionsHelper.removeUserRoleAssignment(CONTRIBUTOR,
+                "org.labkey.api.security.roles.EditorRole", v2Folder);
+        assertTrue(CONTRIBUTOR + " should still hold Editor on 1.0", hasEditorRole(v1Folder, CONTRIBUTOR));
+        assertFalse(CONTRIBUTOR + " must not hold Editor on 2.0", hasEditorRole(v2Folder, CONTRIBUTOR));
+
+        int status;
+        impersonate(CONTRIBUTOR);
+        try
+        {
+            // The row id of the version they DO own. The action deletes the newest one regardless.
+            status = postTo(PROJECT_NAME, "deleteLatest",
+                    List.of(new BasicNameValuePair("toolId", String.valueOf(v1RowId))), true, true);
+        }
+        finally
+        {
+            stopImpersonating();
+        }
+
+        assertTrue("SECURITY: naming version 1.0 deleted " + v2Folder + ", which the caller held no " +
+                        "rights to (HTTP " + status + ")",
+                _containerHelper.doesContainerExist(v2Folder));
+        assertEquals("2.0 must still be the latest version",
+                "2.0", toolInCatalog(identifier).getString("Version"));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /** Adds a new tool to the store folder as the site admin, naming who owns it. */
+    private void uploadToolOwnedBy(File zip, String owners)
+    {
+        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", PROJECT_NAME, "insertTool"));
+        request.setEntity(MultipartEntityBuilder.create()
+                .addBinaryBody("toolZip", zip, ContentType.create("application/zip"), zip.getName())
+                .addTextBody("toolOwners", owners)
+                .build());
+        int status = execute(request, true, true);
+        assertTrue("Adding " + zip.getName() + " failed, HTTP " + status, status < 400);
+    }
+
+    /** Publishes a new version, which is addressed to the TOOL's own folder. */
+    private void uploadNewVersionTo(String toolFolderPath, File zip, int toolId)
+    {
+        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", toolFolderPath, "updateTool"));
+        request.setEntity(MultipartEntityBuilder.create()
+                .addBinaryBody("toolZip", zip, ContentType.create("application/zip"), zip.getName())
+                .addTextBody("toolId", String.valueOf(toolId))
+                .build());
+        int status = execute(request, true, true);
+        assertTrue("Publishing " + zip.getName() + " failed, HTTP " + status, status < 400);
+    }
+
+    /** The catalog is server wide, so a tool has to be picked out by its identifier. */
+    private JSONObject toolInCatalog(String identifier)
+    {
+        JSONArray tools = getToolsFromApi();
+        for (int i = 0; i < tools.length(); i++)
+        {
+            JSONObject tool = tools.getJSONObject(i);
+            if (identifier.equals(tool.optString("Identifier")))
+                return tool;
+        }
+        throw new AssertionError("No tool with identifier " + identifier + " in the catalog");
+    }
 
     /**
      * Uploads a brand-new tool through InsertAction as the site admin.

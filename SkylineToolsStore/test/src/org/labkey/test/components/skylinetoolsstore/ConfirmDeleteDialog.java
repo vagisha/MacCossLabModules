@@ -37,6 +37,9 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
  */
 public class ConfirmDeleteDialog extends WebDriverComponent<ConfirmDeleteDialog.ElementCache>
 {
+    public static final String DELETE_TOOL_DIALOG_ID = "delToolAllDlg";
+    public static final String DELETE_LATEST_DIALOG_ID = "delToolLatestDlg";
+
     private final WebElement _el;
     private final WebDriver _driver;
     private final String _dialogId;
@@ -52,12 +55,12 @@ public class ConfirmDeleteDialog extends WebDriverComponent<ConfirmDeleteDialog.
 
     public static ConfirmDeleteDialog deleteTool(WebDriver driver)
     {
-        return new ConfirmDeleteDialog(driver, "delToolAllDlg");
+        return new ConfirmDeleteDialog(driver, DELETE_TOOL_DIALOG_ID);
     }
 
     public static ConfirmDeleteDialog deleteLatestVersion(WebDriver driver)
     {
-        return new ConfirmDeleteDialog(driver, "delToolLatestDlg");
+        return new ConfirmDeleteDialog(driver, DELETE_LATEST_DIALOG_ID);
     }
 
     @Override

@@ -45,16 +45,13 @@ import org.labkey.test.util.PostgresOnlyTest;
 import org.labkey.test.util.WikiHelper;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -83,8 +80,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OWNER_PRIVACY_STORE = "ToolStoreWorkflowTestOwnerPrivacy";
     private static final String STALE_DELETE_STORE = "ToolStoreWorkflowTestStaleDelete";
     private static final String OWNER_ESCAPING_STORE = "ToolStoreWorkflowTestOwnerEscaping";
+    private static final String LONG_ZIP_NAME_STORE = "ToolStoreWorkflowTestLongZipName";
+    private static final String CORRUPT_ZIP_STORE = "ToolStoreWorkflowTestCorruptZip";
     private static final List<String> REGRESSION_STORES = List.of(FAILED_UPLOAD_STORE,
-            NO_EXTENSION_STORE, OWNER_PRIVACY_STORE, STALE_DELETE_STORE, OWNER_ESCAPING_STORE);
+            NO_EXTENSION_STORE, OWNER_PRIVACY_STORE, STALE_DELETE_STORE, OWNER_ESCAPING_STORE,
+            LONG_ZIP_NAME_STORE, CORRUPT_ZIP_STORE);
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -580,9 +580,100 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 submitted, reshow.getOwners());
     }
 
+    /**
+     * The zip file name is stored as is, in a column narrower than a file name can be, and an
+     * over-long one used to come back as a SQL error rather than as something the uploader could act on.
+     */
+    @Test
+    public void testAToolZipWithATooLongNameIsRejectedCleanly()
+    {
+        String store = LONG_ZIP_NAME_STORE;
+        String tool = "LongZipNameProbe";
+        createStore(store);
+
+        File zip = copyUnderName(
+                writeMinimalToolZip(tool, "URN:LSID:toolstore.test:longzipname", "1.0"),
+                "a-skyline-tool-zip-whose-file-name-is-far-too-long-to-store.zip");
+
+        goToProjectHome(store);
+        String error = new SkylineToolStoreWebPart(getDriver()).clickAddNewTool()
+                .setToolZip(zip).clickUploadExpectingError();
+        assertTrue("The refusal should say the name is too long, got: " + error,
+                error.contains("too long"));
+
+        goToProjectHome(store);
+        assertFalse("A refused upload must not add the tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(tool));
+    }
+
+    /**
+     * A zip whose entry data is cut short reads far enough to look like a tool and then fails. That
+     * failure used to be swallowed, and came back as a NullPointerException on the error page.
+     */
+    @Test
+    public void testATruncatedToolZipIsRejectedCleanly()
+    {
+        String store = CORRUPT_ZIP_STORE;
+        String tool = "TruncatedZipProbe";
+        createStore(store);
+
+        File whole = writeMinimalToolZip(tool, "URN:LSID:toolstore.test:truncatedzip", "1.0");
+        File truncated = truncate(whole);
+
+        goToProjectHome(store);
+        String error = new SkylineToolStoreWebPart(getDriver()).clickAddNewTool()
+                .setToolZip(truncated).clickUploadExpectingError();
+        assertTrue("The refusal should name the file rather than show a stack trace, got: " + error,
+                error.contains("not a valid Skyline tool zip file"));
+
+        goToProjectHome(store);
+        assertFalse("A refused upload must not add the tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(tool));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * The same zip with its last bytes removed, so the entry headers survive and it reads as a zip
+     * until the data runs out. A file that is not a zip at all has no entries and takes another path.
+     */
+    private static File truncate(File zip)
+    {
+        try
+        {
+            byte[] whole = Files.readAllBytes(zip.toPath());
+            Path dir = Files.createTempDirectory("toolstore-truncated");
+            dir.toFile().deleteOnExit();
+            Path cut = dir.resolve(zip.getName());
+            Files.write(cut, Arrays.copyOf(whole, whole.length / 2));
+            cut.toFile().deleteOnExit();
+            return cut.toFile();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not truncate " + zip, e);
+        }
+    }
+
+    /** The same file under a name of the test's choosing, for cases where the name is the input. */
+    private static File copyUnderName(File file, String fileName)
+    {
+        try
+        {
+            Path dir = Files.createTempDirectory("toolstore-named");
+            dir.toFile().deleteOnExit();
+            Path renamed = dir.resolve(fileName);
+            Files.copy(file.toPath(), renamed);
+            renamed.toFile().deleteOnExit();
+            return renamed.toFile();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not copy " + file + " to " + fileName, e);
+        }
+    }
 
     /** A store folder of its own, so one test's tools cannot disturb another's counts. */
     private void createStore(String projectName)
@@ -624,32 +715,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         return writeMinimalToolZip(FORMS_TOOL_NAME, FORMS_TOOL_IDENTIFIER, version);
     }
 
-    /**
-     * Identifiers are unique across the whole server, not per folder, so a test that adds its own
-     * tool needs its own name and identifier or it collides with every other store on the server.
-     */
     private static File writeMinimalToolZip(String name, String identifier, String version)
     {
-        try
-        {
-            // ZipName is a 50 character column and createTempFile appends up to 19 random digits, so
-            // the prefix has to stay short. The tool's name comes from info.properties, not from here.
-            File zip = File.createTempFile("ts-" + version + "-", ".zip");
-            zip.deleteOnExit();
-            try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(zip)))
-            {
-                out.putNextEntry(new ZipEntry("tool-inf/info.properties"));
-                out.write(("Name = " + name + "\n" +
-                           "Version = " + version + "\n" +
-                           "Identifier = " + identifier + "\n").getBytes(StandardCharsets.UTF_8));
-                out.closeEntry();
-            }
-            return zip;
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Could not build the test tool zip", e);
-        }
+        return ToolStoreTestHelper.writeMinimalToolZip(name, identifier, version);
     }
 
     /** Posts a tool zip to the folder's message board, the way the wiki form does. */

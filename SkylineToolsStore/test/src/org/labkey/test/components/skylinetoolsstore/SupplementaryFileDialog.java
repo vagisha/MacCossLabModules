@@ -29,13 +29,15 @@ import java.io.File;
 /** Uploads one supplementary file for a tool. Posts to the tool's own folder. */
 public class SupplementaryFileDialog extends WebDriverComponent<SupplementaryFileDialog.ElementCache>
 {
+    public static final String DIALOG_ID = "uploadSuppPop";
+
     private final WebElement _el;
     private final WebDriver _driver;
 
     public SupplementaryFileDialog(WebDriver driver)
     {
         _driver = driver;
-        _el = Locator.id("uploadSuppPop").waitForElement(driver, WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
+        _el = Locator.id(DIALOG_ID).waitForElement(driver, WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
         WebDriverWrapper.waitFor(_el::isDisplayed, "The supplementary file dialog did not open",
                 WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
     }

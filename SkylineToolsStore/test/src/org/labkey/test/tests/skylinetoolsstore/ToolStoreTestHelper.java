@@ -26,12 +26,16 @@ import org.labkey.test.WebTestHelper;
 import org.labkey.test.util.APITestHelper;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertTrue;
 
@@ -90,6 +94,33 @@ public class ToolStoreTestHelper
     {
         String url = tool.getString("DownloadUrl");
         return url.substring(1, url.indexOf("/skyts-"));
+    }
+
+    /**
+     * A tool zip holding nothing but tool-inf/info.properties, since the sample zips are tens of
+     * megabytes. Identifiers are server wide, so each caller needs its own name and identifier.
+     */
+    public static File writeMinimalToolZip(String name, String identifier, String version)
+    {
+        try
+        {
+            // Short prefix - ZipName is 50 characters and createTempFile appends up to 19 digits.
+            File zip = File.createTempFile("ts-" + version + "-", ".zip");
+            zip.deleteOnExit();
+            try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(zip)))
+            {
+                out.putNextEntry(new ZipEntry("tool-inf/info.properties"));
+                out.write(("Name = " + name + "\n" +
+                           "Version = " + version + "\n" +
+                           "Identifier = " + identifier + "\n").getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+            return zip;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not build the test tool zip", e);
+        }
     }
 
     /** Reads the Identifier out of tool-inf/info.properties inside a tool zip. */

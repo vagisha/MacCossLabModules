@@ -48,6 +48,7 @@ import org.labkey.api.data.NormalContainerType;
 import org.labkey.api.files.FileContentService;
 import org.labkey.api.module.FolderTypeManager;
 import org.labkey.api.module.ModuleLoader;
+import org.labkey.api.query.RuntimeValidationException;
 import org.labkey.api.security.ActionNames;
 import org.labkey.api.security.Group;
 import org.labkey.api.security.MutableSecurityPolicy;
@@ -125,6 +126,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -220,10 +222,6 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
         }
-        catch (Exception e)
-        {
-            throw e;
-        }
 
         if (tool != null)
         {
@@ -235,7 +233,12 @@ public class SkylineToolsStoreController extends SpringActionController
         return tool;
     }
 
-    protected byte[] unzip(ZipInputStream stream)
+    /**
+     * Reads one zip entry. Throws instead of returning null on failure. The info.properties caller
+     * dereferenced that null into a NullPointerException, and the icon caller stored a tool with
+     * no icon.
+     */
+    protected byte[] unzip(ZipInputStream stream) throws IOException
     {
         final int BUFFER_SIZE = 2048;
 
@@ -246,10 +249,6 @@ public class SkylineToolsStoreController extends SpringActionController
             while ((bytesRead = stream.read(bytes, 0, BUFFER_SIZE)) != -1)
                 unzipBytes.write(bytes, 0, bytesRead);
             return unzipBytes.toByteArray();
-        }
-        catch (Exception e)
-        {
-            return null;
         }
     }
 
@@ -582,6 +581,11 @@ public class SkylineToolsStoreController extends SpringActionController
                 _tool = SkylineToolsStoreManager.get().insertTool(versionContainer, getUser(), tool);
                 stored = true;
             }
+            catch (RuntimeValidationException e)
+            {
+                rejectValidationFailure(e, errors);
+                return false;
+            }
             finally
             {
                 if (!stored)
@@ -685,6 +689,11 @@ public class SkylineToolsStoreController extends SpringActionController
 
                 transaction.commit();
                 stored = true;
+            }
+            catch (RuntimeValidationException e)
+            {
+                rejectValidationFailure(e, errors);
+                return false;
             }
             finally
             {
@@ -838,7 +847,7 @@ public class SkylineToolsStoreController extends SpringActionController
     }
 
     /** Reads the uploaded zip, rejecting anything that is not a usable tool. Null if rejected. */
-    private SkylineTool readToolFromUpload(MultipartFile zip, BindException errors) throws IOException
+    private SkylineTool readToolFromUpload(MultipartFile zip, BindException errors)
     {
         if (zip == null || StringUtils.isEmpty(zip.getOriginalFilename()))
         {
@@ -846,7 +855,20 @@ public class SkylineToolsStoreController extends SpringActionController
             return null;
         }
 
-        SkylineTool tool = getToolFromZip(zip);
+        SkylineTool tool;
+        try
+        {
+            tool = getToolFromZip(zip);
+        }
+        catch (IOException e)
+        {
+            // Only a ZipException describes the file. Any other IOException names a path on the
+            // server, which a tool owner should not see, so it goes to the log only.
+            LOG.warn("Could not read the uploaded tool zip {}", zip.getOriginalFilename(), e);
+            String detail = e instanceof ZipException ? " " + e.getMessage() : "";
+            errors.reject(ERROR_MSG, "The file was not a valid Skyline tool zip file." + detail);
+            return null;
+        }
         if (tool == null)
         {
             errors.reject(ERROR_MSG, "The file was not a valid Skyline tool zip file.");
@@ -859,6 +881,15 @@ public class SkylineToolsStoreController extends SpringActionController
             return null;
         }
         return tool;
+    }
+
+    /**
+     * Puts the validation exception message from Table.insert and Table.update into errors, so it
+     * does not reach the user as an error page. The message already names the column and the value.
+     */
+    private static void rejectValidationFailure(RuntimeValidationException e, BindException errors)
+    {
+        errors.reject(ERROR_MSG, e.getValidationException().getMessage());
     }
 
     private void redirectToToolStoreContainer(SkylineTool tool, ActionURL originalUrl)
@@ -1468,6 +1499,11 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public void addNavTrail(NavTree root)
         {
+            // The page title is the last nav trail entry, so an empty trail leaves the browser tab
+            // and the window title blank. _tool is null only when getView returned an error view.
+            root.addChild(getToolStoreNav(getContainer()));
+            if (_tool != null)
+                root.addChild(_tool.getName() + " " + _tool.getVersion());
         }
     }
 
@@ -1674,84 +1710,196 @@ public class SkylineToolsStoreController extends SpringActionController
                 tool.setIcon(icon.getBytes());
             }
 
+            // Name both working files with a leading dot. getSupplementaryFileBasenames lists every
+            // file in the folder that does not start with a dot, so one left behind by a crash
+            // would show up on the details page as a supplementary file.
             File zipFile = makeFile(container, tool.getZipName());
-            File tmpFile = makeFile(container, tool.getZipName() + "~");
-            try (ZipFile zipIn = new ZipFile(zipFile);
-                 ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(tmpFile)))
-            {
-                for (Enumeration e = zipIn.entries(); e.hasMoreElements();)
-                {
-                    ZipEntry zipEntry = (ZipEntry)e.nextElement();
-                    final String lowerName = zipEntry.getName().toLowerCase();
-
-                    if (icon == null)
-                    {
-                        try (InputStream in = lowerName.equals("tool-inf/info.properties")
-                                ? tool.getInfoPropertiesStream(zipIn.getInputStream(zipEntry), propName, propValue)
-                                : zipIn.getInputStream(zipEntry))
-                        {
-                            ZipEntry newEntry = new ZipEntry(zipEntry.getName());
-                            zipOut.putNextEntry(newEntry);
-                            byte[] buf = new byte[1024];
-                            int len;
-                            while ((len = in.read(buf)) > 0)
-                                zipOut.write(buf, 0, len);
-                            zipOut.closeEntry();
-                        }
-                    }
-                    else if (!lowerName.startsWith("tool-inf/") ||
-                             !Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(lowerName)))
-                    {
-                        try (InputStream in = zipIn.getInputStream(zipEntry))
-                        {
-                            ZipEntry newEntry = new ZipEntry(zipEntry.getName());
-                            zipOut.putNextEntry(newEntry);
-                            byte[] buf = new byte[1024];
-                            int len;
-                            while ((len = in.read(buf)) > 0)
-                                zipOut.write(buf, 0, len);
-                            zipOut.closeEntry();
-                        }
-                    }
-                }
-                if (icon != null)
-                {
-                    zipOut.putNextEntry(new ZipEntry("tool-inf/" + icon.getOriginalFilename()));
-                    try (InputStream in = icon.getInputStream())
-                    {
-                        byte[] buf = new byte[1024];
-                        int len;
-                        while ((len = in.read(buf)) > 0)
-                            zipOut.write(buf, 0, len);
-                        zipOut.closeEntry();
-                    }
-                }
-            }
-
-            // Replace in one step. Deleting first and then renaming left no copy of the tool zip if
-            // the rename failed, and the rename result was not checked.
+            File tmpFile = makeFile(container, "." + tool.getZipName() + "~");
+            ZipSwap swap = new ZipSwap(tmpFile, zipFile,
+                    makeFile(container, "." + tool.getZipName() + ".orig"));
             try
             {
-                Files.move(tmpFile.toPath(), zipFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                try (ZipFile zipIn = new ZipFile(zipFile);
+                     ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(tmpFile)))
+                {
+                    for (Enumeration e = zipIn.entries(); e.hasMoreElements();)
+                    {
+                        ZipEntry zipEntry = (ZipEntry)e.nextElement();
+                        final String lowerName = zipEntry.getName().toLowerCase();
+
+                        if (icon == null)
+                        {
+                            try (InputStream in = lowerName.equals("tool-inf/info.properties")
+                                    ? tool.getInfoPropertiesStream(zipIn.getInputStream(zipEntry), propName, propValue)
+                                    : zipIn.getInputStream(zipEntry))
+                            {
+                                ZipEntry newEntry = new ZipEntry(zipEntry.getName());
+                                zipOut.putNextEntry(newEntry);
+                                byte[] buf = new byte[1024];
+                                int len;
+                                while ((len = in.read(buf)) > 0)
+                                    zipOut.write(buf, 0, len);
+                                zipOut.closeEntry();
+                            }
+                        }
+                        else if (!lowerName.startsWith("tool-inf/") ||
+                                 !Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(lowerName)))
+                        {
+                            try (InputStream in = zipIn.getInputStream(zipEntry))
+                            {
+                                ZipEntry newEntry = new ZipEntry(zipEntry.getName());
+                                zipOut.putNextEntry(newEntry);
+                                byte[] buf = new byte[1024];
+                                int len;
+                                while ((len = in.read(buf)) > 0)
+                                    zipOut.write(buf, 0, len);
+                                zipOut.closeEntry();
+                            }
+                        }
+                    }
+                    if (icon != null)
+                    {
+                        zipOut.putNextEntry(new ZipEntry("tool-inf/" + icon.getOriginalFilename()));
+                        try (InputStream in = icon.getInputStream())
+                        {
+                            byte[] buf = new byte[1024];
+                            int len;
+                            while ((len = in.read(buf)) > 0)
+                                zipOut.write(buf, 0, len);
+                            zipOut.closeEntry();
+                        }
+                    }
+                }
+
+                if (icon == null)
+                {
+                    // The row and the zip both carry the property, so they have to land together.
+                    // The swap runs as a pre-commit task, inside the transaction, so a zip that
+                    // cannot be replaced stops the commit and the row goes back to what it was.
+                    try (DbScope.Transaction transaction =
+                                 SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+                    {
+                        SkylineToolsStoreManager.get().updateTool(container, getUser(), tool);
+                        transaction.addCommitTask(swap, DbScope.CommitTaskOption.PRECOMMIT);
+                        transaction.commit();
+                    }
+                    // Both catches restore the original zip if the swap had already landed, which
+                    // happens when the commit itself is what failed. POSTROLLBACK tasks do not run
+                    // on that path, so nothing in the framework puts it back. undo() does nothing
+                    // when the swap never ran, which is the case for a rejected value.
+                    catch (RuntimeValidationException e)
+                    {
+                        swap.undo();
+                        rejectValidationFailure(e, errors);
+                        return false;
+                    }
+                    catch (RuntimeException e)
+                    {
+                        swap.undo();
+                        throw e;
+                    }
+                }
+                else
+                {
+                    // An icon writes no row, so the zip has nothing to stay in step with.
+                    swap.run();
+                    tool.writeIconToFile(makeFile(container, "icon.png"), "png");
+                }
+
+                return true;
             }
-            catch (IOException e)
+            finally
             {
-                tmpFile.delete();
-                throw new IOException("Could not replace " + zipFile + ". The tool zip is unchanged.", e);
+                swap.cleanUp();
             }
-
-            if (icon == null)
-                SkylineToolsStoreManager.get().updateTool(container, getUser(), tool);
-            else
-                tool.writeIconToFile(makeFile(container, "icon.png"), "png");
-
-            return true;
         }
 
         @Override
         public URLHelper getSuccessURL(UpdatePropertyForm form)
         {
             return SkylineToolStoreUrls.getToolDetailsUrl(_tool);
+        }
+
+        /**
+         * Renames a rebuilt tool zip over the stored one, keeping the original aside so undo() can
+         * restore it. Registered as a PRECOMMIT task, so a failure here stops the commit and the
+         * row keeps the same property value as the zip.
+         */
+        private static class ZipSwap implements Runnable
+        {
+            private final File _rebuilt;
+            private final File _live;
+            private final File _original;
+
+            private boolean _movedAside = false;
+            private boolean _originalStranded = false;
+
+            ZipSwap(File rebuilt, File live, File original)
+            {
+                _rebuilt = rebuilt;
+                _live = live;
+                _original = original;
+            }
+
+            /** Throws unchecked because a commit task is a Runnable. Either both renames happen or neither does. */
+            @Override
+            public void run()
+            {
+                try
+                {
+                    Files.move(_live.toPath(), _original.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    _movedAside = true;
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException("Could not set " + _live + " aside. The tool zip is unchanged.", e);
+                }
+
+                try
+                {
+                    Files.move(_rebuilt.toPath(), _live.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+                catch (IOException e)
+                {
+                    undo();
+                    throw new RuntimeException("Could not replace " + _live + ". The tool zip is unchanged.", e);
+                }
+            }
+
+            /** Puts the original back. Does nothing if this swap never moved it, and can be called twice. */
+            void undo()
+            {
+                if (!_movedAside)
+                    return;
+
+                try
+                {
+                    Files.move(_original.toPath(), _live.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    _movedAside = false;
+                }
+                catch (IOException e)
+                {
+                    // Log which file holds the original, because the zip left on disk no longer
+                    // matches the row the transaction rolled back.
+                    _originalStranded = true;
+                    LOG.error("Could not put {} back. {} holds it, and {} no longer matches the database.",
+                            _live, _original, _live, e);
+                }
+            }
+
+            /** Removes the working files. The original stays if it could not be put back. */
+            void cleanUp()
+            {
+                deleteWorkingFile(_rebuilt);
+                if (!_originalStranded)
+                    deleteWorkingFile(_original);
+            }
+
+            private static void deleteWorkingFile(File file)
+            {
+                if (file.exists() && !file.delete())
+                    LOG.warn("Could not delete the working file {}", file);
+            }
         }
     }
 
@@ -1862,6 +2010,100 @@ public class SkylineToolsStoreController extends SpringActionController
             // Supplementary files are uploaded under whatever name the owner chose, so a name with
             // no extension has to work. Throwing here takes out the store listing for every tool.
             assertEquals("fa fa-file-o", suppFileIconClass("README"));
+        }
+
+        @Test
+        public void testZipSwapReplacesAndCleansUp() throws IOException
+        {
+            Path dir = FileUtil.createTempDirectory("toolstore-swap");
+            try
+            {
+                File live = write(dir, "tool.zip", "old");
+                File rebuilt = write(dir, ".tool.zip~", "new");
+                File original = dir.resolve(".tool.zip.orig").toFile();
+
+                UpdatePropertyAction.ZipSwap swap = new UpdatePropertyAction.ZipSwap(rebuilt, live, original);
+                swap.run();
+                assertEquals("The rebuilt zip should be in place", "new", read(live));
+
+                swap.cleanUp();
+                assertFalse("The rebuilt file should be gone", rebuilt.exists());
+                assertFalse("The saved original should be gone", original.exists());
+            }
+            finally
+            {
+                FileUtil.deleteDir(dir.toFile());
+            }
+        }
+
+        /** The commit fails after the swap has landed, which the transaction cannot roll back. */
+        @Test
+        public void testZipSwapUndoPutsTheOriginalBack() throws IOException
+        {
+            Path dir = FileUtil.createTempDirectory("toolstore-swap");
+            try
+            {
+                File live = write(dir, "tool.zip", "old");
+                File rebuilt = write(dir, ".tool.zip~", "new");
+                File original = dir.resolve(".tool.zip.orig").toFile();
+
+                UpdatePropertyAction.ZipSwap swap = new UpdatePropertyAction.ZipSwap(rebuilt, live, original);
+                swap.run();
+                swap.undo();
+                assertEquals("Undo should put the original zip back", "old", read(live));
+
+                swap.undo();
+                assertEquals("A second undo should change nothing", "old", read(live));
+            }
+            finally
+            {
+                FileUtil.deleteDir(dir.toFile());
+            }
+        }
+
+        /** A swap that cannot finish has to leave the stored zip as it found it. */
+        @Test
+        public void testZipSwapRestoresWhenItCannotFinish() throws IOException
+        {
+            Path dir = FileUtil.createTempDirectory("toolstore-swap");
+            try
+            {
+                File live = write(dir, "tool.zip", "old");
+                // Never written, so moving it into place fails the way a lost temp file would.
+                File rebuilt = dir.resolve(".tool.zip~").toFile();
+                File original = dir.resolve(".tool.zip.orig").toFile();
+
+                UpdatePropertyAction.ZipSwap swap = new UpdatePropertyAction.ZipSwap(rebuilt, live, original);
+                try
+                {
+                    swap.run();
+                    fail("A swap that cannot move the rebuilt zip into place should throw");
+                }
+                catch (RuntimeException e)
+                {
+                    assertTrue("Bad message: " + e.getMessage(),
+                            e.getMessage().contains("The tool zip is unchanged"));
+                }
+
+                assertTrue("The stored zip should still be there", live.exists());
+                assertEquals("The stored zip should still hold what it held", "old", read(live));
+            }
+            finally
+            {
+                FileUtil.deleteDir(dir.toFile());
+            }
+        }
+
+        private static File write(Path dir, String name, String content) throws IOException
+        {
+            Path file = dir.resolve(name);
+            Files.writeString(file, content);
+            return file.toFile();
+        }
+
+        private static String read(File file) throws IOException
+        {
+            return Files.readString(file.toPath());
         }
     }
 }

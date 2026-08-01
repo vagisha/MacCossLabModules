@@ -35,6 +35,8 @@ import java.io.File;
  */
 public class ToolUploadDialog extends WebDriverComponent<ToolUploadDialog.ElementCache>
 {
+    public static final String DIALOG_ID = "uploadPop";
+
     private final WebElement _el;
     private final WebDriver _driver;
     private final boolean _newTool;
@@ -43,7 +45,7 @@ public class ToolUploadDialog extends WebDriverComponent<ToolUploadDialog.Elemen
     {
         _driver = driver;
         _newTool = newTool;
-        _el = Locator.id("uploadPop").waitForElement(driver, WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
+        _el = Locator.id(DIALOG_ID).waitForElement(driver, WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
         WebDriverWrapper.waitFor(_el::isDisplayed, "The tool upload dialog did not open",
                 WebDriverWrapper.WAIT_FOR_JAVASCRIPT);
     }
