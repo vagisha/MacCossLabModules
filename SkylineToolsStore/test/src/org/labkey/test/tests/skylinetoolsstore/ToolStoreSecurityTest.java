@@ -459,6 +459,60 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 "2.0", toolInCatalog(identifier).getString("Version"));
     }
 
+    /**
+     * delete removes EVERY version of a tool, each in its own folder with its own policy, so holding
+     * the permission on one of them is not enough. SetOwnersAction can grant Editor on a single
+     * version, so checking only the posted row let a user with rights on one version destroy the
+     * whole tool, with no undo.
+     */
+    @Test
+    public void testZZDeleteAllChecksPermissionOnEveryVersionItDeletes()
+    {
+        String name = "DeleteAllPermissionProbe";
+        String identifier = "URN:LSID:toolstore.test:deleteallperm";
+        File v1 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "1.0");
+        File v2 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "2.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME, v1);
+
+        uploadToolOwnedBy(v1, CONTRIBUTOR);
+        int v1RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
+        String v1Folder = toolFolderPath(name, "1.0");
+        String v2Folder = toolFolderPath(name, "2.0");
+
+        uploadNewVersionTo(v1Folder, v2, v1RowId);
+        assertTrue("Publishing 2.0 should have created " + v2Folder,
+                _containerHelper.doesContainerExist(v2Folder));
+
+        // Ownership carries forward, so take it off the newest version only. That is the split.
+        _permissionsHelper.removeUserRoleAssignment(CONTRIBUTOR,
+                "org.labkey.api.security.roles.EditorRole", v2Folder);
+        assertTrue(CONTRIBUTOR + " should still hold Editor on 1.0", hasEditorRole(v1Folder, CONTRIBUTOR));
+        assertFalse(CONTRIBUTOR + " must not hold Editor on 2.0", hasEditorRole(v2Folder, CONTRIBUTOR));
+
+        int status;
+        impersonate(CONTRIBUTOR);
+        try
+        {
+            // The row id of the version they DO own. The action deletes every version regardless.
+            status = postTo(PROJECT_NAME, "delete",
+                    List.of(new BasicNameValuePair("toolId", String.valueOf(v1RowId))), true, true);
+        }
+        finally
+        {
+            stopImpersonating();
+        }
+
+        assertTrue("SECURITY: deleting from version 1.0 removed " + v2Folder + ", which the caller " +
+                        "held no rights to (HTTP " + status + ")",
+                _containerHelper.doesContainerExist(v2Folder));
+        // The refusal has to be all or nothing. Taking 1.0 and stopping would leave the tool with a
+        // hole in its version history and the caller unable to put it back.
+        assertTrue("A refused delete must not remove the version the caller did own either",
+                _containerHelper.doesContainerExist(v1Folder));
+        assertEquals("The tool must still be in the catalog",
+                "2.0", toolInCatalog(identifier).getString("Version"));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

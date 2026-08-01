@@ -40,6 +40,8 @@ import org.labkey.api.action.ReturnUrlForm;
 import org.labkey.api.action.SimpleErrorView;
 import org.labkey.api.action.SimpleViewAction;
 import org.labkey.api.action.SpringActionController;
+import org.labkey.api.audit.AuditLogService;
+import org.labkey.api.audit.ClientApiAuditProvider;
 import org.labkey.api.collections.LabKeyCollectors;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.ContainerManager;
@@ -315,6 +317,30 @@ public class SkylineToolsStoreController extends SpringActionController
     }
 
 
+
+    /**
+     * Rejects a resolved file that escapes the tool's own file root.
+     *
+     * makeLegalName already blocks traversal - it maps the path separators to '_' and rewrites a
+     * trailing '.', so even ".." arrives as ".._". This asserts the result anyway on the one
+     * anonymous file-serving path, so containment there does not rest on the internals of a platform
+     * helper this module does not own.
+     */
+    private static void assertUnderToolRoot(Container c, File file)
+    {
+        assertUnderRoot(getLocalPath(c), file);
+    }
+
+    /**
+     * The containment check itself. Separated from the container lookup and package private so it
+     * can be tested directly, because the input that would trip it cannot be crafted through the
+     * action.
+     */
+    static void assertUnderRoot(@Nullable Path root, File file)
+    {
+        if (root == null || !file.toPath().normalize().startsWith(root.normalize()))
+            throw new NotFoundException("File is not in the tool's directory: " + file.getName());
+    }
 
     public static Path getLocalPath(Container c)
     {
@@ -1093,20 +1119,30 @@ public class SkylineToolsStoreController extends SpringActionController
                 throw new RedirectException(url);
             }
 
-            Container toolContainer = tool.lookupContainer();
-            if(toolContainer == null)
+            // This deletes every version of the tool, and each version lives in its own folder with
+            // its own policy. SetOwnersAction can grant Editor on a single version, so checking only
+            // the folder of the posted row let rights on one version destroy all of them. Check them
+            // all before deleting any, and refuse the whole thing if one fails - a partial delete
+            // would leave a hole in the version history that the caller cannot put back.
+            SkylineTool[] versions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
+            for (SkylineTool version : versions)
             {
-                errors.reject(ERROR_MSG, "Failed to look up tool's container: " + tool.getName());
-                return false;
-            }
-            if(!toolContainer.hasPermission(getUser(), DeletePermission.class))
-            {
-                errors.reject(ERROR_MSG, "User does not have permission to delete the tool." + tool.getName());
-                return false;
+                Container versionContainer = version.lookupContainer();
+                if (versionContainer == null)
+                {
+                    errors.reject(ERROR_MSG, "Failed to look up tool's container: " + version.getName());
+                    return false;
+                }
+                if (!versionContainer.hasPermission(getUser(), DeletePermission.class))
+                {
+                    errors.reject(ERROR_MSG, "User does not have permission to delete version " +
+                            version.getVersion() + " of " + version.getName() + ".");
+                    return false;
+                }
             }
 
             // TODO: Should be in a transaction
-            for (SkylineTool toDelete : SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()))
+            for (SkylineTool toDelete : versions)
             {
                 ContainerManager.delete(toDelete.lookupContainer(), getUser());
             }
@@ -1385,6 +1421,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
                 Container toolContainer = tool.lookupContainer();
                 File downloadFile = makeFile(toolContainer, fileName);
+                assertUnderToolRoot(toolContainer, downloadFile);
                 if (!NetworkDrive.exists(downloadFile))
                 {
                     errors.reject(SpringActionController.ERROR_MSG, "File " + fileName +
@@ -1607,6 +1644,15 @@ public class SkylineToolsStoreController extends SpringActionController
                 policy.addRoleAssignment(u, RoleManager.getRole(EditorRole.class));
             policy = filterPolicy(policy, toolOwnersUsers, new Role[]{RoleManager.getRole(EditorRole.class), RoleManager.getRole(FolderAdminRole.class)});
             SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
+
+            // savePolicy attributes its own audit events to the user it is handed, and it is handed
+            // the admin service user so it can edit a policy the acting admin may not own. Every
+            // owner change was therefore recorded as the service user. Add an event naming the real
+            // requester, following the lincs security fix in PR #652.
+            AuditLogService.get().addEvent(getUser(),
+                    new ClientApiAuditProvider.ClientApiAuditEvent(c,
+                            "Skyline tool owners set to [" + form.getToolOwners() + "] for tool '" +
+                                    tool.getName() + "'."));
 
             // requireToolInStore established that this folder is the tool's store.
             _successURL = form.getSender() != null ? new ActionURL(form.getSender())
@@ -2091,6 +2137,47 @@ public class SkylineToolsStoreController extends SpringActionController
             finally
             {
                 FileUtil.deleteDir(dir.toFile());
+            }
+        }
+
+        /**
+         * The containment assert cannot be tripped through DownloadToolFileAction, because
+         * makeLegalName flattens traversal before it is reached. It is tested here directly, so it
+         * is not code that has never been shown to do anything.
+         */
+        @Test
+        public void testAssertUnderRoot() throws IOException
+        {
+            Path root = FileUtil.createTempDirectory("toolstore-root");
+            try
+            {
+                assertUnderRoot(root, root.resolve("tool.zip").toFile());
+                assertUnderRoot(root, root.resolve("docs").resolve("manual.pdf").toFile());
+
+                // What the audit asked to be defended against, were makeLegalName ever to change.
+                assertRejected(root, root.resolve("..").resolve("elsewhere.zip").toFile());
+                assertRejected(root, root.getParent().resolve("sibling.zip").toFile());
+
+                // No file root configured for the container.
+                assertRejected(null, root.resolve("tool.zip").toFile());
+            }
+            finally
+            {
+                FileUtil.deleteDir(root.toFile());
+            }
+        }
+
+        private static void assertRejected(Path root, File file)
+        {
+            try
+            {
+                assertUnderRoot(root, file);
+                fail("Should have refused " + file);
+            }
+            catch (NotFoundException e)
+            {
+                assertTrue("Bad message: " + e.getMessage(),
+                        e.getMessage().contains("not in the tool's directory"));
             }
         }
 
