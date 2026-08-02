@@ -94,10 +94,15 @@
     a.styled-button{text-decoration:none; color:#fff;}
     a.styled-button:visited{color:#fff;}
     .toolOwners {width: 80%; min-width: 300px;}
-    .ui-menu {width:240px;}
-    .dropMenu {position: absolute;}
-    .menuMouseArea {display: inline;}
-    .sprocket {cursor: pointer; float: right;}
+    .sprocket {float: right;}
+    /* The gear opens the menu, so it is a button and can be reached by keyboard. Strip the chrome a
+       button comes with so it still looks like a bare icon. */
+    .sprocketToggle {background: none; border: none; padding: 0; cursor: pointer;}
+    /* Scoped to these two menus on purpose. A bare .dropdown-menu rule would also widen LabKey's own
+       header and admin menus, which are Bootstrap dropdowns on the same page. */
+    .sprocket .dropdown-menu, .toolButtons .dropdown-menu {min-width: 240px;}
+    /* The Documentation menu sits in a row of buttons that read left to right. */
+    .toolButtons .dropdown {display: inline-block;}
     .menuIconImg {width: 16px; height: 16px;}
     /* Font glyph counterpart of .menuIconImg, sized to line up with the images beside it. */
     .menuIcon {display: inline-block; width: 16px; font-size: 14px; color: #666;}
@@ -282,9 +287,16 @@
             <div class="contentcontainer">
                 <span class="title"><a href="<%=h(detailsUrl)%>"><%= h(tool.getName()) %></a></span>
 <% if (toolEditor) { %>
-                <div class="menuMouseArea sprocket" alt="<%= h(tool.getName()) %>">
-                    <img src="<%= h(imgDir) %>gear.png" title="Settings" />
-                    <ul class="dropMenu">
+                <%-- Bootstrap 3 dropdown. data-toggle="dropdown" is all the wiring it needs, and it
+                     works for rows added after the page loads. The hidden tool name tells this
+                     row's gear apart from the others, the way the buttons below are named. --%>
+                <div class="dropdown sprocket">
+                    <button type="button" id="toolSettingsMenu<%= tool.getRowId() %>"
+                            class="sprocketToggle dropdown-toggle" data-toggle="dropdown"
+                            aria-haspopup="true" aria-expanded="false" title="Settings">
+                        <img src="<%= h(imgDir) %>gear.png" alt="Settings" /><span class="visually-hidden">&nbsp;<%= h(tool.getName()) %></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="toolSettingsMenu<%= tool.getRowId() %>">
                         <li><%=simpleLink("Upload new version").onClick(
                                 "$('#uploadForm').attr('action', " + q(SkylineToolStoreUrls.getUpdateToolUrl(tool)) + "); " +
                                 "$('#uploadPopOwners').hide(); $('#uploadFormToolId').val(" + tool.getRowId() + "); $('#uploadPop').modal('show')")%></li>
@@ -324,9 +336,11 @@
 %>
                         <%=link(unsafe("Documentation<span class=\"visually-hidden\">&nbsp;" + h(tool.getName()) + "</span>")).href(suppPair.getKey().toString()).clearClasses().addClass("styled-button")%>
 <% } else if (docCount > 1) { %>
-                        <div class="menuMouseArea">
-                            <button type="button" class="styled-button">Documentation<span class="visually-hidden"><%=h(tool.getName())%></span></button>
-                            <ul class="dropMenu">
+                        <div class="dropdown">
+                            <button type="button" id="toolDocsMenu<%= tool.getRowId() %>"
+                                    class="styled-button dropdown-toggle" data-toggle="dropdown"
+                                    aria-haspopup="true" aria-expanded="false">Documentation<span class="visually-hidden"><%=h(tool.getName())%></span></button>
+                            <ul class="dropdown-menu" aria-labelledby="toolDocsMenu<%= tool.getRowId() %>">
 <% if (hasDocs) { %>
                                 <li><a href="<%=h(tool.getDocsUrl())%>" target="_blank" rel="noopener noreferrer"><img class="menuIconImg" src="<%= h(imgDir) %>link.png" alt="Documentation">Online Documentation</a></li>
 <% } %>
@@ -379,32 +393,6 @@
                    .css("overflow", "hidden").height(lineThresholdHeight);
         }
     }
-
-    var MENU_SLIDE_TIME = 100;
-    function initMenu(element) {
-        var myMenu = element.children(".dropMenu:first");
-        if (myMenu.children().length > 0) {
-            myMenu.menu().hide();
-            element.click(function(e) {
-                // Stop click from bubbling up to document click handler
-                e.stopPropagation();
-                // Only allow one menu open at a time
-                if ($(this).children(".dropMenu:first").is(":hidden"))
-                    closeMenus();
-                myMenu.stop().slideToggle(MENU_SLIDE_TIME);
-                myMenu.position({of: $(element).children(":first"), at: "left bottom", my: "left top"});
-            });
-        }
-    }
-
-    // Close menus on non-menu click
-    $(document).click(function() {closeMenus();});
-
-    function closeMenus() {
-        $(".dropMenu:visible").slideUp(MENU_SLIDE_TIME);
-    }
-
-    $(".menuMouseArea").each(function() {initMenu($(this));});
 
     $(function() {
         $(".content").each(function() {adjustContent($(this));});
@@ -533,7 +521,6 @@
                         return;
                     }
                     newToolTable.hide();
-                    newToolTable.find(".menuMouseArea").each(function() {initMenu($(this));});
                     $("#delToolLatestDlg").modal("hide");
                     toolTable.hide("explode", function() {
                         $(this).replaceWith(newToolTable);
@@ -541,6 +528,8 @@
                             adjustContent($(newToolTable).find(".content:first"));
                         });
                     });
+                    <%-- The replacement row's menu needs no wiring. Bootstrap listens on the
+                         document for data-toggle="dropdown", so a row added after page load works. --%>
                 }).fail(function() {
                     showDeleteLatestError(toolTable);
                 });

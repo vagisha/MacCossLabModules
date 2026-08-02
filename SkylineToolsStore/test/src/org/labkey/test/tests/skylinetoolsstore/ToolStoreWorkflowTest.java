@@ -392,10 +392,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /** Opens the gear menu on the tool details page and clicks one of its items. */
     private void clickSprocketMenuItem(String item)
     {
-        click(Locator.css(".menuMouseArea.sprocket"));
+        click(Locator.tagWithId("button", "toolSettingsMenu"));
 
-        // The menu slides open, so the item is in the DOM before it is visible, and once a tool has
-        // more than one version the menu is long enough to run past the bottom of the window.
+        // The menu opens with no animation, but once a tool has more than one version it is long
+        // enough to run past the bottom of the window, so the item still has to be scrolled to.
         Locator.XPathLocator link = Locator.linkWithText(item);
         waitForElement(link.notHidden());
         scrollIntoView(link.notHidden());

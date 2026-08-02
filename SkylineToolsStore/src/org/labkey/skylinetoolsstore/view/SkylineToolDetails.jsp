@@ -223,10 +223,13 @@ a { text-decoration: none; }
     background: linear-gradient(to bottom,  #a90329 0%,#6d0019 100%); /* W3C */
     filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#a90329', endColorstr='#6d0019',GradientType=0 ); /* IE6-8 */
 }
-.ui-menu {width: 240px;}
-.dropMenu {position: absolute;}
-.menuMouseArea {display: inline;}
-.sprocket {cursor: pointer; float: right; margin: 0 0 8px 12px;}
+.sprocket {float: right; margin: 0 0 8px 12px;}
+/* The gear opens the menu, so it is a button and can be reached by keyboard. Strip the chrome a
+   button comes with so it still looks like a bare icon. */
+.sprocketToggle {background: none; border: none; padding: 0; cursor: pointer;}
+/* Scoped to this menu on purpose. A bare .dropdown-menu rule would also widen LabKey's own header
+   and admin menus, which are Bootstrap dropdowns on the same page. */
+.sprocket .dropdown-menu {min-width: 240px;}
 .boldfont {font-weight: 700;}
 </style>
 <div id="trashcan"></div>
@@ -432,9 +435,15 @@ a { text-decoration: none; }
         <% } %>
     </div>
 <% if (toolEditor) { %>
-    <div class="menuMouseArea sprocket">
-        <img src="<%= h(imgDir) %>gear.png" title="Settings" alt="Sprocket" />
-        <ul class="dropMenu">
+    <%-- Bootstrap 3 dropdown. data-toggle="dropdown" is all the wiring it needs. Bootstrap opens and
+         closes the menu, closes it on a click elsewhere or on Escape, and allows only one open at a
+         time. Right aligned because the gear floats at the right edge of the banner. --%>
+    <div class="dropdown sprocket">
+        <button type="button" id="toolSettingsMenu" class="sprocketToggle dropdown-toggle"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Settings">
+            <img src="<%= h(imgDir) %>gear.png" alt="Settings" />
+        </button>
+        <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="toolSettingsMenu">
             <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').modal('show')")%></li>
             <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').modal('show')")%></li>
 <% if (multipleVersions) { %>
@@ -588,32 +597,6 @@ a { text-decoration: none; }
         .attr("title", "Click and drag this file to delete it").tooltip();
     });
 <% } %>
-    var MENU_SLIDE_TIME = 100;
-    function initMenu(element) {
-        var myMenu = element.children(".dropMenu:first");
-        if (myMenu.children().length > 0) {
-            myMenu.menu().hide();
-            element.click(function(e) {
-                // Stop click from bubbling up to document click handler
-                e.stopPropagation();
-                // Only allow one menu open at a time
-                if ($(this).children(".dropMenu:first").is(":hidden"))
-                    closeMenus();
-                myMenu.stop().slideToggle(MENU_SLIDE_TIME);
-                myMenu.position({of: $(element).children(":first"), at: "left bottom", my: "left top"});
-            });
-        }
-    }
-
-    // Close menus on non-menu click
-    $(document).click(function() {closeMenus();});
-
-    function closeMenus() {
-        $(".dropMenu:visible").slideUp(MENU_SLIDE_TIME);
-    }
-
-    $(".menuMouseArea").each(function() {initMenu($(this));});
-
     var REPLACE_TEXT_FADE_TIME = 250;
 
     function downloadTool(toolId) {
