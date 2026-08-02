@@ -99,6 +99,8 @@
     .menuMouseArea {display: inline;}
     .sprocket {cursor: pointer; float: right;}
     .menuIconImg {width: 16px; height: 16px;}
+    /* Font glyph counterpart of .menuIconImg, sized to line up with the images beside it. */
+    .menuIcon {display: inline-block; width: 16px; font-size: 14px; color: #666;}
     .noCloseDlg .ui-dialog-titlebar-close {display: none;}
 
 </style>
@@ -271,7 +273,7 @@
         while (suppIter.hasNext()) {
             Map.Entry suppPair = (Map.Entry)suppIter.next();
 %>
-                                <li><a href="<%=h(suppPair.getKey())%>"><img class="menuIconImg" src="<%=h(suppPair.getValue())%>" alt="Supplementary file"><%= h(new File(suppPair.getKey().toString()).getName()) %></a></li>
+                                <li><a href="<%=h(suppPair.getKey())%>"><span class="<%=h(suppPair.getValue())%> menuIcon"></span><%= h(new File(suppPair.getKey().toString()).getName()) %></a></li>
 <% } %>
                             </ul>
                         </div>

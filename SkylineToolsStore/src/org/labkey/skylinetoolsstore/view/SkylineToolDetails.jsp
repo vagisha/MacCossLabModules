@@ -97,6 +97,9 @@ a { text-decoration: none; }
     border: 2px solid #dcdcdc;
 }
 #editIcon {opacity: 0.6; filter: alpha(opacity=60);}
+/* Supplementary file type icons. Font glyphs size from font-size, so the ".barItem img" rule
+   further down does not reach them. */
+.suppFileIcon {font-size: 14px; color: #666; margin-right: 5px;}
 .headerwrap {display: block; overflow: hidden;}
 .headerwrap h3 {margin: 0 !important; padding: 5px 0 0; font-weight: 500 !important;}
 .headerwrap p {margin: 0;}
@@ -387,7 +390,7 @@ a { text-decoration: none; }
 %>
     <div class="barItem suppfile">
         <a href="<%=h(suppPair.getKey())%>">
-        <img src="<%=h(suppPair.getValue())%>" alt="Supplementary file" />
+        <span class="<%=h(suppPair.getValue())%> suppFileIcon"></span>
         <span class="suppfilename"><%= h(new File(suppPair.getKey().toString()).getName()) %></span>
         </a>
     </div>
