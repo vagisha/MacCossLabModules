@@ -45,6 +45,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
@@ -355,7 +356,19 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
         assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
 
+        // deleteLatest deletes the newest version whatever row id it is posted, and refuses any row
+        // id that is not the newest, so an older version's page must not offer the item at all.
+        log("An older version's page must not offer to delete the latest");
+        beginAt(WebTestHelper.buildURL("skyts", FORMS_STORE, "details",
+                Map.of("name", FORMS_TOOL_NAME, "version", "1.0")));
+        click(Locator.tagWithId("button", "toolSettingsMenu"));
+        assertElementNotPresent("Version 1.0's page offered to delete the latest version, which " +
+                        "would delete 2.0, a version the user is not looking at",
+                Locator.linkWithText("Delete latest version"));
+
         log("Delete the newest version through the details page dialog");
+        goToProjectHome(FORMS_STORE);
+        clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
         clickSprocketMenuItem("Delete latest version");
         // The Bootstrap modal gives the button its own id, so the wrapper-scoped XPath the jQuery UI
         // version needed - several dialogs on the page, each with a hidden Ok - is no longer needed.

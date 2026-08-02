@@ -17,6 +17,8 @@
  */
 %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
+<%@ page import="org.labkey.api.data.Container" %>
+<%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
 <%@ page import="org.labkey.api.security.permissions.UpdatePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.SafeToRender"%>
@@ -34,6 +36,7 @@
 <%@ page import="java.util.Iterator" %>
 <%@ page import="java.util.List" %>
 <%@ page import="java.util.Map" %>
+<%@ page import="java.util.Objects" %>
 <%@ page import="org.labkey.api.collections.IntHashMap" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 
@@ -270,8 +273,20 @@
         if (admin)
             toolOwners.put(tool.getRowId(), StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", "));
         final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), UpdatePermission.class);
-        final SkylineTool[] allVersions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
+        final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
         final boolean multipleVersions = allVersions.length > 1;
+
+        // DeleteLatestAction deletes the newest version and refuses a row id naming any other. This
+        // list comes from getToolsLatestInSubfolders, so the row is normally that version, but two
+        // rows can carry the Latest flag at once, in which case one of them is not the newest.
+        // The action also checks Delete on the newest version's own folder rather than this row's.
+        // Sorting above is what makes allVersions[0] the newest.
+        final SkylineTool latestVersion = allVersions[0];
+        final Container latestVersionContainer = latestVersion.lookupContainer();
+        // getRowId returns an Integer, so compare values rather than references.
+        final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId())
+                && latestVersionContainer != null
+                && latestVersionContainer.hasPermission(getUser(), DeletePermission.class);
         final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 %>
 
@@ -304,7 +319,7 @@
                                 "$('#uploadSuppForm').attr('action', " +
                                 q(SkylineToolStoreUrls.getInsertSupplementUrl(tool)) + "); " +
                                 "$('#suppFormToolId').val(" + tool.getRowId() + "); $('#uploadSuppPop').modal('show')")%></li>
-<% if (multipleVersions) { %>
+<% if (multipleVersions && canDeleteLatest) { %>
                         <li><%=simpleLink("Delete latest version").onClick("delToolLatest($(this))")%></li>
 <% } %>
 <% if (admin) { %>
@@ -520,6 +535,8 @@
                         showDeleteLatestError(toolTable);
                         return;
                     }
+                    <%-- The replacement row's menu needs no wiring. Bootstrap listens on the
+                         document for data-toggle="dropdown", so a row added after page load works. --%>
                     newToolTable.hide();
                     $("#delToolLatestDlg").modal("hide");
                     toolTable.hide("explode", function() {
@@ -528,8 +545,6 @@
                             adjustContent($(newToolTable).find(".content:first"));
                         });
                     });
-                    <%-- The replacement row's menu needs no wiring. Bootstrap listens on the
-                         document for data-toggle="dropdown", so a row added after page load works. --%>
                 }).fail(function() {
                     showDeleteLatestError(toolTable);
                 });

@@ -40,6 +40,7 @@
 <%@ page import="java.util.Iterator" %>
 <%@ page import="java.util.List" %>
 <%@ page import="java.util.Map" %>
+<%@ page import="java.util.Objects" %>
 <%@ page import="static org.labkey.api.util.DOM.IMG" %>
 <%@ page import="static org.labkey.api.util.DOM.Attribute.src" %>
 <%@ page import="static org.labkey.api.util.DOM.Attribute.alt" %>
@@ -82,6 +83,17 @@
     final boolean toolEditor = admin || toolContainer.hasPermission(getUser(), InsertPermission.class);
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
+
+    // DeleteLatestAction deletes the newest version and refuses a row id naming any other, so the
+    // item belongs only on the newest version's page. It checks Delete on that version's own folder,
+    // which is not this page's folder when an older version is on screen, and owners are set one
+    // folder at a time, so the two policies can differ.
+    final SkylineTool latestVersion = allVersions[0];
+    final Container latestVersionContainer = latestVersion.lookupContainer();
+    // getRowId returns an Integer, so compare values rather than references.
+    final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId())
+            && latestVersionContainer != null
+            && latestVersionContainer.hasPermission(getUser(), DeletePermission.class);
     final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 
     ActionURL toolDetailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
@@ -446,7 +458,7 @@ a { text-decoration: none; }
         <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="toolSettingsMenu">
             <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').modal('show')")%></li>
             <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').modal('show')")%></li>
-<% if (multipleVersions) { %>
+<% if (multipleVersions && canDeleteLatest) { %>
             <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').modal('show')")%></li>
 <% } %>
 <% if (admin) { %>
