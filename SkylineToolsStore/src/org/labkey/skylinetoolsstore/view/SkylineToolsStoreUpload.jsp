@@ -19,7 +19,6 @@
 <%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreController" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
-<%@ page import="org.labkey.api.util.SafeToRender" %>
 <%@ page import="org.labkey.api.view.HttpView" %>
 <%@ page import="org.labkey.api.view.JspView" %>
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
@@ -50,7 +49,6 @@
     final boolean isNewVersion = form.getToolId() > 0;
     final String sender = form.getSender();
 
-    SafeToRender users = SkylineToolsStoreController.getUsersForAutocomplete();
 %>
 
 <labkey:errors/>
@@ -79,6 +77,11 @@
 <%= PageFlowUtil.generateBackButton() %>
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
-    autocomplete($("#toolOwners"), <%=users%>);
+<% if (!isNewVersion) { %>
+    <%-- Only the Add New Tool form has an owners field, and InsertToolAction is site admin only.
+         Publishing a new version renders no such field, so emitting every active user's address
+         here handed the whole account list to any tool owner who reached this page. --%>
+    autocomplete($("#toolOwners"), <%= SkylineToolsStoreController.getUsersForAutocomplete() %>);
+<% } %>
     initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");
 </script>

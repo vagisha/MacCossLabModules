@@ -305,6 +305,14 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertEquals("Naming a tool from another store must be refused", 404, status);
         assertFalse("A refused setOwners must not grant Editor on the named tool's folder",
                 hasEditorRole(toolFolderPath(OTHER_STORE, otherTool), OTHER_USER));
+
+        // Positive control. The 404 above would also appear if the request never reached the action,
+        // so prove the same call succeeds when it is addressed to the store that holds the tool.
+        int ownStoreStatus = setOwnersIn(OTHER_STORE, rowId(otherTool), OTHER_USER);
+        assertTrue("Addressed to its own store the same call should be accepted, got HTTP " +
+                ownStoreStatus, ownStoreStatus < 400);
+        assertTrue("Addressed to its own store setOwners should have granted Editor",
+                hasEditorRole(toolFolderPath(OTHER_STORE, otherTool), OTHER_USER));
     }
 
     /**
@@ -485,7 +493,13 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /** Addressed to the STORE folder, which is what SetOwnersAction checks its permission on. */
     private int setOwners(int toolRowId, String owner)
     {
-        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", PROJECT_NAME, "setOwners"));
+        return setOwnersIn(PROJECT_NAME, toolRowId, owner);
+    }
+
+    /** The same call with the store named, for the cross-store case. */
+    private int setOwnersIn(String storePath, int toolRowId, String owner)
+    {
+        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", storePath, "setOwners"));
         request.setEntity(MultipartEntityBuilder.create()
                 .addTextBody("toolId", String.valueOf(toolRowId))
                 .addTextBody("toolOwners", owner)
@@ -593,7 +607,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(PROJECT_NAME, afterTest);
         _containerHelper.deleteProject(OTHER_STORE, false);
         _containerHelper.deleteProject(FORMS_STORE, false);
-        _userHelper.deleteUsers(false, TOOL_AUTHOR);
+        _userHelper.deleteUsers(false, TOOL_AUTHOR, OTHER_USER);
     }
 
     @Override

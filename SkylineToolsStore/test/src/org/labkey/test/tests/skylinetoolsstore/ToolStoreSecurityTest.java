@@ -494,6 +494,17 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 _containerHelper.doesContainerExist(v2Folder));
         assertEquals("2.0 must still be the latest version",
                 "2.0", toolInCatalog(identifier).getString("Version"));
+        assertTrue("The POST must be refused, not accepted, got HTTP " + status, status >= 400);
+
+        // Positive control. Everything above would still hold if the POST never reached the action
+        // at all - a renamed action, a wrong container path, broken impersonation or CSRF - so run
+        // the same request as an admin and prove it does delete.
+        int adminStatus = postTo(PROJECT_NAME, "deleteLatest",
+                List.of(new BasicNameValuePair("toolId", String.valueOf(v1RowId))), true, true);
+        assertTrue("The same POST as an admin should be accepted, got HTTP " + adminStatus,
+                adminStatus < 400);
+        assertFalse("The admin's deleteLatest should have removed " + v2Folder,
+                _containerHelper.doesContainerExist(v2Folder));
     }
 
     /**
@@ -548,6 +559,21 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 _containerHelper.doesContainerExist(v1Folder));
         assertEquals("The tool must still be in the catalog",
                 "2.0", toolInCatalog(identifier).getString("Version"));
+        // No status assertion here. DeleteAction refuses through errors.reject, which renders an
+        // error view with a 200, so the status cannot tell a refusal from a success. The positive
+        // control below is the only thing that proves the request reached the action.
+
+        // Everything above would still hold if the POST never reached the action at all - a renamed
+        // action, a wrong container path, broken impersonation or CSRF - so run the same request as
+        // an admin and prove it does delete both versions.
+        int adminStatus = postTo(PROJECT_NAME, "delete",
+                List.of(new BasicNameValuePair("toolId", String.valueOf(v1RowId))), true, true);
+        assertTrue("The same POST as an admin should be accepted, got HTTP " + adminStatus,
+                adminStatus < 400);
+        assertFalse("The admin's delete should have removed " + v1Folder,
+                _containerHelper.doesContainerExist(v1Folder));
+        assertFalse("The admin's delete should have removed " + v2Folder,
+                _containerHelper.doesContainerExist(v2Folder));
     }
 
     // -------------------------------------------------------------------------

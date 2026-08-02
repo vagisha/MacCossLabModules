@@ -196,8 +196,11 @@
         boolean hasDocs = tool.hasDocumentation();
         int docCount = suppFiles.size() + (hasDocs ? 1 : 0);
 
-        final String curToolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
-        toolOwners.put(tool.getRowId(), curToolOwners);
+        // Only the owners dialog reads this, and only a site admin gets that dialog. Computing it
+        // for everyone walks the folder policy and looks up a user per assignment on every
+        // anonymous page load, and leaves the addresses one careless edit away from being rendered.
+        if (admin)
+            toolOwners.put(tool.getRowId(), StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", "));
         final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), UpdatePermission.class);
         final SkylineTool[] allVersions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
         final boolean multipleVersions = allVersions.length > 1;
@@ -366,23 +369,37 @@
     }
 <% } %>
 
+    // .text() and not .html() in both. attr() hands back the DECODED attribute value, so the h()
+    // that wrote data-toolName does not survive the round trip, and a tool owner can set the name.
     function delToolAll(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolAllDlg").data("toolTable", parentTable)
-                           .html("<p>Completely delete " + parentTable.attr("data-toolName") + "?</p>")
+                           .empty()
+                           .append($("<p></p>").text(
+                                   "Completely delete " + parentTable.attr("data-toolName") + "?"))
                            .dialog("open");
     }
 
     function delToolLatest(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolLatestDlg").data("toolTable", parentTable)
-                              .html("<p>Delete version " + parentTable.attr("data-toolVersion") + " of " + parentTable.attr("data-toolName") + "?</p>")
+                              .empty()
+                              .append($("<p></p>").text(
+                                      "Delete version " + parentTable.attr("data-toolVersion") +
+                                      " of " + parentTable.attr("data-toolName") + "?"))
                               .dialog("open");
     }
 
     function extractToolTable(data, lsid) {
         var parsedData = $.parseHTML(data);
         return $(parsedData).find('.tablewrap[data-toolLsid="' + lsid + '"]:first');
+    }
+
+    function showDeleteAllError(toolTable) {
+        $("#delToolAllDlg").empty().append($("<p></p>").text(
+                "An error occurred trying to delete " + toolTable.attr("data-toolName") + "."));
+        $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
+        setButtonsEnabled(true);
     }
 
     function showDeleteLatestError(toolTable) {
@@ -409,13 +426,18 @@
                 $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteAction.class))%>", {
                     "toolId": toolTable.attr("data-toolId"),
                     "X-LABKEY-CSRF": LABKEY.CSRF
-                }).done(function() {
+                }).done(function(data) {
+                    // A refused delete comes back as an error view with status 200, so .fail() does
+                    // not run. The store page always carries #uploadPop and an error view does not.
+                    // Without this the row would explode off the page with the folders still there.
+                    if ($($.parseHTML(data)).find("#uploadPop").length === 0) {
+                        showDeleteAllError(toolTable);
+                        return;
+                    }
                     $("#delToolAllDlg").dialog("close");
                     toolTable.hide("explode");
                 }).fail(function() {
-                    $("#delToolAllDlg").html("<p>An error occurred trying to delete " + toolTable.attr("data-toolName") + ".</p>");
-                    $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                    setButtonsEnabled(true);
+                    showDeleteAllError(toolTable);
                 });
             },
             Cancel: function() {$(this).dialog("close");}

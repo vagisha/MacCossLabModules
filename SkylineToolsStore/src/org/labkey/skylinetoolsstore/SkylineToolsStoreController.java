@@ -1106,26 +1106,30 @@ public class SkylineToolsStoreController extends SpringActionController
             // all before deleting any, and refuse the whole thing if one fails - a partial delete
             // would leave a hole in the version history that the caller cannot put back.
             SkylineTool[] versions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
+            List<Container> toDelete = new ArrayList<>();
             for (SkylineTool version : versions)
             {
                 Container versionContainer = version.lookupContainer();
+                // A row whose folder is already gone is not something a permission can be checked
+                // on, and refusing over it would leave the tool listed with no way to remove it.
+                // Skip it so the folders that do exist can still go.
                 if (versionContainer == null)
-                {
-                    errors.reject(ERROR_MSG, "Failed to look up tool's container: " + version.getName());
-                    return false;
-                }
+                    continue;
                 if (!versionContainer.hasPermission(getUser(), DeletePermission.class))
                 {
                     errors.reject(ERROR_MSG, "User does not have permission to delete version " +
                             version.getVersion() + " of " + version.getName() + ".");
                     return false;
                 }
+                toDelete.add(versionContainer);
             }
 
             // TODO: Should be in a transaction
-            for (SkylineTool toDelete : versions)
+            // Delete the containers resolved above rather than looking each up again. lookupContainer
+            // re-reads ContainerManager every call, so a second lookup can return a different answer.
+            for (Container versionContainer : toDelete)
             {
-                ContainerManager.delete(toDelete.lookupContainer(), getUser());
+                ContainerManager.delete(versionContainer, getUser());
             }
 
             return true;
@@ -1197,18 +1201,28 @@ public class SkylineToolsStoreController extends SpringActionController
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
 
-            // The posted row's own container is not used below, only the newest version's. This
-            // rejects a row whose folder is already gone, which would otherwise fall through to the
-            // getContainer() branch on the next line and resolve the wrong store.
             if (tool.lookupContainer() == null)
                 throw new NotFoundException("Failed to look up the tool's container: " + tool.getName());
+
+            SkylineTool[] tools = sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
+
+            // The posted row id can name any version, but this action always deletes the newest one.
+            // Every version has its own folder with its own policy, so the permission has to be
+            // checked on the folder that is about to go, not on the one the caller named.
+            //
+            // This runs before every branch below. The permission check used to be the first thing
+            // in this method, and moving it past them let an unauthorized caller reach the sender
+            // parse and the only-version message.
+            Container latestContainer = tools[0].lookupContainer();
+            if (latestContainer == null)
+                throw new NotFoundException("Failed to look up the tool's container: " + tools[0].getName());
+            if (!latestContainer.hasPermission(getUser(), DeletePermission.class))
+                throw new UnauthorizedException("User does not have permission to delete the tool.");
 
             ActionURL senderUrl = form.getSender() != null ? new ActionURL(form.getSender()) : null;
 
             // Resolve the tool store container before the tool's own container is deleted.
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
-
-            SkylineTool[] tools = sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
 
             // This action removes the newest version only, so it needs an older version to fall back to.
             if (tools.length == 1)
@@ -1217,15 +1231,6 @@ public class SkylineToolsStoreController extends SpringActionController
                         ". Use Delete to remove the tool entirely.");
                 return false;
             }
-
-            // The posted row id can name any version, but this action always deletes the newest one.
-            // Every version has its own folder with its own policy, so the permission has to be
-            // checked on the folder that is about to go, not on the one the caller named.
-            Container latestContainer = tools[0].lookupContainer();
-            if (latestContainer == null)
-                throw new NotFoundException("Failed to look up the tool's container: " + tools[0].getName());
-            if (!latestContainer.hasPermission(getUser(), DeletePermission.class))
-                throw new UnauthorizedException("User does not have permission to delete the tool.");
 
             ContainerManager.delete(latestContainer, getUser());
 
@@ -1404,6 +1409,10 @@ public class SkylineToolsStoreController extends SpringActionController
                 String fileName = form.getFile().trim();
 
                 Container toolContainer = tool.lookupContainer();
+                // A tool row can outlive its folder, and this action is anonymous, so answer 404
+                // rather than letting makeFile dereference the missing root and return a 500.
+                if (toolContainer == null)
+                    throw new NotFoundException("The folder holding " + tool.getName() + " no longer exists.");
                 File downloadFile = makeFile(toolContainer, fileName);
                 assertUnderToolRoot(toolContainer, downloadFile);
                 if (!NetworkDrive.exists(downloadFile))
@@ -1616,9 +1625,12 @@ public class SkylineToolsStoreController extends SpringActionController
             // The row id is bound from the form, so confirm the tool is one this store holds rather
             // than editing whichever tool the id happens to name.
             final SkylineTool tool = requireToolInStore(form.getToolId(), getContainer());
-            // Not null - requireToolInStore matched on getContainerParent(), which returns null
-            // whenever lookupContainer() does.
+            // Checked again rather than inferred from requireToolInStore. lookupContainer re-reads
+            // ContainerManager on every call and caches nothing, so the folder can go between the
+            // two lookups and this one can return null even though the earlier one did not.
             final Container c = tool.lookupContainer();
+            if (c == null)
+                throw new NotFoundException("Failed to look up the tool's container: " + tool.getName());
 
             ArrayList<User> newToolEditors = new ArrayList<>(toolOwnersUsers);
 
