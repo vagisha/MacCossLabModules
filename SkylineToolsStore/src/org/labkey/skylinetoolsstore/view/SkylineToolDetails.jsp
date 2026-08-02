@@ -140,7 +140,6 @@ a { text-decoration: none; }
     background-size: cover;
     z-index: 99;
 }
-.noCloseDlg .ui-dialog-titlebar-close {display: none;}
 .itemsbox {
     min-height: 60px;
     min-width: 190px;
@@ -228,80 +227,173 @@ a { text-decoration: none; }
 .dropMenu {position: absolute;}
 .menuMouseArea {display: inline;}
 .sprocket {cursor: pointer; float: right; margin: 0 0 8px 12px;}
-.noCloseDlg .ui-dialog-titlebar-close {display: none;}
 .boldfont {font-weight: 700;}
 </style>
 <div id="trashcan"></div>
-<div id="allVersionsPop" title="All versions" style="display:none;">
+<%-- Bootstrap 3 modals. The structure is fixed by LabKey's own test component,
+     components/bootstrap/ModalDialog, which finds a dialog by .modal-dialog plus .modal-title and
+     its buttons by visible text. Submits are <button> and not <input type="submit"> for the same
+     reason. The three that must not be dismissed mid-operation use a static backdrop instead of
+     jQuery UI's noCloseDlg class.
+
+     No "fade" class. ModalDialog.waitForReady waits for the body to be displayed and non-empty and
+     does not wait out a CSS transition, so a fading modal hands back a dialog whose buttons are not
+     yet clickable. Animating these was what made the jQuery UI versions flaky. --%>
+<div class="modal" id="allVersionsPop" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">All versions</h4>
+            </div>
+            <div class="modal-body">
 <%
     for (SkylineTool iVersion : allVersions) {
         boolean viewingThis = iVersion.getVersion().equals(tool.getVersion());
  %>
-    <p<% if (iVersion.getLatest()) { %> class="boldfont"<% } %>>
-        <%= h(iVersion.getPrettyCreated()) %> |
+                <p<% if (iVersion.getLatest()) { %> class="boldfont"<% } %>>
+                    <%= h(iVersion.getPrettyCreated()) %> |
 <% if (!viewingThis) { %>
-        <a href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(iVersion))%>">
+                    <a href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(iVersion))%>">
 <% } %>
-            <%= h(iVersion.getName()) %> (version <%= h(iVersion.getVersion()) %>)
+                        <%= h(iVersion.getName()) %> (version <%= h(iVersion.getVersion()) %>)
 <% if (!viewingThis) { %>
-        </a>
+                    </a>
 <% } %>
-    </p>
+                </p>
 <% } %>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
 </div>
 <!--Manage Tool Owners Form-->
 <%-- Site admin only, matching SetOwnersAction and the menu item that opens it. --%>
 <% if (admin) { %>
-<div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
-    <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
-        <p>
-            <label for="toolOwners">Tool owners </label><br />
-            <input type="text" id="toolOwners" name="toolOwners" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
-            <input type="submit" value="Update Tool Owners" />
-        </p>
-    </labkey:form>
+<div class="modal" id="manageOwnersPop" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Manage tool owners</h4>
+                </div>
+                <div class="modal-body">
+                    <label for="toolOwners">Tool owners</label>
+                    <input type="text" class="form-control" id="toolOwners" name="toolOwners" />
+                    <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
+                    <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Tool Owners</button>
+                </div>
+            </labkey:form>
+        </div>
+    </div>
 </div>
 <% } %>
 <!--Upload New Version Form-->
-<div id="uploadPop" title="Upload tool zip file" style="display:none;">
-    <labkey:form action="<%=SkylineToolStoreUrls.getUpdateToolUrl(tool)%>" enctype="multipart/form-data" method="post">
-        <p>
-            Browse to the zip file containing the tool you would like to upload.<br/><br/>
-            <input type="file" size="50" name="toolZip" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
-            <input type="submit" value="Upload Tool" />
-        </p>
-    </labkey:form>
+<div class="modal" id="uploadPop" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <labkey:form action="<%=SkylineToolStoreUrls.getUpdateToolUrl(tool)%>" enctype="multipart/form-data" method="post">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Upload tool zip file</h4>
+                </div>
+                <div class="modal-body">
+                    <p>Browse to the zip file containing the tool you would like to upload.</p>
+                    <input type="file" size="50" name="toolZip" />
+                    <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
+                    <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload Tool</button>
+                </div>
+            </labkey:form>
+        </div>
+    </div>
 </div>
 <!--Upload Supplementary File Form-->
-<div id="uploadSuppPop" title="Upload supplementary file" style="display:none;">
-    <labkey:form action="<%=SkylineToolStoreUrls.getInsertSupplementUrl(tool)%>" enctype="multipart/form-data" method="post">
-        <p>
-            Browse to the supplementary file you would like to upload.<br/><br/>
-            <input type="file" size="50" name="suppFile" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
-            <input type="submit" value="Upload Supplementary File" />
-        </p>
-    </labkey:form>
+<div class="modal" id="uploadSuppPop" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <labkey:form action="<%=SkylineToolStoreUrls.getInsertSupplementUrl(tool)%>" enctype="multipart/form-data" method="post">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Upload supplementary file</h4>
+                </div>
+                <div class="modal-body">
+                    <p>Browse to the supplementary file you would like to upload.</p>
+                    <input type="file" size="50" name="suppFile" />
+                    <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
+                    <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload Supplementary File</button>
+                </div>
+            </labkey:form>
+        </div>
+    </div>
 </div>
 <!--Delete Tool Dialog-->
-<div id="delToolAllDlg" title="Delete" style="display:none;">
-    <p>Are you sure you want to completely delete <%= h(tool.getName()) %>?</p>
+<div class="modal" id="delToolAllDlg" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Delete</h4>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to completely delete <%= h(tool.getName()) %>?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="delToolAllOk">Ok</button>
+            </div>
+        </div>
+    </div>
 </div>
 <!--Delete Tool Latest Version Dialog-->
-<div id="delToolLatestDlg" title="Delete latest version" style="display:none;">
-    <p>Are you sure you want to delete <%= h(allVersions[0].getName()) %> version <%= h(allVersions[0].getVersion()) %>?</p>
+<div class="modal" id="delToolLatestDlg" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Delete latest version</h4>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <%= h(allVersions[0].getName()) %> version <%= h(allVersions[0].getVersion()) %>?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="delToolLatestOk">Ok</button>
+            </div>
+        </div>
+    </div>
 </div>
 <!--Edit Tool Properties Dialog-->
-<div id="editToolDlg" title="Edit tool properties" style="display:none;">
-    <h3></h3>
-    <input type="text" />
-    <textarea></textarea>
-    <input id="editIconFile" type="file" />
+<div class="modal" id="editToolDlg" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Edit tool properties</h4>
+            </div>
+            <div class="modal-body">
+                <h3></h3>
+                <input type="text" class="form-control" />
+                <textarea class="form-control"></textarea>
+                <input id="editIconFile" type="file" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="editToolOk">Ok</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="headerwrap">
@@ -315,7 +407,7 @@ a { text-decoration: none; }
             <p>
                 Version <%= h(tool.getVersion()) %>
 <% if (allVersions.length > 1) { %>
-                [<%=simpleLink("View All").onClick("$('#allVersionsPop').dialog('open')")%>]
+                [<%=simpleLink("View All").onClick("$('#allVersionsPop').modal('show')")%>]
             </p>
 <% } %>
             </p>
@@ -343,13 +435,13 @@ a { text-decoration: none; }
     <div class="menuMouseArea sprocket">
         <img src="<%= h(imgDir) %>gear.png" title="Settings" alt="Sprocket" />
         <ul class="dropMenu">
-            <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').dialog('open')")%></li>
-            <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').dialog('open')")%></li>
+            <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').modal('show')")%></li>
+            <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').modal('show')")%></li>
 <% if (multipleVersions) { %>
-            <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').dialog('open')")%></li>
+            <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').modal('show')")%></li>
 <% } %>
 <% if (admin) { %>
-            <li><%=simpleLink("Delete").onClick("$('#delToolAllDlg').dialog('open')")%></li>
+            <li><%=simpleLink("Delete").onClick("$('#delToolAllDlg').modal('show')")%></li>
             <li><%=simpleLink("Manage tool owners").onClick("popToolOwners()")%></li>
 <% } %>
         </ul>
@@ -541,7 +633,7 @@ a { text-decoration: none; }
 <% if (admin) { %>
     function popToolOwners() {
         var ownersTxt = $("#toolOwners");
-        $("#manageOwnersPop").dialog("open");
+        $("#manageOwnersPop").modal("show");
         <%-- q() and not h(). See SkylineToolManageOwners.jsp. --%>
         ownersTxt.focus().val(<%= q(toolOwners) %>);
         if (ownersTxt.val())
@@ -549,60 +641,53 @@ a { text-decoration: none; }
     }
 <% } %>
 
-    var DLG_EFFECT_SHOW = "fade";
-    var DLG_EFFECT_HIDE = "fade";
-    $("#allVersionsPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#uploadPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#manageOwnersPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#uploadSuppPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#delToolAllDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
-        buttons: {
-            Ok: function() {
-                setButtonsEnabled(false);
-                // Attributes are set via .attr() rather than built into an HTML string, so a value
-                // cannot break out of the markup. Same pattern as the delete-latest dialog below.
-                var form = $('<form method="post"></form>')
-                        .attr('action', <%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>);
-                $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
-                $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=tool.getRowId()%>).appendTo(form);
-                $('body').append(form);
-                form.submit();
-            },
-            Cancel: function() {$(this).dialog("close");}
-        }
+    <%-- Bootstrap counterpart of setButtonsEnabled, which targets jQuery UI's button pane. Scoped
+         to one modal so it cannot reach another dialog on the page. --%>
+    function setModalButtonsEnabled(modal, enable) {
+        modal.find(".modal-footer button").prop("disabled", !enable);
+    }
+
+    $("#delToolAllOk").click(function() {
+        setModalButtonsEnabled($("#delToolAllDlg"), false);
+        // Attributes are set via .attr() rather than built into an HTML string, so a value
+        // cannot break out of the markup. Same pattern as the delete-latest dialog below.
+        var form = $('<form method="post"></form>')
+                .attr('action', <%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>);
+        $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
+        $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=tool.getRowId()%>).appendTo(form);
+        $('body').append(form);
+        form.submit();
     });
 
-    $("#delToolLatestDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
-        buttons: {
-            Ok: function() {
-                setButtonsEnabled(false);
-                // Submit a POST rather than navigating. DeleteLatestAction deletes a container, so it
-                // must not be reachable by GET, and the CSRF token cannot ride on a navigation.
-                // Attributes are set via .attr() rather than built into an HTML string so the sender
-                // URL cannot break out of the markup.
-                var form = $('<form method="post"></form>')
-                        .attr('action', <%=q(urlFor(SkylineToolsStoreController.DeleteLatestAction.class))%>);
-                $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
-                $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=tool.getRowId()%>).appendTo(form);
-                $('<input type="hidden">').attr('name', 'sender')
-                        .attr('value', <%=q(toolDetailsLatestUrl.getLocalURIString())%>).appendTo(form);
-                $('body').append(form);
-                form.submit();
-            },
-            Cancel: function() {$(this).dialog("close");}
-        }
+    $("#delToolLatestOk").click(function() {
+        setModalButtonsEnabled($("#delToolLatestDlg"), false);
+        // Submit a POST rather than navigating. DeleteLatestAction deletes a container, so it
+        // must not be reachable by GET, and the CSRF token cannot ride on a navigation.
+        // Attributes are set via .attr() rather than built into an HTML string so the sender
+        // URL cannot break out of the markup.
+        var form = $('<form method="post"></form>')
+                .attr('action', <%=q(urlFor(SkylineToolsStoreController.DeleteLatestAction.class))%>);
+        $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
+        $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=tool.getRowId()%>).appendTo(form);
+        $('<input type="hidden">').attr('name', 'sender')
+                .attr('value', <%=q(toolDetailsLatestUrl.getLocalURIString())%>).appendTo(form);
+        $('body').append(form);
+        form.submit();
     });
 
-    $("#editToolDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
-        buttons: {
-            Ok: function() {
-                setButtonsEnabled(false);
-                var propName = $(this).data("propName");
+    // The body is rebuilt on every open, so keep the markup the page shipped with.
+    var editDlgOriginalBody = $("#editToolDlg .modal-body").html();
+
+    $("#editToolOk").click(function() {
+                var dlg = $("#editToolDlg");
+                var body = dlg.find(".modal-body");
+                setModalButtonsEnabled(dlg, false);
+                var propName = dlg.data("propName");
                 var propValue;
                 var isIcon = (propName.toLowerCase() == "icon") ? true : false;
                 var postData;
                 if (!isIcon) {
-                    propValue = $(this).children("input:text:visible, textarea:visible").first().val().replace(/r?\n/g, "\r\n").replace(/\\*$/, "");
+                    propValue = body.children("input:text:visible, textarea:visible").first().val().replace(/r?\n/g, "\r\n").replace(/\\*$/, "");
                     postData = {
                         "toolId": <%= tool.getRowId() %>,
                         "propName": propName,
@@ -615,7 +700,7 @@ a { text-decoration: none; }
                     postData.append("propValue", document.getElementById("editIconFile").files[0]);
                 }
 
-                $(this).html("<p>Please wait...</p>");
+                body.empty().append($("<p></p>").text("Please wait..."));
                 // Raw jQuery does not attach the CSRF token the way LABKEY.Ajax does, so the header
                 // below sends it explicitly. That covers both the FormData and url-encoded cases.
                 $.ajax({
@@ -624,7 +709,7 @@ a { text-decoration: none; }
                     url: "<%=h(SkylineToolStoreUrls.getUpdatePropertyUrl(tool))%>",
                     data: postData,
                     success: function() {
-                        $("#editToolDlg").dialog("close");
+                        $("#editToolDlg").modal("hide");
                         var container = $("#editToolDlg").data("propValueContainer");
                         if (isIcon) {
                             var newImgSrc = container.attr("src") + "?" + (new Date()).getTime();
@@ -640,33 +725,41 @@ a { text-decoration: none; }
                         if (containerParent.is("a") && containerParent.attr("href") == container.text())
                             containerParent.attr("href", propValue);
                         container.parents(".toolProperty:first").fadeOut(REPLACE_TEXT_FADE_TIME, function() {
-                            var toolPropertyElement = container.closest(".toolProperty");
-                            container.html(propValue.replace(/\n/g, "<br />"));
+                            // Text nodes with real <br> between them. The value is whatever the
+                            // owner typed, so it must not be parsed as markup.
+                            container.empty();
+                            propValue.split(/\n/).forEach(function(line, i) {
+                                if (i > 0)
+                                    container.append($("<br />"));
+                                container.append(document.createTextNode(line));
+                            });
                             $(this).fadeIn(REPLACE_TEXT_FADE_TIME);
                         });
                     },
                     error: function() {
-                        $("#editToolDlg").html("<p>An error occurred trying to edit \"" + propName + "\".</p>");
-                        $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                        setButtonsEnabled(true);
+                        body.empty().append($("<p></p>").text(
+                                'An error occurred trying to edit "' + propName + '".'));
+                        $("#editToolOk").hide();
+                        setModalButtonsEnabled(dlg, true);
                     },
                     contentType: (!isIcon ? "application/x-www-form-urlencoded; charset=UTF-8" : false),
                     processData: !isIcon
                 });
-            },
-            Cancel: function() {$(this).dialog("close");}
-        },
-        close: function() {
-            $(".ui-dialog-buttonpane button:contains('Ok')").button().show();
-            setButtonsEnabled(true);
-        }
-    }).data("originalHtml", $("#editToolDlg").html())
-      .keydown(function (e) {
-          if (e.keyCode == 13 &&
-              ($(this).children("input:text:visible").length > 0 ||
-              (e.ctrlKey && $(this).children("textarea:visible").length > 0)))
-              $(this).parent().find("button:eq(1)").trigger("click");
-      });
+    });
+
+    // Put the dialog back the way it opened, whether it closed on success, Cancel or the X.
+    $("#editToolDlg").on("hidden.bs.modal", function() {
+        $("#editToolOk").show();
+        setModalButtonsEnabled($(this), true);
+    });
+
+    $("#editToolDlg").keydown(function (e) {
+        var body = $(this).find(".modal-body");
+        if (e.keyCode == 13 &&
+            (body.children("input:text:visible").length > 0 ||
+            (e.ctrlKey && body.children("textarea:visible").length > 0)))
+            $("#editToolOk").trigger("click");
+    });
 
     function editTool(sender, property) {
         var parent = sender.closest(".toolProperty");
@@ -684,13 +777,13 @@ a { text-decoration: none; }
             hideType = "input:text, textarea";
         }
 
-        $("#editToolDlg").html($("#editToolDlg").data("originalHtml"))
-                         .data("propName", propName)
-                         .data("propValueContainer", propValueContainer)
-                         .children("h3:first").text(parent.attr("title")).end()
-                         .children(hideType).hide().end()
-                         .dialog("open")
-                         .children(targetType + ":first").show().focus().val(propValueContainer.text());
+        var dlg = $("#editToolDlg").data("propName", propName)
+                                   .data("propValueContainer", propValueContainer);
+        var body = dlg.find(".modal-body").html(editDlgOriginalBody);
+        body.children("h3:first").text(parent.attr("title"));
+        body.children(hideType).hide();
+        dlg.modal("show");
+        body.children(targetType + ":first").show().focus().val(propValueContainer.text());
     }
 
     autocomplete($("#toolOwners"), <%=autocompleteUsers%>);

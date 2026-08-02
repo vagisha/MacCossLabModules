@@ -32,6 +32,7 @@ import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
+import org.labkey.test.components.bootstrap.ModalDialog;
 import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.LogMethod;
@@ -343,8 +344,13 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         log("Publish a new version through the details page dialog");
         clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
         clickSprocketMenuItem("Upload new version");
+        // The details page is on Bootstrap modals now. Wait through the component the framework
+        // provides rather than on a raw locator - the modal fades in, so the submit exists before
+        // it can be clicked. Its submit is a button, while the web part's dialog above is still
+        // jQuery UI and still an input.
+        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Upload tool zip file").waitFor();
         setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV2);
-        clickAndWait(Locator.css("#uploadPop input[type='submit']"));
+        clickAndWait(Locator.css("#uploadPop button[type='submit']"));
 
         assertEquals("The dialog should have published 2.0",
                 "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
@@ -352,13 +358,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Delete the newest version through the details page dialog");
         clickSprocketMenuItem("Delete latest version");
-        // Scoped to this dialog's own wrapper. The page holds several jQuery UI dialogs and the
-        // hidden ones have an Ok button too.
-        Locator.XPathLocator ok = Locator.xpath(
-                "//div[contains(@class,'ui-dialog')][.//div[@id='delToolLatestDlg']]" +
-                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
-        waitForElement(ok.notHidden());
-        clickAndWait(ok.notHidden());
+        // The Bootstrap modal gives the button its own id, so the wrapper-scoped XPath the jQuery UI
+        // version needed - several dialogs on the page, each with a hidden Ok - is no longer needed.
+        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Delete latest version").waitFor();
+        clickAndWait(Locator.tagWithId("button", "delToolLatestOk"));
 
         // Read the version from the catalog rather than the page - the details page carries script
         // constants that a bare text search for a version number picks up.
