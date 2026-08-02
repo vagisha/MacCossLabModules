@@ -447,6 +447,55 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 "2.0", toolInCatalog(identifier).getString("Version"));
     }
 
+    /**
+     * deleteLatest removes the NEWEST version, so the permission has to be checked on that version's
+     * folder rather than on the folder of whatever row id the post carried. Every version has its own
+     * policy, so naming an old version was enough to destroy a newer one, and there is no undo.
+     */
+    @Test
+    public void testZZDeleteLatestChecksPermissionOnTheFolderItDeletes()
+    {
+        String name = "DeleteLatestPermissionProbe";
+        String identifier = "URN:LSID:toolstore.test:deletelatestperm";
+        File v1 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "1.0");
+        File v2 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "2.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME, v1);
+
+        uploadToolOwnedBy(v1, CONTRIBUTOR);
+        int v1RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
+        String v1Folder = toolFolderPath(name, "1.0");
+        String v2Folder = toolFolderPath(name, "2.0");
+
+        uploadNewVersionTo(v1Folder, v2, v1RowId);
+        assertTrue("Publishing 2.0 should have created " + v2Folder,
+                _containerHelper.doesContainerExist(v2Folder));
+
+        // Ownership carries forward, so take it off the newest version only. That is the split.
+        _permissionsHelper.removeUserRoleAssignment(CONTRIBUTOR,
+                "org.labkey.api.security.roles.EditorRole", v2Folder);
+        assertTrue(CONTRIBUTOR + " should still hold Editor on 1.0", hasEditorRole(v1Folder, CONTRIBUTOR));
+        assertFalse(CONTRIBUTOR + " must not hold Editor on 2.0", hasEditorRole(v2Folder, CONTRIBUTOR));
+
+        int status;
+        impersonate(CONTRIBUTOR);
+        try
+        {
+            // The row id of the version they DO own. The action deletes the newest one regardless.
+            status = postTo(PROJECT_NAME, "deleteLatest",
+                    List.of(new BasicNameValuePair("toolId", String.valueOf(v1RowId))), true, true);
+        }
+        finally
+        {
+            stopImpersonating();
+        }
+
+        assertTrue("SECURITY: naming version 1.0 deleted " + v2Folder + ", which the caller held no " +
+                        "rights to (HTTP " + status + ")",
+                _containerHelper.doesContainerExist(v2Folder));
+        assertEquals("2.0 must still be the latest version",
+                "2.0", toolInCatalog(identifier).getString("Version"));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
