@@ -469,6 +469,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         uploadNewVersionTo(v1Folder, v2, v1RowId);
         assertTrue("Publishing 2.0 should have created " + v2Folder,
                 _containerHelper.doesContainerExist(v2Folder));
+        int v2RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
 
         // Ownership carries forward, so take it off the newest version only. That is the split.
         _permissionsHelper.removeUserRoleAssignment(CONTRIBUTOR,
@@ -498,12 +499,60 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
 
         // Positive control. Everything above would still hold if the POST never reached the action
         // at all - a renamed action, a wrong container path, broken impersonation or CSRF - so run
-        // the same request as an admin and prove it does delete.
+        // it as an admin and prove it does delete. The control names 2.0 rather than 1.0, because
+        // the action now refuses a row id that is not the newest no matter who posts it, so an
+        // admin naming 1.0 would prove only that the version check works.
         int adminStatus = postTo(PROJECT_NAME, "deleteLatest",
-                List.of(new BasicNameValuePair("toolId", String.valueOf(v1RowId))), true, true);
+                List.of(new BasicNameValuePair("toolId", String.valueOf(v2RowId))), true, true);
         assertTrue("The same POST as an admin should be accepted, got HTTP " + adminStatus,
                 adminStatus < 400);
         assertFalse("The admin's deleteLatest should have removed " + v2Folder,
+                _containerHelper.doesContainerExist(v2Folder));
+    }
+
+    /**
+     * deleteLatest deletes the NEWEST version whatever row id it is given, so naming an older one
+     * destroyed a version the caller was not looking at. The details page of an older version used
+     * to offer the menu item, and there is no undo.
+     */
+    @Test
+    public void testZZDeleteLatestRefusesAVersionThatIsNotTheLatest()
+    {
+        String name = "DeleteLatestStaleRowProbe";
+        String identifier = "URN:LSID:toolstore.test:deletelateststale";
+        File v1 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "1.0");
+        File v2 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "2.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME, v1);
+
+        uploadToolOwnedBy(v1, CONTRIBUTOR);
+        int v1RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
+        String v1Folder = toolFolderPath(name, "1.0");
+        String v2Folder = toolFolderPath(name, "2.0");
+
+        uploadNewVersionTo(v1Folder, v2, v1RowId);
+        assertTrue("Publishing 2.0 should have created " + v2Folder,
+                _containerHelper.doesContainerExist(v2Folder));
+        int v2RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
+
+        // Posted as a site admin, so the only thing that can refuse it is the version check. The
+        // action refuses through errors.reject, which renders 200, so the effect is what proves it.
+        int status = postTo(PROJECT_NAME, "deleteLatest",
+                List.of(new BasicNameValuePair("toolId", String.valueOf(v1RowId))), true, true);
+
+        assertTrue("Naming version 1.0 must not delete " + v2Folder + " (HTTP " + status + ")",
+                _containerHelper.doesContainerExist(v2Folder));
+        assertTrue("Naming version 1.0 must not delete " + v1Folder + " either (HTTP " + status + ")",
+                _containerHelper.doesContainerExist(v1Folder));
+        assertEquals("2.0 must still be the latest version",
+                "2.0", toolInCatalog(identifier).getString("Version"));
+
+        // Positive control. The assertions above would all hold if the POST never reached the action
+        // at all, so send the same request naming 2.0 and prove that one does delete.
+        int latestStatus = postTo(PROJECT_NAME, "deleteLatest",
+                List.of(new BasicNameValuePair("toolId", String.valueOf(v2RowId))), true, true);
+        assertTrue("Naming version 2.0 should be accepted, got HTTP " + latestStatus,
+                latestStatus < 400);
+        assertFalse("Naming version 2.0 should have removed " + v2Folder,
                 _containerHelper.doesContainerExist(v2Folder));
     }
 

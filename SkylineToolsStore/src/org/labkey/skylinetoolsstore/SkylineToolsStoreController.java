@@ -119,6 +119,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -1206,9 +1207,9 @@ public class SkylineToolsStoreController extends SpringActionController
 
             SkylineTool[] tools = sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
 
-            // The posted row id can name any version, but this action always deletes the newest one.
-            // Every version has its own folder with its own policy, so the permission has to be
-            // checked on the folder that is about to go, not on the one the caller named.
+            // This action always deletes the newest version. Every version has its own folder with
+            // its own policy, so the permission has to be checked on the folder that is about to go,
+            // not on the one the caller named.
             //
             // This runs before every branch below. The permission check used to be the first thing
             // in this method, and moving it past them let an unauthorized caller reach the sender
@@ -1218,6 +1219,17 @@ public class SkylineToolsStoreController extends SpringActionController
                 throw new NotFoundException("Failed to look up the tool's container: " + tools[0].getName());
             if (!latestContainer.hasPermission(getUser(), DeletePermission.class))
                 throw new UnauthorizedException("User does not have permission to delete the tool.");
+
+            // Refuse a row id that names any version other than the newest. The caller would be
+            // deleting a version they were not looking at. Checked after the permission above, so an
+            // unauthorized caller cannot use the message to probe which version is newest.
+            // getRowId returns an Integer, so compare values rather than references.
+            if (!Objects.equals(tool.getRowId(), tools[0].getRowId()))
+            {
+                errors.reject(ERROR_MSG, "Version " + tool.getVersion() + " of " + tool.getName() +
+                        " is not the latest version. Only the latest version can be deleted here.");
+                return false;
+            }
 
             ActionURL senderUrl = form.getSender() != null ? new ActionURL(form.getSender()) : null;
 
