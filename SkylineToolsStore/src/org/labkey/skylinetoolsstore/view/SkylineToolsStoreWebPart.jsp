@@ -101,7 +101,6 @@
     .menuIconImg {width: 16px; height: 16px;}
     /* Font glyph counterpart of .menuIconImg, sized to line up with the images beside it. */
     .menuIcon {display: inline-block; width: 16px; font-size: 14px; color: #666;}
-    .noCloseDlg .ui-dialog-titlebar-close {display: none;}
 
 </style>
 
@@ -110,69 +109,131 @@
     <button type="button" id="add-new-tool-btn" class="styled-button">Add New Tool</button>
     <% addHandler("add-new-tool-btn", "click",
             "$('#uploadForm').attr('action', " + q(SkylineToolStoreUrls.getInsertToolUrl(getContainer())) + "); " +
-            "$('#uploadPopOwners').show(); $('#uploadFormToolId').val('0'); $('#uploadPop').dialog('open')"); %>
+            "$('#uploadPopOwners').show(); $('#uploadFormToolId').val('0'); $('#uploadPop').modal('show')"); %>
 </div>
 <% } %>
 <!--Manage Tool Owners Form-->
 <%-- Site admin only, matching SetOwnersAction. Rendering it for everyone and relying on the menu
      item being hidden would put a live owners form in every visitor's page, guests included. --%>
 <% if (admin) { %>
-<div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
-    <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
-        <p>
-            <label for="toolOwnersManage">Tool owners </label><br />
-            <input type="text" id="toolOwnersManage" class="toolOwners" name="toolOwners" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
-            <%-- Set per tool when the dialog opens. Zero rather than blank, because an empty string
-                 will not bind to the form's int and would fail before the action ever runs. --%>
-            <input type="hidden" id="ownersFormToolId" name="toolId" value="0" />
-            <input type="submit" value="Update Tool Owners" />
-        </p>
-    </labkey:form>
+<div class="modal" id="manageOwnersPop" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Manage tool owners</h4>
+                </div>
+                <div class="modal-body">
+                    <label for="toolOwnersManage">Tool owners</label>
+                    <input type="text" class="form-control toolOwners" id="toolOwnersManage" name="toolOwners" />
+                    <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
+                    <%-- Set per tool when the dialog opens. Zero rather than blank, because an empty
+                         string will not bind to the form's int and would fail before the action runs. --%>
+                    <input type="hidden" id="ownersFormToolId" name="toolId" value="0" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Tool Owners</button>
+                </div>
+            </labkey:form>
+        </div>
+    </div>
 </div>
 <% } %>
 <!--Add Tool / Upload New Version Form-->
-<div id="uploadPop" title="Upload tool zip file" style="display:none;">
-    <%-- Serves both "Add New Tool" and per-tool "Upload new version", which are different actions in
-         different containers, so each handler below sets the action. Defaults to adding a new tool. --%>
-    <labkey:form id="uploadForm" action="<%=SkylineToolStoreUrls.getInsertToolUrl(getContainer())%>" enctype="multipart/form-data" method="post">
-        <p>
-            Browse to the zip file containing the tool you would like to upload.<br/><br />
-            <input type="file" name="toolZip" /><br /><br />
+<div class="modal" id="uploadPop" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <%-- Serves both "Add New Tool" and per-tool "Upload new version", which are different
+                 actions in different containers, so each handler below sets the action. Defaults to
+                 adding a new tool. --%>
+            <labkey:form id="uploadForm" action="<%=SkylineToolStoreUrls.getInsertToolUrl(getContainer())%>" enctype="multipart/form-data" method="post">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Upload tool zip file</h4>
+                </div>
+                <div class="modal-body">
+                    <p>Browse to the zip file containing the tool you would like to upload.</p>
+                    <input type="file" name="toolZip" />
 <%-- Only "Add New Tool" uses this, and that is site admin only. Publishing a new version hides it
      with script, but hiding is not removing - a hidden input still posts, so it is gated here. --%>
 <% if (admin) { %>
-            <span id="uploadPopOwners">
-                <label for="toolOwnersNew">Tool owners </label><br />
-                <input type="text" id="toolOwnersNew" class="toolOwners" name="toolOwners" /><br /><br /><br />
-            </span>
+                    <span id="uploadPopOwners">
+                        <label for="toolOwnersNew">Tool owners</label>
+                        <input type="text" class="form-control toolOwners" id="toolOwnersNew" name="toolOwners" />
+                    </span>
 <% } %>
-            <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
-            <%-- Zero for "Add New Tool", which InsertToolAction ignores. A blank value would not
-                 bind to the form's int, so the upload would fail before reaching the action. --%>
-            <input type="hidden" id="uploadFormToolId" name="toolId" value="0" />
-            <input type="submit" value="Upload Tool" />
-        </p>
-    </labkey:form>
+                    <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
+                    <%-- Zero for "Add New Tool", which InsertToolAction ignores. A blank value would
+                         not bind to the form's int, so the upload would fail before the action. --%>
+                    <input type="hidden" id="uploadFormToolId" name="toolId" value="0" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload Tool</button>
+                </div>
+            </labkey:form>
+        </div>
+    </div>
 </div>
 <!--Upload Supplementary File Form-->
-<div id="uploadSuppPop" title="Upload supplementary file" style="display:none;">
-    <%-- One dialog serves every tool, so the action is set per tool in the menu handler below.
-         insertSupplement is addressed to the tool's own container. --%>
-    <labkey:form id="uploadSuppForm" enctype="multipart/form-data" method="post">
-        <p>
-            Browse to the supplementary file you would like to upload.<br/><br/>
-            <input type="file" name="suppFile" /><br /><br />
-            <%-- Set per tool when the dialog opens. See the note on ownersFormToolId above. --%>
-            <input type="hidden" id="suppFormToolId" name="toolId" value="0" />
-            <input type="submit" value="Upload Supplementary File" />
-        </p>
-    </labkey:form>
+<div class="modal" id="uploadSuppPop" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <%-- One dialog serves every tool, so the action is set per tool in the menu handler
+                 below. insertSupplement is addressed to the tool's own container. --%>
+            <labkey:form id="uploadSuppForm" enctype="multipart/form-data" method="post">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Upload supplementary file</h4>
+                </div>
+                <div class="modal-body">
+                    <p>Browse to the supplementary file you would like to upload.</p>
+                    <input type="file" name="suppFile" />
+                    <%-- Set per tool when the dialog opens. See the note on ownersFormToolId above. --%>
+                    <input type="hidden" id="suppFormToolId" name="toolId" value="0" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload Supplementary File</button>
+                </div>
+            </labkey:form>
+        </div>
+    </div>
 </div>
+<%-- Both delete dialogs have their body written per tool when they open, so only .modal-body is
+     replaced. Emptying the whole element would take the header and footer with it. --%>
 <!-- Delete Tool Dialog -->
-<div id="delToolAllDlg" title="Delete" style="display:none;"></div>
+<div class="modal" id="delToolAllDlg" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Delete</h4>
+            </div>
+            <div class="modal-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="delToolAllOk">Ok</button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Delete Tool Latest Version Dialog -->
-<div id="delToolLatestDlg" title="Delete latest version" style="display:none;"></div>
+<div class="modal" id="delToolLatestDlg" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Delete latest version</h4>
+            </div>
+            <div class="modal-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="delToolLatestOk">Ok</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div style="float: right;">
     <label for="sort-selector">Sort by:</label>
@@ -226,11 +287,11 @@
                     <ul class="dropMenu">
                         <li><%=simpleLink("Upload new version").onClick(
                                 "$('#uploadForm').attr('action', " + q(SkylineToolStoreUrls.getUpdateToolUrl(tool)) + "); " +
-                                "$('#uploadPopOwners').hide(); $('#uploadFormToolId').val(" + tool.getRowId() + "); $('#uploadPop').dialog('open')")%></li>
+                                "$('#uploadPopOwners').hide(); $('#uploadFormToolId').val(" + tool.getRowId() + "); $('#uploadPop').modal('show')")%></li>
                         <li><%=simpleLink("Upload supplementary file").onClick(
                                 "$('#uploadSuppForm').attr('action', " +
                                 q(SkylineToolStoreUrls.getInsertSupplementUrl(tool)) + "); " +
-                                "$('#suppFormToolId').val(" + tool.getRowId() + "); $('#uploadSuppPop').dialog('open')")%></li>
+                                "$('#suppFormToolId').val(" + tool.getRowId() + "); $('#uploadSuppPop').modal('show')")%></li>
 <% if (multipleVersions) { %>
                         <li><%=simpleLink("Delete latest version").onClick("delToolLatest($(this))")%></li>
 <% } %>
@@ -362,7 +423,7 @@
 
     function popToolOwners(id) {
         $('#ownersFormToolId').val(id);
-        $('#manageOwnersPop').dialog('open');
+        $('#manageOwnersPop').modal('show');
         var ownersTxt = $("#toolOwnersManage");
         ownersTxt.focus();
         ownersTxt.val(toolOwners[id]);
@@ -376,20 +437,22 @@
     function delToolAll(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolAllDlg").data("toolTable", parentTable)
+                           .find(".modal-body")
                            .empty()
                            .append($("<p></p>").text(
-                                   "Completely delete " + parentTable.attr("data-toolName") + "?"))
-                           .dialog("open");
+                                   "Completely delete " + parentTable.attr("data-toolName") + "?"));
+        $("#delToolAllDlg").modal("show");
     }
 
     function delToolLatest(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolLatestDlg").data("toolTable", parentTable)
+                              .find(".modal-body")
                               .empty()
                               .append($("<p></p>").text(
                                       "Delete version " + parentTable.attr("data-toolVersion") +
-                                      " of " + parentTable.attr("data-toolName") + "?"))
-                              .dialog("open");
+                                      " of " + parentTable.attr("data-toolName") + "?"));
+        $("#delToolLatestDlg").modal("show");
     }
 
     function extractToolTable(data, lsid) {
@@ -397,34 +460,43 @@
         return $(parsedData).find('.tablewrap[data-toolLsid="' + lsid + '"]:first');
     }
 
+    <%-- Bootstrap counterpart of setButtonsEnabled, which targets jQuery UI's button pane. --%>
+    function setModalButtonsEnabled(modal, enable) {
+        modal.find(".modal-footer button").prop("disabled", !enable);
+    }
+
     function showDeleteAllError(toolTable) {
-        $("#delToolAllDlg").empty().append($("<p></p>").text(
+        var dlg = $("#delToolAllDlg");
+        dlg.find(".modal-body").empty().append($("<p></p>").text(
                 "An error occurred trying to delete " + toolTable.attr("data-toolName") + "."));
-        $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-        setButtonsEnabled(true);
+        $("#delToolAllOk").hide();
+        setModalButtonsEnabled(dlg, true);
     }
 
     function showDeleteLatestError(toolTable) {
-        $("#delToolLatestDlg").empty().append($("<p></p>").text(
+        var dlg = $("#delToolLatestDlg");
+        dlg.find(".modal-body").empty().append($("<p></p>").text(
                 "An error occurred trying to delete the latest version of " +
                 toolTable.attr("data-toolName") + "."));
-        $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-        setButtonsEnabled(true);
+        $("#delToolLatestOk").hide();
+        setModalButtonsEnabled(dlg, true);
     }
 
-    var DLG_EFFECT_SHOW = "fade";
-    var DLG_EFFECT_HIDE = "fade";
+    // Put each delete dialog back the way it opened, however it was closed.
+    $("#delToolAllDlg").on("hidden.bs.modal", function() {
+        $("#delToolAllOk").show();
+        setModalButtonsEnabled($(this), true);
+    });
+    $("#delToolLatestDlg").on("hidden.bs.modal", function() {
+        $("#delToolLatestOk").show();
+        setModalButtonsEnabled($(this), true);
+    });
 
-    $("#uploadPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#manageOwnersPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#uploadSuppPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-
-    $("#delToolAllDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
-        buttons: {
-            Ok: function() {
-                setButtonsEnabled(false);
-                $(this).html("<p>Please wait...</p>");
-                var toolTable = $(this).data("toolTable");
+    $("#delToolAllOk").click(function() {
+                var dlg = $("#delToolAllDlg");
+                setModalButtonsEnabled(dlg, false);
+                dlg.find(".modal-body").empty().append($("<p></p>").text("Please wait..."));
+                var toolTable = dlg.data("toolTable");
                 $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteAction.class))%>", {
                     "toolId": toolTable.attr("data-toolId"),
                     "X-LABKEY-CSRF": LABKEY.CSRF
@@ -436,26 +508,18 @@
                         showDeleteAllError(toolTable);
                         return;
                     }
-                    $("#delToolAllDlg").dialog("close");
+                    $("#delToolAllDlg").modal("hide");
                     toolTable.hide("explode");
                 }).fail(function() {
                     showDeleteAllError(toolTable);
                 });
-            },
-            Cancel: function() {$(this).dialog("close");}
-        },
-        close: function() {
-            $(".ui-dialog-buttonpane button:contains('Ok')").button().show();
-            setButtonsEnabled(true);
-        }
     });
 
-    $("#delToolLatestDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
-        buttons: {
-            Ok: function() {
-                setButtonsEnabled(false);
-                $(this).html("<p>Please wait...</p>");
-                var toolTable = $(this).data("toolTable");
+    $("#delToolLatestOk").click(function() {
+                var dlg = $("#delToolLatestDlg");
+                setModalButtonsEnabled(dlg, false);
+                dlg.find(".modal-body").empty().append($("<p></p>").text("Please wait..."));
+                var toolTable = dlg.data("toolTable");
                 $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteLatestAction.class))%>", {
                     "toolId": toolTable.attr("data-toolId"),
                     "X-LABKEY-CSRF": LABKEY.CSRF
@@ -470,7 +534,7 @@
                     }
                     newToolTable.hide();
                     newToolTable.find(".menuMouseArea").each(function() {initMenu($(this));});
-                    $("#delToolLatestDlg").dialog("close");
+                    $("#delToolLatestDlg").modal("hide");
                     toolTable.hide("explode", function() {
                         $(this).replaceWith(newToolTable);
                         $(newToolTable).show("explode", function() {
@@ -480,13 +544,6 @@
                 }).fail(function() {
                     showDeleteLatestError(toolTable);
                 });
-            },
-            Cancel: function() {$(this).dialog("close");}
-        },
-        close: function() {
-            $(".ui-dialog-buttonpane button:contains('Ok')").button().show();
-            setButtonsEnabled(true);
-        }
     });
 
     const sortTools = function(attr, desc) {

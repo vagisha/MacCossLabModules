@@ -334,8 +334,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         log("Add a tool through the web part's Add New Tool dialog");
         goToProjectHome(FORMS_STORE);
         click(Locator.id("add-new-tool-btn"));
+        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Upload tool zip file").waitFor();
         setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV1);
-        clickAndWait(Locator.css("#uploadPop input[type='submit']"));
+        clickAndWait(Locator.css("#uploadPop button[type='submit']"));
 
         goToProjectHome(FORMS_STORE);
         assertTextPresent(FORMS_TOOL_NAME);
@@ -344,10 +345,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         log("Publish a new version through the details page dialog");
         clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
         clickSprocketMenuItem("Upload new version");
-        // The details page is on Bootstrap modals now. Wait through the component the framework
-        // provides rather than on a raw locator - the modal fades in, so the submit exists before
-        // it can be clicked. Its submit is a button, while the web part's dialog above is still
-        // jQuery UI and still an input.
+        // Both pages are on Bootstrap modals. Wait through the component the framework provides
+        // rather than on a raw locator, so the dialog is driven the same way everywhere.
         new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Upload tool zip file").waitFor();
         setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV2);
         clickAndWait(Locator.css("#uploadPop button[type='submit']"));
