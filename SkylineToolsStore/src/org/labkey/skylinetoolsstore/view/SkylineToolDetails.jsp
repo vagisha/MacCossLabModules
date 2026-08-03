@@ -57,8 +57,6 @@
 
     public final HtmlString editIconImgHtml = DOM.createHtml(IMG(DOM.at(src, getWebappURL("skylinetoolsstore/img/pencil.png")).at(alt, "Pencil")));
 %>
-<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.min.css">
 
 <%
     JspView<?> me = HttpView.currentView();
@@ -114,7 +112,7 @@ a { text-decoration: none; }
 }
 /* The pencil sits in the bottom right corner of the tool logo. The logo is 100px wide with a 2px
    border each side and a 4px margin, so its far corner is 108px in, and the pencil is 16px square.
-   This replaces a jQuery UI position() call that did the same alignment at run time. */
+   Placed in CSS rather than measured and positioned at run time. */
 #editIcon {
     position: absolute;
     left: 92px;
@@ -256,12 +254,11 @@ a { text-decoration: none; }
 <%-- Bootstrap 3 modals. The structure is fixed by LabKey's own test component,
      components/bootstrap/ModalDialog, which finds a dialog by .modal-dialog plus .modal-title and
      its buttons by visible text. Submits are <button> and not <input type="submit"> for the same
-     reason. The three that must not be dismissed mid-operation use a static backdrop instead of
-     jQuery UI's noCloseDlg class.
+     reason. The three that must not be dismissed mid-operation use a static backdrop.
 
      No "fade" class. ModalDialog.waitForReady waits for the body to be displayed and non-empty and
      does not wait out a CSS transition, so a fading modal hands back a dialog whose buttons are not
-     yet clickable. Animating these was what made the jQuery UI versions flaky. --%>
+     yet clickable. Animating them is what made these dialogs flaky before. --%>
 <div class="modal" id="allVersionsPop" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -622,8 +619,7 @@ a { text-decoration: none; }
     }
 <% } %>
 
-    <%-- Bootstrap counterpart of setButtonsEnabled, which targets jQuery UI's button pane. Scoped
-         to one modal so it cannot reach another dialog on the page. --%>
+    <%-- Scoped to one modal so it cannot reach another dialog on the page. --%>
     function setModalButtonsEnabled(modal, enable) {
         modal.find(".modal-footer button").prop("disabled", !enable);
     }
@@ -768,5 +764,4 @@ a { text-decoration: none; }
     }
 
     autocomplete($("#toolOwners"), <%=autocompleteUsers%>);
-    initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");
 </script>

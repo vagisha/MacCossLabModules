@@ -68,7 +68,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OTHER_STORE = "ToolStoreWorkflowTestOtherStore";
     // Its own store so the tools this test adds cannot disturb the single-tool assertions elsewhere.
     private static final String FORMS_STORE = "ToolStoreWorkflowTestForms";
-
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
     private static File _formsToolV1;
@@ -359,6 +358,17 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(FORMS_STORE);
         assertTextPresent(FORMS_TOOL_NAME);
         assertEquals("The dialog should have added exactly one tool", 1, toolsInStore(FORMS_STORE));
+
+        // The web part draws its own gear per row, separate from the details page one, and wires
+        // each menu item to a dialog shared by every row.
+        log("A web part row's gear menu opens the dialog its item names");
+        click(Locator.tagWithClass("button", "sprocketToggle"));
+        click(Locator.linkWithText("Upload supplementary file"));
+        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Upload supplementary file").waitFor();
+        assertEquals("The dialog should be addressed to the row's tool",
+                String.valueOf(rowId(onlyToolInStore(FORMS_STORE))),
+                getFormElement(Locator.id("suppFormToolId")));
+        click(Locator.css("#uploadSuppPop .modal-footer button[data-dismiss='modal']"));
 
         log("Publish a new version through the details page dialog");
         clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));

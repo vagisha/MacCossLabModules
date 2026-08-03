@@ -18,7 +18,6 @@
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreController" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
-<%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.view.HttpView" %>
 <%@ page import="org.labkey.api.view.JspView" %>
 <%@ page import="org.labkey.api.view.template.ClientDependencies" %>
@@ -34,16 +33,12 @@
         dependencies.add("skylinetoolsstore/css/toolstore.css");
     }
 %>
-<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.min.css">
 
 <%
     JspView<SkylineToolsStoreController.ToolUploadForm> me =
             (JspView<SkylineToolsStoreController.ToolUploadForm>) HttpView.currentView();
     SkylineToolsStoreController.ToolUploadForm form = me.getModelBean();
 
-    final String contextPath = AppProps.getInstance().getContextPath();
-    final String imgDir = contextPath + "/skylinetoolsstore/img/";
 
     // Shared by both upload actions. A toolId means we are publishing a new version of that tool, so
     // the form posts to the tool's own container. Otherwise it is a brand-new tool in this folder.
@@ -84,5 +79,4 @@
          here handed the whole account list to any tool owner who reached this page. --%>
     autocomplete($("#toolOwners"), <%= SkylineToolsStoreController.getUsersForAutocomplete() %>);
 <% } %>
-    initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");
 </script>

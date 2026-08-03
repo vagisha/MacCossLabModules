@@ -49,8 +49,6 @@
         dependencies.add("skylinetoolsstore/css/toolstore.css");
     }
 %>
-<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.min.css">
 
 <%
     JspView<?> me = HttpView.currentView();
@@ -467,7 +465,6 @@
         return $(parsedData).find('.tablewrap[data-toolLsid="' + lsid + '"]:first');
     }
 
-    <%-- Bootstrap counterpart of setButtonsEnabled, which targets jQuery UI's button pane. --%>
     function setModalButtonsEnabled(modal, enable) {
         modal.find(".modal-footer button").prop("disabled", !enable);
     }
@@ -578,5 +575,4 @@
     };
     $(sortSelector).val("name-asc").change();
 
-    initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");
 </script>

@@ -32,7 +32,6 @@
 
     final String contextPath = AppProps.getInstance().getContextPath();
     final String cssDir = contextPath + "/skylinetoolsstore/css/";
-    final String imgDir = contextPath + "/skylinetoolsstore/img/";
     final String jsDir = contextPath + "/skylinetoolsstore/js/";
 
     final String toolOwners = StringUtils.trimToEmpty(form.getToolOwners());
@@ -62,10 +61,7 @@
 <%= PageFlowUtil.generateBackButton() %>
 
 <link rel="stylesheet" type="text/css" href="<%= h(cssDir) %>toolstore.css">
-<link rel="stylesheet" type="text/css" href="<%= h(cssDir) %>jquery-ui.css">
 <script type="text/javascript" src="<%= h(jsDir) %>functions.js"></script>
-<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-<script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
     var ownersTxt = $("#toolOwners");
@@ -75,5 +71,4 @@
     ownersTxt.val(<%= q(toolOwners) %>);
 
     autocomplete(ownersTxt, ${autocompleteUsers});
-    initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");
 </script>
