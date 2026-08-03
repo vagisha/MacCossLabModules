@@ -33,6 +33,8 @@ import org.labkey.test.WebTestHelper;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
 import org.labkey.test.components.bootstrap.ModalDialog;
+import org.labkey.test.components.skylinetoolsstore.SkylineToolStoreWebPart;
+import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.LogMethod;
@@ -43,6 +45,8 @@ import org.labkey.test.util.WikiHelper;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +75,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     // Deliberately does NOT contain the library's name. The folder name is part of every url on its
     // pages, including the favicon, so a folder named after the library defeats any url check.
     private static final String NO_JQUERY_UI_STORE = "ToolStoreWorkflowTestNoUiLib";
+    // A store folder per test, so one test's tools cannot disturb another's counts.
+    private static final String NO_EXTENSION_STORE = "ToolStoreWorkflowTestNoExtension";
+    private static final String OWNER_PRIVACY_STORE = "ToolStoreWorkflowTestOwnerPrivacy";
+    private static final String STALE_DELETE_STORE = "ToolStoreWorkflowTestStaleDelete";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -478,6 +486,95 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertNoJQueryUi("the manage owners page");
     }
 
+    /**
+     * Gating the owners form was not enough on its own - the addresses were still written into the
+     * page for whoever loaded it, so anyone who viewed source could read them.
+     *
+     * Tests a PR 2 fix but lives here, because it needs these page components.
+     */
+    @Test
+    public void testOwnerAddressesAreNotInThePageForOtherUsers()
+    {
+        String store = OWNER_PRIVACY_STORE;
+        String tool = "OwnerPrivacyProbe";
+        createStore(store);
+        _permissionsHelper.setSiteGroupPermissions("All Site Users", "Reader");
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:ownerprivacy",
+                        "1.0"), TOOL_AUTHOR);
+
+        impersonate(OTHER_USER);
+        try
+        {
+            goToProjectHome(store);
+            new SkylineToolStoreWebPart(getDriver()).getTool(tool).clickToolName();
+            assertFalse("SECURITY: a reader can read the tool's owners out of the page source",
+                    getDriver().getPageSource().contains(TOOL_AUTHOR));
+        }
+        finally
+        {
+            stopImpersonating();
+        }
+    }
+
+    /**
+     * A delete the server refuses used to look like one that worked.
+     *
+     * The actions render a refusal as an error view with status 200, so the browser's .fail() never
+     * runs. The handler took that for success, closed the dialog and removed the row, telling the
+     * admin the tool was gone when it was the server saying no.
+     */
+    @Test
+    public void testDeletingAToolThatIsAlreadyGoneReportsTheRefusal()
+    {
+        String store = STALE_DELETE_STORE;
+        String tool = "StaleDeleteProbe";
+        File zip = ToolStoreTestHelper.writeMinimalToolZip(tool,
+                "URN:LSID:toolstore.test:staledelete", "1.0");
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(zip, null);
+
+        goToProjectHome(store);
+        SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
+
+        // Someone else deletes it while this page sits there, which is the state the handler got wrong.
+        ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
+
+        String message = webPart.getTool(tool).clickDelete().confirmExpectingRefusal();
+        assertTrue("The dialog should report what the server said, got: " + message,
+                message.toLowerCase().contains("error"));
+    }
+
+    /**
+     * A supplementary file whose name has no extension used to throw out of the icon lookup, which
+     * took out the whole store listing for every visitor rather than just that tool's page.
+     */
+    @Test
+    public void testASupplementaryFileWithNoExtensionDoesNotBreakTheStore()
+    {
+        String store = NO_EXTENSION_STORE;
+        String tool = "NoExtensionProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:noextension",
+                        "1.0"), null);
+
+        details = details.uploadSupplementaryFile(writeFileNamed("README"));
+        assertTrue("The details page should list the file",
+                details.getSupplementaryFileNames().contains("README"));
+
+        log("The store listing still renders, which is what used to break");
+        goToProjectHome(store);
+        assertTrue("The listing must still show the tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(tool));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -512,6 +609,36 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         waitForElement(link.notHidden());
         scrollIntoView(link.notHidden());
         click(link.notHidden());
+    }
+
+    /** A store folder of its own, so one test's tools cannot disturb another's counts. */
+    private void createStore(String projectName)
+    {
+        _containerHelper.createProject(projectName, "Collaboration");
+        _containerHelper.enableModule(projectName, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+    }
+
+    /**
+     * A small file with an exact name. createTempFile always appends a suffix, and the name is the
+     * whole point when the extension is what is being tested, so this puts the file in a directory
+     * of its own instead.
+     */
+    private static File writeFileNamed(String name)
+    {
+        try
+        {
+            Path dir = Files.createTempDirectory("toolstore-supp");
+            dir.toFile().deleteOnExit();
+            Path file = dir.resolve(name);
+            Files.writeString(file, "supplementary file for the tool store tests");
+            file.toFile().deleteOnExit();
+            return file.toFile();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not write a file named " + name, e);
+        }
     }
 
     /** Number of tools the given store folder lists. */
@@ -722,6 +849,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(OTHER_STORE, false);
         _containerHelper.deleteProject(FORMS_STORE, false);
         _containerHelper.deleteProject(NO_JQUERY_UI_STORE, false);
+        _containerHelper.deleteProject(NO_EXTENSION_STORE, false);
+        _containerHelper.deleteProject(OWNER_PRIVACY_STORE, false);
+        _containerHelper.deleteProject(STALE_DELETE_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, OTHER_USER);
     }
 

@@ -505,7 +505,8 @@ public class SkylineToolsStoreController extends SpringActionController
     /** Font Awesome class for a supplementary file, chosen by extension. */
     private static String suppFileIconClass(String suppFile)
     {
-        return switch (FileUtil.getExtension(suppFile).toLowerCase())
+        // getExtension returns null for a name with no dot, and switching on null throws.
+        return switch (StringUtils.trimToEmpty(FileUtil.getExtension(suppFile)).toLowerCase())
         {
             case "pdf" -> "fa fa-file-pdf-o";
             case "zip" -> "fa fa-file-archive-o";
@@ -1977,6 +1978,18 @@ public class SkylineToolsStoreController extends SpringActionController
 
     public static class TestCase extends Assert
     {
+        @Test
+        public void testSuppFileIconClass()
+        {
+            assertEquals("fa fa-file-pdf-o", suppFileIconClass("manual.pdf"));
+            assertEquals("fa fa-file-archive-o", suppFileIconClass("sources.zip"));
+            assertEquals("fa fa-file-pdf-o", suppFileIconClass("MANUAL.PDF"));
+            assertEquals("fa fa-file-o", suppFileIconClass("notes.txt"));
+            // Supplementary files are uploaded under whatever name the owner chose, so a name with
+            // no extension has to work. Throwing here takes out the store listing for every tool.
+            assertEquals("fa fa-file-o", suppFileIconClass("README"));
+        }
+
         @Test
         public void testAssertUnderRoot() throws IOException
         {
