@@ -68,6 +68,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OTHER_STORE = "ToolStoreWorkflowTestOtherStore";
     // Its own store so the tools this test adds cannot disturb the single-tool assertions elsewhere.
     private static final String FORMS_STORE = "ToolStoreWorkflowTestForms";
+    // Deliberately does NOT contain the library's name. The folder name is part of every url on its
+    // pages, including the favicon, so a folder named after the library defeats any url check.
+    private static final String NO_JQUERY_UI_STORE = "ToolStoreWorkflowTestNoUiLib";
+
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
     private static File _formsToolV1;
@@ -440,9 +444,62 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 hasEditorRole(toolFolderPath(FORMS_STORE, afterGrantAttempt), OTHER_USER));
     }
 
+    /**
+     * The store dropped jQuery UI for Bootstrap. Nothing should pull it back, from a CDN or from the
+     * module's own webapp folder. A page that quietly reloaded it would let the converted widgets
+     * keep working by accident, so the removal would look finished when it was not.
+     */
+    @Test
+    public void testNoPageLoadsJQueryUi()
+    {
+        String store = NO_JQUERY_UI_STORE;
+        _containerHelper.createProject(store, "Collaboration");
+        _containerHelper.enableModule(store, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+
+        File zip = ToolStoreTestHelper.writeMinimalToolZip("JQueryUiProbe",
+                "URN:LSID:toolstore.test:jqueryuiprobe", "1.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
+        uploadToolTo(store, zip, -1, null);
+        JSONObject tool = onlyToolInStore(store);
+
+        // Every page that used to carry a jQuery UI tag, in the order a user meets them.
+        goToProjectHome(store);
+        assertNoJQueryUi("the store web part");
+
+        clickAndWait(Locator.linkWithText(tool.getString("Name")));
+        assertNoJQueryUi("the tool details page");
+
+        beginAt(WebTestHelper.buildURL("skyts", store, "insertTool"));
+        assertNoJQueryUi("the add a tool page");
+
+        beginAt(WebTestHelper.buildURL("skyts", store, "setOwners",
+                Map.of("toolId", String.valueOf(rowId(tool)))));
+        assertNoJQueryUi("the manage owners page");
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Fails if the page currently loaded pulls jQuery UI from anywhere.
+     *
+     * Looks at the urls of the script and stylesheet elements, and matches the library's file name
+     * rather than the string anywhere in the url. Two loose versions of this check were both wrong:
+     * searching the page source matches the tool name in an ordinary link, and matching "jqueryui"
+     * anywhere in a url matches the folder name, which is a segment of every url on the page.
+     */
+    private void assertNoJQueryUi(String pageDescription)
+    {
+        String loaded = executeScript(
+                "return Array.from(document.querySelectorAll('script[src], link[href]'))" +
+                        ".map(function(e) { return e.src || e.href; })" +
+                        ".filter(function(u) { return /jquery-?ui(\\.min)?\\.(js|css)/i.test(u); })" +
+                        ".join(', ');",
+                String.class);
+        assertEquals("jQuery UI is loaded on " + pageDescription, "", loaded);
+    }
 
     /** Opens the gear menu on the tool details page and clicks one of its items. */
     private void clickSprocketMenuItem(String item)
@@ -664,6 +721,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(PROJECT_NAME, afterTest);
         _containerHelper.deleteProject(OTHER_STORE, false);
         _containerHelper.deleteProject(FORMS_STORE, false);
+        _containerHelper.deleteProject(NO_JQUERY_UI_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, OTHER_USER);
     }
 

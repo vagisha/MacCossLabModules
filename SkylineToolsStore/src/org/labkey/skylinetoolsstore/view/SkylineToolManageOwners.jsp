@@ -18,21 +18,26 @@
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreController" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
-<%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
 <%@ page import="org.labkey.api.util.SafeToRender" %>
 <%@ page import="org.labkey.api.view.HttpView" %>
 <%@ page import="org.labkey.api.view.JspView" %>
+<%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
+<%!
+    @Override
+    public void addClientDependencies(ClientDependencies dependencies)
+    {
+        dependencies.add("internal/jQuery");
+        dependencies.add("skylinetoolsstore/js/functions.js");
+        dependencies.add("skylinetoolsstore/css/toolstore.css");
+    }
+%>
 <%
     JspView<SkylineToolsStoreController.SetOwnersForm> me =
             (JspView<SkylineToolsStoreController.SetOwnersForm>) HttpView.currentView();
     SkylineToolsStoreController.SetOwnersForm form = me.getModelBean();
-
-    final String contextPath = AppProps.getInstance().getContextPath();
-    final String cssDir = contextPath + "/skylinetoolsstore/css/";
-    final String jsDir = contextPath + "/skylinetoolsstore/js/";
 
     final String toolOwners = StringUtils.trimToEmpty(form.getToolOwners());
     final String sender = form.getSender();
@@ -59,9 +64,6 @@
 
 <br />
 <%= PageFlowUtil.generateBackButton() %>
-
-<link rel="stylesheet" type="text/css" href="<%= h(cssDir) %>toolstore.css">
-<script type="text/javascript" src="<%= h(jsDir) %>functions.js"></script>
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
     var ownersTxt = $("#toolOwners");
