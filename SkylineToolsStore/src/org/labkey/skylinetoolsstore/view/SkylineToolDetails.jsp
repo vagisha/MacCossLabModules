@@ -82,6 +82,9 @@
     // A tool owner is granted the Editor role on the tool's own folder, which carries Insert, Update
     // and Delete together, so one check covers every control in the settings menu.
     final boolean toolEditor = admin || toolContainer.hasPermission(getUser(), InsertPermission.class);
+    // DeleteSupplementAction requires Delete, and an owner's Editor role carries it. Checked
+    // separately from toolEditor so a role granting Insert but not Delete does not draw the icon.
+    final boolean canDeleteSuppFiles = toolContainer.hasPermission(getUser(), DeletePermission.class);
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
 
@@ -109,7 +112,16 @@ a { text-decoration: none; }
     margin: 4px;
     border: 2px solid #dcdcdc;
 }
-#editIcon {opacity: 0.6; filter: alpha(opacity=60);}
+/* The pencil sits in the bottom right corner of the tool logo. The logo is 100px wide with a 2px
+   border each side and a 4px margin, so its far corner is 108px in, and the pencil is 16px square.
+   This replaces a jQuery UI position() call that did the same alignment at run time. */
+#editIcon {
+    position: absolute;
+    left: 92px;
+    top: 92px;
+    opacity: 0.6;
+    filter: alpha(opacity=60);
+}
 /* Supplementary file type icons. Font glyphs size from font-size, so the ".barItem img" rule
    further down does not reach them. */
 .suppFileIcon {font-size: 14px; color: #666; margin-right: 5px;}
@@ -141,18 +153,12 @@ a { text-decoration: none; }
 #editToolDlg textarea {height: 80%; min-height: 200px;}
 #toolDescription {text-align: justify;}
 #downloadArea {margin: 15px auto 0 auto; text-align: center;}
-#trashcan {
-    position: fixed;
-    left: 0;
-    bottom: -300px;
-    margin: 0;
-    padding: 0;
-    width: 300px;
-    height: 300px;
-    background: url('<%= h(imgDir) %>trashcan.png') no-repeat center center;
-    background-size: cover;
-    z-index: 99;
+.deleteSuppFile {
+    cursor: pointer;
+    color: #999;
+    margin-left: 8px;
 }
+.deleteSuppFile:hover, .deleteSuppFile:focus {color: #cd0a0a;}
 .itemsbox {
     min-height: 60px;
     min-width: 190px;
@@ -240,12 +246,13 @@ a { text-decoration: none; }
 /* The gear opens the menu, so it is a button and can be reached by keyboard. Strip the chrome a
    button comes with so it still looks like a bare icon. */
 .sprocketToggle {background: none; border: none; padding: 0; cursor: pointer;}
+.sprocketIcon {font-size: 26px; color: #666;}
+.sprocketToggle:hover .sprocketIcon, .sprocketToggle:focus .sprocketIcon {color: #126495;}
 /* Scoped to this menu on purpose. A bare .dropdown-menu rule would also widen LabKey's own header
    and admin menus, which are Bootstrap dropdowns on the same page. */
 .sprocket .dropdown-menu {min-width: 240px;}
 .boldfont {font-weight: 700;}
 </style>
-<div id="trashcan"></div>
 <%-- Bootstrap 3 modals. The structure is fixed by LabKey's own test component,
      components/bootstrap/ModalDialog, which finds a dialog by .modal-dialog plus .modal-title and
      its buttons by visible text. Submits are <button> and not <input type="submit"> for the same
@@ -413,7 +420,8 @@ a { text-decoration: none; }
 </div>
 
 <div class="headerwrap">
-    <div style="float:left; width:351px;">
+    <%-- Positioned so the edit pencil can be placed against the logo's corner in CSS. --%>
+    <div style="float:left; width:351px; position:relative;">
         <img id="toolIcon" src="<%= h(tool.getIconUrl()) %>" class="logoWrap" alt="<%= h(tool.getName()) %>">
 <% if (toolEditor) { %>
         <%=simpleLink(editIconImgHtml).addClass("toolProperty").id("editIcon").title("Icon").onClick("editTool($(this), 'Icon')")%>
@@ -454,7 +462,8 @@ a { text-decoration: none; }
     <div class="dropdown sprocket">
         <button type="button" id="toolSettingsMenu" class="sprocketToggle dropdown-toggle"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Settings">
-            <img src="<%= h(imgDir) %>gear.png" alt="Settings" />
+            <%-- A font glyph carries no alt text, so the button's name comes from the hidden span. --%>
+            <span class="fa fa-cogs sprocketIcon" aria-hidden="true"></span><span class="visually-hidden">Settings</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="toolSettingsMenu">
             <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').modal('show')")%></li>
@@ -507,6 +516,9 @@ a { text-decoration: none; }
         <span class="<%=h(suppPair.getValue())%> suppFileIcon"></span>
         <span class="suppfilename"><%= h(new File(suppPair.getKey().toString()).getName()) %></span>
         </a>
+<% if (canDeleteSuppFiles) { %>
+        <span class="fa fa-trash deleteSuppFile" title="Delete this file" role="button" tabindex="0"></span>
+<% } %>
     </div>
 <% } %>
 </div>
@@ -559,55 +571,28 @@ a { text-decoration: none; }
 
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
-    $(function() {
-        $("#editIcon").position({my: "right bottom", at: "right bottom", of: $("#editIcon").siblings(".logoWrap:first")});
-    });
+<% if (canDeleteSuppFiles) { %>
+    $(".deleteSuppFile").on("click keypress", function(e) {
+        // The icon can be reached by keyboard, where only Enter (13) and Space (32) should delete.
+        if (e.type === "keypress" && e.which !== 13 && e.which !== 32)
+            return;
 
-<% if (toolContainer.hasPermission(getUser(), DeletePermission.class)) { %>
-    $("#trashcan").droppable({
-        accept: ".suppfile",
-        drop: function(event, ui) {
-            var offset = (ui.draggable).data("offset");
-            var targetDel = (ui.draggable).find(".suppfilename").html().trim();
-            if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?")) {
-                (ui.draggable).offset({top: offset.top, left: offset.left});
-                return;
-            }
-            $.post("<%=h(SkylineToolStoreUrls.getDeleteSupplementUrl(tool))%>", {
-                "toolId": <%= h(tool.getRowId()) %>,
-                "suppFile": targetDel,
-                "X-LABKEY-CSRF": LABKEY.CSRF
-            }).done(function() {
-                (ui.draggable).hide("explode");
-                if ($("#documentationbox").children(".suppfile:visible").length <= 1)
-                    $("#documentationbox").hide("fade");
-            }).fail(function() {
-                (ui.draggable).offset({top: offset.top, left: offset.left});
-                alert("An error occurred while trying to delete the file.");
-            });
-        }
-    });
+        var suppFileItem = $(this).closest(".suppfile");
+        var targetDel = suppFileItem.find(".suppfilename").text().trim();
+        if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?"))
+            return;
 
-    var TRASH_SLIDE_DURATION = 200;
-    $(".suppfile").each(function() {
-        $(this).draggable({
-            start: function() {
-                $(this).tooltip("disable")
-                       .data("offset", $(this).offset())
-                       .css("box-shadow", "10px 10px 5px #888888").css("padding", "8px")
-                       .css("z-index", "500")
-                       .css("border-radius", "8px").css("border", "1px solid #cccccc");
-                $("#trashcan").animate({bottom: 0}, TRASH_SLIDE_DURATION);
-            },
-            stop: function() {
-                $(this).tooltip("enable")
-                       .css("box-shadow", "").css("padding", "").css("border-radius", "")
-                       .css("border", "").css("z-index", "");
-                $("#trashcan").animate({bottom: "-300px"}, TRASH_SLIDE_DURATION)
-            },
-            revert: "invalid"
-        })
-        .attr("title", "Click and drag this file to delete it").tooltip();
+        $.post("<%=h(SkylineToolStoreUrls.getDeleteSupplementUrl(tool))%>", {
+            "toolId": <%= h(tool.getRowId()) %>,
+            "suppFile": targetDel,
+            "X-LABKEY-CSRF": LABKEY.CSRF
+        }).done(function() {
+            suppFileItem.remove();
+            if ($("#documentationbox").children(".suppfile").length === 0)
+                $("#documentationbox").hide();
+        }).fail(function() {
+            alert("An error occurred while trying to delete the file.");
+        });
     });
 <% } %>
     var REPLACE_TEXT_FADE_TIME = 250;

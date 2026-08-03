@@ -257,6 +257,23 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(PROJECT_NAME);
         assertTextPresent("test.pdf");
 
+        // Deleting a supplementary file is a trash icon on its row. It used to be a drag onto a
+        // trash can, and neither shape has ever been driven by a test.
+        log("The trash icon on the details page deletes a supplementary file");
+        clickAndWait(Locator.linkWithText(latest.getString("Name")));
+        Locator.XPathLocator suppFileRow =
+                Locator.tagWithClass("div", "suppfile").containing("test.pdf");
+        assertElementPresent(suppFileRow);
+        click(suppFileRow.append(Locator.tagWithClass("span", "deleteSuppFile")));
+        acceptAlert();
+        waitForElementToDisappear(suppFileRow);
+
+        // The row is removed by script on any 2xx, and a refused delete can still render 200, so the
+        // row going away proves nothing on its own. Reload and see whether the file is really gone.
+        refresh();
+        assertElementNotPresent(suppFileRow);
+        assertTextNotPresent("test.pdf");
+
         log("Owning one tool does not let the author add another, or reassign ownership");
         Set<String> beforeAuthorAttempts = catalogIdentifiers();
         impersonate(TOOL_AUTHOR);

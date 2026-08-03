@@ -102,6 +102,8 @@
     /* The gear opens the menu, so it is a button and can be reached by keyboard. Strip the chrome a
        button comes with so it still looks like a bare icon. */
     .sprocketToggle {background: none; border: none; padding: 0; cursor: pointer;}
+    .sprocketIcon {font-size: 26px; color: #666;}
+    .sprocketToggle:hover .sprocketIcon, .sprocketToggle:focus .sprocketIcon {color: #126495;}
     /* Scoped to these two menus on purpose. A bare .dropdown-menu rule would also widen LabKey's own
        header and admin menus, which are Bootstrap dropdowns on the same page. */
     .sprocket .dropdown-menu, .toolButtons .dropdown-menu {min-width: 240px;}
@@ -310,7 +312,8 @@
                     <button type="button" id="toolSettingsMenu<%= tool.getRowId() %>"
                             class="sprocketToggle dropdown-toggle" data-toggle="dropdown"
                             aria-haspopup="true" aria-expanded="false" title="Settings">
-                        <img src="<%= h(imgDir) %>gear.png" alt="Settings" /><span class="visually-hidden">&nbsp;<%= h(tool.getName()) %></span>
+                        <%-- A font glyph carries no alt text, so the button's name is the hidden span. --%>
+                        <span class="fa fa-cogs sprocketIcon" aria-hidden="true"></span><span class="visually-hidden">Settings <%= h(tool.getName()) %></span>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="toolSettingsMenu<%= tool.getRowId() %>">
                         <li><%=simpleLink("Upload new version").onClick(
@@ -507,13 +510,13 @@
                 }).done(function(data) {
                     // A refused delete comes back as an error view with status 200, so .fail() does
                     // not run. The store page always carries #uploadPop and an error view does not.
-                    // Without this the row would explode off the page with the folders still there.
+                    // Without this the row would leave the page with the folders still there.
                     if ($($.parseHTML(data)).find("#uploadPop").length === 0) {
                         showDeleteAllError(toolTable);
                         return;
                     }
                     $("#delToolAllDlg").modal("hide");
-                    toolTable.hide("explode");
+                    toolTable.remove();
                 }).fail(function() {
                     showDeleteAllError(toolTable);
                 });
@@ -538,14 +541,10 @@
                     }
                     <%-- The replacement row's menu needs no wiring. Bootstrap listens on the
                          document for data-toggle="dropdown", so a row added after page load works. --%>
-                    newToolTable.hide();
                     $("#delToolLatestDlg").modal("hide");
-                    toolTable.hide("explode", function() {
-                        $(this).replaceWith(newToolTable);
-                        $(newToolTable).show("explode", function() {
-                            adjustContent($(newToolTable).find(".content:first"));
-                        });
-                    });
+                    toolTable.replaceWith(newToolTable);
+                    // Runs after the row is in the document, since it measures rendered heights.
+                    adjustContent(newToolTable.find(".content:first"));
                 }).fail(function() {
                     showDeleteLatestError(toolTable);
                 });
