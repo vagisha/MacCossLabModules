@@ -356,6 +356,21 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
         assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
 
+        // The owners field completes a comma separated list from a hand written Bootstrap dropdown,
+        // so nothing else proves it filters, appends and leaves the separator the next name needs.
+        log("The owners field completes an address from its dropdown");
+        clickSprocketMenuItem("Manage tool owners");
+        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Manage tool owners").waitFor();
+        setFormElement(Locator.id("toolOwners"), "toolstore_bystander");
+        Locator.XPathLocator option = Locator.tagWithClass("ul", "autocompleteMenu")
+                .child("li").child(Locator.linkWithText(OTHER_USER));
+        waitForElement(option.notHidden());
+        click(option);
+        assertEquals("Picking from the dropdown should replace the term being typed and leave a " +
+                        "separator ready for the next address",
+                OTHER_USER + ", ", getFormElement(Locator.id("toolOwners")));
+        click(Locator.css("#manageOwnersPop .modal-footer button[data-dismiss='modal']"));
+
         // deleteLatest deletes the newest version whatever row id it is posted, and refuses any row
         // id that is not the newest, so an older version's page must not offer the item at all.
         log("An older version's page must not offer to delete the latest");

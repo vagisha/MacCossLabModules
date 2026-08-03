@@ -1,0 +1,25 @@
+/*
+ * Copyright (c) 2026 LabKey Corporation
+ *
+ * Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+/* Wrapper the owners autocomplete puts around its field, so Bootstrap has a positioned .dropdown to
+   place the menu against. Inline-block keeps the two legacy pages laid out as they were, where the
+   field carries its own width and sits inside a paragraph. */
+.autocompleteWrap {
+    display: inline-block;
+}
+
+/* Inside a modal the field is a .form-control, which is display:block at width 100%, so the wrapper
+   has to be block too or the field shrinks to nothing. */
+.modal .autocompleteWrap {
+    display: block;
+}
+
+/* A store can have many accounts, and an empty field offers all of them. Without a ceiling the menu
+   runs past the bottom of a modal, which scrolls the dialog rather than the list. */
+.autocompleteMenu {
+    max-height: 200px;
+    overflow-y: auto;
+}

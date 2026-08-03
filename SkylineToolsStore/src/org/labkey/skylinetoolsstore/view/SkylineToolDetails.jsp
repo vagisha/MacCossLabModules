@@ -52,6 +52,7 @@
     {
         dependencies.add("internal/jQuery");
         dependencies.add("skylinetoolsstore/js/functions.js");
+        dependencies.add("skylinetoolsstore/css/toolstore.css");
     }
 
     public final HtmlString editIconImgHtml = DOM.createHtml(IMG(DOM.at(src, getWebappURL("skylinetoolsstore/img/pencil.png")).at(alt, "Pencil")));

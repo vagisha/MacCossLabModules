@@ -61,6 +61,7 @@
 <br />
 <%= PageFlowUtil.generateBackButton() %>
 
+<link rel="stylesheet" type="text/css" href="<%= h(cssDir) %>toolstore.css">
 <link rel="stylesheet" type="text/css" href="<%= h(cssDir) %>jquery-ui.css">
 <script type="text/javascript" src="<%= h(jsDir) %>functions.js"></script>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>

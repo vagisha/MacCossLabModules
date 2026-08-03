@@ -31,6 +31,7 @@
     {
         dependencies.add("internal/jQuery");
         dependencies.add("skylinetoolsstore/js/functions.js");
+        dependencies.add("skylinetoolsstore/css/toolstore.css");
     }
 %>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" nonce="<%=getScriptNonce()%>"></script>
