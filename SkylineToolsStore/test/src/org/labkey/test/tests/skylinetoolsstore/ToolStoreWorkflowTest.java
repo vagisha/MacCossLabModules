@@ -32,8 +32,10 @@ import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
-import org.labkey.test.components.bootstrap.ModalDialog;
+import org.labkey.test.components.skylinetoolsstore.ManageToolOwnersDialog;
 import org.labkey.test.components.skylinetoolsstore.SkylineToolStoreWebPart;
+import org.labkey.test.components.skylinetoolsstore.SupplementaryFileDialog;
+import org.labkey.test.pages.skylinetoolsstore.ManageToolOwnersPage;
 import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
@@ -79,6 +81,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String NO_EXTENSION_STORE = "ToolStoreWorkflowTestNoExtension";
     private static final String OWNER_PRIVACY_STORE = "ToolStoreWorkflowTestOwnerPrivacy";
     private static final String STALE_DELETE_STORE = "ToolStoreWorkflowTestStaleDelete";
+    private static final String OWNER_ESCAPING_STORE = "ToolStoreWorkflowTestOwnerEscaping";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -271,18 +274,18 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         // Deleting a supplementary file is a trash icon on its row. It used to be a drag onto a
         // trash can, and neither shape has ever been driven by a test.
         log("The trash icon on the details page deletes a supplementary file");
-        clickAndWait(Locator.linkWithText(latest.getString("Name")));
-        Locator.XPathLocator suppFileRow =
-                Locator.tagWithClass("div", "suppfile").containing("test.pdf");
-        assertElementPresent(suppFileRow);
-        click(suppFileRow.append(Locator.tagWithClass("span", "deleteSuppFile")));
-        acceptAlert();
-        waitForElementToDisappear(suppFileRow);
+        SkylineToolDetailsPage detailsPage = new SkylineToolStoreWebPart(getDriver())
+                .getTool(latest.getString("Name")).clickToolName();
+        assertTrue("The details page should list the supplementary file",
+                detailsPage.getSupplementaryFileNames().contains("test.pdf"));
+        detailsPage.deleteSupplementaryFile("test.pdf");
 
         // The row is removed by script on any 2xx, and a refused delete can still render 200, so the
         // row going away proves nothing on its own. Reload and see whether the file is really gone.
         refresh();
-        assertElementNotPresent(suppFileRow);
+        assertFalse("The supplementary file should be gone after a reload",
+                new SkylineToolDetailsPage(getDriver()).getSupplementaryFileNames()
+                        .contains("test.pdf"));
         assertTextNotPresent("test.pdf");
 
         log("Owning one tool does not let the author add another, or reassign ownership");
@@ -319,10 +322,12 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         String otherName = otherTool.getString("Name");
 
         goToProjectHome(OTHER_STORE);
-        assertTextPresent(otherName);
+        assertTrue("The other store should list its own tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(otherName));
 
         goToProjectHome(PROJECT_NAME);
-        assertTextNotPresent(otherName);
+        assertFalse("This store must not list another store's tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(otherName));
 
         // The catalog is global, so the other store's tool is still there for Skyline.
         assertTrue("getToolsApi must keep returning tools from every container",
@@ -362,34 +367,26 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Add a tool through the web part's Add New Tool dialog");
         goToProjectHome(FORMS_STORE);
-        click(Locator.id("add-new-tool-btn"));
-        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Upload tool zip file").waitFor();
-        setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV1);
-        clickAndWait(Locator.css("#uploadPop button[type='submit']"));
+        new SkylineToolStoreWebPart(getDriver()).addTool(_formsToolV1, null);
 
         goToProjectHome(FORMS_STORE);
-        assertTextPresent(FORMS_TOOL_NAME);
+        assertTrue("The dialog should have added the tool to the listing",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(FORMS_TOOL_NAME));
         assertEquals("The dialog should have added exactly one tool", 1, toolsInStore(FORMS_STORE));
 
         // The web part draws its own gear per row, separate from the details page one, and wires
         // each menu item to a dialog shared by every row.
         log("A web part row's gear menu opens the dialog its item names");
-        click(Locator.tagWithClass("button", "sprocketToggle"));
-        click(Locator.linkWithText("Upload supplementary file"));
-        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Upload supplementary file").waitFor();
+        SupplementaryFileDialog suppDialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(FORMS_TOOL_NAME).clickUploadSupplementaryFile();
         assertEquals("The dialog should be addressed to the row's tool",
-                String.valueOf(rowId(onlyToolInStore(FORMS_STORE))),
-                getFormElement(Locator.id("suppFormToolId")));
-        click(Locator.css("#uploadSuppPop .modal-footer button[data-dismiss='modal']"));
+                String.valueOf(rowId(onlyToolInStore(FORMS_STORE))), suppDialog.getToolId());
+        suppDialog.dismiss("Cancel");
 
         log("Publish a new version through the details page dialog");
-        clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
-        clickSprocketMenuItem("Upload new version");
-        // Both pages are on Bootstrap modals. Wait through the component the framework provides
-        // rather than on a raw locator, so the dialog is driven the same way everywhere.
-        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Upload tool zip file").waitFor();
-        setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV2);
-        clickAndWait(Locator.css("#uploadPop button[type='submit']"));
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
+                .getTool(FORMS_TOOL_NAME).clickToolName();
+        details = details.uploadNewVersion(_formsToolV2);
 
         assertEquals("The dialog should have published 2.0",
                 "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
@@ -398,36 +395,27 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         // The owners field completes a comma separated list from a hand written Bootstrap dropdown,
         // so nothing else proves it filters, appends and leaves the separator the next name needs.
         log("The owners field completes an address from its dropdown");
-        clickSprocketMenuItem("Manage tool owners");
-        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Manage tool owners").waitFor();
-        setFormElement(Locator.id("toolOwners"), "toolstore_bystander");
-        Locator.XPathLocator option = Locator.tagWithClass("ul", "autocompleteMenu")
-                .child("li").child(Locator.linkWithText(OTHER_USER));
-        waitForElement(option.notHidden());
-        click(option);
+        ManageToolOwnersDialog ownersDialog = details.clickManageToolOwners()
+                .typeOwner("toolstore_bystander")
+                .clickTypeAheadOption(OTHER_USER);
         assertEquals("Picking from the dropdown should replace the term being typed and leave a " +
                         "separator ready for the next address",
-                OTHER_USER + ", ", getFormElement(Locator.id("toolOwners")));
-        click(Locator.css("#manageOwnersPop .modal-footer button[data-dismiss='modal']"));
+                OTHER_USER + ", ", ownersDialog.getOwners());
+        ownersDialog.dismiss("Cancel");
 
         // deleteLatest deletes the newest version whatever row id it is posted, and refuses any row
         // id that is not the newest, so an older version's page must not offer the item at all.
         log("An older version's page must not offer to delete the latest");
         beginAt(WebTestHelper.buildURL("skyts", FORMS_STORE, "details",
                 Map.of("name", FORMS_TOOL_NAME, "version", "1.0")));
-        click(Locator.tagWithId("button", "toolSettingsMenu"));
-        assertElementNotPresent("Version 1.0's page offered to delete the latest version, which " +
-                        "would delete 2.0, a version the user is not looking at",
-                Locator.linkWithText("Delete latest version"));
+        assertFalse("Version 1.0's page offered to delete the latest version, which would delete " +
+                        "2.0, a version the user is not looking at",
+                new SkylineToolDetailsPage(getDriver()).hasMenuItem("Delete latest version"));
 
         log("Delete the newest version through the details page dialog");
         goToProjectHome(FORMS_STORE);
-        clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
-        clickSprocketMenuItem("Delete latest version");
-        // The Bootstrap modal gives the button its own id, so the wrapper-scoped XPath the jQuery UI
-        // version needed - several dialogs on the page, each with a hidden Ok - is no longer needed.
-        new ModalDialog.ModalDialogFinder(getDriver()).withTitle("Delete latest version").waitFor();
-        clickAndWait(Locator.tagWithId("button", "delToolLatestOk"));
+        new SkylineToolStoreWebPart(getDriver()).getTool(FORMS_TOOL_NAME).clickToolName()
+                .clickDeleteLatestVersion().confirmExpectingPageLoad();
 
         // Read the version from the catalog rather than the page - the details page carries script
         // constants that a bare text search for a version number picks up.
@@ -475,7 +463,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(store);
         assertNoJQueryUi("the store web part");
 
-        clickAndWait(Locator.linkWithText(tool.getString("Name")));
+        new SkylineToolStoreWebPart(getDriver()).getTool(tool.getString("Name")).clickToolName();
         assertNoJQueryUi("the tool details page");
 
         beginAt(WebTestHelper.buildURL("skyts", store, "insertTool"));
@@ -550,6 +538,41 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
+     * The owners box is prefilled from a script, so the value has to be escaped for JavaScript.
+     * Escaping it as HTML put the entities themselves in the box, and an admin correcting one bad
+     * address had to retype the whole list.
+     *
+     * This is also the only test that reaches the standalone page SetOwnersAction reshows on a
+     * refusal. It was dropped from this branch as a flake, and revived once both suspected causes
+     * were gone: the dialog no longer waits on an animated jQuery UI widget, and the page it lands
+     * on had its script blocked by the content security policy until the client dependencies fix.
+     */
+    @Test
+    public void testARefusedOwnerListComesBackUnchanged()
+    {
+        String store = OWNER_ESCAPING_STORE;
+        String tool = "OwnerEscapingProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool,
+                        "URN:LSID:toolstore.test:ownerescaping", "1.0"), null);
+
+        goToProjectHome(store);
+        String submitted = "a&b@toolstore.test";
+        ManageToolOwnersPage reshow = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners()
+                .setOwners(submitted)
+                .clickUpdateExpectingError();
+
+        assertTrue("An unknown address should be reported, got: " + reshow.getError(),
+                reshow.getError().contains("unknown"));
+        assertEquals("The address must come back exactly as it was typed",
+                submitted, reshow.getOwners());
+    }
+
+    /**
      * A supplementary file whose name has no extension used to throw out of the icon lookup, which
      * took out the whole store listing for every visitor rather than just that tool's page.
      */
@@ -596,19 +619,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                         ".join(', ');",
                 String.class);
         assertEquals("jQuery UI is loaded on " + pageDescription, "", loaded);
-    }
-
-    /** Opens the gear menu on the tool details page and clicks one of its items. */
-    private void clickSprocketMenuItem(String item)
-    {
-        click(Locator.tagWithId("button", "toolSettingsMenu"));
-
-        // The menu opens with no animation, but once a tool has more than one version it is long
-        // enough to run past the bottom of the window, so the item still has to be scrolled to.
-        Locator.XPathLocator link = Locator.linkWithText(item);
-        waitForElement(link.notHidden());
-        scrollIntoView(link.notHidden());
-        click(link.notHidden());
     }
 
     /** A store folder of its own, so one test's tools cannot disturb another's counts. */
@@ -852,6 +862,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(NO_EXTENSION_STORE, false);
         _containerHelper.deleteProject(OWNER_PRIVACY_STORE, false);
         _containerHelper.deleteProject(STALE_DELETE_STORE, false);
+        _containerHelper.deleteProject(OWNER_ESCAPING_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, OTHER_USER);
     }
 

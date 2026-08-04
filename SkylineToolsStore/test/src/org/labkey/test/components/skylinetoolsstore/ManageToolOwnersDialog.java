@@ -54,6 +54,28 @@ public class ManageToolOwnersDialog extends ModalDialog
         return this;
     }
 
+    /**
+     * Types a partial address and leaves the type-ahead open, which is what setOwners closes.
+     * Use this to drive the menu itself rather than to fill the field.
+     */
+    public ManageToolOwnersDialog typeOwner(String term)
+    {
+        getWrapper().setFormElement(ownersField(), term);
+        return this;
+    }
+
+    /**
+     * Picks an address the type-ahead is offering. The menu is drawn hidden until it has something
+     * to show, so this waits for the option to be visible rather than merely present.
+     */
+    public ManageToolOwnersDialog clickTypeAheadOption(String address)
+    {
+        Locator.XPathLocator option = typeAheadOption(address).notHidden();
+        getWrapper().waitForElement(option);
+        getWrapper().click(option);
+        return this;
+    }
+
     /** The type-ahead offers every address on an empty field, so it opens on focus as well. */
     public boolean isTypeAheadShowing()
     {
@@ -87,6 +109,14 @@ public class ManageToolOwnersDialog extends ModalDialog
     private Locator.CssLocator ownersField()
     {
         return Locator.css("#" + DIALOG_ID + " [name='toolOwners']");
+    }
+
+    /** Scoped to this dialog, since the add a tool page carries a type-ahead of its own. */
+    private Locator.XPathLocator typeAheadOption(String address)
+    {
+        return Locator.id(DIALOG_ID)
+                .append(Locator.tagWithClass("ul", "autocompleteMenu"))
+                .child("li").child(Locator.linkWithText(address));
     }
 
     private Locator.CssLocator submitButton()

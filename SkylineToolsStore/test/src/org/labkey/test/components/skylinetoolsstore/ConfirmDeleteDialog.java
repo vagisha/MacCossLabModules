@@ -28,9 +28,13 @@ import org.openqa.selenium.WebElement;
  * a title by substring, and "Delete" is a substring of "Delete latest version", so a title lookup
  * can return either one.
  *
- * Both post over ajax and rewrite their own body, so a refusal leaves the dialog open with the
- * message in it. Neither can be dismissed while the post is in flight - they use a static backdrop
- * and their footer buttons are disabled for the duration.
+ * The same two dialogs behave differently on the two pages. On the store listing they post over
+ * ajax and rewrite their own body, so a refusal leaves the dialog open with the message in it. On
+ * the details page the handler builds a form and submits it, so a confirm navigates. Hence the two
+ * confirm methods.
+ *
+ * Neither dialog can be dismissed while the post is in flight - they use a static backdrop and
+ * their footer buttons are disabled for the duration.
  */
 public class ConfirmDeleteDialog extends ModalDialog
 {
@@ -79,11 +83,24 @@ public class ConfirmDeleteDialog extends ModalDialog
         return getBodyText();
     }
 
-    /** Waits for the dialog to close, which is what says the delete was accepted. */
+    /**
+     * Confirms a delete on the store listing, where the post is ajax and the dialog closes itself.
+     * On the details page use confirmExpectingPageLoad instead.
+     */
     public void confirm()
     {
         getWrapper().click(okButton());
         WebDriverWrapper.waitFor(() -> !isOpen(), "The delete dialog stayed open", 10_000);
+    }
+
+    /**
+     * Confirms a delete on the details page, where the handler builds a form and submits it, so the
+     * browser leaves the page rather than the dialog closing. Waiting for the dialog to go would
+     * pass the moment navigation started, before the delete had happened.
+     */
+    public void confirmExpectingPageLoad()
+    {
+        getWrapper().clickAndWait(okButton());
     }
 
     /**
