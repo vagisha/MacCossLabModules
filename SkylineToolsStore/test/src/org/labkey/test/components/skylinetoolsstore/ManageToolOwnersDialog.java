@@ -111,7 +111,7 @@ public class ManageToolOwnersDialog extends ModalDialog
         return dialog != null && dialog.isDisplayed();
     }
 
-    /** The type-ahead offers every address on an empty field, so it opens on focus as well. */
+    /** Opens on typing, and on the Down arrow. Focusing the field alone does not open it. */
     public boolean isTypeAheadShowing()
     {
         WebElement menu = Locator.css("#" + DIALOG_ID + " ul.autocompleteMenu")

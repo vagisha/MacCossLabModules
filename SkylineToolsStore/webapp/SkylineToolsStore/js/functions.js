@@ -106,7 +106,10 @@ function autocomplete(txtbox, tags) {
         choose($(this).text());
     });
 
-    input.on("input focus", render);
+    // Typing only. Rendering on focus as well dropped the whole list open the moment a dialog
+    // focused the field, and reopened it right after a name was picked, since choose() refocuses.
+    // The Down arrow still opens it on demand.
+    input.on("input", render);
 
     input.on("keydown", function(e) {
         var items = menu.children();
