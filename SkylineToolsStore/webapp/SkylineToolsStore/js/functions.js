@@ -62,8 +62,21 @@ function autocomplete(txtbox, tags) {
             input.removeAttr("aria-activedescendant");
             return;
         }
-        input.attr("aria-activedescendant",
-                items.eq(activeIndex).addClass("active").children("a").attr("id"));
+        var item = items.eq(activeIndex).addClass("active");
+        input.attr("aria-activedescendant", item.children("a").attr("id"));
+        scrollIntoMenu(item[0]);
+    }
+
+    // The menu scrolls once it passes its capped height, so the highlight has to be brought into
+    // the menu's own box. scrollIntoView would move the page instead.
+    function scrollIntoMenu(item) {
+        var box = menu[0];
+        var top = item.offsetTop;
+        var bottom = top + item.offsetHeight;
+        if (top < box.scrollTop)
+            box.scrollTop = top;
+        else if (bottom > box.scrollTop + box.clientHeight)
+            box.scrollTop = bottom - box.clientHeight;
     }
 
     function render() {
@@ -79,7 +92,9 @@ function autocomplete(txtbox, tags) {
             return;
         }
         matches.forEach(function(value, i) {
-            $("<li></li>").append(
+            // The li is presentational, so the option counts as a direct child of the listbox for
+            // a screen reader. Bootstrap's dropdown-menu styling needs the li to stay in the markup.
+            $('<li role="presentation"></li>').append(
                     $('<a href="#" role="option"></a>').attr("id", menuId + "-" + i).text(value)
             ).appendTo(menu);
         });

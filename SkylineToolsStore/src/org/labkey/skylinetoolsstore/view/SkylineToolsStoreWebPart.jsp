@@ -127,7 +127,7 @@
 <%-- Site admin only, matching SetOwnersAction. Rendering it for everyone and relying on the menu
      item being hidden would put a live owners form in every visitor's page, guests included. --%>
 <% if (admin) { %>
-<div class="modal" id="manageOwnersPop" tabindex="-1" role="dialog">
+<div class="modal" id="manageOwnersPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
@@ -153,7 +153,7 @@
 </div>
 <% } %>
 <!--Add Tool / Upload New Version Form-->
-<div class="modal" id="uploadPop" tabindex="-1" role="dialog">
+<div class="modal" id="uploadPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <%-- Serves both "Add New Tool" and per-tool "Upload new version", which are different
@@ -189,7 +189,7 @@
     </div>
 </div>
 <!--Upload Supplementary File Form-->
-<div class="modal" id="uploadSuppPop" tabindex="-1" role="dialog">
+<div class="modal" id="uploadSuppPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <%-- One dialog serves every tool, so the action is set per tool in the menu handler
@@ -538,8 +538,11 @@
                         showDeleteLatestError(toolTable);
                         return;
                     }
-                    <%-- The replacement row's menu needs no wiring. Bootstrap listens on the
-                         document for data-toggle="dropdown", so a row added after page load works. --%>
+                    <%-- The replacement row's menu opens, because Bootstrap listens on the document
+                         for data-toggle="dropdown". Its items do not work until the page is
+                         reloaded. They are bound by id through page.addHandler, which the template
+                         emits as a page-level script, and only the table is taken from the response.
+                         Long-standing, not introduced by the Bootstrap conversion. --%>
                     $("#delToolLatestDlg").modal("hide");
                     toolTable.replaceWith(newToolTable);
                     // Runs after the row is in the document, since it measures rendered heights.

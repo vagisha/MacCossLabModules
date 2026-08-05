@@ -296,7 +296,7 @@ a { text-decoration: none; }
 <!--Manage Tool Owners Form-->
 <%-- Site admin only, matching SetOwnersAction and the menu item that opens it. --%>
 <% if (admin) { %>
-<div class="modal" id="manageOwnersPop" tabindex="-1" role="dialog">
+<div class="modal" id="manageOwnersPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
@@ -320,7 +320,7 @@ a { text-decoration: none; }
 </div>
 <% } %>
 <!--Upload New Version Form-->
-<div class="modal" id="uploadPop" tabindex="-1" role="dialog">
+<div class="modal" id="uploadPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <labkey:form action="<%=SkylineToolStoreUrls.getUpdateToolUrl(tool)%>" enctype="multipart/form-data" method="post">
@@ -343,7 +343,7 @@ a { text-decoration: none; }
     </div>
 </div>
 <!--Upload Supplementary File Form-->
-<div class="modal" id="uploadSuppPop" tabindex="-1" role="dialog">
+<div class="modal" id="uploadSuppPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <labkey:form action="<%=SkylineToolStoreUrls.getInsertSupplementUrl(tool)%>" enctype="multipart/form-data" method="post">
@@ -573,10 +573,15 @@ a { text-decoration: none; }
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
 <% if (canDeleteSuppFiles) { %>
-    $(".deleteSuppFile").on("click keypress", function(e) {
+    $(".deleteSuppFile").on("click keydown", function(e) {
         // The icon can be reached by keyboard, where only Enter (13) and Space (32) should delete.
-        if (e.type === "keypress" && e.which !== 13 && e.which !== 32)
-            return;
+        // keydown rather than keypress, which is deprecated, and Space has to be stopped or the
+        // page scrolls behind the confirm.
+        if (e.type === "keydown") {
+            if (e.which !== 13 && e.which !== 32)
+                return;
+            e.preventDefault();
+        }
 
         var suppFileItem = $(this).closest(".suppfile");
         var targetDel = suppFileItem.find(".suppfilename").text().trim();
