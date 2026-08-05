@@ -392,6 +392,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         assertEquals("The dialog should have published 2.0",
                 "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
+        assertEquals("The details page should show the version it just published",
+                "2.0", details.getVersion());
         assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
 
         // The owners field completes a comma separated list from a hand written Bootstrap dropdown,

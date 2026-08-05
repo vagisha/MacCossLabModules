@@ -27,6 +27,8 @@ import org.openqa.selenium.WebElement;
 
 import java.io.File;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -54,10 +56,14 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
         return getText(Locators.toolName);
     }
 
-    /** The banner reads "Version: 1.0 | Downloads: 3", so the number is pulled out of it. */
+    /** The line reads "Version 1.0", followed by a View All link when the tool has more than one. */
     public String getVersion()
     {
-        return valueFromBanner("Version");
+        String line = getText(Locators.versionLine);
+        Matcher version = Pattern.compile("Version\\s+(\\S+)").matcher(line);
+        if (!version.find())
+            throw new AssertionError("No version in the details header: " + line);
+        return version.group(1);
     }
 
     public int getDownloadCount()
@@ -202,18 +208,6 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
         return cls != null && cls.contains("open");
     }
 
-    private String valueFromBanner(String label)
-    {
-        String banner = getText(Locators.versionLine);
-        for (String part : banner.split("\\|"))
-        {
-            String[] pair = part.split(":", 2);
-            if (pair.length == 2 && pair[0].trim().equals(label))
-                return pair[1].trim();
-        }
-        throw new AssertionError("No '" + label + "' in the details banner: " + banner);
-    }
-
     @Override
     protected ElementCache newElementCache()
     {
@@ -227,7 +221,9 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
     private static abstract class Locators
     {
         static final Locator.XPathLocator toolName = Locator.tagWithClass("div", "block").child("h2");
-        static final Locator.XPathLocator versionLine = Locator.tagWithClass("div", "block").child("h3");
+        // The first paragraph of the header block. The ones after it are the upload date and, on
+        // an older version, a link to the latest.
+        static final Locator.XPathLocator versionLine = Locator.tagWithClass("div", "block").child("p");
         static final Locator.IdLocator downloadCount = Locator.id("downloadcounter");
         static final Locator.XPathLocator documentationBox = Locator.id("documentationbox");
         static final Locator.XPathLocator supplementaryFileName =
