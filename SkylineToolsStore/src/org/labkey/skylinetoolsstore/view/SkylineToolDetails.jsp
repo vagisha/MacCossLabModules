@@ -41,9 +41,7 @@
 <%@ page import="java.util.List" %>
 <%@ page import="java.util.Map" %>
 <%@ page import="java.util.Objects" %>
-<%@ page import="static org.labkey.api.util.DOM.IMG" %>
-<%@ page import="static org.labkey.api.util.DOM.Attribute.src" %>
-<%@ page import="static org.labkey.api.util.DOM.Attribute.alt" %>
+<%@ page import="static org.labkey.api.util.DOM.SPAN" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 
 <%!
@@ -55,7 +53,10 @@
         dependencies.add("skylinetoolsstore/css/toolstore.css");
     }
 
-    public final HtmlString editIconImgHtml = DOM.createHtml(IMG(DOM.at(src, getWebappURL("skylinetoolsstore/img/pencil.png")).at(alt, "Pencil")));
+    // A font glyph carries no alt text, so the link's name comes from the hidden span beside it.
+    public final HtmlString editIconImgHtml = DOM.createHtmlFragment(
+            SPAN(DOM.cl("fa", "fa-pencil", "editPencil").at(DOM.Attribute.aria_hidden, "true")),
+            SPAN(DOM.cl("visually-hidden"), "Edit"));
 %>
 
 <%
@@ -111,8 +112,8 @@ a { text-decoration: none; }
     border: 2px solid #dcdcdc;
 }
 /* The pencil sits in the bottom right corner of the tool logo. The logo is 100px wide with a 2px
-   border each side and a 4px margin, so its far corner is 108px in, and the pencil is 16px square.
-   Placed in CSS rather than measured and positioned at run time. */
+   border each side and a 4px margin, so its far corner is 108px in, and the glyph is about 16px
+   across at this size. Placed in CSS rather than measured and positioned at run time. */
 #editIcon {
     position: absolute;
     left: 92px;
@@ -120,6 +121,9 @@ a { text-decoration: none; }
     opacity: 0.6;
     filter: alpha(opacity=60);
 }
+/* Edit pencils. A font glyph sizes from font-size, so the ".barItem img" rule further down and the
+   old image dimensions do not reach it. */
+.editPencil {font-size: 14px; color: #666;}
 /* Supplementary file type icons. Font glyphs size from font-size, so the ".barItem img" rule
    further down does not reach them. */
 .suppFileIcon {font-size: 14px; color: #666; margin-right: 5px;}

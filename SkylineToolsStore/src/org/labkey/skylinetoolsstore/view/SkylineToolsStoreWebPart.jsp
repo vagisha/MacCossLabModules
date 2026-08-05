@@ -96,7 +96,9 @@
     a.styled-button{text-decoration:none; color:#fff;}
     a.styled-button:visited{color:#fff;}
     .toolOwners {width: 80%; min-width: 300px;}
-    .sprocket {float: right;}
+    /* Kept off the row's top and right edges. The glyph is larger than the image it replaced and
+       sat hard against the corner without this. */
+    .sprocket {float: right; margin: 4px 6px 0 0;}
     /* The gear opens the menu, so it is a button and can be reached by keyboard. Strip the chrome a
        button comes with so it still looks like a bare icon. */
     .sprocketToggle {background: none; border: none; padding: 0; cursor: pointer;}
