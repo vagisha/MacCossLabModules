@@ -62,7 +62,7 @@
         <input type="hidden" name="toolId" value="<%= form.getToolId() %>" />
 <% } else { %>
         <label for="toolOwners">Tool owners </label><br />
-        <input style="width: 400px; max-width: 80%;" type="text" id="toolOwners" name="toolOwners" value="<%= h(StringUtils.trimToEmpty(form.getToolOwners())) %>" /><br /><br />
+        <input style="width: 400px; max-width: 100%;" type="text" id="toolOwners" name="toolOwners" value="<%= h(StringUtils.trimToEmpty(form.getToolOwners())) %>" /><br /><br />
         <br />
 <% } %>
         <input type="submit" value="Upload Tool" />

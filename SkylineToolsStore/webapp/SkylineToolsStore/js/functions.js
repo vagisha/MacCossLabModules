@@ -25,8 +25,13 @@ function autocomplete(txtbox, tags) {
     // Bootstrap places .dropdown-menu against the nearest positioned .dropdown, so the field is
     // wrapped in one. A span rather than a div, because two of these fields sit inside a paragraph.
     var wrap = $('<span class="dropdown autocompleteWrap"></span>');
+    // Moving the field into the wrapper detaches it, which drops any focus already on it. The
+    // manage owners dialog focuses the field before this runs, so put it back.
+    var hadFocus = input.is(":focus");
     input.after(wrap);
     wrap.append(input);
+    if (hadFocus)
+        input.trigger("focus");
     var menu = $('<ul class="dropdown-menu autocompleteMenu" role="listbox"></ul>').attr("id", menuId);
     wrap.append(menu);
 
@@ -153,8 +158,12 @@ function autocomplete(txtbox, tags) {
                 e.preventDefault();
                 if (!isOpen()) {
                     render();
-                    break;
+                    // Nothing matched, so there is nothing to move through.
+                    if (!isOpen())
+                        break;
                 }
+                // From -1 this lands on the first entry going down and the last going up, so the
+                // key that opened the menu also highlights something.
                 activeIndex += (e.keyCode === 40 ? 1 : -1);
                 if (activeIndex >= items.length)
                     activeIndex = 0;
@@ -173,11 +182,19 @@ function autocomplete(txtbox, tags) {
     });
 
     // Bootstrap's clearMenus only closes menus whose toggle carries data-toggle="dropdown". This
-    // menu opens from typing and has no toggle, so it needs its own outside click handler.
-    $(document).on("click", function(e) {
-        if (wrap[0] !== e.target && !$.contains(wrap[0], e.target))
-            close();
-    });
+    // menu opens from typing and has no toggle, so it needs its own outside click handler. One
+    // handler serves every field on the page, rather than one per call, which would accumulate.
+    autocomplete._open = autocomplete._open || [];
+    autocomplete._open.push({wrap: wrap, close: close});
+    if (!autocomplete._closeBound) {
+        autocomplete._closeBound = true;
+        $(document).on("click", function(e) {
+            autocomplete._open.forEach(function(entry) {
+                if (entry.wrap[0] !== e.target && !$.contains(entry.wrap[0], e.target))
+                    entry.close();
+            });
+        });
+    }
 }
 
 function getCookie(name) {

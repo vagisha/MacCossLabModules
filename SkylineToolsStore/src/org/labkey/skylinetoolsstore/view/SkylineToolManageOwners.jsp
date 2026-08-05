@@ -52,7 +52,7 @@
 <labkey:form action="<%= urlFor(SkylineToolsStoreController.SetOwnersAction.class) %>" enctype="multipart/form-data" method="post">
     <p>
         <label for="toolOwners">Tool owners </label><br />
-        <input style="width: 400px; max-width: 80%;" type="text" id="toolOwners" name="toolOwners" /><br /><br />
+        <input style="width: 400px; max-width: 100%;" type="text" id="toolOwners" name="toolOwners" /><br /><br />
         <br />
 <% if (sender != null) { %>
         <input type="hidden" name="sender" value="<%= h(sender) %>" />
