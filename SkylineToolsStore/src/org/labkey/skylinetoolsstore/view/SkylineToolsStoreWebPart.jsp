@@ -313,7 +313,7 @@
                             class="sprocketToggle dropdown-toggle" data-toggle="dropdown"
                             aria-haspopup="true" aria-expanded="false" title="Settings">
                         <%-- A font glyph carries no alt text, so the button's name is the hidden span. --%>
-                        <span class="fa fa-cogs sprocketIcon" aria-hidden="true"></span><span class="visually-hidden">Settings <%= h(tool.getName()) %></span>
+                        <span class="fa fa-cogs sprocketIcon" aria-hidden="true"></span><span class="sr-only">Settings <%= h(tool.getName()) %></span>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="toolSettingsMenu<%= tool.getRowId() %>">
                         <li><%=simpleLink("Upload new version").onClick(
@@ -344,21 +344,21 @@
 
                 <div class="toolButtons">
 
-                    <%=link(unsafe("Download<span class=\"visually-hidden\">&nbsp;" + h(tool.getName()) + "</span>")).href(urlFor(SkylineToolsStoreController.DownloadToolAction.class).addParameter("id", tool.getRowId()).toString()).clearClasses().addClass("styled-button")%>
+                    <%=link(unsafe("Download<span class=\"sr-only\">&nbsp;" + h(tool.getName()) + "</span>")).href(urlFor(SkylineToolsStoreController.DownloadToolAction.class).addParameter("id", tool.getRowId()).toString()).clearClasses().addClass("styled-button")%>
 <%
     if (docCount == 1 && hasDocs) {
 %>
-                        <%=link(unsafe("Documentation<span class=\"visually-hidden\">&nbsp;" + h(tool.getName()) + "</span>")).href(tool.getDocsUrl()).clearClasses().addClass("styled-button").target("_blank").rel("noopener noreferrer")%>
+                        <%=link(unsafe("Documentation<span class=\"sr-only\">&nbsp;" + h(tool.getName()) + "</span>")).href(tool.getDocsUrl()).clearClasses().addClass("styled-button").target("_blank").rel("noopener noreferrer")%>
 <%
     } else if (docCount == 1) {
         Map.Entry suppPair = (Map.Entry)suppIter.next();
 %>
-                        <%=link(unsafe("Documentation<span class=\"visually-hidden\">&nbsp;" + h(tool.getName()) + "</span>")).href(suppPair.getKey().toString()).clearClasses().addClass("styled-button")%>
+                        <%=link(unsafe("Documentation<span class=\"sr-only\">&nbsp;" + h(tool.getName()) + "</span>")).href(suppPair.getKey().toString()).clearClasses().addClass("styled-button")%>
 <% } else if (docCount > 1) { %>
                         <div class="dropdown">
                             <button type="button" id="toolDocsMenu<%= tool.getRowId() %>"
                                     class="styled-button dropdown-toggle" data-toggle="dropdown"
-                                    aria-haspopup="true" aria-expanded="false">Documentation<span class="visually-hidden"><%=h(tool.getName())%></span></button>
+                                    aria-haspopup="true" aria-expanded="false">Documentation<span class="sr-only"><%=h(tool.getName())%></span></button>
                             <ul class="dropdown-menu" aria-labelledby="toolDocsMenu<%= tool.getRowId() %>">
 <% if (hasDocs) { %>
                                 <li><a href="<%=h(tool.getDocsUrl())%>" target="_blank" rel="noopener noreferrer"><img class="menuIconImg" src="<%= h(imgDir) %>link.png" alt="Documentation">Online Documentation</a></li>
@@ -367,7 +367,7 @@
         while (suppIter.hasNext()) {
             Map.Entry suppPair = (Map.Entry)suppIter.next();
 %>
-                                <li><a href="<%=h(suppPair.getKey())%>"><span class="<%=h(suppPair.getValue())%> menuIcon"></span><%= h(new File(suppPair.getKey().toString()).getName()) %></a></li>
+                                <li><a href="<%=h(suppPair.getKey())%>"><span class="<%=h(suppPair.getValue())%> menuIcon" aria-hidden="true"></span><%= h(new File(suppPair.getKey().toString()).getName()) %></a></li>
 <% } %>
                             </ul>
                         </div>

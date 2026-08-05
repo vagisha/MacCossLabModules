@@ -53,10 +53,10 @@
         dependencies.add("skylinetoolsstore/css/toolstore.css");
     }
 
-    // A font glyph carries no alt text, so the link's name comes from the hidden span beside it.
-    public final HtmlString editIconImgHtml = DOM.createHtmlFragment(
-            SPAN(DOM.cl("fa", "fa-pencil", "editPencil").at(DOM.Attribute.aria_hidden, "true")),
-            SPAN(DOM.cl("visually-hidden"), "Edit"));
+    // A font glyph carries no alt text, so each link names itself with a title of "Edit <property>",
+    // which is both the tooltip and the accessible name.
+    public final HtmlString editIconImgHtml =
+            DOM.createHtml(SPAN(DOM.cl("fa", "fa-pencil", "editToolIcon")));
 %>
 
 <%
@@ -111,19 +111,36 @@ a { text-decoration: none; }
     margin: 4px;
     border: 2px solid #dcdcdc;
 }
-/* The pencil sits in the bottom right corner of the tool logo. The logo is 100px wide with a 2px
-   border each side and a 4px margin, so its far corner is 108px in, and the glyph is about 16px
-   across at this size. Placed in CSS rather than measured and positioned at run time. */
+/* The pencil sits in the bottom right corner of the tool logo. Bootstrap sets border-box globally,
+   so the logo's 100px width already includes its 2px borders. With the 4px margin its far corner is
+   104px in, and the chip below is 18px square, so 82px insets it 4px from that corner. The source
+   branch measured this with jQuery UI at run time, which is no longer available. */
 #editIcon {
     position: absolute;
-    left: 92px;
-    top: 92px;
-    opacity: 0.6;
-    filter: alpha(opacity=60);
+    left: 82px;
+    top: 82px;
 }
-/* Edit pencils. A font glyph sizes from font-size, so the ".barItem img" rule further down and the
-   old image dimensions do not reach it. */
-.editPencil {font-size: 14px; color: #666;}
+/* Edit pencils. Font glyphs size from font-size - the ".barItem img" rule below covers only
+   images. */
+.editToolIcon {
+    font-size: 13px;
+    color: #999;
+    margin-left: 6px;
+}
+a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
+/* This pencil sits on top of the uploaded tool logo, so no single colour is readable on every
+   image. A translucent chip behind it gives the glyph something to sit on. The fixed line-height
+   makes the chip 18px square, which is what the offset above is measured against - the source
+   branch could place it with jQuery UI at run time, and this has to be arithmetic instead. */
+#editIcon .editToolIcon {
+    color: #333;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 3px;
+    padding: 2px 3px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1;
+}
 /* Supplementary file type icons. Font glyphs size from font-size, so the ".barItem img" rule
    further down does not reach them. */
 .suppFileIcon {font-size: 14px; color: #666; margin-right: 5px;}
@@ -425,7 +442,7 @@ a { text-decoration: none; }
     <div style="float:left; width:351px; position:relative;">
         <img id="toolIcon" src="<%= h(tool.getIconUrl()) %>" class="logoWrap" alt="<%= h(tool.getName()) %>">
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).addClass("toolProperty").id("editIcon").title("Icon").onClick("editTool($(this), 'Icon')")%>
+        <%=simpleLink(editIconImgHtml).addClass("toolProperty").id("editIcon").title("Edit Icon").onClick("editTool($(this), 'Icon')")%>
 <% } %>
         <div class="block">
             <h2><%= h(tool.getName()) %></h2>
@@ -464,7 +481,7 @@ a { text-decoration: none; }
         <button type="button" id="toolSettingsMenu" class="sprocketToggle dropdown-toggle"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Settings">
             <%-- A font glyph carries no alt text, so the button's name comes from the hidden span. --%>
-            <span class="fa fa-cogs sprocketIcon" aria-hidden="true"></span><span class="visually-hidden">Settings</span>
+            <span class="fa fa-cogs sprocketIcon" aria-hidden="true"></span><span class="sr-only">Settings</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="toolSettingsMenu">
             <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').modal('show')")%></li>
@@ -483,7 +500,7 @@ a { text-decoration: none; }
     <p id="toolDescription" class="toolProperty" title="Description">
         <span class="toolPropertyValue"><%= h(tool.getDescription(), true) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Description").onClick("editTool($(this))")%>
 <% } %>
     </p>
     <div id="downloadArea">
@@ -514,7 +531,7 @@ a { text-decoration: none; }
 %>
     <div class="barItem suppfile">
         <a href="<%=h(suppPair.getKey())%>">
-        <span class="<%=h(suppPair.getValue())%> suppFileIcon"></span>
+        <span class="<%=h(suppPair.getValue())%> suppFileIcon" aria-hidden="true"></span>
         <span class="suppfilename"><%= h(new File(suppPair.getKey().toString()).getName()) %></span>
         </a>
 <% if (canDeleteSuppFiles) { %>
@@ -532,7 +549,7 @@ a { text-decoration: none; }
         <span class="boldfont">Organization:</span>
         <span class="toolPropertyValue"><%= h(tool.getOrganization()) %></span>
 <% if (toolEditor) { %>
-       <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+       <%=simpleLink(editIconImgHtml).title("Edit Organization").onClick("editTool($(this))")%>
 <% } %>
     </div>
 <% } %>
@@ -542,7 +559,7 @@ a { text-decoration: none; }
         <span class="boldfont">Authors:</span>
         <span class="toolPropertyValue"><%= h(tool.getAuthors()) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this), 'author')")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Authors").onClick("editTool($(this), 'author')")%>
 <% } %>
     </div>
 <% } %>
@@ -552,7 +569,7 @@ a { text-decoration: none; }
         <span class="boldfont">Languages:</span>
         <span class="toolPropertyValue"><%= h(tool.getLanguages()) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Languages").onClick("editTool($(this))")%>
 <% } %>
     </div>
 <% } %>
@@ -562,7 +579,7 @@ a { text-decoration: none; }
         <span class="boldfont">More Information:</span>
         <a href="<%= h(tool.getProvider()) %>" target="_blank" rel="noopener noreferrer"><span class="toolPropertyValue"><%= h(tool.getProvider()) %></span></a>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this), 'provider')")%>
+        <%=simpleLink(editIconImgHtml).title("Edit Provider's Website").onClick("editTool($(this), 'provider')")%>
 <% } %>
     </div>
 
