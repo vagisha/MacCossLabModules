@@ -18,6 +18,7 @@ package org.labkey.test.components.skylinetoolsstore;
 import org.labkey.test.Locator;
 import org.labkey.test.components.bootstrap.ModalDialog;
 import org.labkey.test.pages.skylinetoolsstore.ManageToolOwnersPage;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 
@@ -74,6 +75,40 @@ public class ManageToolOwnersDialog extends ModalDialog
         getWrapper().waitForElement(option);
         getWrapper().click(option);
         return this;
+    }
+
+    /**
+     * Moves the highlight down the suggestion list. The first press only opens a closed list, so a
+     * caller that wants something highlighted should type first.
+     */
+    public ManageToolOwnersDialog pressDown()
+    {
+        ownersField().findElement(getDriver()).sendKeys(Keys.ARROW_DOWN);
+        return this;
+    }
+
+    /** Tab completes the highlighted address rather than moving focus, as jQuery UI did. */
+    public ManageToolOwnersDialog pressTab()
+    {
+        ownersField().findElement(getDriver()).sendKeys(Keys.TAB);
+        return this;
+    }
+
+    /**
+     * Sends Escape to the owners field, where the type-ahead listens. One press closes the
+     * suggestion list, a second closes the dialog.
+     */
+    public ManageToolOwnersDialog pressEscape()
+    {
+        ownersField().findElement(getDriver()).sendKeys(Keys.ESCAPE);
+        return this;
+    }
+
+    /** The dialog itself, as opposed to the type-ahead inside it. */
+    public boolean isOpen()
+    {
+        WebElement dialog = Locator.id(DIALOG_ID).findElementOrNull(getDriver());
+        return dialog != null && dialog.isDisplayed();
     }
 
     /** The type-ahead offers every address on an empty field, so it opens on focus as well. */

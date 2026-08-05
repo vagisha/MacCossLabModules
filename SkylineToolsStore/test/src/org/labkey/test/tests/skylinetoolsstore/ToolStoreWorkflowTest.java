@@ -82,6 +82,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OWNER_PRIVACY_STORE = "ToolStoreWorkflowTestOwnerPrivacy";
     private static final String STALE_DELETE_STORE = "ToolStoreWorkflowTestStaleDelete";
     private static final String OWNER_ESCAPING_STORE = "ToolStoreWorkflowTestOwnerEscaping";
+    private static final String ESCAPE_STORE = "ToolStoreWorkflowTestEscapeKey";
+    private static final String TAB_STORE = "ToolStoreWorkflowTestTabKey";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -538,6 +540,84 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
+     * Tab completes the highlighted address instead of moving focus off the field.
+     *
+     * The jQuery UI widget did this, and the conversion dropped it. Arrowing to an address and
+     * pressing Tab left the partial text in the field, so Update Tool Owners posted something like
+     * "toolst", SetOwnersAction reported an unknown user, and the owner was never granted Editor.
+     */
+    @Test
+    public void testTabCompletesTheHighlightedAddress()
+    {
+        String store = TAB_STORE;
+        String tool = "TabProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:tabkey",
+                        "1.0"), null);
+
+        goToProjectHome(store);
+        ManageToolOwnersDialog dialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners();
+
+        // Typing first, because on a closed list the first Down only opens it without highlighting.
+        dialog.typeOwner("toolstore_a");
+        assertTrue("Typing should open the suggestion list", dialog.isTypeAheadShowing());
+
+        // The candidates are every active account on the server, which includes ones other test
+        // classes create, so which address sorts first is not this test's to assume. One Down
+        // highlights the first, so that is what Tab has to produce.
+        String firstOffered = dialog.getTypeAheadOptions().get(0);
+        dialog.pressDown().pressTab();
+
+        assertEquals("Tab should complete the highlighted address and leave a separator ready",
+                firstOffered + ", ", dialog.getOwners());
+    }
+
+    /**
+     * Escape has to reach the type-ahead without reaching the dialog around it.
+     *
+     * Bootstrap's modal hides on any Escape that bubbles up to it and does not check
+     * preventDefault, so dismissing the suggestion list used to throw away the whole dialog along
+     * with whatever had been typed into it. The old jQuery UI widget could not do this, because it
+     * called preventDefault on Escape and the jQuery UI dialog honoured that.
+     *
+     * The last two assertions carry as much weight as the first two. Stopping propagation whether
+     * or not the list is open would pass the middle of this test and leave a dialog that Escape
+     * cannot close at all.
+     */
+    @Test
+    public void testEscapeClosesTheTypeAheadBeforeTheDialog()
+    {
+        String store = ESCAPE_STORE;
+        String tool = "EscapeProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:escape",
+                        "1.0"), null);
+
+        goToProjectHome(store);
+        ManageToolOwnersDialog dialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners();
+
+        dialog.typeOwner("toolstore_");
+        assertTrue("Typing should open the suggestion list", dialog.isTypeAheadShowing());
+
+        dialog.pressEscape();
+        assertFalse("Escape should close the suggestion list", dialog.isTypeAheadShowing());
+        assertTrue("The Escape that closed the suggestion list must leave the dialog open",
+                dialog.isOpen());
+
+        dialog.pressEscape();
+        waitFor(() -> !dialog.isOpen(),
+                "Escape with no suggestion list showing should close the dialog", 5_000);
+    }
+
+    /**
      * The owners box is prefilled from a script, so the value has to be escaped for JavaScript.
      * Escaping it as HTML put the entities themselves in the box, and an admin correcting one bad
      * address had to retype the whole list.
@@ -863,6 +943,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(OWNER_PRIVACY_STORE, false);
         _containerHelper.deleteProject(STALE_DELETE_STORE, false);
         _containerHelper.deleteProject(OWNER_ESCAPING_STORE, false);
+        _containerHelper.deleteProject(ESCAPE_STORE, false);
+        _containerHelper.deleteProject(TAB_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, OTHER_USER);
     }
 

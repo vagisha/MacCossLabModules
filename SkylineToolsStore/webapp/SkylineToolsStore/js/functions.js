@@ -112,7 +112,22 @@ function autocomplete(txtbox, tags) {
         var items = menu.children();
         switch (e.keyCode) {
             case 27:                                     // Escape
-            case 9:                                      // Tab, and let the focus move on
+                // Bootstrap's modal hides on any Escape that reaches it, and does not check
+                // preventDefault, so the event has to be stopped before it bubbles that far.
+                // Only while the menu is open - with it closed, Escape should still close the
+                // dialog around the field.
+                if (isOpen())
+                    e.stopPropagation();
+                close();
+                break;
+            case 9:                                      // Tab
+                // Tab completes the highlighted address, as the jQuery UI widget did. It suppressed
+                // the focus move for this case only, so the field keeps focus and the next address
+                // can be typed. With nothing highlighted, Tab just moves on.
+                if (isOpen() && activeIndex >= 0) {
+                    e.preventDefault();
+                    choose(items.eq(activeIndex).children("a").text());
+                }
                 close();
                 break;
             case 38:                                     // Up
