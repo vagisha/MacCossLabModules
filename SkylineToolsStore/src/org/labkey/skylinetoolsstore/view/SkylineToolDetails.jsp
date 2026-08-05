@@ -697,10 +697,21 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                         "propValue": propValue
                     };
                 } else {
+                    var iconFile = document.getElementById("editIconFile").files[0];
+                    if (!iconFile) {
+                        // With nothing chosen this used to post the string "undefined", which
+                        // arrives as a text property named Icon rather than a file. The action
+                        // refuses that, but the refusal is an error view with status 200, so the
+                        // handler below took it for success and faded the icon away.
+                        body.find(".labkey-error").remove();
+                        body.append($('<p class="labkey-error"></p>').text("Please choose an image file."));
+                        setModalButtonsEnabled(dlg, true);
+                        return;
+                    }
                     postData = new FormData();
                     postData.append("toolId", <%= tool.getRowId() %>);
                     postData.append("propName", propName);
-                    postData.append("propValue", document.getElementById("editIconFile").files[0]);
+                    postData.append("propValue", iconFile);
                 }
 
                 body.empty().append($("<p></p>").text("Please wait..."));
@@ -717,10 +728,14 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                         if (isIcon) {
                             var newImgSrc = container.attr("src") + "?" + (new Date()).getTime();
                             container.animate({opacity: 0}, REPLACE_TEXT_FADE_TIME, function() {
-                                container.attr("src", newImgSrc)
-                                         .load(function() {
-                                            $(this).animate({opacity: 1}, REPLACE_TEXT_FADE_TIME);
-                                         });
+                                // one("load") rather than load(fn). jQuery 3 removed the event
+                                // shorthand and kept load() as the ajax method, so the callback
+                                // never ran and the icon stayed faded out until the page was
+                                // reloaded. Bound before the src is set, so a load that finishes
+                                // immediately cannot beat the handler.
+                                container.one("load", function() {
+                                    $(this).animate({opacity: 1}, REPLACE_TEXT_FADE_TIME);
+                                }).attr("src", newImgSrc);
                             });
                             return;
                         }
