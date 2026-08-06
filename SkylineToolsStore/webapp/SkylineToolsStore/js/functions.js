@@ -26,7 +26,8 @@ function autocomplete(txtbox, tags) {
     // wrapped in one. A span rather than a div, because two of these fields sit inside a paragraph.
     var wrap = $('<span class="dropdown autocompleteWrap"></span>');
     // Moving the field into the wrapper detaches it, which drops any focus already on it. The
-    // manage owners dialog focuses the field before this runs, so put it back.
+    // standalone manage owners page focuses the field before calling this, so put it back. The
+    // dialogs cannot hit this - they call autocomplete at page load and focus much later.
     var hadFocus = input.is(":focus");
     input.after(wrap);
     wrap.append(input);
@@ -62,12 +63,13 @@ function autocomplete(txtbox, tags) {
     // move together.
     function highlight() {
         var items = menu.children();
-        items.removeClass("active");
+        items.removeClass("active").children("a").removeAttr("aria-selected");
         if (activeIndex < 0) {
             input.removeAttr("aria-activedescendant");
             return;
         }
         var item = items.eq(activeIndex).addClass("active");
+        item.children("a").attr("aria-selected", "true");
         input.attr("aria-activedescendant", item.children("a").attr("id"));
         scrollIntoMenu(item[0]);
     }
@@ -190,12 +192,12 @@ function autocomplete(txtbox, tags) {
     // Bootstrap's clearMenus only closes menus whose toggle carries data-toggle="dropdown". This
     // menu opens from typing and has no toggle, so it needs its own outside click handler. One
     // handler serves every field on the page, rather than one per call, which would accumulate.
-    autocomplete._open = autocomplete._open || [];
-    autocomplete._open.push({wrap: wrap, close: close});
+    autocomplete._instances = autocomplete._instances || [];
+    autocomplete._instances.push({wrap: wrap, close: close});
     if (!autocomplete._closeBound) {
         autocomplete._closeBound = true;
         $(document).on("click", function(e) {
-            autocomplete._open.forEach(function(entry) {
+            autocomplete._instances.forEach(function(entry) {
                 if (entry.wrap[0] !== e.target && !$.contains(entry.wrap[0], e.target))
                     entry.close();
             });

@@ -55,8 +55,8 @@
 
     // A font glyph carries no alt text, so each link names itself with a title of "Edit <property>",
     // which is both the tooltip and the accessible name.
-    public final HtmlString editIconImgHtml =
-            DOM.createHtml(SPAN(DOM.cl("fa", "fa-pencil", "editToolIcon")));
+    public final HtmlString editIconImgHtml = DOM.createHtml(
+            SPAN(DOM.cl("fa", "fa-pencil", "editToolIcon").at(DOM.Attribute.aria_hidden, "true")));
 %>
 
 <%
@@ -278,7 +278,9 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
 <%-- Bootstrap 3 modals. The structure is fixed by LabKey's own test component,
      components/bootstrap/ModalDialog, which finds a dialog by .modal-dialog plus .modal-title and
      its buttons by visible text. Submits are <button> and not <input type="submit"> for the same
-     reason. The three that must not be dismissed mid-operation use a static backdrop.
+     reason. Every dialog holding entered data uses a static backdrop, so a stray click beside it
+     cannot throw that data away. Only allVersionsPop, which is read only, closes on a backdrop
+     click.
 
      No "fade" class. ModalDialog.waitForReady waits for the body to be displayed and non-empty and
      does not wait out a CSS transition, so a fading modal hands back a dialog whose buttons are not
