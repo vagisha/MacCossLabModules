@@ -78,8 +78,8 @@ public class ManageToolOwnersDialog extends ModalDialog
     }
 
     /**
-     * Moves the highlight down the suggestion list. The first press only opens a closed list, so a
-     * caller that wants something highlighted should type first.
+     * Moves the highlight down the suggestion list, opening it first if it is closed. One press is
+     * enough to highlight an entry either way.
      */
     public ManageToolOwnersDialog pressDown()
     {
@@ -92,6 +92,28 @@ public class ManageToolOwnersDialog extends ModalDialog
     {
         ownersField().findElement(getDriver()).sendKeys(Keys.TAB);
         return this;
+    }
+
+    /** Moves the highlight up, opening a closed list first. One press highlights the last entry. */
+    public ManageToolOwnersDialog pressUp()
+    {
+        ownersField().findElement(getDriver()).sendKeys(Keys.ARROW_UP);
+        return this;
+    }
+
+    /** Shift+Tab leaves the field backwards and must never complete an address. */
+    public ManageToolOwnersDialog pressShiftTab()
+    {
+        ownersField().findElement(getDriver()).sendKeys(Keys.chord(Keys.SHIFT, Keys.TAB));
+        return this;
+    }
+
+    /** Which address the suggestion list is currently highlighting, or null for none. */
+    public String getHighlightedOption()
+    {
+        WebElement active = Locator.css("#" + DIALOG_ID + " ul.autocompleteMenu li.active a")
+                .findElementOrNull(getDriver());
+        return active == null ? null : active.getText();
     }
 
     /**

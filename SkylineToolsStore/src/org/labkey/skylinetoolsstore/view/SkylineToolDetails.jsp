@@ -141,6 +141,9 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
     font-size: 14px;
     line-height: 1;
 }
+/* Repeated at this specificity because the rule above is an id selector, which outranks the
+   a:hover rule and would otherwise hold this pencil at its resting colour. */
+#editIcon:hover .editToolIcon, #editIcon:focus .editToolIcon {color: #126495;}
 /* Supplementary file type icons. Font glyphs size from font-size, so the ".barItem img" rule
    further down does not reach them. */
 .suppFileIcon {font-size: 14px; color: #666; margin-right: 5px;}
@@ -726,14 +729,21 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                         $("#editToolDlg").modal("hide");
                         var container = $("#editToolDlg").data("propValueContainer");
                         if (isIcon) {
-                            var newImgSrc = container.attr("src") + "?" + (new Date()).getTime();
+                            // The tool's own icon url, not whatever the img is showing. A tool with
+                            // no icon yet shows the shared placeholder, and cache-busting that
+                            // re-requested the placeholder rather than the image just uploaded.
+                            var newImgSrc = <%= q(tool.getFolderUrl() + "icon.png") %> +
+                                    "?" + (new Date()).getTime();
                             container.animate({opacity: 0}, REPLACE_TEXT_FADE_TIME, function() {
                                 // one("load") rather than load(fn). jQuery 3 removed the event
                                 // shorthand and kept load() as the ajax method, so the callback
                                 // never ran and the icon stayed faded out until the page was
                                 // reloaded. Bound before the src is set, so a load that finishes
                                 // immediately cannot beat the handler.
-                                container.one("load", function() {
+                                // "load error" and not just "load". An image that fails to load
+                                // would otherwise leave the logo at opacity 0, which is the state
+                                // this handler exists to get out of.
+                                container.one("load error", function() {
                                     $(this).animate({opacity: 1}, REPLACE_TEXT_FADE_TIME);
                                 }).attr("src", newImgSrc);
                             });
@@ -798,7 +808,9 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         var dlg = $("#editToolDlg").data("propName", propName)
                                    .data("propValueContainer", propValueContainer);
         var body = dlg.find(".modal-body").html(editDlgOriginalBody);
-        body.children("h3:first").text(parent.attr("title"));
+        // #editIcon carries .toolProperty itself, so closest() returns the link, whose title is the
+        // tooltip rather than the property name. Every other pencil sits inside its property's row.
+        body.children("h3:first").text(parent.is(sender) ? propName : parent.attr("title"));
         body.children(hideType).hide();
         dlg.modal("show");
         body.children(targetType + ":first").show().focus().val(propValueContainer.text());

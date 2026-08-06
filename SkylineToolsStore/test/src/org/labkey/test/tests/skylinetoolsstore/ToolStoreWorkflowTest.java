@@ -57,6 +57,7 @@ import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -85,6 +86,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String ESCAPE_STORE = "ToolStoreWorkflowTestEscapeKey";
     private static final String TAB_STORE = "ToolStoreWorkflowTestTabKey";
     private static final String PROPERTIES_STORE = "ToolStoreWorkflowTestProperties";
+    private static final String SHIFT_TAB_STORE = "ToolStoreWorkflowTestShiftTab";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -580,6 +582,47 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
+     * Two keyboard cases the first Tab fix got wrong.
+     *
+     * Shift+Tab is a user leaving the field backwards. Completing there put an address into the
+     * list that nobody chose, and Update Tool Owners would have granted it Editor. Up on a closed
+     * list has to highlight the last entry, the way Down highlights the first, rather than opening
+     * the list and selecting nothing.
+     */
+    @Test
+    public void testShiftTabLeavesTheFieldAndUpHighlightsFromAClosedList()
+    {
+        String store = SHIFT_TAB_STORE;
+        String tool = "ShiftTabProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:shifttab",
+                        "1.0"), null);
+
+        goToProjectHome(store);
+        ManageToolOwnersDialog dialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners();
+
+        dialog.typeOwner("toolstore_");
+        dialog.pressDown();
+        assertNotNull("Down should highlight an entry", dialog.getHighlightedOption());
+
+        dialog.pressShiftTab();
+        assertEquals("Shift+Tab must not complete anything",
+                "toolstore_", dialog.getOwners());
+
+        // Up on a closed list. One press should land on the last entry, not on nothing.
+        dialog.typeOwner("toolstore_");
+        dialog.pressEscape();
+        assertFalse("The list should be closed", dialog.isTypeAheadShowing());
+        dialog.pressUp();
+        assertNotNull("One Up press on a closed list should highlight an entry",
+                dialog.getHighlightedOption());
+    }
+
+    /**
      * What the details page shows for one tool, read through the page component.
      *
      * The store has no other coverage of the page rendering a tool's own fields. Everything else
@@ -595,7 +638,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         goToProjectHome(store);
         SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
-                .addTool(toolZipWithProperties(tool), null);
+                .addTool(ToolStoreTestHelper.writeToolZip(tool,
+                        "URN:LSID:toolstore.test:properties", "1.0",
+                        "Description = A tool for exercising the details page.\n" +
+                        "Organization = MacCoss Lab\n"), null);
 
         assertEquals("The page should name the tool it was asked for", tool, details.getToolName());
         assertEquals("1.0", details.getVersion());
@@ -743,36 +789,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                         ".join(', ');",
                 String.class);
         assertEquals("jQuery UI is loaded on " + pageDescription, "", loaded);
-    }
-
-    /**
-     * A tool zip carrying the optional properties as well as the required ones, so the details page
-     * has something to render. ToolStoreTestHelper writes only Name, Version and Identifier.
-     */
-    private static File toolZipWithProperties(String name)
-    {
-        try
-        {
-            File zip = File.createTempFile("ts-props-", ".zip");
-            zip.deleteOnExit();
-            try (java.util.zip.ZipOutputStream out =
-                         new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(zip)))
-            {
-                out.putNextEntry(new java.util.zip.ZipEntry("tool-inf/info.properties"));
-                out.write(("Name = " + name + "\n" +
-                           "Version = 1.0\n" +
-                           "Identifier = URN:LSID:toolstore.test:properties\n" +
-                           "Description = A tool for exercising the details page.\n" +
-                           "Organization = MacCoss Lab\n")
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                out.closeEntry();
-            }
-            return zip;
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Could not build the properties test tool zip", e);
-        }
     }
 
     /** A store folder of its own, so one test's tools cannot disturb another's counts. */
@@ -1020,6 +1036,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(ESCAPE_STORE, false);
         _containerHelper.deleteProject(TAB_STORE, false);
         _containerHelper.deleteProject(PROPERTIES_STORE, false);
+        _containerHelper.deleteProject(SHIFT_TAB_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, OTHER_USER);
     }
 

@@ -139,15 +139,18 @@ function autocomplete(txtbox, tags) {
                 // preventDefault, so the event has to be stopped before it bubbles that far.
                 // Only while the menu is open - with it closed, Escape should still close the
                 // dialog around the field.
-                if (isOpen())
+                if (isOpen()) {
                     e.stopPropagation();
+                    e.preventDefault();
+                }
                 close();
                 break;
             case 9:                                      // Tab
                 // Tab completes the highlighted address, as the jQuery UI widget did. It suppressed
                 // the focus move for this case only, so the field keeps focus and the next address
                 // can be typed. With nothing highlighted, Tab just moves on.
-                if (isOpen() && activeIndex >= 0) {
+                // Shift+Tab is leaving the field backwards, never a completion.
+                if (!e.shiftKey && isOpen() && activeIndex >= 0) {
                     e.preventDefault();
                     choose(items.eq(activeIndex).children("a").text());
                 }
@@ -162,6 +165,9 @@ function autocomplete(txtbox, tags) {
                     if (!isOpen())
                         break;
                 }
+                // Re-read after render, which empties and rebuilds the list. The snapshot taken at
+                // the top of this handler is the menu as it was before the key opened it.
+                items = menu.children();
                 // From -1 this lands on the first entry going down and the last going up, so the
                 // key that opened the menu also highlights something.
                 activeIndex += (e.keyCode === 40 ? 1 : -1);
