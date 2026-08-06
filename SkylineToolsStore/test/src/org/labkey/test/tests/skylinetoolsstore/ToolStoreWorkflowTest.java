@@ -84,6 +84,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OWNER_ESCAPING_STORE = "ToolStoreWorkflowTestOwnerEscaping";
     private static final String ESCAPE_STORE = "ToolStoreWorkflowTestEscapeKey";
     private static final String TAB_STORE = "ToolStoreWorkflowTestTabKey";
+    private static final String PROPERTIES_STORE = "ToolStoreWorkflowTestProperties";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -579,6 +580,47 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
+     * What the details page shows for one tool, read through the page component.
+     *
+     * The store has no other coverage of the page rendering a tool's own fields. Everything else
+     * reads the catalog over the API, which cannot tell whether the page drew what the catalog
+     * holds.
+     */
+    @Test
+    public void testTheDetailsPageShowsTheToolsProperties()
+    {
+        String store = PROPERTIES_STORE;
+        String tool = "PropertiesProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
+                .addTool(toolZipWithProperties(tool), null);
+
+        assertEquals("The page should name the tool it was asked for", tool, details.getToolName());
+        assertEquals("1.0", details.getVersion());
+        assertEquals("A tool nobody has downloaded yet", 0, details.getDownloadCount());
+
+        assertTrue("The description row should be on the page",
+                details.hasProperty(SkylineToolDetailsPage.DESCRIPTION));
+        assertEquals("A tool for exercising the details page.",
+                details.getProperty(SkylineToolDetailsPage.DESCRIPTION));
+        assertEquals("MacCoss Lab", details.getProperty(SkylineToolDetailsPage.ORGANIZATION));
+
+        assertTrue("A site admin should be offered the edit pencils", details.canEditProperties());
+
+        // The zip carries no documentation url and the tool has no supplementary files, so the
+        // whole box is absent rather than empty.
+        assertFalse("Nothing to document yet", details.isDocumentationBoxShowing());
+        assertFalse(details.hasOnlineDocumentationLink());
+
+        details = details.uploadSupplementaryFile(writeFileNamed("manual.pdf"));
+        assertTrue("A supplementary file should bring the documentation box out",
+                details.isDocumentationBoxShowing());
+        assertTrue(details.getSupplementaryFileNames().contains("manual.pdf"));
+    }
+
+    /**
      * Escape has to reach the type-ahead without reaching the dialog around it.
      *
      * Bootstrap's modal hides on any Escape that bubbles up to it and does not check
@@ -701,6 +743,36 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                         ".join(', ');",
                 String.class);
         assertEquals("jQuery UI is loaded on " + pageDescription, "", loaded);
+    }
+
+    /**
+     * A tool zip carrying the optional properties as well as the required ones, so the details page
+     * has something to render. ToolStoreTestHelper writes only Name, Version and Identifier.
+     */
+    private static File toolZipWithProperties(String name)
+    {
+        try
+        {
+            File zip = File.createTempFile("ts-props-", ".zip");
+            zip.deleteOnExit();
+            try (java.util.zip.ZipOutputStream out =
+                         new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(zip)))
+            {
+                out.putNextEntry(new java.util.zip.ZipEntry("tool-inf/info.properties"));
+                out.write(("Name = " + name + "\n" +
+                           "Version = 1.0\n" +
+                           "Identifier = URN:LSID:toolstore.test:properties\n" +
+                           "Description = A tool for exercising the details page.\n" +
+                           "Organization = MacCoss Lab\n")
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+            return zip;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not build the properties test tool zip", e);
+        }
     }
 
     /** A store folder of its own, so one test's tools cannot disturb another's counts. */
@@ -947,6 +1019,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(OWNER_ESCAPING_STORE, false);
         _containerHelper.deleteProject(ESCAPE_STORE, false);
         _containerHelper.deleteProject(TAB_STORE, false);
+        _containerHelper.deleteProject(PROPERTIES_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, OTHER_USER);
     }
 
