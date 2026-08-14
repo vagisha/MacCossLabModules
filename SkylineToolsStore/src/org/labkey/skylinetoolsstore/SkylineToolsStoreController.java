@@ -1415,16 +1415,18 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
 
-            // If the container in the request URL does not match the parent of the container associated
-            // with the tool, redirect to the correct URL
-            redirectToToolStoreContainer(_tool, getViewContext().getActionURL());
-
+            // Everything below reads the tool's folder, including the redirect, which needs its
+            // parent. A row can outlive its folder, so settle that before acting on it.
             if (_tool.lookupContainer() == null)
             {
                 errors.reject(SpringActionController.ERROR_MSG, "The folder holding " + _tool.getName() +
                         " no longer exists, so its details cannot be shown.");
                 return new SimpleErrorView(errors);
             }
+
+            // If the container in the request URL does not match the parent of the container associated
+            // with the tool, redirect to the correct URL
+            redirectToToolStoreContainer(_tool, getViewContext().getActionURL());
 
             return new SkylineToolDetails(_tool);
         }
