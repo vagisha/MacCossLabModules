@@ -72,7 +72,6 @@ import org.labkey.api.util.SafeToRender;
 import org.labkey.api.util.URLHelper;
 import org.labkey.api.util.logging.LogHelper;
 import org.labkey.api.view.ActionURL;
-import org.labkey.api.view.HtmlView;
 import org.labkey.api.view.JspView;
 import org.labkey.api.view.NavTree;
 import org.labkey.api.view.NotFoundException;
@@ -600,14 +599,10 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public ModelAndView getView(ToolUploadForm form, boolean reshow, BindException errors)
         {
-            // The shared JSP decides which form to draw from toolId, so a request without one would
-            // render the add-a-new-tool form pointed at this folder. There is no such thing as
-            // updating an unnamed tool, so fail instead.
+            // Without a toolId the shared JSP would draw the add-a-new-tool form instead.
             SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
 
-            // handlePost refuses anything but the latest, and by then the owner has uploaded the
-            // whole zip. Both menus hide the item on an older version, so getting here means the
-            // URL was built by hand, but the form should still not be drawn.
+            // Refuse before the form is drawn. handlePost refuses too, but only after the upload.
             if (!tool.getLatest())
             {
                 errors.reject(ERROR_MSG, notLatestVersionMessage(tool));
@@ -622,11 +617,8 @@ public class SkylineToolsStoreController extends SpringActionController
         {
             SkylineTool previousVersion = requireToolInContainer(form.getToolId(), getContainer());
 
-            // Publishing demotes the version it supersedes, so it only leaves one row flagged latest
-            // if that version is the latest one. From an older version's page the real latest kept
-            // its flag and the new row got one too, so the store and Skyline's catalog both listed
-            // the tool twice and getToolLatestByIdentifier picked arbitrarily. The new version also
-            // inherited the older version's owners, docs and supplementary files.
+            // Publishing demotes the version it supersedes. Done from an older version, that leaves
+            // two rows flagged latest and the tool is listed twice.
             if (!previousVersion.getLatest())
             {
                 errors.reject(ERROR_MSG, notLatestVersionMessage(previousVersion));
@@ -663,9 +655,7 @@ public class SkylineToolsStoreController extends SpringActionController
             if (versionContainer == null)
                 return false;
 
-            // Inserting the new version and demoting the old one have to land together. Either one
-            // alone leaves the tool wrong - no row marked latest takes it out of the catalog Skyline
-            // clients read, and two rows marked latest list it twice.
+            // The insert and the demotion land together, or the tool has no latest row or two.
             boolean stored = false;
             try (DbScope.Transaction transaction =
                          SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
@@ -770,11 +760,8 @@ public class SkylineToolsStoreController extends SpringActionController
                                        List<User> owners, @Nullable SkylineTool previousVersion,
                                        BindException errors)
     {
-        // The folder exists from partway through this, and every step can throw - a zip that cannot
-        // be written, an icon ImageIO cannot decode, a carried-forward name that is a directory. The
-        // caller's cleanup only runs after this method returns, so without the finally below a throw
-        // would leave the folder behind and makeContainer would refuse this version's name from then
-        // on.
+        // A throw after makeContainer would strand the folder, and makeContainer refuses a name it
+        // has already used. The finally removes it.
         Container c = null;
         boolean populated = false;
         try
@@ -818,10 +805,8 @@ public class SkylineToolsStoreController extends SpringActionController
         }
         catch (IOException e)
         {
-            // As in readToolFromUpload, an IOException message here names a path on the server,
-            // which a tool owner should not see, so the detail goes to the log only. Logged at warn
-            // because the upload was refused rather than left broken - error would report it as a
-            // server fault.
+            // The message names a server path, so it goes to the log only. Warn, not error - the
+            // upload was refused, not broken.
             LOG.warn("Could not store version {} of {}", tool.getVersion(), tool.getName(), e);
             errors.reject(ERROR_MSG, "The tool version could not be stored.");
             return null;
@@ -1195,9 +1180,8 @@ public class SkylineToolsStoreController extends SpringActionController
                 return false;
             }
 
-            // @RequiresPermission checked Delete on the container in the URL, so that container has
-            // to be the one this removes. Without this the caller could address an older version's
-            // folder, be authorized against it, and have the newest version deleted instead.
+            // Delete was checked against the container in the URL, so that has to be the folder
+            // this removes.
             Container latestContainer = tools[0].lookupContainer();
             if (latestContainer == null)
                 throw new NotFoundException("Failed to look up the folder holding " + tools[0].getName() +
@@ -1415,11 +1399,9 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
 
-            // Everything below reads the tool's folder, including the redirect, which needs its
-            // parent. A row can outlive its folder, so settle that before acting on it.
             if (_tool.lookupContainer() == null)
             {
-                errors.reject(SpringActionController.ERROR_MSG, "The folder holding " + _tool.getName() +
+                errors.reject(ERROR_MSG, "The folder holding " + _tool.getName() +
                         " no longer exists, so its details cannot be shown.");
                 return new SimpleErrorView(errors);
             }
@@ -1434,8 +1416,7 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public void addNavTrail(NavTree root)
         {
-            // redirectToToolStoreContainer sends this action to the store folder, so the store is
-            // getContainer() itself rather than its parent. Null when the lookup above failed.
+            // getContainer() should be the store container due to the redirect, except on error views.
             root.addChild(getToolStoreNav(getContainer()));
             if (_tool != null)
                 root.addChild(_tool.getName());
@@ -1498,15 +1479,11 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public ModelAndView getView(SetOwnersForm form, boolean reshow, BindException errors)
         {
-            // Fail before the form is drawn, and fill it with the owners the tool already has. An
-            // empty box here is not harmless - handlePost replaces the whole owner list, so
-            // submitting a blank form strips every Editor and FolderAdmin off the tool's folder.
-            // This action runs in the store folder and the tool lives in a child of it, so
-            // requireToolInContainer is not the right check here.
             SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
             if (!reshow)
+                // Prefill the box. handlePost replaces the whole list, so a blank form strips every owner.
                 form.setToolOwners(StringUtils.join(getToolOwners(tool), ", "));
 
             return new JspView<>("/org/labkey/skylinetoolsstore/view/SkylineToolManageOwners.jsp", form, errors);
