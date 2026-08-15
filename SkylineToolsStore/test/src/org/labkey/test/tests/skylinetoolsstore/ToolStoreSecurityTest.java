@@ -84,6 +84,10 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     // A different tool, so uploading it would add a new identifier to the catalog.
     private static final String TOOL_OTHER = "skylinetoolsstore/user2-v1.zip";
 
+    // A folder with no tool in it, for posting at an action from somewhere unrelated to the tool.
+    private static final String UNRELATED_FOLDER = "unrelated";
+    private static final String UNRELATED_PATH = "/" + PROJECT_NAME + "/" + UNRELATED_FOLDER;
+
     private static int _toolV1RowId = -1;
     private static String _toolV1FolderPath;
 
@@ -106,6 +110,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         _containerHelper.createProject(PROJECT_NAME, null);
         _containerHelper.enableModule("SkylineToolsStore");
         new PortalHelper(this).addWebPart("Skyline Tool Store");
+        _containerHelper.createSubfolder(PROJECT_NAME, UNRELATED_FOLDER);
 
         _userHelper.createUser(ATTACKER_ANON);
         _userHelper.createUser(ATTACKER_USER);
@@ -187,6 +192,21 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
 
         assertFalse("SECURITY: a non-admin setOwners request granted " + ATTACKER_USER +
                         " the Editor role on " + folder + " (HTTP " + status + ")",
+                hasEditorRole(folder, ATTACKER_USER));
+    }
+
+    /**
+     * setOwners must refuse a request addressed to a folder unrelated to the tool it names. Sent as
+     * the site admin with a session and CSRF token, so only that check can refuse it. Why the check
+     * is there is on requireToolAddressedFrom.
+     */
+    @Test
+    public void testSetOwnersRefusesARequestAddressedElsewhere()
+    {
+        String folder = currentFolderPath();
+        int status = postTo(UNRELATED_PATH, "setOwners", ownerParams(ATTACKER_USER), true, true);
+
+        assertFalse("setOwners acted on a tool the request was not addressed to (HTTP " + status + ")",
                 hasEditorRole(folder, ATTACKER_USER));
     }
 

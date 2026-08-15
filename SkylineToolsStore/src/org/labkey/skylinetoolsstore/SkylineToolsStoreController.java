@@ -288,6 +288,23 @@ public class SkylineToolsStoreController extends SpringActionController
     }
 
     /**
+     * Confirms a request is addressed to the given tool, targeting either its own folder or the parent store folder.
+     *
+     * This is called by SetOwnersAction and DeleteAction actions that act on all the version folders of a tool, so
+     * requireToolInContainer cannot be used. These actions are @RequiresSiteAdmin but weakening the annotation to say
+     * @RequiresPermission(AdminPermission.class), would allow an admin of any folder to act on any tool via these actions.
+     */
+    private static void requireToolAddressedFrom(SkylineTool tool, Container c)
+    {
+        Container toolContainer = tool.lookupContainer();
+        if (toolContainer == null)
+            throw new NotFoundException("Failed to look up the folder for " + tool.getName() + ".");
+        if (!c.equals(toolContainer) && !c.equals(toolContainer.getParent()))
+            throw new NotFoundException("This request has to be addressed to folder containing " + tool.getName() +
+                    " or to the tool store holding it.");
+    }
+
+    /**
      * Resolves a tool row id and confirms the tool lives in the given container.
      */
     private static SkylineTool requireToolInContainer(int toolId, Container c)
@@ -1101,19 +1118,7 @@ public class SkylineToolsStoreController extends SpringActionController
                 return false;
             }
 
-            // Get the tool store container, in case we need it, before the tool and its container is deleted.
-            Container toolStoreContainer = tool.getContainerParent();
-            if(toolStoreContainer == null)
-            {
-                errors.reject(ERROR_MSG, "Failed to look up tool's parent container: " + tool.getName());
-                return false;
-            }
-            if(!getContainer().equals(toolStoreContainer))
-            {
-                ActionURL url = getViewContext().getActionURL().clone();
-                url.setContainer(toolStoreContainer);
-                throw new RedirectException(url);
-            }
+            requireToolAddressedFrom(tool, getContainer());
 
             Container toolContainer = tool.lookupContainer();
             if(toolContainer == null)
@@ -1510,6 +1515,7 @@ public class SkylineToolsStoreController extends SpringActionController
             SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
+            requireToolAddressedFrom(tool, getContainer());
             if (!reshow)
                 // Prefill the box. handlePost replaces the whole list, so a blank form strips every owner.
                 form.setToolOwners(StringUtils.join(getToolOwners(tool), ", "));
@@ -1534,6 +1540,8 @@ public class SkylineToolsStoreController extends SpringActionController
             final SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
+
+            requireToolAddressedFrom(tool, getContainer());
 
             // Get all the version folders
             List<Container> versionFolders = new ArrayList<>();
