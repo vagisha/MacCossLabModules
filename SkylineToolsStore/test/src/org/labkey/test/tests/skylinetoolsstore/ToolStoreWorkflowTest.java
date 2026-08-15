@@ -105,6 +105,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     // An ordinary site user. Gets Editor on their tool's folder only after the admin names them.
     private static final String TOOL_AUTHOR = "toolstore_author@toolstore.test";
 
+    // A second owner, used to check that an owner change reaches every version's folder.
+    private static final String TOOL_SECOND_OWNER = "toolstore_second@toolstore.test";
+
     private static final String WIKI_NAME = "submit-a-tool";
     private static final String WIKI_TITLE = "Submit a Skyline Tool";
     private static final String SUBMISSION_TITLE = "Skyline Tool submission";
@@ -141,6 +144,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _permissionsHelper.setSiteGroupPermissions("All Site Users", "Message Board Contributor");
 
         _userHelper.createUser(TOOL_AUTHOR);
+        _userHelper.createUser(TOOL_SECOND_OWNER);
 
         _formsToolV1 = writeMinimalToolZip("1.0");
         _formsToolV2 = writeMinimalToolZip("2.0");
@@ -293,6 +297,20 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertEquals("A tool owner must not be able to add a different tool",
                 beforeAuthorAttempts, catalogIdentifiers());
         assertTrue("Ownership must be unchanged", hasEditorRole(v2Folder, TOOL_AUTHOR));
+
+        log("Setting owners reaches every version's folder, not just the one named");
+        setOwners(v2RowId, TOOL_AUTHOR + ", " + TOOL_SECOND_OWNER);
+        assertTrue("The new owner should hold Editor on the version that was named",
+                hasEditorRole(v2Folder, TOOL_SECOND_OWNER));
+        assertTrue("The new owner should hold Editor on the older version too",
+                hasEditorRole(v1Folder, TOOL_SECOND_OWNER));
+
+        log("Removing an owner reaches every version's folder as well");
+        setOwners(v2RowId, TOOL_SECOND_OWNER);
+        assertFalse("The dropped owner should lose Editor on the version that was named",
+                hasEditorRole(v2Folder, TOOL_AUTHOR));
+        assertFalse("The dropped owner should lose Editor on the older version too",
+                hasEditorRole(v1Folder, TOOL_AUTHOR));
     }
 
     /**
@@ -814,7 +832,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(FOLDER_STORE, false);
         _containerHelper.deleteProject(NESTED_STORE, false);
         _containerHelper.deleteProject(CORRUPT_STORE, false);
-        _userHelper.deleteUsers(false, TOOL_AUTHOR);
+        _userHelper.deleteUsers(false, TOOL_AUTHOR, TOOL_SECOND_OWNER);
     }
 
     @Override

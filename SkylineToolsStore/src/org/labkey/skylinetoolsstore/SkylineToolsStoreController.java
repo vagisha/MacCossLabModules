@@ -37,6 +37,7 @@ import org.labkey.api.action.SimpleViewAction;
 import org.labkey.api.action.SpringActionController;
 import org.labkey.api.collections.LabKeyCollectors;
 import org.labkey.api.data.Container;
+import org.labkey.api.data.CoreSchema;
 import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.data.NormalContainerType;
@@ -384,6 +385,36 @@ public class SkylineToolsStoreController extends SpringActionController
             return;
 
         SecurityPolicyManager.savePolicy(copyPolicy(to, from.getPolicy()), User.getAdminServiceUser());
+    }
+
+    /**
+     * Makes the Editor and FolderAdmin holders on one folder exactly the given owners. Runs per
+     * folder, because the additions are worked out against that folder's existing assignments.
+     */
+    protected void setToolOwners(Container c, List<User> owners)
+    {
+        ArrayList<User> newToolEditors = new ArrayList<>(owners);
+
+        for (RoleAssignment assignment : c.getPolicy().getAssignments())
+        {
+            if (assignment.getRole() != RoleManager.getRole(FolderAdminRole.class) &&
+                assignment.getRole() != RoleManager.getRole(EditorRole.class))
+                continue;
+            for (int i = 0; i < newToolEditors.size(); ++i)
+            {
+                if (newToolEditors.get(i).getUserId() == assignment.getUserId())
+                {
+                    newToolEditors.remove(i);
+                    break;
+                }
+            }
+        }
+
+        MutableSecurityPolicy policy = copyPolicy(c, c.getPolicy());
+        for (User u : newToolEditors)
+            policy.addRoleAssignment(u, RoleManager.getRole(EditorRole.class));
+        policy = filterPolicy(policy, owners, new Role[]{RoleManager.getRole(EditorRole.class), RoleManager.getRole(FolderAdminRole.class)});
+        SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
     }
 
     public static SkylineTool[] sortToolsByCreateDate(SkylineTool[] tools)
@@ -1461,10 +1492,7 @@ public class SkylineToolsStoreController extends SpringActionController
     }
 
     /**
-     * Replaces the set of users holding Editor on a tool's folder.
-     *
-     * Stays addressed to the store folder rather than the tool's, because @RequiresSiteAdmin is
-     * checked against the whole site and not a container, so there is nothing to gain by moving it.
+     * Sets the tool owners on every one of a tool's version folders.
      */
     @RequiresSiteAdmin
     public class SetOwnersAction extends FormViewAction<SetOwnersForm>
@@ -1506,32 +1534,25 @@ public class SkylineToolsStoreController extends SpringActionController
             final SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
-            final Container c = tool.lookupContainer();
-            if (c == null)
-                throw new NotFoundException("Failed to look up the tool's container: " + tool.getName());
 
-            ArrayList<User> newToolEditors = new ArrayList<>(toolOwnersUsers);
-
-            for (RoleAssignment assignment : c.getPolicy().getAssignments())
+            // Get all the version folders
+            List<Container> versionFolders = new ArrayList<>();
+            for (SkylineTool version : SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()))
             {
-                if (assignment.getRole() != RoleManager.getRole(FolderAdminRole.class) &&
-                    assignment.getRole() != RoleManager.getRole(EditorRole.class))
-                    continue;
-                for (int i = 0; i < newToolEditors.size(); ++i)
-                {
-                    if (newToolEditors.get(i).getUserId() == assignment.getUserId())
-                    {
-                        newToolEditors.remove(i);
-                        break;
-                    }
-                }
+                Container versionFolder = version.lookupContainer();
+                if (versionFolder == null)
+                    throw new NotFoundException("Failed to look up the folder holding " + version.getName() +
+                            " version " + version.getVersion() + ".");
+                versionFolders.add(versionFolder);
             }
 
-            MutableSecurityPolicy policy = copyPolicy(c, c.getPolicy());
-            for (User u : newToolEditors)
-                policy.addRoleAssignment(u, RoleManager.getRole(EditorRole.class));
-            policy = filterPolicy(policy, toolOwnersUsers, new Role[]{RoleManager.getRole(EditorRole.class), RoleManager.getRole(FolderAdminRole.class)});
-            SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
+            // Set the tool owners on every version of the tool
+            try (DbScope.Transaction transaction = CoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+            {
+                for (Container versionFolder : versionFolders)
+                    setToolOwners(versionFolder, toolOwnersUsers);
+                transaction.commit();
+            }
 
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
             _successURL = form.getSender() != null ? new ActionURL(form.getSender())
