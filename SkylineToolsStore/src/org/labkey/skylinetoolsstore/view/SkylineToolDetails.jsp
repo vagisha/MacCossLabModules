@@ -468,9 +468,13 @@ a { text-decoration: none; }
                 (ui.draggable).hide("explode");
                 if ($("#documentationbox").children(".suppfile:visible").length <= 1)
                     $("#documentationbox").hide("fade");
-            }).fail(function() {
+            }).fail(function(xhr) {
+                // The action refuses with a status and a message now, so show what it said rather
+                // than a fixed string. Nothing was deleted, so the tile goes back where it was.
                 (ui.draggable).offset({top: offset.top, left: offset.left});
-                alert("An error occurred while trying to delete the file.");
+                var failure = (xhr.responseJSON && xhr.responseJSON.exception) ||
+                        "An error occurred while trying to delete the file.";
+                alert(failure);
             });
         }
     });

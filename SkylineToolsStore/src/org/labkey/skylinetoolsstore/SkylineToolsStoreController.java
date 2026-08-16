@@ -1027,43 +1027,44 @@ public class SkylineToolsStoreController extends SpringActionController
     /**
      * Deletes one supplementary file from a tool.
      *
+     * A MutatingApiAction because the details page calls this over ajax and hides the file's tile on
+     * success. As a FormHandlerAction a refusal rendered an error view at status 200, so the caller
+     * hid a file that is still there.
+     *
      * Addressed to the TOOL's own container, not the store folder, so @RequiresPermission checks the
      * folder that actually holds the file. Callers must build the URL with
      * SkylineToolStoreUrls.getToolActionUrl.
      */
     @RequiresPermission(DeletePermission.class)
-    public static class DeleteSupplementAction extends FormHandlerAction<SupplementForm>
+    public static class DeleteSupplementAction extends MutatingApiAction<SupplementForm>
     {
-        private SkylineTool _tool;
-
         @Override
-        public void validateCommand(SupplementForm form, Errors errors)
+        public Object execute(SupplementForm form, BindException errors) throws Exception
         {
-        }
-
-        @Override
-        public boolean handlePost(SupplementForm form, BindException errors) throws Exception
-        {
-            _tool = requireToolInContainer(form.getToolId(), getContainer());
+            final SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
 
             File targetDel = makeFile(getContainer(), form.getSuppFile());
 
             // The tool's own zip and icon are not supplementary files, so they are not deletable here.
             if (!targetDel.isFile() ||
                 targetDel.getName().equalsIgnoreCase("icon.png") ||
-                targetDel.getName().equalsIgnoreCase(_tool.getZipName()))
+                targetDel.getName().equalsIgnoreCase(tool.getZipName()))
             {
                 throw new NotFoundException("No supplementary file named " + form.getSuppFile() +
-                        " for tool " + _tool.getName());
+                        " for tool " + tool.getName());
             }
-            targetDel.delete();
-            return true;
-        }
 
-        @Override
-        public URLHelper getSuccessURL(SupplementForm form)
-        {
-            return SkylineToolStoreUrls.getToolDetailsUrl(_tool);
+            // delete returns false rather than throwing, so ignoring it reported a file as deleted
+            // while it was still on disk and still listed on the details page.
+            if (!targetDel.delete())
+            {
+                // The message names a server path, so it goes to the log only.
+                LOG.warn("Could not delete the supplementary file {}", targetDel.getAbsolutePath());
+                errors.reject(ERROR_MSG, "The file " + form.getSuppFile() + " could not be deleted.");
+                return null;
+            }
+
+            return new ApiSimpleResponse("success", true);
         }
     }
 
