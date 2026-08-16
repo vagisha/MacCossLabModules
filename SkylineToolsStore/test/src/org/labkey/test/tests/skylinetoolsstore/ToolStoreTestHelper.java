@@ -302,7 +302,7 @@ public class ToolStoreTestHelper
         }
 
         // The status says the action accepted the request. It does not prove the folders went, since
-        // a container delete can answer false. Read the catalog back and fail here rather than
+        // a container delete can return false. Read the catalog back and fail here rather than
         // leaving the next upload to fail as TOOL_ALREADY_EXISTS somewhere unrelated.
         Set<String> stillPresent = new HashSet<>(catalogIdentifiers(containerPath));
         stillPresent.retainAll(wanted);

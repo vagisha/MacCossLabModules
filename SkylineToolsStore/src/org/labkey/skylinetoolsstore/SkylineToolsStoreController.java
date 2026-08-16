@@ -28,7 +28,6 @@ import org.json.JSONObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.action.ApiSimpleResponse;
-import org.labkey.api.action.FormHandlerAction;
 import org.labkey.api.action.FormViewAction;
 import org.labkey.api.action.LabKeyError;
 import org.labkey.api.action.MutatingApiAction;
@@ -132,6 +131,10 @@ public class SkylineToolsStoreController extends SpringActionController
 
     private static final String STORE_NOT_AVAILABLE = "The Skyline Tool Store is not available in this folder.";
     private static final String TOOL_ALREADY_EXISTS = "The Skyline Tool you are trying to add already exists.";
+    // Enumerates the addresses it was given, so it must not reach a caller refused for permissions.
+    // ToolStoreSecurityTest.testInsertDoesNotRevealWhetherAccountsExist repeats this text, because
+    // that source set cannot see this class. Change the two together.
+    private static final String UNKNOWN_USERS = "The following users are unknown: ";
 
     public SkylineToolsStoreController()
     {
@@ -147,8 +150,8 @@ public class SkylineToolsStoreController extends SpringActionController
             if (!getContainer().hasActiveModuleByName(SkylineToolsStoreModule.NAME))
                 throw new NotFoundException(STORE_NOT_AVAILABLE);
 
-            // Lookup by row id, because a name-keyed URL resolves to the latest version of the tool.
             SkylineTool[] ownTools = SkylineToolsStoreManager.get().getTools(getContainer());
+            // If this container has a tool, redirect to the tool details page.
             if (ownTools.length > 0)
                 throw new RedirectException(SkylineToolStoreUrls.getToolDetailsByIdUrl(ownTools[0]));
 
@@ -225,11 +228,7 @@ public class SkylineToolsStoreController extends SpringActionController
         return tool;
     }
 
-    /**
-     * Reads the current zip entry. A corrupt or truncated zip throws from read, and the caller turns
-     * that into the message naming the file. Returning null instead left getToolFromZip
-     * dereferencing it, and the NPE is not an IOException, so the upload died as a server error.
-     */
+    /** Reads the current zip entry. Throws on a corrupt zip rather than returning null. */
     protected byte[] unzip(ZipInputStream stream) throws IOException
     {
         final int BUFFER_SIZE = 2048;
@@ -282,23 +281,13 @@ public class SkylineToolsStoreController extends SpringActionController
     }
 
     /**
-     * Shared by the two places that refuse to publish from a version that is not the latest, so the
-     * form and the post cannot tell the owner two different things.
-     */
-    private static String notLatestVersionMessage(SkylineTool tool)
-    {
-        return "Version " + tool.getVersion() + " is not the latest version of " + tool.getName() +
-                ". Publish a new version from the latest one.";
-    }
-
-    /**
-     * Confirms a request is addressed to the given tool, targeting either its own folder or the parent store folder.
+     * Confirms the given container is one this tool may be acted on from - its own folder, or the store folder above it.
      *
-     * This is called by SetOwnersAction and DeleteAction actions that act on all the version folders of a tool, so
-     * requireToolInContainer cannot be used. These actions are @RequiresSiteAdmin but weakening the annotation to say
-     * @RequiresPermission(AdminPermission.class), would allow an admin of any folder to act on any tool via these actions.
+     * For actions that act on every version folder of a tool, so requireToolInContainer cannot be used. They are
+     * @RequiresSiteAdmin, and weakening that to @RequiresPermission(AdminPermission.class) would let an admin of any
+     * folder act on any tool through them.
      */
-    private static void requireToolAddressedFrom(SkylineTool tool, Container c)
+    private static void requireToolAddressableFrom(SkylineTool tool, Container c)
     {
         Container toolContainer = tool.lookupContainer();
         if (toolContainer == null)
@@ -334,7 +323,7 @@ public class SkylineToolsStoreController extends SpringActionController
             return null;
 
         Container c = ContainerManager.createContainer(parent, folderName, null, null, NormalContainerType.NAME, getUser());
-        boolean made = false;
+        boolean folderSetupComplete = false;
         try
         {
             c.setFolderType(FolderTypeManager.get().getFolderType("Collaboration"), getUser());
@@ -360,15 +349,13 @@ public class SkylineToolsStoreController extends SpringActionController
 
             SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
 
-            made = true;
+            folderSetupComplete = true;
             return c;
         }
         finally
         {
-            // createContainer has already committed the folder, so a throw below it leaves one the
-            // caller never receives and so cannot clean up. This method refuses a folder name that
-            // is already taken, so a stranded folder blocks that version of that tool for good.
-            if (!made)
+            // Discard the folder if folder setup could not be completed.
+            if (!folderSetupComplete)
                 discardVersionFolder(c);
         }
     }
@@ -388,9 +375,7 @@ public class SkylineToolsStoreController extends SpringActionController
     protected MutableSecurityPolicy filterPolicy(SecurityPolicy original, List<User> users, Role[] roles)
     {
         // For each role assignment where the role is in roles, only keep if the user is in users.
-        // A role can also be held by a group, and a group is never in that list, so a group holding
-        // Editor or FolderAdmin was stripped along with the users being replaced. Only assignments
-        // held by a user are considered, since only users are being replaced.
+        // Assignments held by a group are left alone, since only users are being replaced.
         MutableSecurityPolicy policy = new MutableSecurityPolicy(ContainerManager.getForId(original.getContainerId()));
         for (RoleAssignment assignment : original.getAssignments())
         {
@@ -426,7 +411,7 @@ public class SkylineToolsStoreController extends SpringActionController
     }
 
     /**
-     * Makes the Editor and FolderAdmin holders on one folder exactly the given owners. Runs per
+     * Makes the Editor and FolderAdmin role holders on one folder exactly the given owners. Runs per
      * folder, because the additions are worked out against that folder's existing assignments.
      */
     protected void setToolOwners(Container c, List<User> owners)
@@ -491,8 +476,7 @@ public class SkylineToolsStoreController extends SpringActionController
                     }
                     catch (ValidEmail.InvalidEmailException e)
                     {
-                        // The list is typed by a person, so an entry that is not an address belongs
-                        // on the one reported back to them rather than escaping as a server error.
+                        // Reject an entry that is not a valid address.
                         u = null;
                     }
                     if (u == null)
@@ -625,8 +609,7 @@ public class SkylineToolsStoreController extends SpringActionController
             Pair<ArrayList<User>, ArrayList<String>> parsedOwners = parseToolOwnerString(form.getToolOwners());
             if (!parsedOwners.second.isEmpty())
             {
-                errors.reject(ERROR_MSG, "The following users are unknown: " +
-                        StringUtils.join(parsedOwners.second, ", "));
+                errors.reject(ERROR_MSG, UNKNOWN_USERS + StringUtils.join(parsedOwners.second, ", "));
                 return false;
             }
 
@@ -845,6 +828,13 @@ public class SkylineToolsStoreController extends SpringActionController
             root.addChild(getToolStoreNavFromToolFolder(getContainer()));
             root.addChild("Upload New Version");
         }
+
+        /** Shared, so the form and the post cannot refuse an older version with different wording. */
+        private static String notLatestVersionMessage(SkylineTool tool)
+        {
+            return "Version " + tool.getVersion() + " is not the latest version of " + tool.getName() +
+                    ". Publish a new version from the latest one.";
+        }
     }
 
     /**
@@ -982,26 +972,21 @@ public class SkylineToolsStoreController extends SpringActionController
         }
     }
 
-    /**
-     * Removes a version folder that was created but never got a row, so an upload that fails part way
-     * does not leave one behind. An orphan folder is not harmless - makeContainer refuses to create a
-     * folder whose name is already taken, so it would block the next attempt at the same version.
-     *
-     * Failing to clean up logs rather than throws.
+    /** Removes a tool version folder that never got a tool row because upload failed part way.
+     * Logs rather than throws if it cannot.
      */
     private void discardVersionFolder(Container versionContainer)
     {
+        final String failed = "Could not remove the folder for a tool version that was never stored: {}";
         try
         {
-            // delete answers false rather than throwing when the folder still has children of its own.
+            // delete returns false rather than throwing when the folder still has children of its own.
             if (!ContainerManager.delete(versionContainer, getUser()))
-                LOG.error("Could not remove the folder for a tool version that was never stored: {}",
-                        versionContainer.getPath());
+                LOG.error(failed, versionContainer.getPath());
         }
         catch (Exception e)
         {
-            LOG.error("Could not remove the folder for a tool version that was never stored: {}",
-                    versionContainer.getPath(), e);
+            LOG.error(failed, versionContainer.getPath(), e);
         }
     }
 
@@ -1236,7 +1221,7 @@ public class SkylineToolsStoreController extends SpringActionController
                 return null;
             }
 
-            requireToolAddressedFrom(tool, getContainer());
+            requireToolAddressableFrom(tool, getContainer());
 
             // Resolved before the delete, and from the tool rather than from the request, because
             // this action may be addressed to the tool's own folder, which it is about to remove.
@@ -1374,7 +1359,7 @@ public class SkylineToolsStoreController extends SpringActionController
                         " version " + newLatest.getVersion() + ".");
 
             // The promotion and the delete land together. Only one folder is removed here, and the
-            // delete answers false without touching it when it cannot go, so the rollback this can
+            // delete returns false without touching it when it cannot go, so the rollback this can
             // perform is of the promotion alone. It could not undo a folder that was really deleted -
             // container deletion removes the files from disk inside the transaction.
             //
@@ -1688,7 +1673,7 @@ public class SkylineToolsStoreController extends SpringActionController
             SkylineTool tool = SkylineToolsStoreManager.get().getTool(form.getToolId());
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
-            requireToolAddressedFrom(tool, getContainer());
+            requireToolAddressableFrom(tool, getContainer());
             if (!reshow)
                 // Prefill the box. handlePost replaces the whole list, so a blank form strips every owner.
                 form.setToolOwners(StringUtils.join(getToolOwners(tool), ", "));
@@ -1709,8 +1694,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
             if (!toolOwnersInvalid.isEmpty())
             {
-                errors.reject(ERROR_MSG, "The following users are unknown: " +
-                        StringUtils.join(toolOwnersInvalid, ", "));
+                errors.reject(ERROR_MSG, UNKNOWN_USERS + StringUtils.join(toolOwnersInvalid, ", "));
                 return false;
             }
 
@@ -1718,7 +1702,7 @@ public class SkylineToolsStoreController extends SpringActionController
             if (tool == null)
                 throw new NotFoundException("Could not find tool with Id " + form.getToolId());
 
-            requireToolAddressedFrom(tool, getContainer());
+            requireToolAddressableFrom(tool, getContainer());
 
             // Get all the version folders
             List<Container> versionFolders = new ArrayList<>();

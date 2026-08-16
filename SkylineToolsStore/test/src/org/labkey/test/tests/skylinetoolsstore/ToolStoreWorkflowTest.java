@@ -436,7 +436,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     /**
      * A version folder holding a folder of its own cannot be removed - ContainerManager.delete
-     * answers false rather than throwing. Promoting the previous version anyway left the tool with
+     * returns false rather than throwing. Promoting the previous version anyway left the tool with
      * two rows flagged latest, and getToolLatestByIdentifier matches nothing when two rows match, so
      * the lsid downloads shipped Skyline clients make stopped resolving for that tool.
      */

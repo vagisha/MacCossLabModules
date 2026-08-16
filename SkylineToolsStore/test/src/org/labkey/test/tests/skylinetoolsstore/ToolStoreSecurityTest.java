@@ -204,7 +204,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     /**
      * setOwners must refuse a request addressed to a folder unrelated to the tool it names. Sent as
      * the site admin with a session and CSRF token, so only that check can refuse it. Why the check
-     * is there is on requireToolAddressedFrom.
+     * is there is on requireToolAddressableFrom.
      */
     @Test
     public void testSetOwnersRefusesARequestAddressedElsewhere()
@@ -297,7 +297,9 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 reply.contains(UNKNOWN_USERS_MESSAGE));
     }
 
-    // Copy of the InsertToolAction message. The action keeps it private.
+    // Must match SkylineToolsStoreController.UNKNOWN_USERS. This source set does not have the
+    // module's classes on its classpath, so it cannot read the constant and has to repeat it. If the
+    // product wording changes and this does not, the assertion above passes while testing nothing.
     private static final String UNKNOWN_USERS_MESSAGE = "The following users are unknown";
 
     // -------------------------------------------------------------------------
