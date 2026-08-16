@@ -19,6 +19,7 @@ import org.labkey.api.action.PermissionCheckableAction;
 import org.labkey.api.data.Container;
 import org.labkey.api.security.User;
 import org.labkey.api.view.ActionURL;
+import org.labkey.api.view.NotFoundException;
 import org.labkey.skylinetoolsstore.SkylineToolsStoreController;
 import org.labkey.skylinetoolsstore.model.SkylineTool;
 
@@ -38,15 +39,27 @@ public class SkylineToolStoreUrls
 
     public static ActionURL getToolDetailsUrl(SkylineTool tool)
     {
-        ActionURL url = new ActionURL(SkylineToolsStoreController.DetailsAction.class, tool.getContainerParent()).addParameter("name", tool.getName());
+        ActionURL url = new ActionURL(SkylineToolsStoreController.DetailsAction.class,
+                requireContainer(tool.getContainerParent(), tool)).addParameter("name", tool.getName());
         if (!tool.getLatest())
             url.addParameter("version", tool.getVersion());
         return url;
     }
 
+    /**
+     * The details page addressed by row id rather than by name. A tool Name is unique nowhere, so a
+     * name-keyed URL can land on a different tool. Use this wherever the row is already in hand.
+     */
+    public static ActionURL getToolDetailsByIdUrl(SkylineTool tool)
+    {
+        return new ActionURL(SkylineToolsStoreController.DetailsAction.class,
+                requireContainer(tool.getContainerParent(), tool)).addParameter("id", tool.getRowId());
+    }
+
     public static ActionURL getToolDetailsLatestUrl(SkylineTool tool)
     {
-        return new ActionURL(SkylineToolsStoreController.DetailsAction.class, tool.getContainerParent()).addParameter("name", tool.getName());
+        return new ActionURL(SkylineToolsStoreController.DetailsAction.class,
+                requireContainer(tool.getContainerParent(), tool)).addParameter("name", tool.getName());
     }
 
     /** Adding a new tool happens in the store folder, so this takes a container rather than a tool. */
@@ -93,6 +106,20 @@ public class SkylineToolStoreUrls
      */
     private static ActionURL getToolActionUrl(Class<? extends PermissionCheckableAction> action, SkylineTool tool)
     {
-        return new ActionURL(action, tool.lookupContainer());
+        return new ActionURL(action, requireContainer(tool.lookupContainer(), tool));
+    }
+
+    /**
+     * ActionURL resolves a null container to the site root, so a tool whose folder cannot be looked
+     * up would otherwise be handed a URL addressed to the root - where the action's permission
+     * annotation is checked against the wrong folder, or against one the caller can reach.
+     */
+    private static Container requireContainer(Container c, SkylineTool tool)
+    {
+        if (c == null)
+            throw new NotFoundException("Failed to look up the folder holding " + tool.getName() +
+                    " version " + tool.getVersion() + ".");
+
+        return c;
     }
 }
