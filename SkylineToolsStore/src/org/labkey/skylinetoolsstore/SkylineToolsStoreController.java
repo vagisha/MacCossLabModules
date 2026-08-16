@@ -953,8 +953,18 @@ public class SkylineToolsStoreController extends SpringActionController
             }
 
             if (previousContainer != null)
+            {
+                // Resolved by the name on disk rather than through makeFile, which runs the name
+                // through FileUtil.makeLegalName first. A supplementary file carrying a character
+                // that is not legal in a new file name - an apostrophe is one, and WebDAV will store
+                // one - resolved to a name that is not there, the copy threw, and every later
+                // publish of that tool was refused with nothing to say which file was the reason.
+                Path previousFiles = getLocalPath(previousContainer);
+                Path newFiles = getLocalPath(c);
                 for (String copyFile : carryForward)
-                    FileUtils.copyFile(makeFile(previousContainer, copyFile), makeFile(c, copyFile), true);
+                    FileUtils.copyFile(previousFiles.resolve(copyFile).toFile(),
+                            newFiles.resolve(copyFile).toFile(), true);
+            }
 
             populated = true;
             return c;
