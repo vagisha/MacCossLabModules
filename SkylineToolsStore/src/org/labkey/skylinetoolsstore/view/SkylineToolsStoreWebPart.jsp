@@ -364,31 +364,25 @@
     }
 <% } %>
 
+    // The question is built from a text node rather than an HTML string. jQuery.attr returns the
+    // attribute HTML-decoded, so the server-side escaping does not survive being pasted into markup.
     function delToolAll(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolAllDlg").data("toolTable", parentTable)
-                           .html("<p>Completely delete " + parentTable.attr("data-toolName") + "?</p>")
+                           .empty()
+                           .append($("<p></p>").text("Completely delete " +
+                                   parentTable.attr("data-toolName") + "?"))
                            .dialog("open");
     }
 
     function delToolLatest(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolLatestDlg").data("toolTable", parentTable)
-                              .html("<p>Delete version " + parentTable.attr("data-toolVersion") + " of " + parentTable.attr("data-toolName") + "?</p>")
+                              .empty()
+                              .append($("<p></p>").text("Delete version " +
+                                      parentTable.attr("data-toolVersion") + " of " +
+                                      parentTable.attr("data-toolName") + "?"))
                               .dialog("open");
-    }
-
-    function extractToolTable(data, lsid) {
-        var parsedData = $.parseHTML(data);
-        return $(parsedData).find('.tablewrap[data-toolLsid="' + lsid + '"]:first');
-    }
-
-    function showDeleteLatestError(toolTable) {
-        $("#delToolLatestDlg").empty().append($("<p></p>").text(
-                "An error occurred trying to delete the latest version of " +
-                toolTable.attr("data-toolName") + "."));
-        $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-        setButtonsEnabled(true);
     }
 
     var DLG_EFFECT_SHOW = "fade";
@@ -402,18 +396,19 @@
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                $(this).html("<p>Please wait...</p>");
-                var toolTable = $(this).data("toolTable");
-                $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteAction.class))%>", {
+                var dlg = $(this);
+                var toolTable = dlg.data("toolTable");
+                dlg.empty().append($("<p></p>").text("Please wait..."));
+                // The action answers with the page to go to. Reloading it is what removes the tool's
+                // row, so nothing here has to guess whether the delete happened.
+                $.post(<%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>, {
                     "toolId": toolTable.attr("data-toolId"),
                     "X-LABKEY-CSRF": LABKEY.CSRF
-                }).done(function() {
-                    $("#delToolAllDlg").dialog("close");
-                    toolTable.hide("explode");
-                }).fail(function() {
-                    $("#delToolAllDlg").html("<p>An error occurred trying to delete " + toolTable.attr("data-toolName") + ".</p>");
-                    $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                    setButtonsEnabled(true);
+                }).done(function(data) {
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete " +
+                            toolTable.attr("data-toolName") + ".");
                 });
             },
             Cancel: function() {$(this).dialog("close");}
@@ -428,31 +423,21 @@
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                $(this).html("<p>Please wait...</p>");
-                var toolTable = $(this).data("toolTable");
+                var dlg = $(this);
+                var toolTable = dlg.data("toolTable");
+                dlg.empty().append($("<p></p>").text("Please wait..."));
+                // The reply names the page to go to, and reloading it draws the promoted version.
+                // This used to parse the reply as HTML and swap the tool's row in, because a refusal
+                // arrived as an error view at status 200 and could only be told apart by the row
+                // being missing from it.
                 $.post(toolTable.attr("data-deleteLatestUrl"), {
                     "toolId": toolTable.attr("data-toolId"),
                     "X-LABKEY-CSRF": LABKEY.CSRF
                 }).done(function(data) {
-                    var newToolTable = extractToolTable(data, toolTable.attr("data-toolLsid"));
-                    // A rejected delete comes back as an error view with status 200, so .fail()
-                    // does not run and the tool's row is absent from the response. Without this
-                    // the row would be replaced by nothing and the tool would appear deleted.
-                    if (newToolTable.length === 0) {
-                        showDeleteLatestError(toolTable);
-                        return;
-                    }
-                    newToolTable.hide();
-                    newToolTable.find(".menuMouseArea").each(function() {initMenu($(this));});
-                    $("#delToolLatestDlg").dialog("close");
-                    toolTable.hide("explode", function() {
-                        $(this).replaceWith(newToolTable);
-                        $(newToolTable).show("explode", function() {
-                            adjustContent($(newToolTable).find(".content:first"));
-                        });
-                    });
-                }).fail(function() {
-                    showDeleteLatestError(toolTable);
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete the latest version of " +
+                            toolTable.attr("data-toolName") + ".");
                 });
             },
             Cancel: function() {$(this).dialog("close");}

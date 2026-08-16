@@ -9,6 +9,19 @@ function setButtonsEnabled(enable) {
     $(".ui-dialog-buttonpane button:contains('Cancel')").button(action);
 }
 
+/**
+ * Reports a refused request inside the dialog that made it, and leaves Cancel as the way out.
+ * The actions answer a refusal with an error status and a JSON body naming the reason, so show
+ * that when there is one. The message is added as a text node, so one carrying markup is
+ * displayed rather than parsed.
+ */
+function showDialogError(dlg, xhr, fallback) {
+    var message = (xhr && xhr.responseJSON && xhr.responseJSON.exception) || fallback;
+    dlg.empty().append($("<p></p>").text(message));
+    $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
+    setButtonsEnabled(true);
+}
+
 function autocomplete(txtbox, tags) {
     txtbox.bind("keydown", function(e) {
         if (e.keyCode === $.ui.keyCode.TAB && $(this).data("ui-autocomplete").menu.active)

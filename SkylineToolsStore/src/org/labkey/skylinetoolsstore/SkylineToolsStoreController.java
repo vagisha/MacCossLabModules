@@ -1100,48 +1100,40 @@ public class SkylineToolsStoreController extends SpringActionController
      * Site admin rather than @RequiresPermission, because this deletes a folder per version and no
      * single container covers them all. Both menus already offer it to site admins only, so the
      * annotation now says what the UI has always done.
+     *
+     * A MutatingApiAction because both callers post over ajax. As a FormHandlerAction a refusal
+     * rendered an error view at status 200, so the caller read a refused delete as done. The reply
+     * carries the page to go to, so the server still decides where the caller lands.
      */
     @RequiresSiteAdmin
-    public static class DeleteAction extends FormHandlerAction<IdForm>
+    public static class DeleteAction extends MutatingApiAction<IdForm>
     {
         @Override
-        public URLHelper getSuccessURL(IdForm idForm)
-        {
-            return SkylineToolStoreUrls.getToolStoreHomeUrl(getContainer(), getUser());
-        }
-
-        @Override
-        public boolean handlePost(IdForm idForm, BindException errors) throws Exception
+        public Object execute(IdForm idForm, BindException errors) throws Exception
         {
             final SkylineTool tool = SkylineToolsStoreManager.get().getTool(idForm.getToolId());
 
             if(tool == null)
             {
                 errors.reject(ERROR_MSG, "Tool with id " + idForm.getToolId() + " does not exist.");
-                return false;
+                return null;
             }
 
             requireToolAddressedFrom(tool, getContainer());
 
-            Container toolContainer = tool.lookupContainer();
-            if(toolContainer == null)
-            {
-                errors.reject(ERROR_MSG, "Failed to look up tool's container: " + tool.getName());
-                return false;
-            }
+            // Resolved before the delete, and from the tool rather than from the request, because
+            // this action may be addressed to the tool's own folder, which it is about to remove.
+            Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
+
             // TODO: Should be in a transaction
             for (SkylineTool toDelete : SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()))
             {
                 ContainerManager.delete(toDelete.lookupContainer(), getUser());
             }
 
-            return true;
-        }
-
-        @Override
-        public void validateCommand(IdForm idForm, Errors errors)
-        {
-
+            ApiSimpleResponse response = new ApiSimpleResponse("success", true);
+            response.put("successUrl", SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser()).getLocalURIString());
+            return response;
         }
     }
 
@@ -1178,27 +1170,23 @@ public class SkylineToolsStoreController extends SpringActionController
     /**
      * Deletes only the newest version of a tool and promotes the previous one.
      *
-     * This is a FormHandlerAction, so it accepts POST only. It used to be reachable by GET, which
-     * meant a container delete could be triggered by an img tag on any page, and no CSRF token can
-     * protect a GET. LabKey's own dev-mode guardrail flagged it too, as
-     * "MUTATING SQL executed as part of handling action: GET ...DeleteLatestAction".
+     * MutatingApiAction carries @MethodsAllowed(POST), so a GET is answered with 405 before the
+     * action runs. It used to be reachable by GET, which meant a container delete could be triggered
+     * by an img tag on any page, and no CSRF token can protect a GET. LabKey's own dev-mode guardrail
+     * flagged it too, as "MUTATING SQL executed as part of handling action: GET ...DeleteLatestAction".
      *
      * That guardrail is not the thing to silence here. Wrapping the delete in ignoreSqlUpdates(),
      * as PR #608 correctly did for DownloadToolAction's download counter, would hide the warning and
      * leave the delete reachable by GET.
+     *
+     * The reply carries the page to go to, so the server keeps deciding the destination, including
+     * the name and version rewrite below.
      */
     @RequiresPermission(DeletePermission.class)
-    public static class DeleteLatestAction extends FormHandlerAction<DeleteLatestForm>
+    public static class DeleteLatestAction extends MutatingApiAction<DeleteLatestForm>
     {
-        private URLHelper _successURL;
-
         @Override
-        public void validateCommand(DeleteLatestForm form, Errors errors)
-        {
-        }
-
-        @Override
-        public boolean handlePost(DeleteLatestForm form, BindException errors) throws Exception
+        public Object execute(DeleteLatestForm form, BindException errors) throws Exception
         {
             // The form names the row and the URL decides which folder the permission is checked
             // against, so the two have to agree. The check below covers the folder this deletes.
@@ -1216,7 +1204,7 @@ public class SkylineToolsStoreController extends SpringActionController
             {
                 errors.reject(ERROR_MSG, "Cannot delete the only version of " + tool.getName() +
                         ". Use Delete to remove the tool entirely.");
-                return false;
+                return null;
             }
 
             // Delete was checked against the container in the URL, so that has to be the folder
@@ -1243,15 +1231,12 @@ public class SkylineToolsStoreController extends SpringActionController
             newLatest.setLatest(true);
             SkylineToolsStoreManager.get().updateTool(newLatest.lookupContainer(), getUser(), newLatest);
 
-            _successURL = senderUrl != null ? senderUrl :
+            URLHelper successUrl = senderUrl != null ? senderUrl :
                     SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser());
-            return true;
-        }
 
-        @Override
-        public URLHelper getSuccessURL(DeleteLatestForm form)
-        {
-            return _successURL;
+            ApiSimpleResponse response = new ApiSimpleResponse("success", true);
+            response.put("successUrl", successUrl.getLocalURIString());
+            return response;
         }
     }
 

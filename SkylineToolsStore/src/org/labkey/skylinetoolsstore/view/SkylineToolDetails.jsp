@@ -559,42 +559,60 @@ a { text-decoration: none; }
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                // Attributes are set via .attr() rather than built into an HTML string, so a value
-                // cannot break out of the markup. Same pattern as the delete-latest dialog below.
-                var form = $('<form method="post"></form>')
-                        .attr('action', <%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>);
-                $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
-                $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=tool.getRowId()%>).appendTo(form);
-                $('body').append(form);
-                form.submit();
+                var dlg = $(this);
+                // Posted over ajax rather than by submitting a form. The action answers with the page
+                // to go to, so a refusal can be shown in this dialog instead of replacing the page
+                // with an error view.
+                $.post(<%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>, {
+                    "toolId": <%=tool.getRowId()%>,
+                    "X-LABKEY-CSRF": LABKEY.CSRF
+                }).done(function(data) {
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete " +
+                            <%=q(tool.getName())%> + ".");
+                });
             },
             Cancel: function() {$(this).dialog("close");}
+        },
+        open: function() {$(this).html($(this).data("originalHtml"));},
+        close: function() {
+            $(".ui-dialog-buttonpane button:contains('Ok')").button().show();
+            setButtonsEnabled(true);
         }
-    });
+    }).data("originalHtml", $("#delToolAllDlg").html());
 
     $("#delToolLatestDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                // Submit a POST rather than navigating. DeleteLatestAction deletes a container, so it
-                // must not be reachable by GET, and the CSRF token cannot ride on a navigation.
-                // Attributes are set via .attr() rather than built into an HTML string so the sender
-                // URL cannot break out of the markup.
-                // Built from allVersions[0], not the version being viewed. This item is offered on
+                var dlg = $(this);
+                // A POST, not a navigation. DeleteLatestAction deletes a container, so it must not be
+                // reachable by GET, and the CSRF token cannot ride on a navigation.
+                // Addressed to allVersions[0], not the version being viewed. This item is offered on
                 // an older version's page too, and the action always removes the newest one, so both
                 // the URL and the id have to name that version.
-                var form = $('<form method="post"></form>')
-                        .attr('action', <%=q(SkylineToolStoreUrls.getDeleteLatestUrl(allVersions[0]).getLocalURIString())%>);
-                $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
-                $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=allVersions[0].getRowId()%>).appendTo(form);
-                $('<input type="hidden">').attr('name', 'sender')
-                        .attr('value', <%=q(toolDetailsLatestUrl.getLocalURIString())%>).appendTo(form);
-                $('body').append(form);
-                form.submit();
+                // sender is the page to come back to. The action rewrites the name and version it
+                // carries when the deleted version supplied them, and answers with the result.
+                $.post(<%=q(SkylineToolStoreUrls.getDeleteLatestUrl(allVersions[0]).getLocalURIString())%>, {
+                    "toolId": <%=allVersions[0].getRowId()%>,
+                    "sender": <%=q(toolDetailsLatestUrl.getLocalURIString())%>,
+                    "X-LABKEY-CSRF": LABKEY.CSRF
+                }).done(function(data) {
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete the latest version of " +
+                            <%=q(allVersions[0].getName())%> + ".");
+                });
             },
             Cancel: function() {$(this).dialog("close");}
+        },
+        open: function() {$(this).html($(this).data("originalHtml"));},
+        close: function() {
+            $(".ui-dialog-buttonpane button:contains('Ok')").button().show();
+            setButtonsEnabled(true);
         }
-    });
+    }).data("originalHtml", $("#delToolLatestDlg").html());
 
     $("#editToolDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
@@ -655,15 +673,11 @@ a { text-decoration: none; }
                         });
                     },
                     error: function(xhr) {
-                        // A refused edit now arrives as 400 with a JSON body naming the reason, so show
-                        // that instead of a generic message. Before the action became an API action the
-                        // refusal came back as an error page at status 200 and success ran instead.
-                        var msg = "An error occurred trying to edit " + propName + ".";
-                        if (xhr.responseJSON && xhr.responseJSON.exception)
-                            msg = xhr.responseJSON.exception;
-                        $("#editToolDlg").empty().append($("<p></p>").text(msg));
-                        $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                        setButtonsEnabled(true);
+                        // A refused edit now arrives as 400 with a JSON body naming the reason. Before
+                        // the action became an API action the refusal came back as an error page at
+                        // status 200 and success ran instead.
+                        showDialogError($("#editToolDlg"), xhr,
+                                "An error occurred trying to edit " + propName + ".");
                     },
                     contentType: (!isIcon ? "application/x-www-form-urlencoded; charset=UTF-8" : false),
                     processData: !isIcon
