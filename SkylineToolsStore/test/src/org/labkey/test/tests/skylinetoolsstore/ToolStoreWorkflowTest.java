@@ -508,8 +508,15 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         // more than one version the menu is long enough to run past the bottom of the window.
         Locator.XPathLocator link = Locator.linkWithText(item);
         waitForElement(link.notHidden());
+
+        // Wait the slide out before clicking. Part way through it the item is already reported as
+        // visible while the menu around it is still clipped, and the click fails as not interactable.
+        waitFor(() -> Boolean.TRUE.equals(executeScript(
+                        "return !window.jQuery || jQuery('.dropMenu:animated').length === 0;")),
+                "The gear menu was still sliding open", WAIT_FOR_JAVASCRIPT);
+
         scrollIntoView(link.notHidden());
-        click(link.notHidden());
+        waitAndClick(link.notHidden());
     }
 
     /**
