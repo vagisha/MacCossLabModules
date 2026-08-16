@@ -84,11 +84,6 @@
     // UpdateToolAction refuses to update the tool unless the tool carries the Latest flag. Display the menu item to
     // update tool only if we are looking at the latest version.
     final boolean isLatestVersion = tool.getLatest();
-    // Delete latest acts on the newest version's own folder, so the item and the dialog wired to it
-    // are both drawn only when that folder resolves. Building its URL without this check throws, and
-    // the dialog is set up on every rendering of this page, so it took the whole page down with it.
-    final boolean canDeleteLatest = isLatestVersion && multipleVersions &&
-            allVersions[0].lookupContainer() != null;
     final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 
     ActionURL toolDetailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
@@ -239,19 +234,15 @@ a { text-decoration: none; }
 <div id="allVersionsPop" title="All versions" style="display:none;">
 <%
     for (SkylineTool iVersion : allVersions) {
-        // A version whose folder is gone is listed without a link. Building the URL needs that
-        // folder, and this list is drawn on every rendering of the page, so one broken version
-        // would otherwise take the whole page down rather than lose one link.
-        boolean linkThis = !iVersion.getVersion().equals(tool.getVersion()) &&
-                iVersion.lookupContainer() != null;
+        boolean viewingThis = iVersion.getVersion().equals(tool.getVersion());
  %>
     <p<% if (iVersion.getLatest()) { %> class="boldfont"<% } %>>
         <%= h(iVersion.getPrettyCreated()) %> |
-<% if (linkThis) { %>
+<% if (!viewingThis) { %>
         <a href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(iVersion))%>">
 <% } %>
             <%= h(iVersion.getName()) %> (version <%= h(iVersion.getVersion()) %>)
-<% if (linkThis) { %>
+<% if (!viewingThis) { %>
         </a>
 <% } %>
     </p>
@@ -326,9 +317,7 @@ a { text-decoration: none; }
             </p>
             <p>Uploaded <%= h(tool.getPrettyCreated()) %></p>
 
-            <%-- Same reason as the version list above - no link where the newest version's folder
-                 is gone, rather than a page that will not render at all. --%>
-            <% if (!tool.getLatest() && allVersions[0].lookupContainer() != null) { %>
+            <% if (!tool.getLatest()) { %>
             <p>
                 <a class="importantLink" href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(allVersions[0]))%>">See latest version</a>
             <p>
@@ -359,7 +348,7 @@ a { text-decoration: none; }
             <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').dialog('open')")%></li>
 <%-- This removes the newest version whatever page it is clicked from, so on an older version's
      page it would delete a version other than the one being viewed. --%>
-<% if (canDeleteLatest) { %>
+<% if (isLatestVersion && multipleVersions) { %>
             <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').dialog('open')")%></li>
 <% } %>
 <% if (admin) { %>
@@ -607,9 +596,6 @@ a { text-decoration: none; }
         }
     }).data("originalHtml", $("#delToolAllDlg").html());
 
-<%-- Drawn only where the item that opens it is. Its URL names the newest version's own folder,
-     which the URL builder refuses to leave out, and this block runs on every rendering of the page. --%>
-<% if (canDeleteLatest) { %>
     $("#delToolLatestDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
             Ok: function() {
@@ -641,7 +627,6 @@ a { text-decoration: none; }
             setButtonsEnabled(true);
         }
     }).data("originalHtml", $("#delToolLatestDlg").html());
-<% } %>
 
     $("#editToolDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
