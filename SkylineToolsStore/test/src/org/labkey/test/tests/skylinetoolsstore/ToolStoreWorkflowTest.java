@@ -85,6 +85,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String WEBPART_TOOL_NAME = "WebPartDeleteProbe";
     private static final String WEBPART_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:webpartdelete";
 
+    // Its own store, because it leaves behind a version folder that cannot be deleted.
+    private static final String BLOCKED_STORE = "ToolStoreWorkflowTestBlockedDelete";
+    private static final String BLOCKED_TOOL_NAME = "BlockedDeleteProbe";
+    private static final String BLOCKED_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:blockeddelete";
+
     // Its own store, because it needs a tool with two versions and the other stores assert on one.
     private static final String OLDER_STORE = "ToolStoreWorkflowTestOlderVersion";
     private static final String OLDER_TOOL_NAME = "OlderVersionProbe";
@@ -427,6 +432,49 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         assertEquals("Deleting the tool should leave the store empty",
                 0, toolsInStore(WEBPART_STORE));
+    }
+
+    /**
+     * A version folder holding a folder of its own cannot be removed - ContainerManager.delete
+     * answers false rather than throwing. Promoting the previous version anyway left the tool with
+     * two rows flagged latest, and getToolLatestByIdentifier matches nothing when two rows match, so
+     * the lsid downloads shipped Skyline clients make stopped resolving for that tool.
+     */
+    @Test
+    public void testADeleteLatestThatCannotRemoveTheFolderChangesNothing()
+    {
+        _containerHelper.createProject(BLOCKED_STORE, "Collaboration");
+        _containerHelper.enableModule(BLOCKED_STORE, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+
+        uploadToolFileTo(BLOCKED_STORE, ToolStoreTestHelper.writeMinimalToolZip(
+                BLOCKED_TOOL_NAME, BLOCKED_TOOL_IDENTIFIER, "1.0"));
+        int v1RowId = rowId(onlyToolInStore(BLOCKED_STORE));
+        String v1FolderName = ToolStoreTestHelper.toolFolderName(BLOCKED_TOOL_NAME, "1.0");
+        uploadToolFileTo("/" + BLOCKED_STORE + "/" + v1FolderName,
+                ToolStoreTestHelper.writeMinimalToolZip(BLOCKED_TOOL_NAME, BLOCKED_TOOL_IDENTIFIER, "2.0"),
+                v1RowId);
+
+        int v2RowId = rowId(onlyToolInStore(BLOCKED_STORE));
+        String v2FolderName = ToolStoreTestHelper.toolFolderName(BLOCKED_TOOL_NAME, "2.0");
+
+        // The child folder is the whole point - it is what makes the delete impossible.
+        _containerHelper.createSubfolder(BLOCKED_STORE, v2FolderName, "keepsTheFolderAlive",
+                "Collaboration", null);
+
+        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts",
+                "/" + BLOCKED_STORE + "/" + v2FolderName, "deleteLatest"));
+        request.setEntity(MultipartEntityBuilder.create()
+                .addTextBody("toolId", String.valueOf(v2RowId))
+                .build());
+        int status = execute(request);
+
+        assertEquals("A folder that could not be deleted has to be refused, not reported as deleted",
+                400, status);
+        // Two rows flagged latest show up here as two tools, since the catalog lists every latest row.
+        assertEquals("The tool should still be listed once", 1, toolsInStore(BLOCKED_STORE));
+        assertEquals("2.0 should still be the latest version",
+                "2.0", onlyToolInStore(BLOCKED_STORE).getString("Version"));
     }
 
     /**
@@ -884,6 +932,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(OTHER_STORE, false);
         _containerHelper.deleteProject(FORMS_STORE, false);
         _containerHelper.deleteProject(WEBPART_STORE, false);
+        _containerHelper.deleteProject(BLOCKED_STORE, false);
         _containerHelper.deleteProject(RETRY_STORE, false);
         _containerHelper.deleteProject(OLDER_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);

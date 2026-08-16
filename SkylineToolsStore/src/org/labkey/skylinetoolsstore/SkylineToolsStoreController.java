@@ -1125,10 +1125,33 @@ public class SkylineToolsStoreController extends SpringActionController
             // this action may be addressed to the tool's own folder, which it is about to remove.
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
 
-            // TODO: Should be in a transaction
-            for (SkylineTool toDelete : SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()))
+            // Every version's folder goes or none does. Removing some of them leaves a tool that is
+            // half in the store, and the versions that survive are no longer reachable from it.
+            try (DbScope.Transaction transaction =
+                         SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
             {
-                ContainerManager.delete(toDelete.lookupContainer(), getUser());
+                for (SkylineTool toDelete : SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()))
+                {
+                    Container versionContainer = toDelete.lookupContainer();
+                    if (versionContainer == null)
+                    {
+                        errors.reject(ERROR_MSG, "Failed to look up the folder holding " + toDelete.getName() +
+                                " version " + toDelete.getVersion() + ".");
+                        return null;
+                    }
+
+                    // delete returns false rather than throwing when the folder still has children of
+                    // its own. Leaving the transaction without committing undoes the folders already
+                    // removed in this loop.
+                    if (!ContainerManager.delete(versionContainer, getUser()))
+                    {
+                        errors.reject(ERROR_MSG, "The folder holding " + toDelete.getName() + " version " +
+                                toDelete.getVersion() + " could not be deleted, so nothing was changed.");
+                        return null;
+                    }
+                }
+
+                transaction.commit();
             }
 
             ApiSimpleResponse response = new ApiSimpleResponse("success", true);
@@ -1216,7 +1239,32 @@ public class SkylineToolsStoreController extends SpringActionController
             if (!getContainer().equals(latestContainer))
                 throw new NotFoundException("This action has to be addressed to the version it deletes.");
 
-            ContainerManager.delete(latestContainer, getUser());
+            SkylineTool newLatest = tools[1];
+            Container newLatestContainer = newLatest.lookupContainer();
+            if (newLatestContainer == null)
+                throw new NotFoundException("Failed to look up the folder holding " + newLatest.getName() +
+                        " version " + newLatest.getVersion() + ".");
+
+            // The promotion and the delete land together. A tool left with two rows flagged latest,
+            // or with none, makes getToolLatestByIdentifier match nothing, and the lsid downloads
+            // shipped Skyline clients make stop resolving.
+            try (DbScope.Transaction transaction =
+                         SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+            {
+                newLatest.setLatest(true);
+                SkylineToolsStoreManager.get().updateTool(newLatestContainer, getUser(), newLatest);
+
+                // delete returns false rather than throwing when the folder still has children of its
+                // own. Leaving the transaction without committing undoes the promotion above.
+                if (!ContainerManager.delete(latestContainer, getUser()))
+                {
+                    errors.reject(ERROR_MSG, "The folder holding " + tools[0].getName() + " version " +
+                            tools[0].getVersion() + " could not be deleted, so nothing was changed.");
+                    return null;
+                }
+
+                transaction.commit();
+            }
 
             if (senderUrl != null)
             {
@@ -1226,10 +1274,6 @@ public class SkylineToolsStoreController extends SpringActionController
                 if (senderUrl.getParameter("version") != null && senderUrl.getParameter("version").equals(tools[0].getVersion()))
                     senderUrl.deleteParameter("version");
             }
-
-            SkylineTool newLatest = tools[1];
-            newLatest.setLatest(true);
-            SkylineToolsStoreManager.get().updateTool(newLatest.lookupContainer(), getUser(), newLatest);
 
             URLHelper successUrl = senderUrl != null ? senderUrl :
                     SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser());
