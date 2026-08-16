@@ -27,9 +27,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.labkey.api.action.ApiSimpleResponse;
 import org.labkey.api.action.FormHandlerAction;
 import org.labkey.api.action.FormViewAction;
 import org.labkey.api.action.LabKeyError;
+import org.labkey.api.action.MutatingApiAction;
 import org.labkey.api.action.PermissionCheckable;
 import org.labkey.api.action.ReturnUrlForm;
 import org.labkey.api.action.SimpleErrorView;
@@ -1625,10 +1627,14 @@ public class SkylineToolsStoreController extends SpringActionController
      * Edits one property of a tool, or replaces its icon, rewriting tool-inf/info.properties inside
      * the stored zip so the file and the database row stay in step.
      *
+     * A MutatingApiAction because the details page calls this over ajax and reads the outcome in code.
+     * As a FormHandlerAction a refusal rendered an error view at status 200, so the caller's success
+     * branch ran and a rejected edit looked saved.
+     *
      * Addressed to the TOOL's own container - see DeleteSupplementAction.
      */
-    @RequiresPermission(InsertPermission.class)
-    public static class UpdatePropertyAction extends FormHandlerAction<UpdatePropertyForm>
+    @RequiresPermission(UpdatePermission.class)
+    public static class UpdatePropertyAction extends MutatingApiAction<UpdatePropertyForm>
     {
         /**
          * The properties the details page lets an owner edit. SkylineTool.setProperty also accepts
@@ -1639,37 +1645,31 @@ public class SkylineToolsStoreController extends SpringActionController
         private static final Set<String> EDITABLE_PROPERTIES =
                 Set.of("author", "description", "languages", "organization", "provider");
 
-        private SkylineTool _tool;
-
         @Override
-        public void validateCommand(UpdatePropertyForm form, Errors errors)
+        public Object execute(UpdatePropertyForm form, BindException errors) throws Exception
         {
-        }
-
-        @Override
-        public boolean handlePost(UpdatePropertyForm form, BindException errors) throws Exception
-        {
-            _tool = requireToolInContainer(form.getToolId(), getContainer());
-            final SkylineTool tool = _tool;
+            final SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
             final Container container = getContainer();
 
             final String propName = form.getPropName();
             String propValue = "";
 
-            // An icon is uploaded as a file part also named propValue. Files do not bind to the form.
-            final MultipartFile icon = getFileMap().get("propValue");
+            // An icon is uploaded as a file part also named propValue. Files do not bind to the form,
+            // and there is no file map at all when the post is not multipart, which the text path is not.
+            Map<String, MultipartFile> fileMap = getFileMap();
+            final MultipartFile icon = fileMap == null ? null : fileMap.get("propValue");
 
             if (icon == null)
             {
                 if (propName == null)
                 {
                     errors.reject(ERROR_MSG, "No property was named to edit.");
-                    return false;
+                    return null;
                 }
                 if (!EDITABLE_PROPERTIES.contains(propName.toLowerCase()))
                 {
                     errors.reject(ERROR_MSG, "The property " + propName + " cannot be edited here.");
-                    return false;
+                    return null;
                 }
                 // Form binding turns an empty value into null. Blanking a property is a normal edit,
                 // so treat null as an empty value rather than a missing parameter.
@@ -1753,13 +1753,7 @@ public class SkylineToolsStoreController extends SpringActionController
             else
                 tool.writeIconToFile(makeFile(container, "icon.png"), "png");
 
-            return true;
-        }
-
-        @Override
-        public URLHelper getSuccessURL(UpdatePropertyForm form)
-        {
-            return SkylineToolStoreUrls.getToolDetailsUrl(_tool);
+            return new ApiSimpleResponse("success", true);
         }
     }
 

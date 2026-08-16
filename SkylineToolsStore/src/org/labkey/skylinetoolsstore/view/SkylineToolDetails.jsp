@@ -639,13 +639,25 @@ a { text-decoration: none; }
                         if (containerParent.is("a") && containerParent.attr("href") == container.text())
                             containerParent.attr("href", propValue);
                         container.parents(".toolProperty:first").fadeOut(REPLACE_TEXT_FADE_TIME, function() {
-                            var toolPropertyElement = container.closest(".toolProperty");
-                            container.html(propValue.replace(/\n/g, "<br />"));
+                            // Built from text nodes rather than markup, so a value containing HTML is
+                            // displayed rather than parsed.
+                            container.empty();
+                            propValue.split(/\n/).forEach(function(line, i) {
+                                if (i > 0)
+                                    container.append($("<br>"));
+                                container.append(document.createTextNode(line));
+                            });
                             $(this).fadeIn(REPLACE_TEXT_FADE_TIME);
                         });
                     },
-                    error: function() {
-                        $("#editToolDlg").html("<p>An error occurred trying to edit \"" + propName + "\".</p>");
+                    error: function(xhr) {
+                        // A refused edit now arrives as 400 with a JSON body naming the reason, so show
+                        // that instead of a generic message. Before the action became an API action the
+                        // refusal came back as an error page at status 200 and success ran instead.
+                        var msg = "An error occurred trying to edit " + propName + ".";
+                        if (xhr.responseJSON && xhr.responseJSON.exception)
+                            msg = xhr.responseJSON.exception;
+                        $("#editToolDlg").empty().append($("<p></p>").text(msg));
                         $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
                         setButtonsEnabled(true);
                     },
