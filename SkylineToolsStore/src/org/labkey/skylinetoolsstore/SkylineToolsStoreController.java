@@ -1680,72 +1680,93 @@ public class SkylineToolsStoreController extends SpringActionController
             else
             {
                 tool.setIcon(icon.getBytes());
+                try
+                {
+                    // Refuse before the rewritten zip replaces the stored one. icon.png is written
+                    // last, so an unreadable image otherwise left the zip already changed.
+                    tool.validateIcon();
+                }
+                catch (IOException e)
+                {
+                    LOG.warn("Rejected an icon that could not be decoded for tool {}", tool.getName(), e);
+                    errors.reject(ERROR_MSG, "The icon file is not an image this server can read.");
+                    return null;
+                }
             }
 
             File zipFile = makeFile(container, tool.getZipName());
             File tmpFile = makeFile(container, tool.getZipName() + "~");
-            try (ZipFile zipIn = new ZipFile(zipFile);
-                 ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(tmpFile)))
-            {
-                for (Enumeration e = zipIn.entries(); e.hasMoreElements();)
-                {
-                    ZipEntry zipEntry = (ZipEntry)e.nextElement();
-                    final String lowerName = zipEntry.getName().toLowerCase();
-
-                    if (icon == null)
-                    {
-                        try (InputStream in = lowerName.equals("tool-inf/info.properties")
-                                ? tool.getInfoPropertiesStream(zipIn.getInputStream(zipEntry), propName, propValue)
-                                : zipIn.getInputStream(zipEntry))
-                        {
-                            ZipEntry newEntry = new ZipEntry(zipEntry.getName());
-                            zipOut.putNextEntry(newEntry);
-                            byte[] buf = new byte[1024];
-                            int len;
-                            while ((len = in.read(buf)) > 0)
-                                zipOut.write(buf, 0, len);
-                            zipOut.closeEntry();
-                        }
-                    }
-                    else if (!lowerName.startsWith("tool-inf/") ||
-                             !Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(lowerName)))
-                    {
-                        try (InputStream in = zipIn.getInputStream(zipEntry))
-                        {
-                            ZipEntry newEntry = new ZipEntry(zipEntry.getName());
-                            zipOut.putNextEntry(newEntry);
-                            byte[] buf = new byte[1024];
-                            int len;
-                            while ((len = in.read(buf)) > 0)
-                                zipOut.write(buf, 0, len);
-                            zipOut.closeEntry();
-                        }
-                    }
-                }
-                if (icon != null)
-                {
-                    zipOut.putNextEntry(new ZipEntry("tool-inf/" + icon.getOriginalFilename()));
-                    try (InputStream in = icon.getInputStream())
-                    {
-                        byte[] buf = new byte[1024];
-                        int len;
-                        while ((len = in.read(buf)) > 0)
-                            zipOut.write(buf, 0, len);
-                        zipOut.closeEntry();
-                    }
-                }
-            }
-
-            // Replace in one step. Deleting first and then renaming left no copy of the tool zip if
-            // the rename failed, and the rename result was not checked.
             try
             {
-                Files.move(tmpFile.toPath(), zipFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                try (ZipFile zipIn = new ZipFile(zipFile);
+                     ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(tmpFile)))
+                {
+                    for (Enumeration e = zipIn.entries(); e.hasMoreElements();)
+                    {
+                        ZipEntry zipEntry = (ZipEntry)e.nextElement();
+                        final String lowerName = zipEntry.getName().toLowerCase();
+
+                        if (icon == null)
+                        {
+                            try (InputStream in = lowerName.equals("tool-inf/info.properties")
+                                    ? tool.getInfoPropertiesStream(zipIn.getInputStream(zipEntry), propName, propValue)
+                                    : zipIn.getInputStream(zipEntry))
+                            {
+                                ZipEntry newEntry = new ZipEntry(zipEntry.getName());
+                                zipOut.putNextEntry(newEntry);
+                                byte[] buf = new byte[1024];
+                                int len;
+                                while ((len = in.read(buf)) > 0)
+                                    zipOut.write(buf, 0, len);
+                                zipOut.closeEntry();
+                            }
+                        }
+                        else if (!lowerName.startsWith("tool-inf/") ||
+                                 !Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(lowerName)))
+                        {
+                            try (InputStream in = zipIn.getInputStream(zipEntry))
+                            {
+                                ZipEntry newEntry = new ZipEntry(zipEntry.getName());
+                                zipOut.putNextEntry(newEntry);
+                                byte[] buf = new byte[1024];
+                                int len;
+                                while ((len = in.read(buf)) > 0)
+                                    zipOut.write(buf, 0, len);
+                                zipOut.closeEntry();
+                            }
+                        }
+                    }
+                    if (icon != null)
+                    {
+                        zipOut.putNextEntry(new ZipEntry("tool-inf/" + icon.getOriginalFilename()));
+                        try (InputStream in = icon.getInputStream())
+                        {
+                            byte[] buf = new byte[1024];
+                            int len;
+                            while ((len = in.read(buf)) > 0)
+                                zipOut.write(buf, 0, len);
+                            zipOut.closeEntry();
+                        }
+                    }
+                }
+
+                // Replace in one step. Deleting first and then renaming left no copy of the tool zip if
+                // the rename failed, and the rename result was not checked.
+                try
+                {
+                    Files.move(tmpFile.toPath(), zipFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+                catch (IOException e)
+                {
+                    throw new IOException("Could not replace " + zipFile + ". The tool zip is unchanged.", e);
+                }
             }
-            catch (IOException e)
+            finally
             {
-                tmpFile.delete();
-                throw new IOException("Could not replace " + zipFile + ". The tool zip is unchanged.", e);
+                // A rewrite that throws part way leaves the temp zip in the tool's folder, where the
+                // store lists it as a supplementary file. A move that succeeded consumed it already.
+                if (tmpFile.exists() && !tmpFile.delete())
+                    LOG.warn("Could not delete the temporary zip {}", tmpFile.getName());
             }
 
             if (icon == null)
