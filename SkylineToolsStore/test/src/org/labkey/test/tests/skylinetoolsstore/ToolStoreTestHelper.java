@@ -40,6 +40,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -294,13 +295,15 @@ public class ToolStoreTestHelper
             {
                 throw new RuntimeException("Failed to remove leftover tool " + tool.optString("Name"), e);
             }
-            assertTrue("Deleting leftover tool " + tool.optString("Name") + " returned HTTP " + status,
-                    status < 400);
+            // DeleteAction is a MutatingApiAction, so a refusal arrives as an error status rather
+            // than as an error view at 200. Revert that and this assertion is what fails.
+            assertEquals("Deleting leftover tool " + tool.optString("Name") + " returned HTTP " + status,
+                    200, status);
         }
 
-        // DeleteAction renders a refusal as an error view with status 200, so the status above does
-        // not prove anything went away. Read the catalog back and fail here rather than leaving the
-        // next upload to fail as TOOL_ALREADY_EXISTS somewhere unrelated.
+        // The status says the action accepted the request. It does not prove the folders went, since
+        // a container delete can answer false. Read the catalog back and fail here rather than
+        // leaving the next upload to fail as TOOL_ALREADY_EXISTS somewhere unrelated.
         Set<String> stillPresent = new HashSet<>(catalogIdentifiers(containerPath));
         stillPresent.retainAll(wanted);
         assertTrue("Tools still in the catalog after cleanup: " + stillPresent, stillPresent.isEmpty());

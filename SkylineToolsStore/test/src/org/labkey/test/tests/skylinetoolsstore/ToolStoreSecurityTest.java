@@ -417,11 +417,19 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         assertTrue("The second version folder should exist before the GET",
                 _containerHelper.doesContainerExist(latestFolderPath));
 
-        // Must be the parameter the form actually binds. With a name the form ignores, the action
-        // would look up tool 0 and delete nothing, so the assertions below would pass either way.
-        String url = WebTestHelper.buildURL("skyts", PROJECT_NAME, "deleteLatest") + "?toolId=" + latestRowId;
+        // Addressed to the tool's own version folder, which is the folder this action removes and
+        // the one its permission is checked against. Addressed to the project instead, the container
+        // check refused the request before the GET rule was reached, so this passed either way.
+        //
+        // Must also be the parameter the form actually binds. With a name the form ignores, the
+        // action would look up tool 0 and delete nothing, so the assertions below would pass anyway.
+        String url = WebTestHelper.buildURL("skyts", latestFolderPath, "deleteLatest") + "?toolId=" + latestRowId;
         int status = execute(new HttpGet(url), true, true);
 
+        // MutatingApiAction carries @MethodsAllowed(POST), and that check runs before the action, so
+        // the GET is refused as a method that is not allowed rather than reaching any of its code.
+        assertEquals("A GET to deleteLatest has to be refused as a method that is not allowed",
+                405, status);
         assertTrue("SECURITY: a GET to deleteLatest deleted tool folder " + latestFolderPath +
                         " (HTTP " + status + ")",
                 _containerHelper.doesContainerExist(latestFolderPath));
@@ -457,7 +465,11 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 .addBinaryBody("toolZip", v3, ContentType.create("application/zip"), v3.getName())
                 .addTextBody("toolId", String.valueOf(v1RowId))
                 .build());
-        execute(request, true, true);
+        int status = execute(request, true, true);
+
+        // updateTool is a FormViewAction, so a refusal renders an error view at 200 and the status
+        // cannot tell a refusal from a success. It can still tell either from a server error.
+        assertTrue("A refused publish must not be a server error, HTTP " + status, status < 500);
 
         // The catalog holds one row per tool only if exactly one row is flagged latest. Two rows
         // flagged latest is what this used to produce, and it lists the tool twice.
