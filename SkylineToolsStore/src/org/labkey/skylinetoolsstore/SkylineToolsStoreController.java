@@ -1239,6 +1239,7 @@ public class SkylineToolsStoreController extends SpringActionController
             // back with the zips, icons and documentation already gone. Every folder is checked
             // first instead, so the refusal that actually happens costs nothing.
             SkylineTool[] versions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
+            List<Container> versionFolders = new ArrayList<>();
             for (SkylineTool toDelete : versions)
             {
                 Container versionContainer = toDelete.lookupContainer();
@@ -1256,16 +1257,18 @@ public class SkylineToolsStoreController extends SpringActionController
                             "Nothing was deleted.");
                     return null;
                 }
+                versionFolders.add(versionContainer);
             }
 
-            for (SkylineTool toDelete : versions)
+            for (int i = 0; i < versions.length; i++)
             {
-                // Checked above, so this refuses only if a folder gained a child in between. There is
-                // no undo - the versions already removed stay removed, so say so.
-                if (!ContainerManager.delete(toDelete.lookupContainer(), getUser()))
+                // The folders resolved above are the ones deleted, rather than looking each up again.
+                // This refuses only if a folder gained a child in between, and there is no undo - the
+                // versions already removed stay removed, so say so.
+                if (!ContainerManager.delete(versionFolders.get(i), getUser()))
                 {
-                    errors.reject(ERROR_MSG, "The folder holding " + toDelete.getName() + " version " +
-                            toDelete.getVersion() + " could not be deleted. Versions removed before it " +
+                    errors.reject(ERROR_MSG, "The folder holding " + versions[i].getName() + " version " +
+                            versions[i].getVersion() + " could not be deleted. Versions removed before it " +
                             "are gone.");
                     return null;
                 }
