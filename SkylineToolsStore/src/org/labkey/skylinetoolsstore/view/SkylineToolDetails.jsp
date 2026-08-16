@@ -466,7 +466,11 @@ a { text-decoration: none; }
                 "X-LABKEY-CSRF": LABKEY.CSRF
             }).done(function() {
                 (ui.draggable).hide("explode");
-                if ($("#documentationbox").children(".suppfile:visible").length <= 1)
+                // The box also carries the Online Documentation link, which is not a supplementary
+                // file and has to stay when the last file goes. The count is 1 rather than 0 because
+                // the tile being deleted is still visible at this point.
+                var hasOnlineDocs = <%= hasDocumentation %>;
+                if (!hasOnlineDocs && $("#documentationbox").children(".suppfile:visible").length <= 1)
                     $("#documentationbox").hide("fade");
             }).fail(function(xhr) {
                 // The action refuses with a status and a message now, so show what it said rather
@@ -552,9 +556,14 @@ a { text-decoration: none; }
     var DLG_EFFECT_SHOW = "fade";
     var DLG_EFFECT_HIDE = "fade";
     $("#allVersionsPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#uploadPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
+    // A file picked and then cancelled was still selected the next time the dialog was opened.
+    function clearFileInputs() {
+        $(this).find("input[type='file']").val("");
+    }
+
+    $("#uploadPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, open:clearFileInputs});
     $("#manageOwnersPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
-    $("#uploadSuppPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE});
+    $("#uploadSuppPop").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, open:clearFileInputs});
     $("#delToolAllDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
             Ok: function() {
@@ -623,7 +632,9 @@ a { text-decoration: none; }
                 var isIcon = (propName.toLowerCase() == "icon") ? true : false;
                 var postData;
                 if (!isIcon) {
-                    propValue = $(this).children("input:text:visible, textarea:visible").first().val().replace(/r?\n/g, "\r\n").replace(/\\*$/, "");
+                    // \r?\n, not r?\n. Without the backslash the r is a literal letter, so a value
+                    // ending in one lost it on the way to the server and to the stored zip.
+                    propValue = $(this).children("input:text:visible, textarea:visible").first().val().replace(/\r?\n/g, "\r\n").replace(/\\*$/, "");
                     postData = {
                         "toolId": <%= tool.getRowId() %>,
                         "propName": propName,
