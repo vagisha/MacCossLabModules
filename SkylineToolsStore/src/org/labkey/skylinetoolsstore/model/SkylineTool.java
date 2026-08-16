@@ -298,16 +298,39 @@ public class SkylineTool extends Entity
         if (_icon == null)
             return;
 
-        try (ByteArrayInputStream iconInputStream = new ByteArrayInputStream(_icon);
-             FileOutputStream iconOutputStream = new FileOutputStream(file))
+        // Decode before opening the stream. Opening a FileOutputStream truncates the file it names,
+        // so decoding inside the try left icon.png at zero bytes when the bytes were not an image.
+        // getIconUrl only tests that the file exists, so the tool then rendered a broken image.
+        BufferedImage image = decodeIcon();
+        try (FileOutputStream iconOutputStream = new FileOutputStream(file))
+        {
+            ImageIO.write(image, format, iconOutputStream);
+        }
+    }
+
+    /**
+     * Throws unless the icon bytes are an image this server can decode. For callers that commit
+     * other work alongside the icon and need to refuse before that work is committed.
+     */
+    public void validateIcon() throws IOException
+    {
+        if (_icon == null)
+            return;
+
+        decodeIcon();
+    }
+
+    private BufferedImage decodeIcon() throws IOException
+    {
+        try (ByteArrayInputStream iconInputStream = new ByteArrayInputStream(_icon))
         {
             BufferedImage image = ImageIO.read(iconInputStream);
-            // read returns null when nothing can decode the bytes, and write then throws
-            // IllegalArgumentException, which is not the IOException this method declares. Callers
-            // catch IOException, so the unchecked one escaped them and became a server error.
+            // read returns null when nothing can decode the bytes. ImageIO.write then threw
+            // IllegalArgumentException, which is unchecked, so it escaped the callers that catch
+            // IOException and became a server error.
             if (image == null)
                 throw new IOException("The tool's icon is not an image this server can read.");
-            ImageIO.write(image, format, iconOutputStream);
+            return image;
         }
     }
 
