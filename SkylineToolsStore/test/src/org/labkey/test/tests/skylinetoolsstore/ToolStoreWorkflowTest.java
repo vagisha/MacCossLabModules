@@ -475,6 +475,21 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertEquals("The tool should still be listed once", 1, toolsInStore(BLOCKED_STORE));
         assertEquals("2.0 should still be the latest version",
                 "2.0", onlyToolInStore(BLOCKED_STORE).getString("Version"));
+
+        log("The same refusal reaches the person who clicked the menu item");
+        goToProjectHome(BLOCKED_STORE);
+        clickSprocketMenuItem("Delete latest version");
+        // Not clickDialogOk - this click is refused, so no page follows it. The dialog is where the
+        // reason has to appear. Reading it back as a success is the whole family of defects this
+        // conversion closes, so assert the reason is on screen rather than that nothing happened.
+        Locator.XPathLocator ok = Locator.xpath(
+                "//div[contains(@class,'ui-dialog')][.//div[@id='delToolLatestDlg']]" +
+                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
+        waitAndClick(ok.notHidden());
+
+        waitForElement(Locator.id("delToolLatestDlg").containing("could not be deleted"));
+        assertEquals("2.0 should still be the latest version after the dialog was used",
+                "2.0", onlyToolInStore(BLOCKED_STORE).getString("Version"));
     }
 
     /**
