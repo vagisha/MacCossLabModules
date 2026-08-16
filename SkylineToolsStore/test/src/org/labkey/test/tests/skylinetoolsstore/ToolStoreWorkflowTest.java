@@ -80,6 +80,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String RETRY_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:partialupload";
     private static final String RETRY_TOOL_VERSION = "1.0";
 
+    // Its own store, because it deletes everything it adds and the other stores assert on one tool.
+    private static final String WEBPART_STORE = "ToolStoreWorkflowTestWebPartDeletes";
+    private static final String WEBPART_TOOL_NAME = "WebPartDeleteProbe";
+    private static final String WEBPART_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:webpartdelete";
+
     // Its own store, because it needs a tool with two versions and the other stores assert on one.
     private static final String OLDER_STORE = "ToolStoreWorkflowTestOlderVersion";
     private static final String OLDER_TOOL_NAME = "OlderVersionProbe";
@@ -377,13 +382,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Delete the newest version through the details page dialog");
         clickSprocketMenuItem("Delete latest version");
-        // Scoped to this dialog's own wrapper. The page holds several jQuery UI dialogs and the
-        // hidden ones have an Ok button too.
-        Locator.XPathLocator ok = Locator.xpath(
-                "//div[contains(@class,'ui-dialog')][.//div[@id='delToolLatestDlg']]" +
-                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
-        waitForElement(ok.notHidden());
-        clickAndWait(ok.notHidden());
+        clickDialogOk("delToolLatestDlg");
 
         // Read the version from the catalog rather than the page - the details page carries script
         // constants that a bare text search for a version number picks up.
@@ -391,11 +390,68 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 "1.0", onlyToolInStore(FORMS_STORE).getString("Version"));
     }
 
+    /**
+     * The two delete items on the web part's own gear menu, which no other test reaches.
+     *
+     * Both post over ajax and then go to the page the action names in its reply. When a refusal came
+     * back as an error view at status 200 the caller could not tell it from a success, so the store
+     * page was left saying the tool had gone.
+     */
+    @Test
+    public void testWebPartDeleteItemsRemoveTheVersionAndThenTheTool()
+    {
+        _containerHelper.createProject(WEBPART_STORE, "Collaboration");
+        _containerHelper.enableModule(WEBPART_STORE, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+
+        uploadToolFileTo(WEBPART_STORE, ToolStoreTestHelper.writeMinimalToolZip(
+                WEBPART_TOOL_NAME, WEBPART_TOOL_IDENTIFIER, "1.0"));
+        int v1RowId = rowId(onlyToolInStore(WEBPART_STORE));
+        String v1Folder = "/" + WEBPART_STORE + "/" +
+                ToolStoreTestHelper.toolFolderName(WEBPART_TOOL_NAME, "1.0");
+        uploadToolFileTo(v1Folder, ToolStoreTestHelper.writeMinimalToolZip(
+                WEBPART_TOOL_NAME, WEBPART_TOOL_IDENTIFIER, "2.0"), v1RowId);
+
+        log("Delete the newest version from the web part's menu");
+        goToProjectHome(WEBPART_STORE);
+        clickSprocketMenuItem("Delete latest version");
+        clickDialogOk("delToolLatestDlg");
+
+        assertEquals("Deleting the newest version should leave 1.0 as the latest",
+                "1.0", onlyToolInStore(WEBPART_STORE).getString("Version"));
+
+        log("Delete the whole tool from the web part's menu");
+        goToProjectHome(WEBPART_STORE);
+        clickSprocketMenuItem("Delete tool from store");
+        clickDialogOk("delToolAllDlg");
+
+        assertEquals("Deleting the tool should leave the store empty",
+                0, toolsInStore(WEBPART_STORE));
+    }
+
+    /**
+     * Clicks Ok on one dialog and waits for the page the action sends the caller to.
+     *
+     * Scoped to that dialog's own wrapper. A page holds several jQuery UI dialogs and the hidden
+     * ones have an Ok button too.
+     */
+    private void clickDialogOk(String dialogId)
+    {
+        Locator.XPathLocator ok = Locator.xpath(
+                "//div[contains(@class,'ui-dialog')][.//div[@id='" + dialogId + "']]" +
+                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
+        waitForElement(ok.notHidden());
+        clickAndWait(ok.notHidden());
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    /** Opens the gear menu on the tool details page and clicks one of its items. */
+    /**
+     * Opens a tool's gear menu and clicks one of its items. The details page and the web part draw
+     * the same menu, and a store page listing one tool has one of them.
+     */
     private void clickSprocketMenuItem(String item)
     {
         click(Locator.css(".menuMouseArea.sprocket"));
@@ -827,6 +883,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(PROJECT_NAME, afterTest);
         _containerHelper.deleteProject(OTHER_STORE, false);
         _containerHelper.deleteProject(FORMS_STORE, false);
+        _containerHelper.deleteProject(WEBPART_STORE, false);
         _containerHelper.deleteProject(RETRY_STORE, false);
         _containerHelper.deleteProject(OLDER_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);
