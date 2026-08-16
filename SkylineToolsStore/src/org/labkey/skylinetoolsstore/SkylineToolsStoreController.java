@@ -387,11 +387,15 @@ public class SkylineToolsStoreController extends SpringActionController
 
     protected MutableSecurityPolicy filterPolicy(SecurityPolicy original, List<User> users, Role[] roles)
     {
-        // For each role assignment where the role is in roles, only keep if the user is in users
+        // For each role assignment where the role is in roles, only keep if the user is in users.
+        // A role can also be held by a group, and a group is never in that list, so a group holding
+        // Editor or FolderAdmin was stripped along with the users being replaced. Only assignments
+        // held by a user are considered, since only users are being replaced.
         MutableSecurityPolicy policy = new MutableSecurityPolicy(ContainerManager.getForId(original.getContainerId()));
         for (RoleAssignment assignment : original.getAssignments())
         {
-            if (Arrays.asList(roles).contains(assignment.getRole()))
+            if (Arrays.asList(roles).contains(assignment.getRole()) &&
+                UserManager.getUser(assignment.getUserId()) != null)
             {
                 boolean skip = true;
                 for (User u : users)
@@ -469,7 +473,7 @@ public class SkylineToolsStoreController extends SpringActionController
         return JavaScriptFragment.unsafe(jsonArray.toString());
     }
 
-    protected static Pair<ArrayList<User>, ArrayList<String>> parseToolOwnerString(String toolOwners) throws ValidEmail.InvalidEmailException
+    protected static Pair<ArrayList<User>, ArrayList<String>> parseToolOwnerString(String toolOwners)
     {
         ArrayList<User> toolOwnersUsers = new ArrayList<>();
         ArrayList<String> toolOwnersInvalid = new ArrayList<>();
@@ -480,7 +484,17 @@ public class SkylineToolsStoreController extends SpringActionController
                 toolOwner = toolOwner.trim();
                 if (!toolOwner.isEmpty())
                 {
-                    User u = UserManager.getUser(new ValidEmail(toolOwner));
+                    User u;
+                    try
+                    {
+                        u = UserManager.getUser(new ValidEmail(toolOwner));
+                    }
+                    catch (ValidEmail.InvalidEmailException e)
+                    {
+                        // The list is typed by a person, so an entry that is not an address belongs
+                        // on the one reported back to them rather than escaping as a server error.
+                        u = null;
+                    }
                     if (u == null)
                         toolOwnersInvalid.add(toolOwner);
                     else
@@ -489,6 +503,30 @@ public class SkylineToolsStoreController extends SpringActionController
             }
         }
         return new Pair<>(toolOwnersUsers,  toolOwnersInvalid);
+    }
+
+    /**
+     * The page a caller asked to be sent back to once its post succeeds, or null where it did not
+     * name one this server will use.
+     *
+     * A caller supplies this, so it is parsed before any work commits - a refusal after the work has
+     * landed reports a server error for something that succeeded. Only a path on this server is
+     * accepted, so the actions that take it cannot be used to bounce a visitor somewhere else.
+     */
+    private static ActionURL parseSender(String sender)
+    {
+        if (StringUtils.trimToNull(sender) == null || !sender.startsWith("/") || sender.startsWith("//"))
+            return null;
+
+        try
+        {
+            return new ActionURL(sender);
+        }
+        catch (IllegalArgumentException e)
+        {
+            LOG.warn("Ignoring a sender that could not be read as a URL: {}", sender);
+            return null;
+        }
     }
 
     public static ArrayList<String> getToolOwners(SkylineTool tool)
@@ -1269,7 +1307,7 @@ public class SkylineToolsStoreController extends SpringActionController
             // against, so the two have to agree. The check below covers the folder this deletes.
             final SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
 
-            ActionURL senderUrl = form.getSender() != null ? new ActionURL(form.getSender()) : null;
+            ActionURL senderUrl = parseSender(form.getSender());
 
             // Resolve the tool store container before the tool's own container is deleted.
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
@@ -1620,6 +1658,10 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public boolean handlePost(SetOwnersForm form, BindException errors) throws Exception
         {
+            // Read before the owners are written. It used to be read after they had been committed,
+            // so a sender that could not be parsed reported a server error for work that succeeded.
+            ActionURL senderUrl = parseSender(form.getSender());
+
             Pair<ArrayList<User>, ArrayList<String>> parsedOwners = parseToolOwnerString(form.getToolOwners());
             ArrayList<User> toolOwnersUsers = parsedOwners.first;
             ArrayList<String> toolOwnersInvalid = parsedOwners.second;
@@ -1657,7 +1699,7 @@ public class SkylineToolsStoreController extends SpringActionController
             }
 
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
-            _successURL = form.getSender() != null ? new ActionURL(form.getSender())
+            _successURL = senderUrl != null ? senderUrl
                     : SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser());
             return true;
         }
