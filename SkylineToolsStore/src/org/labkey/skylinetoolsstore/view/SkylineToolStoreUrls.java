@@ -15,6 +15,7 @@
  */
 package org.labkey.skylinetoolsstore.view;
 
+import org.labkey.api.action.PermissionCheckableAction;
 import org.labkey.api.data.Container;
 import org.labkey.api.security.User;
 import org.labkey.api.view.ActionURL;
@@ -46,5 +47,52 @@ public class SkylineToolStoreUrls
     public static ActionURL getToolDetailsLatestUrl(SkylineTool tool)
     {
         return new ActionURL(SkylineToolsStoreController.DetailsAction.class, tool.getContainerParent()).addParameter("name", tool.getName());
+    }
+
+    /** Adding a new tool happens in the store folder, so this takes a container rather than a tool. */
+    public static ActionURL getInsertToolUrl(Container storeContainer)
+    {
+        return new ActionURL(SkylineToolsStoreController.InsertToolAction.class, storeContainer);
+    }
+
+    public static ActionURL getUpdateToolUrl(SkylineTool tool)
+    {
+        return getToolActionUrl(SkylineToolsStoreController.UpdateToolAction.class, tool);
+    }
+
+    public static ActionURL getInsertSupplementUrl(SkylineTool tool)
+    {
+        return getToolActionUrl(SkylineToolsStoreController.InsertSupplementAction.class, tool);
+    }
+
+    public static ActionURL getDeleteSupplementUrl(SkylineTool tool)
+    {
+        return getToolActionUrl(SkylineToolsStoreController.DeleteSupplementAction.class, tool);
+    }
+
+    public static ActionURL getUpdatePropertyUrl(SkylineTool tool)
+    {
+        return getToolActionUrl(SkylineToolsStoreController.UpdatePropertyAction.class, tool);
+    }
+
+    /**
+     * Takes the newest version rather than the tool being viewed, because that is the folder the
+     * action removes and so the folder its permission has to be checked against.
+     */
+    public static ActionURL getDeleteLatestUrl(SkylineTool latestVersion)
+    {
+        return getToolActionUrl(SkylineToolsStoreController.DeleteLatestAction.class, latestVersion);
+    }
+
+    /**
+     * URL for an action targeting the tool's own container rather than the tool store container.
+     *
+     * Actions that operate on a single tool are annotated with the permission they need, and the
+     * annotation is checked against the container in the URL. Since a tool lives in its own child
+     * folder, the URL has to name that folder for the annotation to check the right thing.
+     */
+    private static ActionURL getToolActionUrl(Class<? extends PermissionCheckableAction> action, SkylineTool tool)
+    {
+        return new ActionURL(action, tool.lookupContainer());
     }
 }

@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 %>
+<%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.api.data.Container" %>
 <%@ page import="org.labkey.api.data.ContainerManager" %>
@@ -67,16 +68,20 @@
 
     final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
 
+    final Container toolContainer = tool.lookupContainer(); // Cannot be null here
+
     // Get supporting files in map <url, icon url>
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
     Iterator suppIter = suppFiles.entrySet().iterator();
 
     final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
 
-    final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), InsertPermission.class);
+    final boolean toolEditor = admin || toolContainer.hasPermission(getUser(), InsertPermission.class);
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
-    final boolean isLatestVersion = SkylineToolsStoreManager.get().getToolLatestByIdentifier(tool.getIdentifier()).getVersion().equals(tool.getVersion());
+    // UpdateToolAction refuses to update the tool unless the tool carries the Latest flag. Display the menu item to
+    // update tool only if we are looking at the latest version.
+    final boolean isLatestVersion = tool.getLatest();
     final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 
     ActionURL toolDetailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
@@ -243,42 +248,42 @@ a { text-decoration: none; }
 </div>
 <!--Manage Tool Owners Form-->
 <div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.SetOwnersAction.class))%>" method="post">
+    <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
         <p>
             <label for="toolOwners">Tool owners </label><br />
             <input type="text" id="toolOwners" name="toolOwners" /><br /><br />
             <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="updatetarget" value="<%= h(tool.getRowId()) %>" />
+            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Update Tool Owners" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Upload New Version Form-->
 <div id="uploadPop" title="Upload tool zip file" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.InsertAction.class))%>" enctype="multipart/form-data" method="post">
+    <labkey:form action="<%=SkylineToolStoreUrls.getUpdateToolUrl(tool)%>" enctype="multipart/form-data" method="post">
         <p>
             Browse to the zip file containing the tool you would like to upload.<br/><br/>
             <input type="file" size="50" name="toolZip" /><br /><br />
             <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="updatetarget" value="<%= h(tool.getRowId()) %>" />
+            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Upload Tool" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Upload Supplementary File Form-->
 <div id="uploadSuppPop" title="Upload supplementary file" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.InsertSupplementAction.class))%>" enctype="multipart/form-data" method="post">
+    <labkey:form action="<%=SkylineToolStoreUrls.getInsertSupplementUrl(tool)%>" enctype="multipart/form-data" method="post">
         <p>
             Browse to the supplementary file you would like to upload.<br/><br/>
             <input type="file" size="50" name="suppFile" /><br /><br />
             <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="supptarget" value="<%= h(tool.getRowId()) %>" />
+            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Upload Supplementary File" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Delete Tool Dialog-->
-<div id="delToolAllDlg" title="Delete" style="display:none;">
+<div id="delToolAllDlg" title="Delete tool from store" style="display:none;">
     <p>Are you sure you want to completely delete <%= h(tool.getName()) %>?</p>
 </div>
 <!--Delete Tool Latest Version Dialog-->
@@ -332,13 +337,20 @@ a { text-decoration: none; }
     <div class="menuMouseArea sprocket">
         <img src="<%= h(imgDir) %>gear.png" title="Settings" alt="Sprocket" />
         <ul class="dropMenu">
+<%-- Publishing supersedes the version being viewed, so UpdateToolAction refuses anything but the
+     latest. Offering it on an older version's page cost the owner a whole upload before the
+     refusal. Supplementary files are per version, so that item stays on every version's page. --%>
+<% if (isLatestVersion) { %>
             <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').dialog('open')")%></li>
+<% } %>
             <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').dialog('open')")%></li>
-<% if (multipleVersions) { %>
+<%-- This removes the newest version whatever page it is clicked from, so on an older version's
+     page it would delete a version other than the one being viewed. --%>
+<% if (isLatestVersion && multipleVersions) { %>
             <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').dialog('open')")%></li>
 <% } %>
 <% if (admin) { %>
-            <li><%=simpleLink("Delete").onClick("$('#delToolAllDlg').dialog('open')")%></li>
+            <li><%=simpleLink("Delete tool from store").onClick("$('#delToolAllDlg').dialog('open')")%></li>
             <li><%=simpleLink("Manage tool owners").onClick("popToolOwners()")%></li>
 <% } %>
         </ul>
@@ -438,7 +450,7 @@ a { text-decoration: none; }
         $("#editIcon").position({my: "right bottom", at: "right bottom", of: $("#editIcon").siblings(".logoWrap:first")});
     });
 
-<% if (tool.lookupContainer().hasPermission(getUser(), DeletePermission.class)) { %>
+<% if (toolContainer.hasPermission(getUser(), DeletePermission.class)) { %>
     $("#trashcan").droppable({
         accept: ".suppfile",
         drop: function(event, ui) {
@@ -448,9 +460,10 @@ a { text-decoration: none; }
                 (ui.draggable).offset({top: offset.top, left: offset.left});
                 return;
             }
-            $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteSupplementAction.class))%>", {
-                "supptarget": <%= h(tool.getRowId()) %>,
-                "suppFile": targetDel
+            $.post("<%=h(SkylineToolStoreUrls.getDeleteSupplementUrl(tool))%>", {
+                "toolId": <%= h(tool.getRowId()) %>,
+                "suppFile": targetDel,
+                "X-LABKEY-CSRF": LABKEY.CSRF
             }).done(function() {
                 (ui.draggable).hide("explode");
                 if ($("#documentationbox").children(".suppfile:visible").length <= 1)
@@ -542,11 +555,12 @@ a { text-decoration: none; }
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                var url = "<%=h(urlFor(SkylineToolsStoreController.DeleteAction.class))%>";
-                var csrf = LABKEY.CSRF;
-                var form = $('<form action="' + url + '" method="post"> ' +
-                        '<input type="hidden" name="X-LABKEY-CSRF" value="' +  csrf + '" /> ' +
-                        '<input type="hidden" name="id" value="' + <%=tool.getRowId()%> + '" />' + '</form>');
+                // Attributes are set via .attr() rather than built into an HTML string, so a value
+                // cannot break out of the markup. Same pattern as the delete-latest dialog below.
+                var form = $('<form method="post"></form>')
+                        .attr('action', <%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>);
+                $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
+                $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=tool.getRowId()%>).appendTo(form);
                 $('body').append(form);
                 form.submit();
             },
@@ -558,7 +572,21 @@ a { text-decoration: none; }
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                window.location = <%=q(urlFor(SkylineToolsStoreController.DeleteLatestAction.class).addParameter("id", tool.getRowId()).addParameter("sender", toolDetailsLatestUrl.getLocalURIString()))%>
+                // Submit a POST rather than navigating. DeleteLatestAction deletes a container, so it
+                // must not be reachable by GET, and the CSRF token cannot ride on a navigation.
+                // Attributes are set via .attr() rather than built into an HTML string so the sender
+                // URL cannot break out of the markup.
+                // Built from allVersions[0], not the version being viewed. This item is offered on
+                // an older version's page too, and the action always removes the newest one, so both
+                // the URL and the id have to name that version.
+                var form = $('<form method="post"></form>')
+                        .attr('action', <%=q(SkylineToolStoreUrls.getDeleteLatestUrl(allVersions[0]).getLocalURIString())%>);
+                $('<input type="hidden">').attr('name', 'X-LABKEY-CSRF').attr('value', LABKEY.CSRF).appendTo(form);
+                $('<input type="hidden">').attr('name', 'toolId').attr('value', <%=allVersions[0].getRowId()%>).appendTo(form);
+                $('<input type="hidden">').attr('name', 'sender')
+                        .attr('value', <%=q(toolDetailsLatestUrl.getLocalURIString())%>).appendTo(form);
+                $('body').append(form);
+                form.submit();
             },
             Cancel: function() {$(this).dialog("close");}
         }
@@ -575,21 +603,24 @@ a { text-decoration: none; }
                 if (!isIcon) {
                     propValue = $(this).children("input:text:visible, textarea:visible").first().val().replace(/r?\n/g, "\r\n").replace(/\\*$/, "");
                     postData = {
-                        "id": <%= tool.getRowId() %>,
+                        "toolId": <%= tool.getRowId() %>,
                         "propName": propName,
                         "propValue": propValue
                     };
                 } else {
                     postData = new FormData();
-                    postData.append("id", <%= tool.getRowId() %>);
+                    postData.append("toolId", <%= tool.getRowId() %>);
                     postData.append("propName", propName);
                     postData.append("propValue", document.getElementById("editIconFile").files[0]);
                 }
 
                 $(this).html("<p>Please wait...</p>");
+                // Raw jQuery does not attach the CSRF token the way LABKEY.Ajax does, so the header
+                // below sends it explicitly. That covers both the FormData and url-encoded cases.
                 $.ajax({
                     type: "POST",
-                    url: "<%=h(urlFor(SkylineToolsStoreController.UpdatePropertyAction.class))%>",
+                    headers: {"X-LABKEY-CSRF": LABKEY.CSRF},
+                    url: "<%=h(SkylineToolStoreUrls.getUpdatePropertyUrl(tool))%>",
                     data: postData,
                     success: function() {
                         $("#editToolDlg").dialog("close");
