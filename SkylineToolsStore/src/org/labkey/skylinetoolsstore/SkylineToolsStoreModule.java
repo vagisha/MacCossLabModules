@@ -117,4 +117,11 @@ public class SkylineToolsStoreModule extends DefaultModule
     {
         return Collections.singleton("skylinetoolsstore");
     }
+
+    @Override
+    @NotNull
+    public Set<Class<?>> getUnitTests()
+    {
+        return Set.of(SkylineTool.TestCase.class);
+    }
 }

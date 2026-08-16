@@ -690,16 +690,18 @@ public class SkylineToolsStoreController extends SpringActionController
                 errors.reject(ERROR_MSG, "The Skyline Tool zip file did not contain the Skyline tool being updated.");
                 return false;
             }
-            if (tool.getVersion().equalsIgnoreCase(previousVersion.getVersion()))
+            // Publishing makes the uploaded version the latest one, so a version that is not newer
+            // than every version already stored would demote a newer one. This replaces a check that
+            // only caught the same version being uploaded again. Addressed by the stored identifier
+            // rather than the uploaded one, which the check above accepts in any case.
+            for (SkylineTool existing : SkylineToolsStoreManager.get()
+                    .getToolsByIdentifier(previousVersion.getIdentifier()))
             {
-                errors.reject(ERROR_MSG, "The Skyline Tool zip file contained the same version of the tool being updated.");
-                return false;
-            }
-            for (SkylineTool existing : SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()))
-            {
-                if (existing.getVersion().equalsIgnoreCase(tool.getVersion()))
+                if (SkylineTool.compareVersions(tool.getVersion(), existing.getVersion()) <= 0)
                 {
-                    errors.reject(ERROR_MSG, "The Skyline Tool zip file contained an older version of the tool.");
+                    errors.reject(ERROR_MSG, "The Skyline Tool zip file contained version " +
+                            tool.getVersion() + ", which is not newer than the stored version " +
+                            existing.getVersion() + ".");
                     return false;
                 }
             }

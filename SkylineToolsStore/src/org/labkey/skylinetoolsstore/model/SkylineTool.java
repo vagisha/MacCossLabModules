@@ -16,6 +16,8 @@
 package org.labkey.skylinetoolsstore.model;
 
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Assert;
+import org.junit.Test;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.Entity;
 import org.labkey.api.files.FileContentService;
@@ -419,5 +421,79 @@ public class SkylineTool extends Entity
             return c.getParent();
         }
         return null;
+    }
+
+    /**
+     * Orders two tool versions the way an author writes them - dot separated parts, each compared as
+     * a number where both sides are numbers and as text otherwise. A part that is not there counts
+     * as zero, so 1.0 and 1.0.0 are the same version. Returns a negative number when a is older than
+     * b, zero when they are the same version, and a positive number when a is newer.
+     *
+     * A version is whatever the author put in info.properties, so nothing here may throw on one that
+     * is not a number at all.
+     */
+    public static int compareVersions(String a, String b)
+    {
+        String[] aParts = (a == null ? "" : a.trim()).split("\\.");
+        String[] bParts = (b == null ? "" : b.trim()).split("\\.");
+
+        for (int i = 0; i < Math.max(aParts.length, bParts.length); i++)
+        {
+            String aPart = i < aParts.length ? aParts[i].trim() : "0";
+            String bPart = i < bParts.length ? bParts[i].trim() : "0";
+            if (aPart.equalsIgnoreCase(bPart))
+                continue;
+
+            Integer aNumber = versionPartAsNumber(aPart);
+            Integer bNumber = versionPartAsNumber(bPart);
+            int result = (aNumber != null && bNumber != null)
+                    ? Integer.compare(aNumber, bNumber)
+                    : aPart.compareToIgnoreCase(bPart);
+            if (result != 0)
+                return result;
+        }
+
+        return 0;
+    }
+
+    /** The part as a number, or null where it is not one. Long values are left to the text path. */
+    private static Integer versionPartAsNumber(String part)
+    {
+        if (part.isEmpty() || part.length() > 9)
+            return null;
+
+        for (int i = 0; i < part.length(); i++)
+        {
+            if (part.charAt(i) < '0' || part.charAt(i) > '9')
+                return null;
+        }
+        return Integer.valueOf(part);
+    }
+
+    public static class TestCase extends Assert
+    {
+        @Test
+        public void testCompareVersions()
+        {
+            assertTrue("2.0 is newer than 1.9", compareVersions("2.0", "1.9") > 0);
+            assertTrue("1.9 is older than 2.0", compareVersions("1.9", "2.0") < 0);
+            assertTrue("1.10 is newer than 1.9, which comparing as text gets backwards",
+                    compareVersions("1.10", "1.9") > 0);
+            assertEquals("A part that is not there counts as zero", 0, compareVersions("1.0", "1.0.0"));
+            assertTrue("A third part still orders", compareVersions("1.0.1", "1.0") > 0);
+            assertEquals("Leading zeroes do not change the number", 0, compareVersions("1.01", "1.1"));
+            assertEquals("Case is ignored", 0, compareVersions("1.0-BETA", "1.0-beta"));
+            assertTrue("A part that is not a number is compared as text",
+                    compareVersions("1.0-beta", "1.0-alpha") > 0);
+            assertTrue("A number sorts before text at the same position",
+                    compareVersions("1.9", "1.beta") < 0);
+            assertEquals("Surrounding space does not make a different version",
+                    0, compareVersions(" 1.0 ", "1.0"));
+            assertEquals("Nothing compares equal to nothing", 0, compareVersions(null, ""));
+            assertTrue("A version that is not there is older than one that is",
+                    compareVersions("", "0.1") < 0);
+            assertTrue("A number too long to parse is still ordered rather than throwing",
+                    compareVersions("1.12345678901234567890", "1.0") != 0);
+        }
     }
 }
