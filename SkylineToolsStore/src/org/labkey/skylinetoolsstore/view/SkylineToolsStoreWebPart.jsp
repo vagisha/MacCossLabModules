@@ -121,7 +121,7 @@
         <p>
             <label for="toolOwnersManage">Tool owners </label><br />
             <input type="text" id="toolOwnersManage" class="toolOwners" name="toolOwners" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(getActionURL()) %>" />
             <%-- Set per tool when the dialog opens. Zero rather than blank, because an empty string
                  will not bind to the form's int and would fail before the action ever runs. --%>
             <input type="hidden" id="ownersFormToolId" name="toolId" value="0" />
@@ -141,7 +141,7 @@
                 <label for="toolOwnersNew">Tool owners </label><br />
                 <input type="text" id="toolOwnersNew" class="toolOwners" name="toolOwners" /><br /><br /><br />
             </span>
-            <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(getActionURL()) %>" />
             <%-- Zero for "Add New Tool", which InsertToolAction ignores. A blank value would not
                  bind to the form's int, so the upload would fail before reaching the action. --%>
             <input type="hidden" id="uploadFormToolId" name="toolId" value="0" />

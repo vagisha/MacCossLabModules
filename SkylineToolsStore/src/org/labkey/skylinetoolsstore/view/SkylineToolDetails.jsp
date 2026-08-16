@@ -254,7 +254,7 @@ a { text-decoration: none; }
         <p>
             <label for="toolOwners">Tool owners </label><br />
             <input type="text" id="toolOwners" name="toolOwners" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(toolDetailsUrl) %>" />
             <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Update Tool Owners" />
         </p>
@@ -266,7 +266,7 @@ a { text-decoration: none; }
         <p>
             Browse to the zip file containing the tool you would like to upload.<br/><br/>
             <input type="file" size="50" name="toolZip" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(toolDetailsUrl) %>" />
             <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Upload Tool" />
         </p>
@@ -278,7 +278,7 @@ a { text-decoration: none; }
         <p>
             Browse to the supplementary file you would like to upload.<br/><br/>
             <input type="file" size="50" name="suppFile" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(toolDetailsUrl) %>" />
             <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Upload Supplementary File" />
         </p>
@@ -606,11 +606,11 @@ a { text-decoration: none; }
                 // Addressed to allVersions[0], not the version being viewed. This item is offered on
                 // an older version's page too, and the action always removes the newest one, so both
                 // the URL and the id have to name that version.
-                // sender is the page to come back to. The action rewrites the name and version it
-                // carries when the deleted version supplied them, and answers with the result.
+                // returnUrl is the page to come back to. The action rewrites the name and version it
+                // carries when the deleted version supplied them, and returns the result.
                 $.post(<%=q(SkylineToolStoreUrls.getDeleteLatestUrl(allVersions[0]).getLocalURIString())%>, {
                     "toolId": <%=allVersions[0].getRowId()%>,
-                    "sender": <%=q(toolDetailsLatestUrl.getLocalURIString())%>,
+                    "returnUrl": <%=q(toolDetailsLatestUrl.getLocalURIString())%>,
                     "X-LABKEY-CSRF": LABKEY.CSRF
                 }).done(function(data) {
                     window.location = data.successUrl;

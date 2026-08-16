@@ -489,30 +489,6 @@ public class SkylineToolsStoreController extends SpringActionController
         return new Pair<>(toolOwnersUsers,  toolOwnersInvalid);
     }
 
-    /**
-     * The page a caller asked to be sent back to once its post succeeds, or null where it did not
-     * name one this server will use.
-     *
-     * A caller supplies this, so it is parsed before any work commits - a refusal after the work has
-     * landed reports a server error for something that succeeded. Only a path on this server is
-     * accepted, so the actions that take it cannot be used to bounce a visitor somewhere else.
-     */
-    private static ActionURL parseSender(String sender)
-    {
-        if (StringUtils.trimToNull(sender) == null || !sender.startsWith("/") || sender.startsWith("//"))
-            return null;
-
-        try
-        {
-            return new ActionURL(sender);
-        }
-        catch (IllegalArgumentException e)
-        {
-            LOG.warn("Ignoring a sender that could not be read as a URL: {}", sender);
-            return null;
-        }
-    }
-
     public static ArrayList<String> getToolOwners(SkylineTool tool)
     {
         return getToolRelevantUsers(tool, new Role[]{RoleManager.getRole(EditorRole.class), RoleManager.getRole(FolderAdminRole.class)});
@@ -841,11 +817,10 @@ public class SkylineToolsStoreController extends SpringActionController
      * Shared by both upload actions. InsertToolAction ignores toolId, UpdateToolAction ignores
      * toolOwners - a new version inherits its owners from the version it supersedes.
      */
-    public static class ToolUploadForm
+    public static class ToolUploadForm extends ReturnUrlForm
     {
         private int _toolId;
         private String _toolOwners;
-        private String _sender;
 
         public int getToolId()
         {
@@ -865,16 +840,6 @@ public class SkylineToolsStoreController extends SpringActionController
         public void setToolOwners(String toolOwners)
         {
             _toolOwners = toolOwners;
-        }
-
-        public String getSender()
-        {
-            return _sender;
-        }
-
-        public void setSender(String sender)
-        {
-            _sender = sender;
         }
     }
 
@@ -1328,7 +1293,7 @@ public class SkylineToolsStoreController extends SpringActionController
             // against, so the two have to agree. The check below covers the folder this deletes.
             final SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
 
-            ActionURL senderUrl = parseSender(form.getSender());
+            ActionURL returnUrl = form.getReturnActionURL();
 
             // Resolve the tool store container before the tool's own container is deleted.
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
@@ -1392,16 +1357,16 @@ public class SkylineToolsStoreController extends SpringActionController
                 transaction.commit();
             }
 
-            if (senderUrl != null)
+            if (returnUrl != null)
             {
-                if (!tools[0].getName().equals(tools[1].getName()) && senderUrl.getParameter("name") != null)
-                    senderUrl.replaceParameter("name", tools[1].getName());
+                if (!tools[0].getName().equals(tools[1].getName()) && returnUrl.getParameter("name") != null)
+                    returnUrl.replaceParameter("name", tools[1].getName());
 
-                if (senderUrl.getParameter("version") != null && senderUrl.getParameter("version").equals(tools[0].getVersion()))
-                    senderUrl.deleteParameter("version");
+                if (returnUrl.getParameter("version") != null && returnUrl.getParameter("version").equals(tools[0].getVersion()))
+                    returnUrl.deleteParameter("version");
             }
 
-            URLHelper successUrl = senderUrl != null ? senderUrl :
+            URLHelper successUrl = returnUrl != null ? returnUrl :
                     SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser());
 
             ApiSimpleResponse response = new ApiSimpleResponse("success", true);
@@ -1410,19 +1375,9 @@ public class SkylineToolsStoreController extends SpringActionController
         }
     }
 
+    /** IdForm extends ReturnUrlForm, so the page to come back to binds as returnUrl. */
     public static class DeleteLatestForm extends IdForm
     {
-        private String _sender;
-
-        public String getSender()
-        {
-            return _sender;
-        }
-
-        public void setSender(String sender)
-        {
-            _sender = sender;
-        }
     }
 
     /**
@@ -1684,10 +1639,6 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public boolean handlePost(SetOwnersForm form, BindException errors) throws Exception
         {
-            // Read before the owners are written. It used to be read after they had been committed,
-            // so a sender that could not be parsed reported a server error for work that succeeded.
-            ActionURL senderUrl = parseSender(form.getSender());
-
             Pair<ArrayList<User>, ArrayList<String>> parsedOwners = parseToolOwnerString(form.getToolOwners());
             ArrayList<User> toolOwnersUsers = parsedOwners.first;
             ArrayList<String> toolOwnersInvalid = parsedOwners.second;
@@ -1724,8 +1675,8 @@ public class SkylineToolsStoreController extends SpringActionController
             }
 
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
-            _successURL = senderUrl != null ? senderUrl
-                    : SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser());
+            _successURL = form.getReturnUrlHelper(
+                    SkylineToolStoreUrls.getToolStoreHomeUrl(toolStoreContainer, getUser()));
             return true;
         }
 
@@ -1745,11 +1696,10 @@ public class SkylineToolsStoreController extends SpringActionController
         }
     }
 
-    public static class SetOwnersForm
+    public static class SetOwnersForm extends ReturnUrlForm
     {
         private int _toolId;
         private String _toolOwners;
-        private String _sender;
 
         public int getToolId()
         {
@@ -1769,16 +1719,6 @@ public class SkylineToolsStoreController extends SpringActionController
         public void setToolOwners(String toolOwners)
         {
             _toolOwners = toolOwners;
-        }
-
-        public String getSender()
-        {
-            return _sender;
-        }
-
-        public void setSender(String sender)
-        {
-            _sender = sender;
         }
     }
 

@@ -36,7 +36,7 @@
     final String jsDir = contextPath + "/skylinetoolsstore/js/";
 
     final String toolOwners = StringUtils.trimToEmpty(form.getToolOwners());
-    final String sender = form.getSender();
+    final String returnUrl = form.getReturnUrl();
 
     final boolean admin = getUser().hasSiteAdminPermission();
     final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
@@ -54,8 +54,8 @@
         <input style="width: 400px; max-width: 80%;" type="text" id="toolOwners" name="toolOwners"
                value="<%= h(toolOwners) %>" /><br /><br />
         <br />
-<% if (sender != null) { %>
-        <input type="hidden" name="sender" value="<%= h(sender) %>" />
+<% if (returnUrl != null) { %>
+        <input type="hidden" name="returnUrl" value="<%= h(returnUrl) %>" />
 <% } %>
         <input type="hidden" name="toolId" value="<%= form.getToolId() %>" />
         <input type="submit" value="Update Tool Owners" />

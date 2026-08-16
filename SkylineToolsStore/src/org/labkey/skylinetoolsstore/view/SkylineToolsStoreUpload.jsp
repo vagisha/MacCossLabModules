@@ -48,7 +48,7 @@
     // Shared by both upload actions. A toolId means we are publishing a new version of that tool, so
     // the form posts to the tool's own container. Otherwise it is a brand-new tool in this folder.
     final boolean isNewVersion = form.getToolId() > 0;
-    final String sender = form.getSender();
+    final String returnUrl = form.getReturnUrl();
 
     SafeToRender users = SkylineToolsStoreController.getUsersForAutocomplete();
 %>
@@ -61,8 +61,8 @@
     <p>
         Browse to the zip file containing the tool you would like to upload.<br/><br/>
         <input type="file" size="50" name="toolZip" /><br /><br />
-<% if (sender != null) { %>
-        <input type="hidden" name="sender" value="<%= h(sender) %>" />
+<% if (returnUrl != null) { %>
+        <input type="hidden" name="returnUrl" value="<%= h(returnUrl) %>" />
 <% } %>
 <% if (isNewVersion) { %>
         <input type="hidden" name="toolId" value="<%= form.getToolId() %>" />
