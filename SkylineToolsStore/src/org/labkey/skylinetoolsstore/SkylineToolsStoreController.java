@@ -1219,33 +1219,41 @@ public class SkylineToolsStoreController extends SpringActionController
             // this action may be addressed to the tool's own folder, which it is about to remove.
             Container toolStoreContainer = tool.getContainerParent() != null ? tool.getContainerParent() : getContainer();
 
-            // Every version's folder goes or none does. Removing some of them leaves a tool that is
-            // half in the store, and the versions that survive are no longer reachable from it.
-            try (DbScope.Transaction transaction =
-                         SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+            // Deliberately not one transaction. Deleting a container deletes its files from disk
+            // inside the transaction and not through a commit task, so a rollback would put the rows
+            // back with the zips, icons and documentation already gone. Every folder is checked
+            // first instead, so the refusal that actually happens costs nothing.
+            SkylineTool[] versions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
+            for (SkylineTool toDelete : versions)
             {
-                for (SkylineTool toDelete : SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()))
+                Container versionContainer = toDelete.lookupContainer();
+                if (versionContainer == null)
                 {
-                    Container versionContainer = toDelete.lookupContainer();
-                    if (versionContainer == null)
-                    {
-                        errors.reject(ERROR_MSG, "Failed to look up the folder holding " + toDelete.getName() +
-                                " version " + toDelete.getVersion() + ".");
-                        return null;
-                    }
-
-                    // delete returns false rather than throwing when the folder still has children of
-                    // its own. Leaving the transaction without committing undoes the folders already
-                    // removed in this loop.
-                    if (!ContainerManager.delete(versionContainer, getUser()))
-                    {
-                        errors.reject(ERROR_MSG, "The folder holding " + toDelete.getName() + " version " +
-                                toDelete.getVersion() + " could not be deleted, so nothing was changed.");
-                        return null;
-                    }
+                    errors.reject(ERROR_MSG, "Failed to look up the folder holding " + toDelete.getName() +
+                            " version " + toDelete.getVersion() + ". Nothing was deleted.");
+                    return null;
                 }
+                // The one condition ContainerManager.delete refuses on, checked before anything goes.
+                if (!versionContainer.getChildren().isEmpty())
+                {
+                    errors.reject(ERROR_MSG, "The folder holding " + toDelete.getName() + " version " +
+                            toDelete.getVersion() + " has folders of its own, so it cannot be deleted. " +
+                            "Nothing was deleted.");
+                    return null;
+                }
+            }
 
-                transaction.commit();
+            for (SkylineTool toDelete : versions)
+            {
+                // Checked above, so this refuses only if a folder gained a child in between. There is
+                // no undo - the versions already removed stay removed, so say so.
+                if (!ContainerManager.delete(toDelete.lookupContainer(), getUser()))
+                {
+                    errors.reject(ERROR_MSG, "The folder holding " + toDelete.getName() + " version " +
+                            toDelete.getVersion() + " could not be deleted. Versions removed before it " +
+                            "are gone.");
+                    return null;
+                }
             }
 
             ApiSimpleResponse response = new ApiSimpleResponse("success", true);
@@ -1339,7 +1347,12 @@ public class SkylineToolsStoreController extends SpringActionController
                 throw new NotFoundException("Failed to look up the folder holding " + newLatest.getName() +
                         " version " + newLatest.getVersion() + ".");
 
-            // The promotion and the delete land together. A tool left with two rows flagged latest,
+            // The promotion and the delete land together. Only one folder is removed here, and the
+            // delete answers false without touching it when it cannot go, so the rollback this can
+            // perform is of the promotion alone. It could not undo a folder that was really deleted -
+            // container deletion removes the files from disk inside the transaction.
+            //
+            // A tool left with two rows flagged latest,
             // or with none, makes getToolLatestByIdentifier match nothing, and the lsid downloads
             // shipped Skyline clients make stop resolving.
             try (DbScope.Transaction transaction =

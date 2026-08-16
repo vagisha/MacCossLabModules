@@ -444,11 +444,7 @@ public class SkylineTool extends Entity
             if (aPart.equalsIgnoreCase(bPart))
                 continue;
 
-            Integer aNumber = versionPartAsNumber(aPart);
-            Integer bNumber = versionPartAsNumber(bPart);
-            int result = (aNumber != null && bNumber != null)
-                    ? Integer.compare(aNumber, bNumber)
-                    : aPart.compareToIgnoreCase(bPart);
+            int result = compareVersionParts(aPart, bPart);
             if (result != 0)
                 return result;
         }
@@ -456,18 +452,59 @@ public class SkylineTool extends Entity
         return 0;
     }
 
-    /** The part as a number, or null where it is not one. Long values are left to the text path. */
-    private static Integer versionPartAsNumber(String part)
+    /**
+     * One dot separated part. The digits it starts with are compared as a number and whatever
+     * follows them as text, except that a part with nothing following outranks one that has
+     * something. That is what makes 1.0 newer than 1.0-beta rather than older, which matters because
+     * a version that does not sort above every stored version cannot be published at all.
+     */
+    private static int compareVersionParts(String a, String b)
     {
-        if (part.isEmpty() || part.length() > 9)
-            return null;
+        String aDigits = leadingDigits(a);
+        String bDigits = leadingDigits(b);
 
-        for (int i = 0; i < part.length(); i++)
-        {
-            if (part.charAt(i) < '0' || part.charAt(i) > '9')
-                return null;
-        }
-        return Integer.valueOf(part);
+        int result = compareDigitRuns(aDigits, bDigits);
+        if (result != 0)
+            return result;
+
+        String aRest = a.substring(aDigits.length());
+        String bRest = b.substring(bDigits.length());
+        if (aRest.isEmpty() != bRest.isEmpty())
+            return aRest.isEmpty() ? 1 : -1;
+
+        return aRest.compareToIgnoreCase(bRest);
+    }
+
+    private static String leadingDigits(String part)
+    {
+        int end = 0;
+        while (end < part.length() && part.charAt(end) >= '0' && part.charAt(end) <= '9')
+            end++;
+
+        return part.substring(0, end);
+    }
+
+    /**
+     * Numeric order without parsing, so a number too long to hold in an int still orders correctly.
+     * A part with no digits at all sorts below one that has some.
+     */
+    private static int compareDigitRuns(String a, String b)
+    {
+        String aTrimmed = stripLeadingZeroes(a);
+        String bTrimmed = stripLeadingZeroes(b);
+        if (aTrimmed.length() != bTrimmed.length())
+            return Integer.compare(aTrimmed.length(), bTrimmed.length());
+
+        return aTrimmed.compareTo(bTrimmed);
+    }
+
+    private static String stripLeadingZeroes(String digits)
+    {
+        int start = 0;
+        while (start < digits.length() - 1 && digits.charAt(start) == '0')
+            start++;
+
+        return digits.substring(start);
     }
 
     public static class TestCase extends Assert
@@ -483,17 +520,21 @@ public class SkylineTool extends Entity
             assertTrue("A third part still orders", compareVersions("1.0.1", "1.0") > 0);
             assertEquals("Leading zeroes do not change the number", 0, compareVersions("1.01", "1.1"));
             assertEquals("Case is ignored", 0, compareVersions("1.0-BETA", "1.0-beta"));
-            assertTrue("A part that is not a number is compared as text",
+            assertTrue("A release is newer than the pre-release it follows",
+                    compareVersions("1.0", "1.0-beta") > 0);
+            assertTrue("Pre-releases of one version order among themselves as text",
                     compareVersions("1.0-beta", "1.0-alpha") > 0);
-            assertTrue("A number sorts before text at the same position",
-                    compareVersions("1.9", "1.beta") < 0);
+            assertTrue("A pre-release is still newer than the version before it",
+                    compareVersions("2.0-beta", "1.9") > 0);
+            assertTrue("A part with no number at all sorts below one that has a number",
+                    compareVersions("1.9", "1.beta") > 0);
             assertEquals("Surrounding space does not make a different version",
                     0, compareVersions(" 1.0 ", "1.0"));
             assertEquals("Nothing compares equal to nothing", 0, compareVersions(null, ""));
             assertTrue("A version that is not there is older than one that is",
                     compareVersions("", "0.1") < 0);
-            assertTrue("A number too long to parse is still ordered rather than throwing",
-                    compareVersions("1.12345678901234567890", "1.0") != 0);
+            assertTrue("A number too long to hold in an int still orders by size",
+                    compareVersions("1.12345678901234567890", "1.9") > 0);
         }
     }
 }

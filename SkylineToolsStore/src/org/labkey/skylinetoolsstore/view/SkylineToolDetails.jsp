@@ -21,7 +21,7 @@
 <%@ page import="org.labkey.api.data.ContainerManager" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
 <%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
-<%@ page import="org.labkey.api.security.permissions.InsertPermission" %>
+<%@ page import="org.labkey.api.security.permissions.UpdatePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.DOM" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
@@ -76,12 +76,19 @@
 
     final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
 
-    final boolean toolEditor = admin || toolContainer.hasPermission(getUser(), InsertPermission.class);
+    // Update, not Insert. The actions these controls call require UpdatePermission on the tool's own
+    // folder, so gating on Insert offered an edit to someone the action then refuses.
+    final boolean toolEditor = admin || toolContainer.hasPermission(getUser(), UpdatePermission.class);
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
     // UpdateToolAction refuses to update the tool unless the tool carries the Latest flag. Display the menu item to
     // update tool only if we are looking at the latest version.
     final boolean isLatestVersion = tool.getLatest();
+    // Delete latest acts on the newest version's own folder, so the item and the dialog wired to it
+    // are both drawn only when that folder resolves. Building its URL without this check throws, and
+    // the dialog is set up on every rendering of this page, so it took the whole page down with it.
+    final boolean canDeleteLatest = isLatestVersion && multipleVersions &&
+            allVersions[0].lookupContainer() != null;
     final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 
     ActionURL toolDetailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
@@ -346,7 +353,7 @@ a { text-decoration: none; }
             <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').dialog('open')")%></li>
 <%-- This removes the newest version whatever page it is clicked from, so on an older version's
      page it would delete a version other than the one being viewed. --%>
-<% if (isLatestVersion && multipleVersions) { %>
+<% if (canDeleteLatest) { %>
             <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').dialog('open')")%></li>
 <% } %>
 <% if (admin) { %>
@@ -591,6 +598,9 @@ a { text-decoration: none; }
         }
     }).data("originalHtml", $("#delToolAllDlg").html());
 
+<%-- Drawn only where the item that opens it is. Its URL names the newest version's own folder,
+     which the URL builder refuses to leave out, and this block runs on every rendering of the page. --%>
+<% if (canDeleteLatest) { %>
     $("#delToolLatestDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
             Ok: function() {
@@ -622,6 +632,7 @@ a { text-decoration: none; }
             setButtonsEnabled(true);
         }
     }).data("originalHtml", $("#delToolLatestDlg").html());
+<% } %>
 
     $("#editToolDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
