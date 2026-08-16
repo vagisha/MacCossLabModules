@@ -43,6 +43,8 @@ import org.labkey.api.data.CoreSchema;
 import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbScope;
 import org.labkey.api.data.NormalContainerType;
+import org.labkey.api.data.SimpleFilter;
+import org.labkey.api.query.FieldKey;
 import org.labkey.api.files.FileContentService;
 import org.labkey.api.module.FolderTypeManager;
 import org.labkey.api.security.ActionNames;
@@ -577,8 +579,12 @@ public class SkylineToolsStoreController extends SpringActionController
             if (tool == null)
                 return false;
 
-            // Identifiers are unique across the whole server, since Skyline keys on them.
-            for (SkylineTool existing : SkylineToolsStoreManager.get().getToolsLatest())
+            // Identifiers are unique across the whole server, since Skyline keys on them. Every row
+            // is scanned rather than only the ones flagged latest, because a tool whose rows are all
+            // flagged not latest is invisible to getToolsLatest and its identifier would be let in a
+            // second time. Compared here rather than filtered in SQL, since the comparison ignores
+            // case and SimpleFilter's equality does not.
+            for (SkylineTool existing : SkylineToolsStoreManager.get().getTools(new SimpleFilter()))
             {
                 if (tool.getIdentifier().equalsIgnoreCase(existing.getIdentifier()))
                 {
@@ -698,6 +704,21 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
 
+            // A version may rename its own tool, but it must not take a name another tool already
+            // publishes under. getLatestTool needs exactly one row for a name, and details.view is
+            // addressed by name by shipped Skyline clients, so two tools sharing one name makes that
+            // page resolve to whichever row the query happens to return first.
+            for (SkylineTool sameName : SkylineToolsStoreManager.get().getTools(
+                    new SimpleFilter(FieldKey.fromParts("Name"), tool.getName())))
+            {
+                if (!sameName.getIdentifier().equalsIgnoreCase(tool.getIdentifier()))
+                {
+                    errors.reject(ERROR_MSG, "Another tool is already published under the name " +
+                            tool.getName() + ".");
+                    return false;
+                }
+            }
+
             // Create the child folder for the tool version and store its zip, icon and docs
             Container versionContainer = storeToolVersion(getContainer().getParent(), tool,
                     getFileMap().get("toolZip"), Collections.emptyList(), previousVersion, errors);
@@ -710,11 +731,22 @@ public class SkylineToolsStoreController extends SpringActionController
             try (DbScope.Transaction transaction =
                          SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
             {
+                // Read again inside the transaction. The check above ran before the upload, which
+                // can take minutes, so two publishes racing on the same version both passed it and
+                // both committed a latest row. This row is also what gets written back below, so a
+                // download counted during the upload is not rolled back to its earlier value.
+                SkylineTool current = SkylineToolsStoreManager.get().getTool(previousVersion.getRowId());
+                if (current == null || !current.getLatest())
+                {
+                    errors.reject(ERROR_MSG, notLatestVersionMessage(previousVersion));
+                    return false;
+                }
+
                 tool.setLatest(true);
                 _tool = SkylineToolsStoreManager.get().insertTool(versionContainer, getUser(), tool);
 
-                previousVersion.setLatest(false);
-                SkylineToolsStoreManager.get().updateTool(getContainer(), getUser(), previousVersion);
+                current.setLatest(false);
+                SkylineToolsStoreManager.get().updateTool(getContainer(), getUser(), current);
 
                 transaction.commit();
                 stored = true;
@@ -1251,8 +1283,16 @@ public class SkylineToolsStoreController extends SpringActionController
             try (DbScope.Transaction transaction =
                          SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
             {
-                newLatest.setLatest(true);
-                SkylineToolsStoreManager.get().updateTool(newLatestContainer, getUser(), newLatest);
+                // Read again inside the transaction rather than writing back the row loaded above.
+                // The bean carries every column, so a download counted in the meantime would be put
+                // back at the value it had when the row was read.
+                SkylineTool promoted = SkylineToolsStoreManager.get().getTool(newLatest.getRowId());
+                if (promoted == null)
+                    throw new NotFoundException("Could not find version " + newLatest.getVersion() +
+                            " of " + newLatest.getName() + ".");
+
+                promoted.setLatest(true);
+                SkylineToolsStoreManager.get().updateTool(newLatestContainer, getUser(), promoted);
 
                 // delete returns false rather than throwing when the folder still has children of its
                 // own. Leaving the transaction without committing undoes the promotion above.
