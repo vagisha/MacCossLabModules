@@ -239,15 +239,19 @@ a { text-decoration: none; }
 <div id="allVersionsPop" title="All versions" style="display:none;">
 <%
     for (SkylineTool iVersion : allVersions) {
-        boolean viewingThis = iVersion.getVersion().equals(tool.getVersion());
+        // A version whose folder is gone is listed without a link. Building the URL needs that
+        // folder, and this list is drawn on every rendering of the page, so one broken version
+        // would otherwise take the whole page down rather than lose one link.
+        boolean linkThis = !iVersion.getVersion().equals(tool.getVersion()) &&
+                iVersion.lookupContainer() != null;
  %>
     <p<% if (iVersion.getLatest()) { %> class="boldfont"<% } %>>
         <%= h(iVersion.getPrettyCreated()) %> |
-<% if (!viewingThis) { %>
+<% if (linkThis) { %>
         <a href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(iVersion))%>">
 <% } %>
             <%= h(iVersion.getName()) %> (version <%= h(iVersion.getVersion()) %>)
-<% if (!viewingThis) { %>
+<% if (linkThis) { %>
         </a>
 <% } %>
     </p>
@@ -322,7 +326,9 @@ a { text-decoration: none; }
             </p>
             <p>Uploaded <%= h(tool.getPrettyCreated()) %></p>
 
-            <% if (!tool.getLatest()) { %>
+            <%-- Same reason as the version list above - no link where the newest version's folder
+                 is gone, rather than a page that will not render at all. --%>
+            <% if (!tool.getLatest() && allVersions[0].lookupContainer() != null) { %>
             <p>
                 <a class="importantLink" href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(allVersions[0]))%>">See latest version</a>
             <p>
