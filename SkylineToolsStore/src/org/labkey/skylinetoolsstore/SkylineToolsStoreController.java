@@ -334,30 +334,43 @@ public class SkylineToolsStoreController extends SpringActionController
             return null;
 
         Container c = ContainerManager.createContainer(parent, folderName, null, null, NormalContainerType.NAME, getUser());
-        c.setFolderType(FolderTypeManager.get().getFolderType("Collaboration"), getUser());
-
-        Path fileRoot = FileContentService.get().getFileRootPath(c, FileContentService.ContentType.files);
-        if(!Files.exists(fileRoot))
+        boolean made = false;
+        try
         {
-            Files.createDirectories(fileRoot);
+            c.setFolderType(FolderTypeManager.get().getFolderType("Collaboration"), getUser());
+
+            Path fileRoot = FileContentService.get().getFileRootPath(c, FileContentService.ContentType.files);
+            if(!Files.exists(fileRoot))
+            {
+                Files.createDirectories(fileRoot);
+            }
+
+            // Make folder readable by all site users and guests, so that they can access the zip file/icon
+            MutableSecurityPolicy policy = new MutableSecurityPolicy(c);
+            User guest = new User();
+            guest.setUserId(Group.groupGuests);
+            User user = new User();
+            user.setUserId(Group.groupUsers);
+            policy.addRoleAssignment(guest, RoleManager.getRole(ReaderRole.class));
+            policy.addRoleAssignment(user, RoleManager.getRole(ReaderRole.class));
+
+            if (users != null && !users.isEmpty() && role != null)
+                for (User u : users)
+                    policy.addRoleAssignment(u, role);
+
+            SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
+
+            made = true;
+            return c;
         }
-
-        // Make folder readable by all site users and guests, so that they can access the zip file/icon
-        MutableSecurityPolicy policy = new MutableSecurityPolicy(c);
-        User guest = new User();
-        guest.setUserId(Group.groupGuests);
-        User user = new User();
-        user.setUserId(Group.groupUsers);
-        policy.addRoleAssignment(guest, RoleManager.getRole(ReaderRole.class));
-        policy.addRoleAssignment(user, RoleManager.getRole(ReaderRole.class));
-
-        if (users != null && !users.isEmpty() && role != null)
-            for (User u : users)
-                policy.addRoleAssignment(u, role);
-
-        SecurityPolicyManager.savePolicy(policy, User.getAdminServiceUser());
-
-        return c;
+        finally
+        {
+            // createContainer has already committed the folder, so a throw below it leaves one the
+            // caller never receives and so cannot clean up. This method refuses a folder name that
+            // is already taken, so a stranded folder blocks that version of that tool for good.
+            if (!made)
+                discardVersionFolder(c);
+        }
     }
 
     protected MutableSecurityPolicy copyPolicy(Container c, SecurityPolicy from)
@@ -522,7 +535,11 @@ public class SkylineToolsStoreController extends SpringActionController
         Path localToolDir = getLocalPath(tool.lookupContainer());
         try (var stream = Files.list(localToolDir))
         {
-            stream.map(p -> p.getFileName().toString())
+            // Regular files only. A folder is not a supplementary file, and one named anything but
+            // docs reached storeToolVersion's carry-forward copy, which cannot copy a folder, so
+            // every later publish of that tool was refused.
+            stream.filter(Files::isRegularFile)
+                  .map(p -> p.getFileName().toString())
                   .filter(name -> !name.startsWith(".") && !name.equals(tool.getZipName()) && !name.equals("icon.png") && !name.equals("docs"))
                   .forEach(suppFiles::add);
         }
@@ -913,7 +930,10 @@ public class SkylineToolsStoreController extends SpringActionController
     {
         try
         {
-            ContainerManager.delete(versionContainer, getUser());
+            // delete answers false rather than throwing when the folder still has children of its own.
+            if (!ContainerManager.delete(versionContainer, getUser()))
+                LOG.error("Could not remove the folder for a tool version that was never stored: {}",
+                        versionContainer.getPath());
         }
         catch (Exception e)
         {
