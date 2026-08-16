@@ -147,9 +147,7 @@ public class SkylineToolsStoreController extends SpringActionController
             if (!getContainer().hasActiveModuleByName(SkylineToolsStoreModule.NAME))
                 throw new NotFoundException(STORE_NOT_AVAILABLE);
 
-            // If this container has a tool, redirect to the tool details page. Addressed by row id,
-            // because this container holds exactly that row while a tool Name is unique nowhere, so
-            // a name-keyed URL could land on another tool entirely.
+            // Lookup by row id, because a name-keyed URL resolves to the latest version of the tool.
             SkylineTool[] ownTools = SkylineToolsStoreManager.get().getTools(getContainer());
             if (ownTools.length > 0)
                 throw new RedirectException(SkylineToolStoreUrls.getToolDetailsByIdUrl(ownTools[0]));

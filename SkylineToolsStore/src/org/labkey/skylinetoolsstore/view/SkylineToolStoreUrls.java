@@ -44,10 +44,7 @@ public class SkylineToolStoreUrls
         return url;
     }
 
-    /**
-     * The details page addressed by row id rather than by name. A tool Name is unique nowhere, so a
-     * name-keyed URL can land on a different tool. Use this wherever the row is already in hand.
-     */
+    /** Lookup by row id, because a name-keyed URL resolves to the latest version of the tool. */
     public static ActionURL getToolDetailsByIdUrl(SkylineTool tool)
     {
         return new ActionURL(SkylineToolsStoreController.DetailsAction.class, tool.getContainerParent()).addParameter("id", tool.getRowId());
@@ -84,10 +81,7 @@ public class SkylineToolStoreUrls
         return getToolActionUrl(SkylineToolsStoreController.UpdatePropertyAction.class, tool);
     }
 
-    /**
-     * Takes the newest version rather than the tool being viewed, because that is the folder the
-     * action removes and so the folder its permission has to be checked against.
-     */
+    /** Pass the newest version, because its folder is the one this action deletes. */
     public static ActionURL getDeleteLatestUrl(SkylineTool latestVersion)
     {
         return getToolActionUrl(SkylineToolsStoreController.DeleteLatestAction.class, latestVersion);
