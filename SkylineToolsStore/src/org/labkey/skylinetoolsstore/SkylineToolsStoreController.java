@@ -658,6 +658,21 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
 
+            // The same rule UpdateToolAction applies to a new version. The folder check above does
+            // not cover it, because a folder name carries the version too, so a second tool of the
+            // same name at a different version passes it. getLatestTool needs exactly one row for a
+            // name, and details.view and downloadTool.view are addressed by name.
+            for (SkylineTool sameName : SkylineToolsStoreManager.get().getTools(
+                    new SimpleFilter(FieldKey.fromParts("Name"), tool.getName())))
+            {
+                if (!sameName.getIdentifier().equalsIgnoreCase(tool.getIdentifier()))
+                {
+                    errors.reject(ERROR_MSG, "Another tool is already published under the name " +
+                            tool.getName() + ".");
+                    return false;
+                }
+            }
+
             Container versionContainer = storeToolVersion(getContainer(), tool,
                     getFileMap().get("toolZip"), parsedOwners.first, null, errors);
             // storeToolVersion has already rejected with the reason.
@@ -1804,9 +1819,9 @@ public class SkylineToolsStoreController extends SpringActionController
             String propValue = "";
 
             // An icon is uploaded as a file part also named propValue. Files do not bind to the form,
-            // and there is no file map at all when the post is not multipart, which the text path is not.
-            Map<String, MultipartFile> fileMap = getFileMap();
-            final MultipartFile icon = fileMap == null ? null : fileMap.get("propValue");
+            // and getFileMap is empty rather than null when the post is not multipart, which the text
+            // path is not.
+            final MultipartFile icon = getFileMap().get("propValue");
 
             if (icon == null)
             {
@@ -1824,7 +1839,6 @@ public class SkylineToolsStoreController extends SpringActionController
                 // so treat null as an empty value rather than a missing parameter.
                 String submitted = form.getPropValue() == null ? "" : form.getPropValue();
                 propValue = submitted.replace("\r", "").replace("\n", "\r\n");
-                tool.setProperty(propName, propValue);
             }
             else
             {
@@ -1919,9 +1933,21 @@ public class SkylineToolsStoreController extends SpringActionController
             }
 
             if (icon == null)
-                SkylineToolsStoreManager.get().updateTool(container, getUser(), tool);
+            {
+                // Read again now the rewrite is done rather than writing back the row loaded at the
+                // top. The bean carries every column and the rewrite can take a while, so a download
+                // counted in the meantime would be put back at the value it had when this started.
+                SkylineTool current = SkylineToolsStoreManager.get().getTool(tool.getRowId());
+                if (current == null)
+                    throw new NotFoundException("Could not find tool with Id " + form.getToolId() + ".");
+
+                current.setProperty(propName, propValue);
+                SkylineToolsStoreManager.get().updateTool(container, getUser(), current);
+            }
             else
+            {
                 tool.writeIconToFile(makeFile(container, "icon.png"), "png");
+            }
 
             return new ApiSimpleResponse("success", true);
         }

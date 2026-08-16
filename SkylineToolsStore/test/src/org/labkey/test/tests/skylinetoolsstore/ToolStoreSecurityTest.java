@@ -29,8 +29,10 @@ import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.runners.MethodSorters;
 import org.labkey.test.BaseWebDriverTest;
 import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
@@ -61,6 +63,10 @@ import static org.junit.Assert.assertTrue;
  */
 @Category({External.class, MacCossLabModules.class})
 @BaseWebDriverTest.ClassTimeout(minutes = 3)
+// The two Z-prefixed methods have to run after the rest - they publish a second version, which moves
+// the tool the other methods address. JUnit 4 orders methods by an MD5 hash of their name by default,
+// so the prefixes alone decide nothing without this.
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class ToolStoreSecurityTest extends BaseWebDriverTest implements PostgresOnlyTest
 {
     private static final String PROJECT_NAME = "ToolStoreSecurityTest";

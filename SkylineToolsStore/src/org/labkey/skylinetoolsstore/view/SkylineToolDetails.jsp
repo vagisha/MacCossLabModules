@@ -462,7 +462,10 @@ a { text-decoration: none; }
         accept: ".suppfile",
         drop: function(event, ui) {
             var offset = (ui.draggable).data("offset");
-            var targetDel = (ui.draggable).find(".suppfilename").html().trim();
+            // .text(), not .html(). html() hands back the escaped markup, so a file whose name has
+            // an ampersand or a quote in it was posted as the escaped form, which names no file on
+            // disk, and it could never be deleted.
+            var targetDel = (ui.draggable).find(".suppfilename").text().trim();
             if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?")) {
                 (ui.draggable).offset({top: offset.top, left: offset.left});
                 return;
