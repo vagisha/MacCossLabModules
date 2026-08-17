@@ -41,6 +41,7 @@ import org.labkey.api.data.Container;
 import org.labkey.api.data.CoreSchema;
 import org.labkey.api.data.ContainerManager;
 import org.labkey.api.data.DbScope;
+import org.labkey.api.data.ServerPrimaryKeyLock;
 import org.labkey.api.data.NormalContainerType;
 import org.labkey.api.data.SimpleFilter;
 import org.labkey.api.query.FieldKey;
@@ -117,6 +118,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -533,9 +535,7 @@ public class SkylineToolsStoreController extends SpringActionController
         Path localToolDir = getLocalPath(tool.lookupContainer());
         try (var stream = Files.list(localToolDir))
         {
-            // Regular files only. A folder is not a supplementary file, and one named anything but
-            // docs reached storeToolVersion's carry-forward copy, which cannot copy a folder, so
-            // every later publish of that tool was refused.
+            // Regular files only
             stream.filter(Files::isRegularFile)
                   .map(p -> p.getFileName().toString())
                   .filter(name -> !name.startsWith(".") && !name.equals(tool.getZipName()) && !name.equals("icon.png") && !name.equals("docs"))
@@ -569,7 +569,6 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public ModelAndView getView(ToolUploadForm form, boolean reshow, BindException errors)
         {
-            // On a reshow the message is already in errors, so let the JSP render it there.
             if (!reshow && !isStoreContainer(getContainer()))
             {
                 errors.addError(new LabKeyError(STORE_NOT_AVAILABLE));
@@ -593,12 +592,11 @@ public class SkylineToolsStoreController extends SpringActionController
             if (tool == null)
                 return false;
 
-            // Identifiers are unique across the whole server, since Skyline keys on them. Every row
+            // Identifiers must be unique across the whole server, since Skyline keys on them. Every row
             // is scanned rather than only the ones flagged latest, because a tool whose rows are all
             // flagged not latest is invisible to getToolsLatest and its identifier would be let in a
-            // second time. Compared here rather than filtered in SQL, since the comparison ignores
-            // case and SimpleFilter's equality does not.
-            for (SkylineTool existing : SkylineToolsStoreManager.get().getTools(new SimpleFilter()))
+            // second time.
+            for (SkylineTool existing : SkylineToolsStoreManager.get().getAllTools())
             {
                 if (tool.getIdentifier().equalsIgnoreCase(existing.getIdentifier()))
                 {
@@ -615,24 +613,19 @@ public class SkylineToolsStoreController extends SpringActionController
                 }
             }
 
-            // The same rule UpdateToolAction applies to a new version. The folder check above does
-            // not cover it, because a folder name carries the version too, so a second tool of the
-            // same name at a different version passes it. getLatestTool needs exactly one row for a
-            // name, and details.view and downloadTool.view are addressed by name.
-            for (SkylineTool sameName : SkylineToolsStoreManager.get().getTools(
-                    new SimpleFilter(FieldKey.fromParts("Name"), tool.getName())))
+            // A Name must identify one tool. Skyline builds details.view?name= for every tool it
+            // lists, and getLatestTool picks arbitrarily when two tools share a name.
+            if (SkylineToolsStoreManager.get().getTools(
+                    new SimpleFilter(FieldKey.fromParts("Name"), tool.getName())).length > 0)
             {
-                if (!sameName.getIdentifier().equalsIgnoreCase(tool.getIdentifier()))
-                {
-                    errors.reject(ERROR_MSG, "Another tool is already published under the name " +
-                            tool.getName() + ".");
-                    return false;
-                }
+                errors.reject(ERROR_MSG, "Another tool is already published under the name " +
+                        tool.getName() + ".");
+                return false;
             }
 
-            Container versionContainer = storeToolVersion(getContainer(), tool,
+            Container versionContainer = createVersionFolder(getContainer(), tool,
                     getFileMap().get("toolZip"), parsedOwners.first, null, errors);
-            // storeToolVersion has already rejected with the reason.
+            // createVersionFolder has already rejected with the reason.
             if (versionContainer == null)
                 return false;
 
@@ -700,13 +693,13 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public boolean handlePost(ToolUploadForm form, BindException errors) throws Exception
         {
-            SkylineTool previousVersion = requireToolInContainer(form.getToolId(), getContainer());
+            SkylineTool currentVersion = requireToolInContainer(form.getToolId(), getContainer());
 
             // Publishing demotes the version it supersedes. Done from an older version, that leaves
             // two rows flagged latest and the tool is listed twice.
-            if (!previousVersion.getLatest())
+            if (!currentVersion.getLatest())
             {
-                errors.reject(ERROR_MSG, notLatestVersionMessage(previousVersion));
+                errors.reject(ERROR_MSG, notLatestVersionMessage(currentVersion));
                 return false;
             }
 
@@ -714,17 +707,15 @@ public class SkylineToolsStoreController extends SpringActionController
             if (tool == null)
                 return false;
 
-            if (!tool.getIdentifier().equalsIgnoreCase(previousVersion.getIdentifier()))
+            if (!tool.getIdentifier().equalsIgnoreCase(currentVersion.getIdentifier()))
             {
-                errors.reject(ERROR_MSG, "The Skyline Tool zip file did not contain the Skyline tool being updated.");
+                errors.reject(ERROR_MSG, "The Skyline tool in the zip file did not have the same " +
+                        "identifier as the Skyline tool being updated.");
                 return false;
             }
-            // Publishing makes the uploaded version the latest one, so a version that is not newer
-            // than every version already stored would demote a newer one. This replaces a check that
-            // only caught the same version being uploaded again. Addressed by the stored identifier
-            // rather than the uploaded one, which the check above accepts in any case.
+            // Version must be newer than the existing versions.
             for (SkylineTool existing : SkylineToolsStoreManager.get()
-                    .getToolsByIdentifier(previousVersion.getIdentifier()))
+                    .getToolsByIdentifier(currentVersion.getIdentifier()))
             {
                 if (SkylineTool.compareVersions(tool.getVersion(), existing.getVersion()) <= 0)
                 {
@@ -736,9 +727,8 @@ public class SkylineToolsStoreController extends SpringActionController
             }
 
             // A version may rename its own tool, but it must not take a name another tool already
-            // publishes under. getLatestTool needs exactly one row for a name, and details.view is
-            // addressed by name by shipped Skyline clients, so two tools sharing one name makes that
-            // page resolve to whichever row the query happens to return first.
+            // publishes under. Skyline builds details.view?name= for every tool it lists, and
+            // getLatestTool picks arbitrarily when two tools share a name.
             for (SkylineTool sameName : SkylineToolsStoreManager.get().getTools(
                     new SimpleFilter(FieldKey.fromParts("Name"), tool.getName())))
             {
@@ -751,25 +741,30 @@ public class SkylineToolsStoreController extends SpringActionController
             }
 
             // Create the child folder for the tool version and store its zip, icon and docs
-            Container versionContainer = storeToolVersion(getContainer().getParent(), tool,
-                    getFileMap().get("toolZip"), Collections.emptyList(), previousVersion, errors);
-            // storeToolVersion has already rejected with the reason.
+            Container versionContainer = createVersionFolder(getContainer().getParent(), tool,
+                    getFileMap().get("toolZip"), Collections.emptyList(), currentVersion, errors);
+            // createVersionFolder has already rejected with the reason.
             if (versionContainer == null)
                 return false;
 
-            // The insert and the demotion land together, or the tool has no latest row or two.
+            // Locks the version being superseded for the length of the transaction. A second publish
+            // of the same version waits here, then reads the demoted row and is refused, rather than
+            // passing the check below and committing a second latest row.
+            Lock currentVersionLock = new ServerPrimaryKeyLock(true,
+                    SkylineToolsStoreSchema.getInstance().getTableInfoSkylineTool(),
+                    currentVersion.getRowId());
+
+            // The insert and the demotion must be in a transaction.
             boolean stored = false;
-            try (DbScope.Transaction transaction =
-                         SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+            try (DbScope.Transaction transaction = SkylineToolsStoreSchema.getInstance().getSchema()
+                         .getScope().ensureTransaction(currentVersionLock))
             {
-                // Read again inside the transaction. The check above ran before the upload, which
-                // can take minutes, so two publishes racing on the same version both passed it and
-                // both committed a latest row. This row is also what gets written back below, so a
-                // download counted during the upload is not rolled back to its earlier value.
-                SkylineTool current = SkylineToolsStoreManager.get().getTool(previousVersion.getRowId());
+                // Read again inside the transaction. The check above ran before the upload so the row may have been
+                // demoted since.
+                SkylineTool current = SkylineToolsStoreManager.get().getTool(currentVersion.getRowId());
                 if (current == null || !current.getLatest())
                 {
-                    errors.reject(ERROR_MSG, notLatestVersionMessage(previousVersion));
+                    errors.reject(ERROR_MSG, notLatestVersionMessage(currentVersion));
                     return false;
                 }
 
@@ -853,9 +848,8 @@ public class SkylineToolsStoreController extends SpringActionController
      * discardVersionFolder if that transaction does not commit. None of the work here is
      * transactional, so it must not sit inside one - it creates a container and moves the zip.
      *
-     * Either returns a folder holding the whole version or leaves nothing behind. The caller's
-     * cleanup cannot cover a failure in here, because it has no folder to clean up until this
-     * returns, so this removes its own partial work before returning null.
+     * Either returns a folder holding the whole version or, in case of failure, removes its own partial
+     * work before returning null.
      *
      * @param storeContainer  the tool store folder to create the version's folder under
      * @param previousVersion the version being superseded, or null for a brand-new tool. Supplies the
@@ -865,9 +859,9 @@ public class SkylineToolsStoreController extends SpringActionController
      *         has been added to errors. Does not throw - an IOException on the way is reported the
      *         same way, so the caller never has to tell the two apart.
      */
-    private Container storeToolVersion(Container storeContainer, SkylineTool tool, MultipartFile zip,
-                                       List<User> owners, @Nullable SkylineTool previousVersion,
-                                       BindException errors)
+    private Container createVersionFolder(Container storeContainer, SkylineTool tool, MultipartFile zip,
+                                          List<User> owners, @Nullable SkylineTool previousVersion,
+                                          BindException errors)
     {
         // A throw after makeContainer would strand the folder, and makeContainer refuses a name it
         // has already used. The finally removes it.

@@ -70,6 +70,12 @@ public class SkylineToolsStoreManager
                                  filter, new Sort("Name")).getArray(SkylineTool.class);
     }
 
+    /** Every version of every tool on the server. Not container-scoped, see getToolsLatest. */
+    public SkylineTool[] getAllTools()
+    {
+        return getTools((Filter) null);
+    }
+
     /**
      * Every tool on the server, latest version only, regardless of container.
      *

@@ -640,7 +640,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * A tool's own folder refuses an upload posted straight at it.
      *
-     * storeToolVersion creates the version folder under the container the action runs in, and the
+     * createVersionFolder creates the version folder under the container the action runs in, and the
      * module is enabled in every tool folder, so an upload from one would file the new tool inside
      * another tool, where the store listing cannot reach it. Separate from the test above because
      * neither the redirect nor the hidden button stops a post sent straight to the URL.
@@ -790,7 +790,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         uploadToolFileTo(RETRY_STORE, ToolStoreTestHelper.writeToolZipWithUnreadableIcon(
                 RETRY_TOOL_NAME, RETRY_TOOL_IDENTIFIER, RETRY_TOOL_VERSION));
 
-        // storeToolVersion turns the failure into a message on the form, so nothing should reach the
+        // createVersionFolder turns the failure into a message on the form, so nothing should reach the
         // log as a server error. writeIconToFile used to let an IllegalArgumentException out, which
         // is not the IOException it declares, so no catch saw it and the upload died as a 500.
         // Read and cleared before asserting, so a failure here leaves nothing pending for the next
