@@ -16,6 +16,7 @@
 package org.labkey.skylinetoolsstore.model;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Test;
 import org.labkey.api.data.Container;
@@ -27,11 +28,13 @@ import org.labkey.api.security.permissions.InsertPermission;
 import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.settings.AppProps;
 import org.labkey.api.util.Pair;
+import org.labkey.api.util.logging.LogHelper;
 import org.labkey.api.webdav.WebdavService;
 import org.labkey.skylinetoolsstore.SkylineToolsStoreController;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -50,6 +53,8 @@ import java.util.Set;
 
 public class SkylineTool extends Entity
 {
+    private static final Logger LOG = LogHelper.getLogger(SkylineTool.class, "Skyline tool store model");
+
     private String _zipName;
     private String _name;
     private String _authors;
@@ -289,7 +294,6 @@ public class SkylineTool extends Entity
 
     public ArrayList<String> getMissingValues()
     {
-        // Name, version, and identifier are required
         ArrayList<String> missingValues = new ArrayList();
         if (StringUtils.trimToNull(_name) == null)
             missingValues.add("Name");
@@ -300,24 +304,42 @@ public class SkylineTool extends Entity
         return missingValues;
     }
 
+    /**
+     * Writes the icon beside the target and moves it into place, so any failure leaves the icon
+     * already there rather than an empty file. getIconUrl only tests that the file exists, so an
+     * empty one renders as a broken image until someone uploads again.
+     *
+     * The temp name starts with a dot, which keeps it out of the supplementary file list even if
+     * it is left behind - see getSupplementaryFileBasenames.
+     */
     public void writeIconToFile(File file, String format) throws IOException
     {
         if (_icon == null)
             return;
 
-        // Decode before opening the stream. Opening a FileOutputStream truncates the file it names,
-        // so decoding inside the try left icon.png at zero bytes when the bytes were not an image.
-        // getIconUrl only tests that the file exists, so the tool then rendered a broken image.
-        BufferedImage image = decodeIcon();
-        try (FileOutputStream iconOutputStream = new FileOutputStream(file))
+        File tmpFile = new File(file.getParentFile(), "." + file.getName() + ".tmp");
+        try
         {
-            ImageIO.write(image, format, iconOutputStream);
+            try (FileOutputStream iconOutputStream = new FileOutputStream(tmpFile))
+            {
+                // write returns false rather than throwing when no writer handles the format.
+                if (!ImageIO.write(decodeIcon(), format, iconOutputStream))
+                    throw new IOException("This server has no writer for the image format " + format + ".");
+            }
+
+            Files.move(tmpFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+        finally
+        {
+            // A move that succeeded consumed it already.
+            if (tmpFile.exists() && !tmpFile.delete())
+                LOG.warn("Could not delete the temporary icon {}", tmpFile.getAbsolutePath());
         }
     }
 
     /**
-     * Throws unless the icon bytes are an image this server can decode. For callers that commit
-     * other work alongside the icon and need to refuse before that work is committed.
+     * Throws unless the icon bytes are an image this server can decode. For callers that must
+     * refuse before committing other work alongside the icon.
      */
     public void validateIcon() throws IOException
     {
@@ -332,9 +354,7 @@ public class SkylineTool extends Entity
         try (ByteArrayInputStream iconInputStream = new ByteArrayInputStream(_icon))
         {
             BufferedImage image = ImageIO.read(iconInputStream);
-            // read returns null when nothing can decode the bytes. ImageIO.write then threw
-            // IllegalArgumentException, which is unchecked, so it escaped the callers that catch
-            // IOException and became a server error.
+            // null means no reader recognised the format. Callers catch IOException, so make it one.
             if (image == null)
                 throw new IOException("The tool's icon is not an image this server can read.");
             return image;
@@ -370,10 +390,8 @@ public class SkylineTool extends Entity
 
     /**
      * Whether the user may use the editing controls the store pages offer for this tool.
-     *
-     * All three permissions are required - Update to publish a version or edit a property, Insert to
-     * upload a supplementary file, Delete to remove the newest version.
-     * createVersionFolder grants tool owners EditorRole, which carries all three permissions.
+     * Only tool owners may edit, and createVersionFolder grants them EditorRole, which carries
+     * Update, Insert and Delete.
      */
     public boolean isEditor(User user)
     {
@@ -476,13 +494,11 @@ public class SkylineTool extends Entity
     }
 
     /**
-     * Orders two tool versions the way System.Version does, so 1.0.0 is newer than 1.0. Returns a
-     * negative number when a is older than b, zero when they are the same version, and a positive
-     * number when a is newer.
+     * Orders two tool versions the way System.Version does, so 1.0.0 is newer than 1.0. Negative
+     * when a is older, zero when they are the same version, positive when a is newer.
      *
      * A version Skyline cannot read sorts below one it can, and two of them are the same version.
-     * readToolFromUpload refuses those on the way in, so only a row stored before that check can
-     * still be one, but nothing here may throw on it.
+     * readToolFromUpload refuses those on the way in, so only an older row can still be one.
      */
     public static int compareVersions(String a, String b)
     {
