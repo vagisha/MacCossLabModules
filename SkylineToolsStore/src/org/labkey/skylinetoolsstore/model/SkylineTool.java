@@ -476,55 +476,33 @@ public class SkylineTool extends Entity
     }
 
     /**
-     * Orders two tool versions the way an author writes them - dot separated parts, each compared as
-     * a number where both sides are numbers and as text otherwise. A part that is not there counts
-     * as zero, so 1.0 and 1.0.0 are the same version. Returns a negative number when a is older than
-     * b, zero when they are the same version, and a positive number when a is newer.
+     * Orders two tool versions the way System.Version does, so 1.0.0 is newer than 1.0. Returns a
+     * negative number when a is older than b, zero when they are the same version, and a positive
+     * number when a is newer.
      *
-     * A version is whatever the author put in info.properties, so nothing here may throw on one that
-     * is not a number at all.
+     * A version Skyline cannot read sorts below one it can, and two of them are the same version.
+     * readToolFromUpload refuses those on the way in, so only a row stored before that check can
+     * still be one, but nothing here may throw on it.
      */
     public static int compareVersions(String a, String b)
     {
-        String[] aParts = (a == null ? "" : a.trim()).split("\\.");
-        String[] bParts = (b == null ? "" : b.trim()).split("\\.");
-
-        for (int i = 0; i < Math.max(aParts.length, bParts.length); i++)
+        int[] aParsed = parseSkylineVersion(a);
+        int[] bParsed = parseSkylineVersion(b);
+        if (aParsed == null || bParsed == null)
         {
-            String aPart = i < aParts.length ? aParts[i].trim() : "0";
-            String bPart = i < bParts.length ? bParts[i].trim() : "0";
-            if (aPart.equalsIgnoreCase(bPart))
-                continue;
+            if (aParsed == null && bParsed == null)
+                return 0;
+            return aParsed == null ? -1 : 1;
+        }
 
-            int result = compareVersionParts(aPart, bPart);
+        for (int i = 0; i < aParsed.length; i++)
+        {
+            int result = Integer.compare(aParsed[i], bParsed[i]);
             if (result != 0)
                 return result;
         }
 
         return 0;
-    }
-
-    /**
-     * One dot separated part. The digits it starts with are compared as a number and whatever
-     * follows them as text, except that a part with nothing following outranks one that has
-     * something. That is what makes 1.0 newer than 1.0-beta rather than older, which matters because
-     * a version that does not sort above every stored version cannot be published at all.
-     */
-    private static int compareVersionParts(String a, String b)
-    {
-        String aDigits = leadingDigits(a);
-        String bDigits = leadingDigits(b);
-
-        int result = compareDigitRuns(aDigits, bDigits);
-        if (result != 0)
-            return result;
-
-        String aRest = a.substring(aDigits.length());
-        String bRest = b.substring(bDigits.length());
-        if (aRest.isEmpty() != bRest.isEmpty())
-            return aRest.isEmpty() ? 1 : -1;
-
-        return aRest.compareToIgnoreCase(bRest);
     }
 
     private static String leadingDigits(String part)
@@ -536,29 +514,6 @@ public class SkylineTool extends Entity
         return part.substring(0, end);
     }
 
-    /**
-     * Numeric order without parsing, so a number too long to hold in an int still orders correctly.
-     * A part with no digits at all sorts below one that has some.
-     */
-    private static int compareDigitRuns(String a, String b)
-    {
-        String aTrimmed = stripLeadingZeroes(a);
-        String bTrimmed = stripLeadingZeroes(b);
-        if (aTrimmed.length() != bTrimmed.length())
-            return Integer.compare(aTrimmed.length(), bTrimmed.length());
-
-        return aTrimmed.compareTo(bTrimmed);
-    }
-
-    private static String stripLeadingZeroes(String digits)
-    {
-        int start = 0;
-        while (start < digits.length() - 1 && digits.charAt(start) == '0')
-            start++;
-
-        return digits.substring(start);
-    }
-
     public static class TestCase extends Assert
     {
         @Test
@@ -568,25 +523,21 @@ public class SkylineTool extends Entity
             assertTrue("1.9 is older than 2.0", compareVersions("1.9", "2.0") < 0);
             assertTrue("1.10 is newer than 1.9, which comparing as text gets backwards",
                     compareVersions("1.10", "1.9") > 0);
-            assertEquals("A part that is not there counts as zero", 0, compareVersions("1.0", "1.0.0"));
+            assertTrue("System.Version leaves an absent part at -1, so 1.0.0 is newer than 1.0",
+                    compareVersions("1.0", "1.0.0") < 0);
             assertTrue("A third part still orders", compareVersions("1.0.1", "1.0") > 0);
             assertEquals("Leading zeroes do not change the number", 0, compareVersions("1.01", "1.1"));
-            assertEquals("Case is ignored", 0, compareVersions("1.0-BETA", "1.0-beta"));
-            assertTrue("A release is newer than the pre-release it follows",
+            assertEquals("Two versions Skyline cannot read are the same version",
+                    0, compareVersions("1.0-BETA", "1.0-beta"));
+            assertTrue("A version Skyline can read is newer than one it cannot",
                     compareVersions("1.0", "1.0-beta") > 0);
-            assertTrue("Pre-releases of one version order among themselves as text",
-                    compareVersions("1.0-beta", "1.0-alpha") > 0);
-            assertTrue("A pre-release is still newer than the version before it",
-                    compareVersions("2.0-beta", "1.9") > 0);
-            assertTrue("A part with no number at all sorts below one that has a number",
+            assertTrue("A part that is not a number makes the whole version unreadable",
                     compareVersions("1.9", "1.beta") > 0);
             assertEquals("Surrounding space does not make a different version",
                     0, compareVersions(" 1.0 ", "1.0"));
             assertEquals("Nothing compares equal to nothing", 0, compareVersions(null, ""));
             assertTrue("A version that is not there is older than one that is",
                     compareVersions("", "0.1") < 0);
-            assertTrue("A number too long to hold in an int still orders by size",
-                    compareVersions("1.12345678901234567890", "1.9") > 0);
             assertTrue("A fourth part orders the way System.Version orders it",
                     compareVersions("1.0.0.1", "1.0.0") > 0);
         }
