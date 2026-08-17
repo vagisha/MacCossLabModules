@@ -20,8 +20,6 @@
 <%@ page import="org.labkey.api.data.Container" %>
 <%@ page import="org.labkey.api.data.ContainerManager" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
-<%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
-<%@ page import="org.labkey.api.security.permissions.UpdatePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.DOM" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
@@ -68,17 +66,13 @@
 
     final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
 
-    final Container toolContainer = tool.lookupContainer(); // Cannot be null here
-
     // Get supporting files in map <url, icon url>
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
     Iterator suppIter = suppFiles.entrySet().iterator();
 
     final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
 
-    // Update, not Insert. The actions these controls call require UpdatePermission on the tool's own
-    // folder, so gating on Insert offered an edit to someone the action then refuses.
-    final boolean toolEditor = admin || toolContainer.hasPermission(getUser(), UpdatePermission.class);
+    final boolean toolEditor = tool.isEditor(getUser());
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
     // UpdateToolAction refuses to update the tool unless the tool carries the Latest flag. Display the menu item to
@@ -452,7 +446,7 @@ a { text-decoration: none; }
         $("#editIcon").position({my: "right bottom", at: "right bottom", of: $("#editIcon").siblings(".logoWrap:first")});
     });
 
-<% if (toolContainer.hasPermission(getUser(), DeletePermission.class)) { %>
+<% if (toolEditor) { %>
     $("#trashcan").droppable({
         accept: ".suppfile",
         drop: function(event, ui) {

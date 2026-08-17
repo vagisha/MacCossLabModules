@@ -21,6 +21,10 @@ import org.junit.Test;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.Entity;
 import org.labkey.api.files.FileContentService;
+import org.labkey.api.security.User;
+import org.labkey.api.security.permissions.DeletePermission;
+import org.labkey.api.security.permissions.InsertPermission;
+import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.settings.AppProps;
 import org.labkey.api.util.Pair;
 import org.labkey.api.webdav.WebdavService;
@@ -42,6 +46,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Objects;
+import java.util.Set;
 
 public class SkylineTool extends Entity
 {
@@ -361,6 +366,20 @@ public class SkylineTool extends Entity
         return (SkylineToolsStoreController.makeFile(lookupContainer(), "icon.png").exists()) ?
             getFolderUrl() + "icon.png" :
             AppProps.getInstance().getContextPath() + "/skylinetoolsstore/img/placeholder.png";
+    }
+
+    /**
+     * Whether the user may use the editing controls the store pages offer for this tool.
+     *
+     * All three permissions are required - Update to publish a version or edit a property, Insert to
+     * upload a supplementary file, Delete to remove the newest version.
+     * createVersionFolder grants tool owners EditorRole, which carries all three permissions.
+     */
+    public boolean isEditor(User user)
+    {
+        Container c = lookupContainer();
+        return c != null && (user.hasSiteAdminPermission() || c.hasPermissions(user,
+                Set.of(UpdatePermission.class, InsertPermission.class, DeletePermission.class)));
     }
 
     public String getPrettyCreated()

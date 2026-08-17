@@ -17,7 +17,6 @@
  */
 %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
-<%@ page import="org.labkey.api.security.permissions.UpdatePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.SafeToRender"%>
 <%@ page import="org.labkey.api.view.ActionURL"%>
@@ -194,7 +193,7 @@
 
         final String curToolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
         toolOwners.put(tool.getRowId(), curToolOwners);
-        final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), UpdatePermission.class);
+        final boolean toolEditor = tool.isEditor(getUser());
         final SkylineTool[] allVersions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
         final boolean multipleVersions = allVersions.length > 1;
         final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
