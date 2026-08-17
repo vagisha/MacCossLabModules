@@ -992,6 +992,14 @@ public class SkylineToolsStoreController extends SpringActionController
                     StringUtils.join(tool.getMissingValues(), ", "));
             return null;
         }
+        // Skyline reads Version through System.Version.TryParse and treats anything else as no
+        // version at all, so a tool stored with one would show no version in every Skyline client.
+        if (SkylineTool.parseSkylineVersion(tool.getVersion()) == null)
+        {
+            errors.reject(ERROR_MSG, "Skyline cannot read \"" + tool.getVersion() + "\" as a version. " +
+                    "Use two to four numbers separated by dots, for example 1.0 or 1.2.3.");
+            return null;
+        }
         return tool;
     }
 

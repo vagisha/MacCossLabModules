@@ -443,6 +443,39 @@ public class SkylineTool extends Entity
     }
 
     /**
+     * The version format Skyline prescribes. ToolInstaller.cs reads Version through
+     * System.Version.TryParse and reads anything it rejects as no version at all, so a version is
+     * two to four dot separated parts, each a run of digits that fits in an int.
+     *
+     * @return major, minor, build and revision, with -1 for a part that is not there, the way
+     *         System.Version leaves it. Null when Skyline would not read the string as a version
+     */
+    public static int[] parseSkylineVersion(String version)
+    {
+        String[] parts = (version == null ? "" : version.trim()).split("\\.", -1);
+        if (parts.length < 2 || parts.length > 4)
+            return null;
+
+        int[] parsed = {-1, -1, -1, -1};
+        for (int i = 0; i < parts.length; i++)
+        {
+            if (parts[i].isEmpty() || leadingDigits(parts[i]).length() != parts[i].length())
+                return null;
+            try
+            {
+                parsed[i] = Integer.parseInt(parts[i]);
+            }
+            catch (NumberFormatException e)
+            {
+                // Longer than an int holds, which System.Version does not accept either.
+                return null;
+            }
+        }
+
+        return parsed;
+    }
+
+    /**
      * Orders two tool versions the way an author writes them - dot separated parts, each compared as
      * a number where both sides are numbers and as text otherwise. A part that is not there counts
      * as zero, so 1.0 and 1.0.0 are the same version. Returns a negative number when a is older than
@@ -554,6 +587,28 @@ public class SkylineTool extends Entity
                     compareVersions("", "0.1") < 0);
             assertTrue("A number too long to hold in an int still orders by size",
                     compareVersions("1.12345678901234567890", "1.9") > 0);
+            assertTrue("A fourth part orders the way System.Version orders it",
+                    compareVersions("1.0.0.1", "1.0.0") > 0);
+        }
+
+        @Test
+        public void testParseSkylineVersion()
+        {
+            assertNotNull("Two parts is the shortest Skyline reads", parseSkylineVersion("1.0"));
+            assertNotNull("Four parts is the longest", parseSkylineVersion("1.0.0.0"));
+            assertNull("One part is not a version Skyline reads", parseSkylineVersion("2"));
+            assertNull("Five parts is too many", parseSkylineVersion("1.0.0.0.0"));
+            assertNull("A pre-release suffix is not a number", parseSkylineVersion("1.0-beta"));
+            assertNull("A part that is empty is not a number", parseSkylineVersion("1..0"));
+            assertNull("A trailing dot leaves an empty part", parseSkylineVersion("1.0."));
+            assertNull("A part too long to hold in an int is not a version",
+                    parseSkylineVersion("1.12345678901234567890"));
+            assertNull("Nothing is not a version", parseSkylineVersion(null));
+
+            assertArrayEquals("A part that is not there is -1, not 0",
+                    new int[]{1, 0, -1, -1}, parseSkylineVersion("1.0"));
+            assertArrayEquals("Surrounding space does not change the version",
+                    new int[]{1, 0, -1, -1}, parseSkylineVersion(" 1.0 "));
         }
     }
 }
