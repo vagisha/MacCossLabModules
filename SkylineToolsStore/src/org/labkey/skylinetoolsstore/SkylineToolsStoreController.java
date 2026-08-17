@@ -50,6 +50,7 @@ import org.labkey.api.module.FolderTypeManager;
 import org.labkey.api.security.ActionNames;
 import org.labkey.api.security.Group;
 import org.labkey.api.security.MutableSecurityPolicy;
+import org.labkey.api.security.RequiresAllOf;
 import org.labkey.api.security.RequiresNoPermission;
 import org.labkey.api.security.RequiresPermission;
 import org.labkey.api.security.RequiresSiteAdmin;
@@ -661,10 +662,14 @@ public class SkylineToolsStoreController extends SpringActionController
     /**
      * Publishes a new version of an existing tool.
      *
-     * Should target the tool's own container, so @RequiresPermission checks the folder where the
-     * owner holds Editor. This is what lets a tool author maintain their tool without an admin.
+     * Should target the tool's own container, so the annotation checks the folder where the owner
+     * holds Editor. This is what lets a tool author maintain their tool without an admin.
+     *
+     * Writes outside the folder the permissions annotation checks. createVersionFolder adds a child to the store folder
+     * above this one and insertTool writes the tool row into that child. This is ok because a tool's version folders
+     * all carry the same policy - see createVersionFolder, copyContainerPermissions and SetOwnersAction.
      */
-    @RequiresPermission(UpdatePermission.class)
+    @RequiresAllOf({UpdatePermission.class, InsertPermission.class, DeletePermission.class})
     public class UpdateToolAction extends FormViewAction<ToolUploadForm>
     {
         private SkylineTool _tool;
@@ -1084,10 +1089,9 @@ public class SkylineToolsStoreController extends SpringActionController
      * Deletes one supplementary file from a tool.
      *
      * A MutatingApiAction because the details page calls this over ajax and hides the file's tile on
-     * success. As a FormHandlerAction a refusal rendered an error view at status 200, so the caller
-     * hid a file that is still there.
+     * success.
      *
-     * Addressed to the TOOL's own container, not the store folder, so @RequiresPermission checks the
+     * Addressed to the tool's own container, not the store folder, so the annotation checks the
      * folder that actually holds the file. Callers must build the URL with
      * SkylineToolStoreUrls.getToolActionUrl.
      */
@@ -1110,8 +1114,6 @@ public class SkylineToolsStoreController extends SpringActionController
                         " for tool " + tool.getName());
             }
 
-            // delete returns false rather than throwing, so ignoring it reported a file as deleted
-            // while it was still on disk and still listed on the details page.
             if (!targetDel.delete())
             {
                 // The message names a server path, so it goes to the log only.
@@ -1153,13 +1155,7 @@ public class SkylineToolsStoreController extends SpringActionController
     /**
      * Removes a tool and every one of its versions.
      *
-     * Site admin rather than @RequiresPermission, because this deletes a folder per version and no
-     * single container covers them all. Both menus already offer it to site admins only, so the
-     * annotation now says what the UI has always done.
-     *
-     * A MutatingApiAction because both callers post over ajax. As a FormHandlerAction a refusal
-     * rendered an error view at status 200, so the caller read a refused delete as done. The reply
-     * carries the page to go to, so the server still decides where the caller lands.
+     * A MutatingApiAction because both callers post over ajax.
      */
     @RequiresSiteAdmin
     public static class DeleteAction extends MutatingApiAction<IdForm>
@@ -1260,27 +1256,25 @@ public class SkylineToolsStoreController extends SpringActionController
     /**
      * Deletes only the newest version of a tool and promotes the previous one.
      *
-     * MutatingApiAction carries @MethodsAllowed(POST), so a GET is answered with 405 before the
-     * action runs. It used to be reachable by GET, which meant a container delete could be triggered
-     * by an img tag on any page, and no CSRF token can protect a GET. LabKey's own dev-mode guardrail
-     * flagged it too, as "MUTATING SQL executed as part of handling action: GET ...DeleteLatestAction".
-     *
-     * That guardrail is not the thing to silence here. Wrapping the delete in ignoreSqlUpdates(),
-     * as PR #608 correctly did for DownloadToolAction's download counter, would hide the warning and
-     * leave the delete reachable by GET.
-     *
-     * The reply carries the page to go to, so the server keeps deciding the destination, including
-     * the name and version rewrite below.
+     * The promotion writes to the previous version's folder, outside the one the permissions annotation
+     * checks. This is ok because all of a tool's version folders carry the same policy - see UpdateToolAction.
      */
-    @RequiresPermission(DeletePermission.class)
+    @RequiresAllOf({UpdatePermission.class, DeletePermission.class})
     public static class DeleteLatestAction extends MutatingApiAction<DeleteLatestForm>
     {
         @Override
         public Object execute(DeleteLatestForm form, BindException errors) throws Exception
         {
-            // The form names the row and the URL decides which folder the permission is checked
-            // against, so the two have to agree. The check below covers the folder this deletes.
             final SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
+
+            // This removes the newest version, so it has to be addressed to the row flagged latest.
+            // The details page hides the menu item on older versions, but a stale page can still post.
+            if (!tool.getLatest())
+            {
+                errors.reject(ERROR_MSG, "Version " + tool.getVersion() + " is not the latest version of " +
+                        tool.getName() + ".");
+                return null;
+            }
 
             ActionURL returnUrl = form.getReturnActionURL();
 
@@ -1292,19 +1286,13 @@ public class SkylineToolsStoreController extends SpringActionController
             // This action removes the newest version only, so it needs an older version to fall back to.
             if (tools.length == 1)
             {
-                errors.reject(ERROR_MSG, "Cannot delete the only version of " + tool.getName() +
-                        ". Use Delete to remove the tool entirely.");
+                errors.reject(ERROR_MSG, "Cannot delete the only version of " + tool.getName());
                 return null;
             }
 
-            // Delete was checked against the container in the URL, so that has to be the folder
-            // this removes.
-            Container latestContainer = tools[0].lookupContainer();
-            if (latestContainer == null)
-                throw new NotFoundException("Failed to look up the folder holding " + tools[0].getName() +
-                        " version " + tools[0].getVersion() + ".");
-            if (!getContainer().equals(latestContainer))
-                throw new NotFoundException("This action has to be addressed to the version it deletes.");
+            if (!tools[0].getRowId().equals(tool.getRowId()))
+                throw new IllegalStateException("Version " + tool.getVersion() + " of " + tool.getName() +
+                        " is flagged as the latest but is not the most recently created version.");
 
             SkylineTool newLatest = tools[1];
             Container newLatestContainer = newLatest.lookupContainer();
@@ -1312,20 +1300,27 @@ public class SkylineToolsStoreController extends SpringActionController
                 throw new NotFoundException("Failed to look up the folder holding " + newLatest.getName() +
                         " version " + newLatest.getVersion() + ".");
 
-            // The promotion and the delete land together. Only one folder is removed here, and the
-            // delete returns false without touching it when it cannot go, so the rollback this can
-            // perform is of the promotion alone. It could not undo a folder that was really deleted -
-            // container deletion removes the files from disk inside the transaction.
-            //
-            // A tool left with two rows flagged latest,
-            // or with none, makes getToolLatestByIdentifier match nothing, and the lsid downloads
-            // shipped Skyline clients make stop resolving.
-            try (DbScope.Transaction transaction =
-                         SkylineToolsStoreSchema.getInstance().getSchema().getScope().ensureTransaction())
+            // Locks the version being deleted for the length of the transaction. UpdateToolAction
+            // takes the same lock on the version it supersedes, so a publish on top of this one
+            // cannot interleave and leave both the new version and the promoted one flagged latest.
+            Lock latestVersionLock = new ServerPrimaryKeyLock(true,
+                    SkylineToolsStoreSchema.getInstance().getTableInfoSkylineTool(), tool.getRowId());
+
+            // A rollback can only ever undo the promotion. A folder that was deleted cannot be
+            // restored - container deletion removes its files from disk.
+            try (DbScope.Transaction transaction = SkylineToolsStoreSchema.getInstance().getSchema()
+                         .getScope().ensureTransaction(latestVersionLock))
             {
-                // Read again inside the transaction rather than writing back the row loaded above.
-                // The bean carries every column, so a download counted in the meantime would be put
-                // back at the value it had when the row was read.
+                // The flag was read before the lock was held, so a publish may have demoted it since.
+                SkylineTool current = SkylineToolsStoreManager.get().getTool(tool.getRowId());
+                if (current == null || !current.getLatest())
+                {
+                    errors.reject(ERROR_MSG, "Version " + tool.getVersion() + " is no longer the latest version of " +
+                            tool.getName() + ".");
+                    return null;
+                }
+
+                // Re-read rather than writing back the bean loaded above to get the current download count.
                 SkylineTool promoted = SkylineToolsStoreManager.get().getTool(newLatest.getRowId());
                 if (promoted == null)
                     throw new NotFoundException("Could not find version " + newLatest.getVersion() +
@@ -1336,7 +1331,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
                 // delete returns false rather than throwing when the folder still has children of its
                 // own. Leaving the transaction without committing undoes the promotion above.
-                if (!ContainerManager.delete(latestContainer, getUser()))
+                if (!ContainerManager.delete(getContainer(), getUser()))
                 {
                     errors.reject(ERROR_MSG, "The folder holding " + tools[0].getName() + " version " +
                             tools[0].getVersion() + " could not be deleted, so nothing was changed.");
@@ -1716,10 +1711,6 @@ public class SkylineToolsStoreController extends SpringActionController
      * the stored zip so the file and the database row stay in step.
      *
      * A MutatingApiAction because the details page calls this over ajax and reads the outcome in code.
-     * As a FormHandlerAction a refusal rendered an error view at status 200, so the caller's success
-     * branch ran and a rejected edit looked saved.
-     *
-     * Addressed to the TOOL's own container - see DeleteSupplementAction.
      */
     @RequiresPermission(UpdatePermission.class)
     public static class UpdatePropertyAction extends MutatingApiAction<UpdatePropertyForm>
