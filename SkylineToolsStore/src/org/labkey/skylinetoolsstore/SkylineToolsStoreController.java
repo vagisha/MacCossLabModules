@@ -1368,10 +1368,9 @@ public class SkylineToolsStoreController extends SpringActionController
      * Left as an AbstractController with an empty checkPermissions() on purpose, unlike the mutating
      * actions in this controller.
      *
-     * This is an anonymous GET that shipped Skyline clients call directly, and CSRF validation only
-     * applies to non-GET requests, so routing it through the framework would buy no security. It
-     * would however start enforcing terms-of-use, which could break tool downloads on a site that has
-     * one. Not worth the risk for no gain. Same reasoning for GetToolsApiAction.
+     * This is an anonymous GET that Skyline clients call directly, and CSRF validation only
+     * applies to non-GET requests, so routing it through the framework would buy no security.
+     * Same reasoning for GetToolsApiAction.
      */
     @RequiresNoPermission
     public class DownloadToolAction extends AbstractController implements PermissionCheckable
@@ -1445,13 +1444,6 @@ public class SkylineToolsStoreController extends SpringActionController
             return null;
         }
 
-        /**
-         * Whether this request should count as a download.
-         *
-         * Best effort by design, and accepted as such. The 24-hour cookie only deduplicates a
-         * cooperating browser, so the counter can be inflated with a private window or by clearing
-         * cookies. It is a popularity signal, not a metric to rely on.
-         */
         protected boolean recordDownload(HttpServletRequest httpServletRequest, int toolId)
         {
             if (httpServletRequest.getParameter("noSaveCookie") != null)
@@ -1710,16 +1702,14 @@ public class SkylineToolsStoreController extends SpringActionController
      * Edits one property of a tool, or replaces its icon, rewriting tool-inf/info.properties inside
      * the stored zip so the file and the database row stay in step.
      *
-     * A MutatingApiAction because the details page calls this over ajax and reads the outcome in code.
+     * A MutatingApiAction because the details page calls this over ajax and reads the result in code.
      */
     @RequiresPermission(UpdatePermission.class)
     public static class UpdatePropertyAction extends MutatingApiAction<UpdatePropertyForm>
     {
         /**
          * The properties the details page lets an owner edit. SkylineTool.setProperty also accepts
-         * name, version and identifier, and those three are left out on purpose. They identify the
-         * tool to shipped Skyline clients, so changing one can leave two rows sharing an identifier,
-         * and getToolLatestByIdentifier then matches neither and downloads stop working.
+         * name, version and identifier - these cannot be edited since they identify the tool to Skyline clients.
          */
         private static final Set<String> EDITABLE_PROPERTIES =
                 Set.of("author", "description", "languages", "organization", "provider");
@@ -1733,9 +1723,8 @@ public class SkylineToolsStoreController extends SpringActionController
             final String propName = form.getPropName();
             String propValue = "";
 
-            // An icon is uploaded as a file part also named propValue. Files do not bind to the form,
-            // and getFileMap is empty rather than null when the post is not multipart, which the text
-            // path is not.
+            // An icon arrives as a file part named propValue, the same name the text edits use.
+            // getFileMap is empty rather than null when the post is not multipart.
             final MultipartFile icon = getFileMap().get("propValue");
 
             if (icon == null)
@@ -1760,8 +1749,8 @@ public class SkylineToolsStoreController extends SpringActionController
                 tool.setIcon(icon.getBytes());
                 try
                 {
-                    // Refuse before the rewritten zip replaces the stored one. icon.png is written
-                    // last, so an unreadable image otherwise left the zip already changed.
+                    // Validate now - writeIconToFile runs after the zip is replaced, so a bad image
+                    // would otherwise fail with the stored zip already changed.
                     tool.validateIcon();
                 }
                 catch (IOException e)
@@ -1828,8 +1817,7 @@ public class SkylineToolsStoreController extends SpringActionController
                     }
                 }
 
-                // Replace in one step. Deleting first and then renaming left no copy of the tool zip if
-                // the rename failed, and the rename result was not checked.
+                // One step. Deleting first and then renaming loses the zip if the rename fails.
                 try
                 {
                     Files.move(tmpFile.toPath(), zipFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -1841,17 +1829,14 @@ public class SkylineToolsStoreController extends SpringActionController
             }
             finally
             {
-                // A rewrite that throws part way leaves the temp zip in the tool's folder, where the
-                // store lists it as a supplementary file. A move that succeeded consumed it already.
+                // A rewrite that throws leaves the temp zip behind, and the store lists it as a supplementary file.
                 if (tmpFile.exists() && !tmpFile.delete())
                     LOG.warn("Could not delete the temporary zip {}", tmpFile.getName());
             }
 
             if (icon == null)
             {
-                // Read again now the rewrite is done rather than writing back the row loaded at the
-                // top. The bean carries every column and the rewrite can take a while, so a download
-                // counted in the meantime would be put back at the value it had when this started.
+                // Re-read rather than writing back the bean loaded at the top to get the current download count.
                 SkylineTool current = SkylineToolsStoreManager.get().getTool(tool.getRowId());
                 if (current == null)
                     throw new NotFoundException("Could not find tool with Id " + form.getToolId() + ".");
