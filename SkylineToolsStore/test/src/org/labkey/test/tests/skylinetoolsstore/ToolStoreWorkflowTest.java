@@ -494,7 +494,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
         waitAndClick(ok.notHidden());
 
-        waitForElement(Locator.id("delToolLatestDlg").containing("could not be deleted"));
+        // "nothing was changed" only appears on the pre-check refusal. The post-commit one also
+        // says "could not be deleted", so that phrase alone would not pin which path ran.
+        waitForElement(Locator.id("delToolLatestDlg").containing("nothing was changed"));
         assertEquals("2.0 should still be the latest version after the dialog was used",
                 "2.0", onlyToolInStore(BLOCKED_STORE).getString("Version"));
     }
@@ -595,6 +597,16 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertElementNotPresent("The upload form must not be drawn where the post would be refused",
                 Locator.css("input[name='toolZip']"));
         assertTextPresent("is not the latest version of");
+
+        log("deleteLatest refuses an older version rather than removing the newest one");
+        HttpPost deleteOlder = new HttpPost(WebTestHelper.buildURL("skyts", v1Folder, "deleteLatest"));
+        deleteOlder.setEntity(MultipartEntityBuilder.create()
+                .addTextBody("toolId", String.valueOf(v1RowId))
+                .build());
+        assertEquals("deleteLatest addressed to a version that is not the latest has to be refused",
+                400, execute(deleteOlder));
+        assertEquals("2.0 should still be the latest version", "2.0",
+                onlyToolInStore(OLDER_STORE).getString("Version"));
     }
 
     /**

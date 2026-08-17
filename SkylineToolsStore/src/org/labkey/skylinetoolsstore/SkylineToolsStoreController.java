@@ -119,6 +119,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -297,7 +298,7 @@ public class SkylineToolsStoreController extends SpringActionController
             throw new NotFoundException("Failed to look up the folder for " + tool.getName() + ".");
         if (!c.equals(toolContainer) && !c.equals(toolContainer.getParent()))
             throw new NotFoundException("This request has to be addressed to folder containing " + tool.getName() +
-                    " or to the tool store holding it.");
+                    " or to the tool store containing it.");
     }
 
     /**
@@ -1196,14 +1197,14 @@ public class SkylineToolsStoreController extends SpringActionController
                 Container versionContainer = toDelete.lookupContainer();
                 if (versionContainer == null)
                 {
-                    errors.reject(ERROR_MSG, "Failed to look up the folder holding " + toDelete.getName() +
+                    errors.reject(ERROR_MSG, "Failed to look up the folder containing " + toDelete.getName() +
                             " version " + toDelete.getVersion() + ". Nothing was deleted.");
                     return null;
                 }
                 // The one condition ContainerManager.delete refuses on, checked before anything goes.
                 if (!versionContainer.getChildren().isEmpty())
                 {
-                    errors.reject(ERROR_MSG, "The folder holding " + toDelete.getName() + " version " +
+                    errors.reject(ERROR_MSG, "The folder containing " + toDelete.getName() + " version " +
                             toDelete.getVersion() + " has folders of its own, so it cannot be deleted. " +
                             "Nothing was deleted.");
                     return null;
@@ -1218,7 +1219,7 @@ public class SkylineToolsStoreController extends SpringActionController
                 // versions already removed stay removed, so say so.
                 if (!ContainerManager.delete(versionFolders.get(i), getUser()))
                 {
-                    errors.reject(ERROR_MSG, "The folder holding " + versions[i].getName() + " version " +
+                    errors.reject(ERROR_MSG, "The folder containing " + versions[i].getName() + " version " +
                             versions[i].getVersion() + " could not be deleted. Versions removed before it " +
                             "are gone.");
                     return null;
@@ -1275,8 +1276,7 @@ public class SkylineToolsStoreController extends SpringActionController
         {
             final SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
 
-            // This removes the newest version, so it has to be addressed to the row flagged latest.
-            // The details page hides the menu item on older versions, but a stale page can still post.
+            // The details page hides this on older versions, but a stale page can still post.
             if (!tool.getLatest())
             {
                 errors.reject(ERROR_MSG, "Version " + tool.getVersion() + " is not the latest version of " +
@@ -1291,7 +1291,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
             SkylineTool[] tools = sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
 
-            // This action removes the newest version only, so it needs an older version to fall back to.
+            // Needs an older version to promote in its place.
             if (tools.length == 1)
             {
                 errors.reject(ERROR_MSG, "Cannot delete the only version of " + tool.getName());
@@ -1305,21 +1305,31 @@ public class SkylineToolsStoreController extends SpringActionController
             SkylineTool newLatest = tools[1];
             Container newLatestContainer = newLatest.lookupContainer();
             if (newLatestContainer == null)
-                throw new NotFoundException("Failed to look up the folder holding " + newLatest.getName() +
+                throw new NotFoundException("Failed to look up the folder containing " + newLatest.getName() +
                         " version " + newLatest.getVersion() + ".");
 
-            // Locks the version being deleted for the length of the transaction. UpdateToolAction
-            // takes the same lock on the version it supersedes, so a publish on top of this one
-            // cannot interleave and leave both the new version and the promoted one flagged latest.
+            // Refuse before anything changes. ContainerManager.delete returns false for a folder
+            // with children, and the commit task below discards that.
+            if (!getContainer().getChildren().isEmpty())
+            {
+                errors.reject(ERROR_MSG, "The folder containing " + tool.getName() + " version " +
+                        tool.getVersion() + " has child folders and could not be deleted, " +
+                        "so nothing was changed.");
+                return null;
+            }
+
+            // addCommitTask takes a Runnable, so the delete's false return needs somewhere to go.
+            AtomicBoolean deleted = new AtomicBoolean();
+
+            // UpdateToolAction takes this same lock on the version it supersedes, so a publish on
+            // top of this one cannot interleave and leave two rows flagged latest.
             Lock latestVersionLock = new ServerPrimaryKeyLock(true,
                     SkylineToolsStoreSchema.getInstance().getTableInfoSkylineTool(), tool.getRowId());
 
-            // A rollback can only ever undo the promotion. A folder that was deleted cannot be
-            // restored - container deletion removes its files from disk.
             try (DbScope.Transaction transaction = SkylineToolsStoreSchema.getInstance().getSchema()
                          .getScope().ensureTransaction(latestVersionLock))
             {
-                // The flag was read before the lock was held, so a publish may have demoted it since.
+                // The tool was read before the lock was held, so a publish may have demoted it since.
                 SkylineTool current = SkylineToolsStoreManager.get().getTool(tool.getRowId());
                 if (current == null || !current.getLatest())
                 {
@@ -1328,7 +1338,7 @@ public class SkylineToolsStoreController extends SpringActionController
                     return null;
                 }
 
-                // Re-read rather than writing back the bean loaded above to get the current download count.
+                // Re-read rather than writing back the bean loaded above to get the updated download count.
                 SkylineTool promoted = SkylineToolsStoreManager.get().getTool(newLatest.getRowId());
                 if (promoted == null)
                     throw new NotFoundException("Could not find version " + newLatest.getVersion() +
@@ -1337,24 +1347,35 @@ public class SkylineToolsStoreController extends SpringActionController
                 promoted.setLatest(true);
                 SkylineToolsStoreManager.get().updateTool(newLatestContainer, getUser(), promoted);
 
-                // delete returns false rather than throwing when the folder still has children of its
-                // own. Leaving the transaction without committing undoes the promotion above.
-                if (!ContainerManager.delete(getContainer(), getUser()))
-                {
-                    errors.reject(ERROR_MSG, "The folder holding " + tools[0].getName() + " version " +
-                            tools[0].getVersion() + " could not be deleted, so nothing was changed.");
-                    return null;
-                }
+                // Demote here rather than letting the container delete take the row with the folder.
+                // If that delete fails, this is what keeps exactly one row flagged latest.
+                current.setLatest(false);
+                SkylineToolsStoreManager.get().updateTool(getContainer(), getUser(), current);
+
+                // Outside the transaction - ContainerManager.delete runs its own, and an enclosing
+                // one costs it the deadlock retry.
+                transaction.addCommitTask(
+                        () -> deleted.set(ContainerManager.delete(getContainer(), getUser())),
+                        DbScope.CommitTaskOption.POSTCOMMIT);
 
                 transaction.commit();
             }
 
+            // Only reached when the commit succeeded, so the promotion and the demotion are stored
+            // and only the folder is left behind.
+            if (!deleted.get())
+            {
+                errors.reject(ERROR_MSG, "Version " + tool.getVersion() + " of " + tool.getName() +
+                        " is no longer the latest version, but its folder could not be deleted.");
+                return null;
+            }
+
             if (returnUrl != null)
             {
-                if (!tools[0].getName().equals(tools[1].getName()) && returnUrl.getParameter("name") != null)
-                    returnUrl.replaceParameter("name", tools[1].getName());
+                if (!tool.getName().equals(newLatest.getName()) && returnUrl.getParameter("name") != null)
+                    returnUrl.replaceParameter("name", newLatest.getName());
 
-                if (returnUrl.getParameter("version") != null && returnUrl.getParameter("version").equals(tools[0].getVersion()))
+                if (returnUrl.getParameter("version") != null && returnUrl.getParameter("version").equals(tool.getVersion()))
                     returnUrl.deleteParameter("version");
             }
 
@@ -1534,7 +1555,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
             if (_tool.lookupContainer() == null)
             {
-                errors.reject(ERROR_MSG, "The folder holding " + _tool.getName() +
+                errors.reject(ERROR_MSG, "The folder containing " + _tool.getName() +
                         " no longer exists, so its details cannot be shown.");
                 return new SimpleErrorView(errors);
             }
@@ -1645,7 +1666,7 @@ public class SkylineToolsStoreController extends SpringActionController
             {
                 Container versionFolder = version.lookupContainer();
                 if (versionFolder == null)
-                    throw new NotFoundException("Failed to look up the folder holding " + version.getName() +
+                    throw new NotFoundException("Failed to look up the folder containing " + version.getName() +
                             " version " + version.getVersion() + ".");
                 versionFolders.add(versionFolder);
             }
@@ -1844,7 +1865,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
             if (icon == null)
             {
-                // Re-read rather than writing back the bean loaded at the top to get the current download count.
+                // Re-read rather than writing back the bean loaded at the top to get the updated download count.
                 SkylineTool current = SkylineToolsStoreManager.get().getTool(tool.getRowId());
                 if (current == null)
                     throw new NotFoundException("Could not find tool with Id " + form.getToolId() + ".");

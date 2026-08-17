@@ -46,7 +46,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Catalog helpers shared by the tool store tests.
  *
- * Tool identifiers are unique across the whole server rather than per folder, and the sample data
+ * Tool identifiers are unique across the whole server rather than per store folder, and the sample data
  * has only one tool with two versions, so every test class here competes for the same identifiers.
  * A tool left behind by another class or an earlier run makes an upload fail as TOOL_ALREADY_EXISTS,
  * silently, because InsertAction renders that error with a 200.
