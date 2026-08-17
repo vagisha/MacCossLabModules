@@ -901,11 +901,8 @@ public class SkylineToolsStoreController extends SpringActionController
 
             if (previousContainer != null)
             {
-                // Resolved by the name on disk rather than through makeFile, which runs the name
-                // through FileUtil.makeLegalName first. A supplementary file carrying a character
-                // that is not legal in a new file name - an apostrophe is one, and WebDAV will store
-                // one - resolved to a name that is not there, the copy threw, and every later
-                // publish of that tool was refused with nothing to say which file was the reason.
+                // Resolved by the name on disk. makeFile would run it through makeLegalName first,
+                // turning an existing "User's Guide.pdf" into "User_s Guide.pdf", which is not there.
                 Path previousFiles = getLocalPath(previousContainer);
                 Path newFiles = getLocalPath(c);
                 for (String copyFile : carryForward)
@@ -1025,8 +1022,6 @@ public class SkylineToolsStoreController extends SpringActionController
         @Override
         public ModelAndView getView(SupplementUploadForm form, boolean reshow, BindException errors)
         {
-            // Fail before the form is drawn. Otherwise a request with no tool id renders a working
-            // looking upload form and the file is thrown away on post.
             requireToolInContainer(form.getToolId(), getContainer());
 
             return new JspView<>("/org/labkey/skylinetoolsstore/view/SkylineToolSupplementUpload.jsp", form, errors);
