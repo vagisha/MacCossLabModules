@@ -17,6 +17,7 @@ package org.labkey.test.tests.skylinetoolsstore;
 
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ContentType;
@@ -42,6 +43,7 @@ import org.labkey.test.util.WikiHelper;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +86,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String WEBPART_STORE = "ToolStoreWorkflowTestWebPartDeletes";
     private static final String WEBPART_TOOL_NAME = "WebPartDeleteProbe";
     private static final String WEBPART_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:webpartdelete";
+
+    // Its own store, because it puts a stray folder in a tool's file root and leaves it there.
+    private static final String STRAY_STORE = "ToolStoreWorkflowTestStrayFolder";
+    private static final String STRAY_TOOL_NAME = "StrayFolderProbe";
+    private static final String STRAY_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:strayfolder";
 
     // Its own store, because it leaves behind a version folder that cannot be deleted.
     private static final String BLOCKED_STORE = "ToolStoreWorkflowTestBlockedDelete";
@@ -659,6 +666,59 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
+     * A folder sitting in a tool's file root must not block the next version from being published.
+     *
+     * A new version carries the previous version's supplementary files forward, and that list was
+     * built from everything in the folder. A folder is not a file, the copy that carries them cannot
+     * copy one, and the upload was refused with a message naming nothing - permanently, for that
+     * tool. Only the name "docs" was excluded, so any other folder fell through.
+     */
+    @Test
+    public void testAStrayFolderDoesNotBlockThenextVersion()
+    {
+        _containerHelper.createProject(STRAY_STORE, "Collaboration");
+        _containerHelper.enableModule(STRAY_STORE, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+
+        uploadToolFileTo(STRAY_STORE, ToolStoreTestHelper.writeMinimalToolZip(
+                STRAY_TOOL_NAME, STRAY_TOOL_IDENTIFIER, "1.0"));
+        int v1RowId = rowId(onlyToolInStore(STRAY_STORE));
+        String v1Folder = "/" + STRAY_STORE + "/" +
+                ToolStoreTestHelper.toolFolderName(STRAY_TOOL_NAME, "1.0");
+
+        // Made over WebDAV, which is how one really turns up - the Files web part writes here too.
+        // Named something other than docs, which the list already excluded by name.
+        int status = makeWebdavFolder(v1Folder, "extra_material");
+        assertTrue("Could not create the stray folder over WebDAV, got HTTP " + status, status < 400);
+
+        uploadToolFileTo(v1Folder, ToolStoreTestHelper.writeMinimalToolZip(
+                STRAY_TOOL_NAME, STRAY_TOOL_IDENTIFIER, "2.0"), v1RowId);
+
+        // Read from the catalog. A refused publish renders at 200, so the status proves nothing.
+        assertEquals("A folder in the tool's file root blocked the next version from publishing",
+                "2.0", onlyToolInStore(STRAY_STORE).getString("Version"));
+    }
+
+    /** Creates a folder inside a container's file root, as the current user. */
+    private int makeWebdavFolder(String containerPath, String folderName)
+    {
+        String url = WebTestHelper.getBaseURL() + "/_webdav" + containerPath + "/@files/" + folderName;
+        HttpUriRequestBase request = new HttpUriRequestBase("MKCOL", URI.create(url));
+        APITestHelper.injectCookies(request);
+        try (CloseableHttpClient client = WebTestHelper.getHttpClient())
+        {
+            return client.execute(request, response -> {
+                EntityUtils.consumeQuietly(response.getEntity());
+                return response.getCode();
+            });
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Could not create " + url, e);
+        }
+    }
+
+    /**
      * A corrupt tool zip is refused with a message rather than a server error.
      *
      * unzip returned null when reading the entry threw, and getToolFromZip then dereferenced it. An
@@ -955,6 +1015,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(FORMS_STORE, false);
         _containerHelper.deleteProject(WEBPART_STORE, false);
         _containerHelper.deleteProject(BLOCKED_STORE, false);
+        _containerHelper.deleteProject(STRAY_STORE, false);
         _containerHelper.deleteProject(RETRY_STORE, false);
         _containerHelper.deleteProject(OLDER_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);
