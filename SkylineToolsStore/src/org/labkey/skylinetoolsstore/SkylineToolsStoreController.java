@@ -1301,6 +1301,13 @@ public class SkylineToolsStoreController extends SpringActionController
                 throw new IllegalStateException("Version " + tool.getVersion() + " of " + tool.getName() +
                         " is flagged as the latest but is not the most recently created version.");
 
+            // Exactly one row may be flagged latest, or getToolLatestByIdentifier returns null.
+            for (SkylineTool other : tools)
+                if (other.getLatest() && !other.getRowId().equals(tool.getRowId()))
+                    throw new IllegalStateException("Versions " + tool.getVersion() + " and " +
+                            other.getVersion() + " of " + tool.getName() + " are both flagged as the latest.");
+
+            // tools are sorted newest first. tools[0] is being deleted, so tools[1] is the newest that remains.
             SkylineTool newLatest = tools[1];
             Container newLatestContainer = newLatest.lookupContainer();
             if (newLatestContainer == null)
