@@ -53,6 +53,9 @@ import static org.junit.Assert.assertTrue;
  */
 public class ToolStoreTestHelper
 {
+    /** The documentation image writeToolZipWithIcon ships. Named here so a test can look for it. */
+    public static final String DOC_SCREENSHOT_ENTRY = "tool-inf/docs/screenshot.png";
+
     private ToolStoreTestHelper()
     {
     }
@@ -249,6 +252,9 @@ public class ToolStoreTestHelper
      *
      * writeMinimalToolZip ships no icon at all, and the bad-icon variant ships bytes that are not an
      * image, so neither can stand in for a tool whose icon is being edited.
+     *
+     * It also carries a screenshot under tool-inf/docs/, because the rewrite that replaces the icon
+     * picks what to drop by extension and a documentation image has the same extension.
      */
     public static File writeToolZipWithIcon(String name, String identifier, String version, byte[] icon)
     {
@@ -265,6 +271,10 @@ public class ToolStoreTestHelper
                 out.closeEntry();
 
                 out.putNextEntry(new ZipEntry("tool-inf/" + name + ".png"));
+                out.write(icon);
+                out.closeEntry();
+
+                out.putNextEntry(new ZipEntry(DOC_SCREENSHOT_ENTRY));
                 out.write(icon);
                 out.closeEntry();
             }

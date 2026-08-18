@@ -1814,7 +1814,11 @@ public class SkylineToolsStoreController extends SpringActionController
                                 zipOut.closeEntry();
                             }
                         }
+                        // Carries over every entry but the icon being replaced, which is an image
+                        // directly under tool-inf. getExtension reads the whole path, so a
+                        // documentation image has to be excluded by its folder rather than by name.
                         else if (!lowerName.startsWith("tool-inf/") ||
+                                 lowerName.startsWith("tool-inf/docs/") ||
                                  !Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(lowerName)))
                         {
                             try (InputStream in = zipIn.getInputStream(zipEntry))

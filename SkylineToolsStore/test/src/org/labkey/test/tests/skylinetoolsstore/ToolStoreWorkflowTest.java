@@ -1018,6 +1018,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      * The zip entry name used to be the client's filename, used raw, so a crafted one could land a
      * path outside tool-inf in a zip Skyline extracts. It also had to stay findable - getToolFromZip
      * picks the icon out by extension, so a real image named .txt would never be read back as one.
+     *
+     * The rewrite decides what to drop by extension, and a documentation image under tool-inf/docs/
+     * has the same extension as an icon, so this checks the screenshot is still there afterwards.
      */
     @Test
     public void testReplacingAnIconRewritesTheFileAndTheZipEntry() throws Exception
@@ -1052,6 +1055,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 postIcon(folder, toolId, "replacement-icon.png", uploaded));
         assertEquals("The stored icon should now be the one just posted", 128, iconWidth(getBytes(iconUrl)));
 
+        log("Documentation under tool-inf/docs is not an icon and is left alone");
+        assertTrue("A documentation image has to survive an icon replacement",
+                zipEntryNames(tool.getString("DownloadUrl"))
+                        .contains(ToolStoreTestHelper.DOC_SCREENSHOT_ENTRY));
+
         log("A crafted name cannot put an entry outside tool-inf");
         assertEquals("A name with separators should be legalised, not refused", 200,
                 postIcon(folder, toolId, "../../evil.png", uploaded));
@@ -1059,7 +1067,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         {
             assertFalse("No zip entry may carry a path the client chose: " + entry,
                     entry.contains("../"));
-            if (entry.toLowerCase().startsWith("tool-inf/"))
+            // Documentation is the one thing that nests under tool-inf, and real tools ship folders
+            // of it, so the rule that an icon sits directly under tool-inf is checked on the rest.
+            if (entry.toLowerCase().startsWith("tool-inf/") &&
+                    !entry.toLowerCase().startsWith("tool-inf/docs/"))
                 assertFalse("An icon entry belongs directly under tool-inf: " + entry,
                         entry.substring("tool-inf/".length()).contains("/"));
         }
