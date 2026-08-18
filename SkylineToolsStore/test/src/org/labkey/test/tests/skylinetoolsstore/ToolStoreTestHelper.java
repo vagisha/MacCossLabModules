@@ -222,6 +222,60 @@ public class ToolStoreTestHelper
         }
     }
 
+    /** A solid square PNG, so a test can tell one icon from another by its size. */
+    public static byte[] solidPng(int size)
+    {
+        try
+        {
+            java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(
+                    size, size, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g = image.createGraphics();
+            g.setColor(java.awt.Color.BLUE);
+            g.fillRect(0, 0, size, size);
+            g.dispose();
+
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(image, "png", out);
+            return out.toByteArray();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not build a test icon", e);
+        }
+    }
+
+    /**
+     * A tool zip carrying a real icon, for the tests that replace one.
+     *
+     * writeMinimalToolZip ships no icon at all, and the bad-icon variant ships bytes that are not an
+     * image, so neither can stand in for a tool whose icon is being edited.
+     */
+    public static File writeToolZipWithIcon(String name, String identifier, String version, byte[] icon)
+    {
+        try
+        {
+            File zip = File.createTempFile("ts-icon-" + version + "-", ".zip");
+            zip.deleteOnExit();
+            try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(zip)))
+            {
+                out.putNextEntry(new ZipEntry("tool-inf/info.properties"));
+                out.write(("Name = " + name + "\n" +
+                           "Version = " + version + "\n" +
+                           "Identifier = " + identifier + "\n").getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+
+                out.putNextEntry(new ZipEntry("tool-inf/" + name + ".png"));
+                out.write(icon);
+                out.closeEntry();
+            }
+            return zip;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not build the test tool zip", e);
+        }
+    }
+
     /** Reads the Identifier out of tool-inf/info.properties inside a tool zip. */
     public static String identifierOf(File zip)
     {

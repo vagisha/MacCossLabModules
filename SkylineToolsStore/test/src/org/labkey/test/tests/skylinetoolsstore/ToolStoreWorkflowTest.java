@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -98,6 +99,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String BLOCKED_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:blockeddelete";
 
     // Its own store, because it needs a tool with two versions and the other stores assert on one.
+    private static final String ICON_STORE = "ToolStoreWorkflowTestIconReplace";
+    private static final String ICON_TOOL_NAME = "IconReplaceProbe";
+    private static final String ICON_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:iconreplace";
     private static final String OLDER_STORE = "ToolStoreWorkflowTestOlderVersion";
     private static final String OLDER_TOOL_NAME = "OlderVersionProbe";
     private static final String OLDER_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:olderversion";
@@ -133,6 +137,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String TOOL_V2 = "skylinetoolsstore/user1-v2.zip";
     private static final String TOOL_OTHER = "skylinetoolsstore/user2-v1.zip";
     private static final String SUPP_FILE = "skylinetoolsstore/test.pdf";
+    private static final String REPLACEMENT_ICON = "skylinetoolsstore/replacement-icon.png";
 
     private final ApiPermissionsHelper _permissionsHelper = new ApiPermissionsHelper(this);
 
@@ -1002,6 +1007,105 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         return ToolStoreTestHelper.rowId(tool);
     }
 
+    /**
+     * Replacing a tool's icon rewrites both the stored icon.png and the icon entry inside the zip
+     * Skyline downloads.
+     *
+     * The zip entry name used to be the client's filename, used raw, so a crafted one could land a
+     * path outside tool-inf in a zip Skyline extracts. It also had to stay findable - getToolFromZip
+     * picks the icon out by extension, so a real image named .txt would never be read back as one.
+     */
+    @Test
+    public void testReplacingAnIconRewritesTheFileAndTheZipEntry() throws Exception
+    {
+        byte[] uploaded = java.nio.file.Files.readAllBytes(
+                TestFileUtils.getSampleData(REPLACEMENT_ICON).toPath());
+
+        // Its own store and identifier - identifiers are unique server-wide, so sharing a tool with
+        // another test class makes an upload fail as TOOL_ALREADY_EXISTS.
+        _containerHelper.createProject(ICON_STORE, "Collaboration");
+        _containerHelper.enableModule(ICON_STORE, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        uploadToolFileTo(ICON_STORE, ToolStoreTestHelper.writeToolZipWithIcon(
+                ICON_TOOL_NAME, ICON_TOOL_IDENTIFIER, "1.0", ToolStoreTestHelper.solidPng(16)));
+
+        JSONObject tool = onlyToolInStore(ICON_STORE);
+        int toolId = rowId(tool);
+        String folder = "/" + ICON_STORE + "/" +
+                ToolStoreTestHelper.toolFolderName(ICON_TOOL_NAME, "1.0");
+        String iconUrl = tool.getString("IconUrl");
+
+        byte[] before = getBytes(iconUrl);
+        assertEquals("The icon the tool shipped should be the one stored", 16, iconWidth(before));
+
+        log("A real image under a name the store cannot read back is refused");
+        assertEquals("An icon named .txt has to be refused", 400,
+                postIcon(folder, toolId, "logo.txt", uploaded));
+        assertArrayEquals("A refused icon must not touch the stored one", before, getBytes(iconUrl));
+
+        log("A legal name is accepted and replaces the stored icon");
+        assertEquals("A .png icon should be accepted", 200,
+                postIcon(folder, toolId, "replacement-icon.png", uploaded));
+        assertEquals("The stored icon should now be the one just posted", 128, iconWidth(getBytes(iconUrl)));
+
+        log("A crafted name cannot put an entry outside tool-inf");
+        assertEquals("A name with separators should be legalised, not refused", 200,
+                postIcon(folder, toolId, "../../evil.png", uploaded));
+        for (String entry : zipEntryNames(tool.getString("DownloadUrl")))
+        {
+            assertFalse("No zip entry may carry a path the client chose: " + entry,
+                    entry.contains("../"));
+            if (entry.toLowerCase().startsWith("tool-inf/"))
+                assertFalse("An icon entry belongs directly under tool-inf: " + entry,
+                        entry.substring("tool-inf/".length()).contains("/"));
+        }
+    }
+
+    /** Decodes a served icon far enough to tell which image it is. */
+    private int iconWidth(byte[] png) throws Exception
+    {
+        java.awt.image.BufferedImage image =
+                javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(png));
+        assertTrue("The served icon should decode as an image", image != null);
+        return image.getWidth();
+    }
+
+    /** Posts one image to updateProperty as the icon, under the given filename. */
+    private int postIcon(String folderPath, int toolId, String fileName, byte[] image)
+    {
+        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", folderPath, "updateProperty"));
+        request.setEntity(MultipartEntityBuilder.create()
+                .addTextBody("toolId", String.valueOf(toolId))
+                .addBinaryBody("propValue", image, ContentType.create("image/png"), fileName)
+                .build());
+        return execute(request);
+    }
+
+    /** Reads a URL the catalog handed us, as the current user. */
+    private byte[] getBytes(String url) throws Exception
+    {
+        // IconUrl and DownloadUrl already carry the context path, so the host alone goes in front.
+        HttpGet request = new HttpGet(WebTestHelper.getBaseUrlWithoutContextPath() + url);
+        APITestHelper.injectCookies(request);
+        try (CloseableHttpClient client = WebTestHelper.getHttpClient())
+        {
+            return client.execute(request, r -> EntityUtils.toByteArray(r.getEntity()));
+        }
+    }
+
+    private java.util.List<String> zipEntryNames(String downloadUrl) throws Exception
+    {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        try (java.util.zip.ZipInputStream in =
+                     new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(getBytes(downloadUrl))))
+        {
+            java.util.zip.ZipEntry entry;
+            while ((entry = in.getNextEntry()) != null)
+                names.add(entry.getName());
+        }
+        return names;
+    }
+
     private String toolFolderPath(JSONObject tool)
     {
         return "/" + PROJECT_NAME + "/" +
@@ -1030,6 +1134,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(STRAY_STORE, false);
         _containerHelper.deleteProject(RETRY_STORE, false);
         _containerHelper.deleteProject(OLDER_STORE, false);
+        _containerHelper.deleteProject(ICON_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);
         _containerHelper.deleteProject(NESTED_STORE, false);
         _containerHelper.deleteProject(CORRUPT_STORE, false);

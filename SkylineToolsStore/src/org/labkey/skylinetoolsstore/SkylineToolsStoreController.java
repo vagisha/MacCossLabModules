@@ -1751,6 +1751,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
             final String propName = form.getPropName();
             String propValue = "";
+            String iconEntryName = null;
 
             // An icon arrives as a file part named propValue, the same name the text edits use.
             // getFileMap is empty rather than null when the post is not multipart.
@@ -1775,6 +1776,16 @@ public class SkylineToolsStoreController extends SpringActionController
             }
             else
             {
+                // This name goes into the downloadable tool zip, so remove illegal characters and
+                // ensure it has an accepted file extension - that is how the icon is found again.
+                iconEntryName = FileUtil.makeLegalName(icon.getOriginalFilename());
+                if (!Arrays.asList(VALID_ICON_EXTENSIONS).contains(
+                        FileUtil.getExtension(iconEntryName.toLowerCase())))
+                {
+                    errors.reject(ERROR_MSG, "An icon file has to be named .png, .jpg, .jpeg or .gif.");
+                    return null;
+                }
+
                 tool.setIcon(icon.getBytes());
                 try
                 {
@@ -1834,7 +1845,7 @@ public class SkylineToolsStoreController extends SpringActionController
                     }
                     if (icon != null)
                     {
-                        zipOut.putNextEntry(new ZipEntry("tool-inf/" + icon.getOriginalFilename()));
+                        zipOut.putNextEntry(new ZipEntry("tool-inf/" + iconEntryName));
                         try (InputStream in = icon.getInputStream())
                         {
                             byte[] buf = new byte[1024];
