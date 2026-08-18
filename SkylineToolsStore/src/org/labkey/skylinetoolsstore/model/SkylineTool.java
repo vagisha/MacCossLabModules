@@ -53,6 +53,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -501,22 +502,35 @@ public class SkylineTool extends Entity
                     wasMultiline = true;
                 if (!newValue.isEmpty())
                 {
-                    sb.append(curPropName).append(" = ").append(newValue).append(reader.ready() ? "\r\n" : "");
+                    appendLine(sb, curPropName + " = " + newValue);
                 }
                 // Consume the last line of a property value that had multiple lines
                 if (!wasMultiline)
                     continue;
             }
             else
-                sb.append(originalLine).append(reader.ready() ? "\r\n" : "");
+                appendLine(sb, originalLine);
 
             line = reader.readLine();
         }
 
         if (!foundProperty)
-            sb.append("\r\n").append(propName).append(" = ").append(newValue);
+            appendLine(sb, propName + " = " + newValue);
 
         return new ByteArrayInputStream(sb.toString().getBytes());
+    }
+
+    /**
+     * Adds one line, writing the line break before it rather than after it.
+     *
+     * The loop above reads the next line before it appends the one in hand, so a reader with
+     * nothing left does not mean this is the last line to be written.
+     */
+    private static void appendLine(StringBuilder sb, String line)
+    {
+        if (sb.length() > 0)
+            sb.append("\r\n");
+        sb.append(line);
     }
 
     public Container getContainerParent()
@@ -645,6 +659,49 @@ public class SkylineTool extends Entity
                     new int[]{1, 0, -1, -1}, parseSkylineVersion("1.0"));
             assertArrayEquals("Surrounding space does not change the version",
                     new int[]{1, 0, -1, -1}, parseSkylineVersion(" 1.0 "));
+        }
+
+        @Test
+        public void testEditingAPropertyKeepsTheLineAfterIt()
+        {
+            String edited = editProperty("Name = Foo\r\nProvider = http://old\r\n" +
+                    "Identifier = URN:LSID:x\r\n", "provider", "http://new");
+
+            assertTrue("The edited property should end where its value ends, but got\n" + edited,
+                    edited.contains("Provider = http://new\r\n"));
+            assertTrue("The property after it has to keep its own line, but got\n" + edited,
+                    edited.contains("\r\nIdentifier = URN:LSID:x"));
+        }
+
+        @Test
+        public void testEditingAPropertyLeavesTheOthersAlone()
+        {
+            String file = "Name = Foo\r\nProvider = http://old\r\nOrganization = Lab\r\n" +
+                    "Identifier = URN:LSID:x\r\n";
+
+            assertEquals("Only the edited property should change",
+                    "Name = Foo\r\nProvider = http://new\r\nOrganization = Lab\r\n" +
+                            "Identifier = URN:LSID:x",
+                    editProperty(file, "provider", "http://new"));
+
+            assertEquals("Editing the last property should work the same way",
+                    "Name = Foo\r\nProvider = http://old\r\nOrganization = Lab\r\n" +
+                            "Identifier = URN:LSID:y",
+                    editProperty(file, "identifier", "URN:LSID:y"));
+        }
+
+        private static String editProperty(String file, String propName, String newValue)
+        {
+            try
+            {
+                return new String(new SkylineTool().getInfoPropertiesStream(
+                        new ByteArrayInputStream(file.getBytes(StandardCharsets.UTF_8)),
+                        propName, newValue).readAllBytes(), StandardCharsets.UTF_8);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Could not rewrite the test properties", e);
+            }
         }
     }
 }
