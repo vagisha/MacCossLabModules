@@ -502,7 +502,9 @@ public class SkylineToolsStoreController extends SpringActionController
         HashMap<String, String> suppFiles = new HashMap<>();
         for (String suppFile : getSupplementaryFileBasenames(tool))
         {
-            final String suppFileExtension = FileUtil.getExtension(suppFile).toLowerCase();
+            // These names come from a folder listing rather than from an upload form, so one with
+            // no dot in it is possible and FileUtil.getExtension returns null for it.
+            final String suppFileExtension = StringUtils.lowerCase(FileUtil.getExtension(suppFile));
             final String suppFileIcon = (Arrays.asList(knownExtensions).contains(suppFileExtension)) ?
                 imgDir + suppFileExtension + "-icon.png" : imgDir + "unknown-icon.jpg";
             suppFiles.put(tool.getFolderUrl() + suppFile, suppFileIcon);

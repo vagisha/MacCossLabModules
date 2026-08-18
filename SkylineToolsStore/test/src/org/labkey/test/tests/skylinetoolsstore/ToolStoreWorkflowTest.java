@@ -106,6 +106,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String ICON_STORE = "ToolStoreWorkflowTestIconReplace";
     private static final String ICON_TOOL_NAME = "IconReplaceProbe";
     private static final String ICON_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:iconreplace";
+    private static final String NO_EXT_STORE = "ToolStoreWorkflowTestNoExtSupplement";
+    private static final String NO_EXT_TOOL_NAME = "NoExtSupplementProbe";
+    private static final String NO_EXT_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:noextsupplement";
     private static final String OLDER_STORE = "ToolStoreWorkflowTestOlderVersion";
     private static final String OLDER_TOOL_NAME = "OlderVersionProbe";
     private static final String OLDER_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:olderversion";
@@ -1076,6 +1079,55 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         }
     }
 
+    /**
+     * A supplementary file whose name has no extension must not take the store listing down.
+     *
+     * getSupplementaryFiles picks each file's tile icon from its extension, and
+     * FileUtil.getExtension returns null for a name with no dot. The listing resolves the
+     * supplementary files of every tool it draws, so one such file removed every tool from the
+     * page rather than only its own.
+     */
+    @Test
+    public void testASupplementaryFileWithNoExtensionStillLists()
+    {
+        _containerHelper.createProject(NO_EXT_STORE, "Collaboration");
+        _containerHelper.enableModule(NO_EXT_STORE, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        uploadToolFileTo(NO_EXT_STORE, ToolStoreTestHelper.writeMinimalToolZip(
+                NO_EXT_TOOL_NAME, NO_EXT_TOOL_IDENTIFIER, "1.0"));
+
+        JSONObject tool = onlyToolInStore(NO_EXT_STORE);
+        int toolId = rowId(tool);
+        String folder = "/" + NO_EXT_STORE + "/" +
+                ToolStoreTestHelper.toolFolderName(NO_EXT_TOOL_NAME, "1.0");
+
+        assertEquals("A supplementary file with no extension should be accepted", 200,
+                postSupplement(folder, toolId, "README"));
+
+        log("The store listing still draws the tool");
+        beginAt(WebTestHelper.buildURL("skyts", NO_EXT_STORE, "begin"));
+        assertTextNotPresent("NullPointerException");
+        assertTextPresent(NO_EXT_TOOL_NAME);
+
+        log("So does the tool's own details page, which offers the file");
+        beginAt(WebTestHelper.buildURL("skyts", NO_EXT_STORE, "details") + "?id=" + toolId);
+        assertTextNotPresent("NullPointerException");
+        assertElementPresent(Locator.id("download-tool-btn"));
+        assertTextPresent("README");
+    }
+
+    /** Uploads one supplementary file through the action the dialogs post to. */
+    private int postSupplement(String folderPath, int toolId, String fileName)
+    {
+        HttpPost request = new HttpPost(
+                WebTestHelper.buildURL("skyts", folderPath, "insertSupplement"));
+        request.setEntity(MultipartEntityBuilder.create()
+                .addTextBody("toolId", String.valueOf(toolId))
+                .addBinaryBody("suppFile", "notes".getBytes(), ContentType.DEFAULT_BINARY, fileName)
+                .build());
+        return execute(request);
+    }
+
     /** Decodes a served icon far enough to tell which image it is. */
     private int iconWidth(byte[] png) throws Exception
     {
@@ -1188,6 +1240,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(RETRY_STORE, false);
         _containerHelper.deleteProject(OLDER_STORE, false);
         _containerHelper.deleteProject(ICON_STORE, false);
+        _containerHelper.deleteProject(NO_EXT_STORE, false);
         _containerHelper.deleteProject(GROUP_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);
         _containerHelper.deleteProject(NESTED_STORE, false);
