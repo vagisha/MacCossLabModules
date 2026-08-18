@@ -1054,7 +1054,7 @@ public class SkylineToolsStoreController extends SpringActionController
                 return false;
             }
 
-            File targetFile = makeFile(getContainer(), FileUtil.makeLegalName(suppFile.getOriginalFilename()));
+            File targetFile = makeFile(getContainer(), suppFile.getOriginalFilename());
             if (targetFile.exists())
             {
                 errors.reject(ERROR_MSG, "A supplementary file with that name already exists.");
@@ -1112,16 +1112,15 @@ public class SkylineToolsStoreController extends SpringActionController
         {
             final SkylineTool tool = requireToolInContainer(form.getToolId(), getContainer());
 
-            File targetDel = makeFile(getContainer(), form.getSuppFile());
-
-            // The tool's own zip and icon are not supplementary files, so they are not deletable here.
-            if (!targetDel.isFile() ||
-                targetDel.getName().equalsIgnoreCase("icon.png") ||
-                targetDel.getName().equalsIgnoreCase(tool.getZipName()))
+            // Match the given name against the supplementary files in the folder, rather than legalising it,
+            // because the name on disk may not be legal. Matching is also what stops this naming a path.
+            if (!getSupplementaryFileBasenames(tool).contains(form.getSuppFile()))
             {
                 throw new NotFoundException("No supplementary file named " + form.getSuppFile() +
                         " for tool " + tool.getName());
             }
+
+            File targetDel = getLocalPath(getContainer()).resolve(form.getSuppFile()).toFile();
 
             if (!targetDel.delete())
             {
