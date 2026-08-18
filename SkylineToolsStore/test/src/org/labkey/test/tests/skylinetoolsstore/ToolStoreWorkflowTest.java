@@ -102,7 +102,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String GROUP_STORE = "ToolStoreWorkflowTestOwnerGroup";
     private static final String GROUP_TOOL_NAME = "OwnerGroupProbe";
     private static final String GROUP_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:ownergroup";
-    private static final String OWNER_GROUP = "ToolStoreOwnerGroup";
+    private static final String OWNER_GROUP = "ToolStore Owner's Group";
     private static final String ICON_STORE = "ToolStoreWorkflowTestIconReplace";
     private static final String ICON_TOOL_NAME = "IconReplaceProbe";
     private static final String ICON_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:iconreplace";
@@ -1173,6 +1173,13 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 Map.of("name", GROUP_TOOL_NAME)));
         assertTextPresent("Groups with access", OWNER_GROUP,
                 "configured through the permissions UI");
+
+        // The web part fills its copy of the dialog from a JavaScript array rather than rendering
+        // it, and the group name carries an apostrophe, so this is where HTML escaping would show.
+        log("The web part hands the group name to its script as text rather than as HTML");
+        beginAt(WebTestHelper.buildURL("skyts", GROUP_STORE, "begin"));
+        assertFalse("A group name must not reach the web part's script as HTML entities",
+                getDriver().getPageSource().contains(OWNER_GROUP.replace("'", "&#039;")));
     }
 
     /** Posts one image to updateProperty as the icon, under the given filename. */

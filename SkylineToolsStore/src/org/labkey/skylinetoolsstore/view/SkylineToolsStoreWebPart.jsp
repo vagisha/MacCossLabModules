@@ -353,8 +353,10 @@
     var toolOwners = new Array();
     var toolOwnerGroups = new Array();
 <% for (SkylineTool tool : tools) { %>
-    toolOwners[<%= h(tool.getRowId()) %>] = "<%= h(toolOwners.get(tool.getRowId())) %>";
-    toolOwnerGroups[<%= h(tool.getRowId()) %>] = "<%= h(toolOwnerGroups.get(tool.getRowId())) %>";
+    <%-- q(), not h(). These are JavaScript string literals, and script content is raw text, so an
+         address or a group name carrying an apostrophe would keep its HTML entity. --%>
+    toolOwners[<%= h(tool.getRowId()) %>] = <%= q(toolOwners.get(tool.getRowId())) %>;
+    toolOwnerGroups[<%= h(tool.getRowId()) %>] = <%= q(toolOwnerGroups.get(tool.getRowId())) %>;
 <%
         }
         SafeToRender users = SkylineToolsStoreController.getUsersForAutocomplete();

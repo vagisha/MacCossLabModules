@@ -553,7 +553,9 @@ a { text-decoration: none; }
     function popToolOwners() {
         var ownersTxt = $("#toolOwners");
         $("#manageOwnersPop").dialog("open");
-        ownersTxt.focus().val("<%= h(toolOwners) %>");
+        // q(), not h(). This is a JavaScript string literal, so an HTML entity would survive into
+        // the box and be posted back as part of the address.
+        ownersTxt.focus().val(<%= q(toolOwners) %>);
         if (ownersTxt.val())
             ownersTxt.val(ownersTxt.val() + ", ");
     }
