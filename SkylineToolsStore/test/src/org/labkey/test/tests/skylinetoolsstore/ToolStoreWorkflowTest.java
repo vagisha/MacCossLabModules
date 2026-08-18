@@ -99,6 +99,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String BLOCKED_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:blockeddelete";
 
     // Its own store, because it needs a tool with two versions and the other stores assert on one.
+    private static final String GROUP_STORE = "ToolStoreWorkflowTestOwnerGroup";
+    private static final String GROUP_TOOL_NAME = "OwnerGroupProbe";
+    private static final String GROUP_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:ownergroup";
+    private static final String OWNER_GROUP = "ToolStoreOwnerGroup";
     private static final String ICON_STORE = "ToolStoreWorkflowTestIconReplace";
     private static final String ICON_TOOL_NAME = "IconReplaceProbe";
     private static final String ICON_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:iconreplace";
@@ -1070,6 +1074,44 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         return image.getWidth();
     }
 
+    /**
+     * Manage tool owners names a group that holds a tool-owner role, and says the box does not
+     * control it.
+     *
+     * The box lists and replaces users only. P55 stopped a group being stripped by a save, which was
+     * right, but left the dialog showing an incomplete picture - an admin emptied it and believed
+     * access was gone while the group still had it.
+     */
+    @Test
+    public void testManageOwnersNamesAGroupThatHoldsAccess()
+    {
+        _containerHelper.createProject(GROUP_STORE, "Collaboration");
+        _containerHelper.enableModule(GROUP_STORE, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        uploadToolFileTo(GROUP_STORE, ToolStoreTestHelper.writeMinimalToolZip(
+                GROUP_TOOL_NAME, GROUP_TOOL_IDENTIFIER, "1.0"));
+
+        String toolFolder = "/" + GROUP_STORE + "/" +
+                ToolStoreTestHelper.toolFolderName(GROUP_TOOL_NAME, "1.0");
+
+        log("Before the group holds anything, the dialog says nothing about one");
+        beginAt(WebTestHelper.buildURL("skyts", GROUP_STORE, "details",
+                Map.of("name", GROUP_TOOL_NAME)));
+        assertTextNotPresent("Groups with access");
+
+        // In GROUP_STORE, not the test's own project - a project group can only hold a role inside
+        // the project that owns it, and the tool folder lives here.
+        _permissionsHelper.createProjectGroup(OWNER_GROUP, GROUP_STORE);
+        _permissionsHelper.addMemberToRole(OWNER_GROUP, "Editor",
+                PermissionsHelper.MemberType.group, toolFolder);
+
+        log("Now it is named, and the dialog says the box does not control it");
+        beginAt(WebTestHelper.buildURL("skyts", GROUP_STORE, "details",
+                Map.of("name", GROUP_TOOL_NAME)));
+        assertTextPresent("Groups with access", OWNER_GROUP,
+                "configured through the permissions UI");
+    }
+
     /** Posts one image to updateProperty as the icon, under the given filename. */
     private int postIcon(String folderPath, int toolId, String fileName, byte[] image)
     {
@@ -1135,6 +1177,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(RETRY_STORE, false);
         _containerHelper.deleteProject(OLDER_STORE, false);
         _containerHelper.deleteProject(ICON_STORE, false);
+        _containerHelper.deleteProject(GROUP_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);
         _containerHelper.deleteProject(NESTED_STORE, false);
         _containerHelper.deleteProject(CORRUPT_STORE, false);

@@ -70,7 +70,8 @@
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
     Iterator suppIter = suppFiles.entrySet().iterator();
 
-    final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
+    final String toolOwners = StringUtils.join(tool.getOwners(), ", ");
+    final List<String> toolOwnerGroups = tool.getOwnerGroups();
 
     final boolean toolEditor = tool.isEditor(getUser());
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
@@ -248,6 +249,11 @@ a { text-decoration: none; }
         <p>
             <label for="toolOwners">Tool owners </label><br />
             <input type="text" id="toolOwners" name="toolOwners" /><br /><br />
+<% if (!toolOwnerGroups.isEmpty()) { %>
+            <%-- This box lists and replaces users only, so a group keeps its access through a save. --%>
+            Groups with access: <%= h(StringUtils.join(toolOwnerGroups, ", ")) %><br />
+            Group permissions are configured through the permissions UI.<br /><br />
+<% } %>
             <input type="hidden" name="returnUrl" value="<%= h(toolDetailsUrl) %>" />
             <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Update Tool Owners" />

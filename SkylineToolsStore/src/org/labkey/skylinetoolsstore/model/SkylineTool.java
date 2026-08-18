@@ -22,10 +22,18 @@ import org.junit.Test;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.Entity;
 import org.labkey.api.files.FileContentService;
+import org.labkey.api.security.Group;
+import org.labkey.api.security.RoleAssignment;
+import org.labkey.api.security.SecurityManager;
 import org.labkey.api.security.User;
+import org.labkey.api.security.UserManager;
 import org.labkey.api.security.permissions.DeletePermission;
 import org.labkey.api.security.permissions.InsertPermission;
 import org.labkey.api.security.permissions.UpdatePermission;
+import org.labkey.api.security.roles.EditorRole;
+import org.labkey.api.security.roles.FolderAdminRole;
+import org.labkey.api.security.roles.Role;
+import org.labkey.api.security.roles.RoleManager;
 import org.labkey.api.settings.AppProps;
 import org.labkey.api.util.Pair;
 import org.labkey.api.util.logging.LogHelper;
@@ -48,6 +56,8 @@ import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -386,6 +396,65 @@ public class SkylineTool extends Entity
         return (SkylineToolsStoreController.makeFile(lookupContainer(), "icon.png").exists()) ?
             getFolderUrl() + "icon.png" :
             AppProps.getInstance().getContextPath() + "/skylinetoolsstore/img/placeholder.png";
+    }
+
+    /**
+     * The users that were granted roles giving them the ability to manage this tool.
+     *
+     * A tool owner is whoever holds Editor or FolderAdmin role in the tool folder - see createVersionFolder,
+     * which grants the owners EditorRole when it makes the folder.
+     */
+    public ArrayList<String> getOwners()
+    {
+        HashSet<String> users = new HashSet<>();
+        for (RoleAssignment assignment : ownerRoleAssignments())
+        {
+            User user = UserManager.getUser(assignment.getUserId());
+            if (user != null && user.getEmail() != null)
+                users.add(user.getEmail());
+        }
+        // Sorted, so the owners box does not reorder itself between page loads.
+        ArrayList<String> sorted = new ArrayList<>(users);
+        sorted.sort(String.CASE_INSENSITIVE_ORDER);
+        return sorted;
+    }
+
+    /**
+     * The groups that were granted roles giving them the ability to manage this tool.
+     *
+     * Manage Tool Owners only adds and removes users, not groups. A group is granted access through
+     * the permissions UI, and has to be revoked there too.
+     */
+    public ArrayList<String> getOwnerGroups()
+    {
+        HashSet<String> groups = new HashSet<>();
+        for (RoleAssignment assignment : ownerRoleAssignments())
+        {
+            // A principal that does not resolve as a user is a group.
+            if (UserManager.getUser(assignment.getUserId()) != null)
+                continue;
+            Group group = SecurityManager.getGroup(assignment.getUserId());
+            if (group != null)
+                groups.add(group.getName());
+        }
+        ArrayList<String> sorted = new ArrayList<>(groups);
+        sorted.sort(String.CASE_INSENSITIVE_ORDER);
+        return sorted;
+    }
+
+    private List<RoleAssignment> ownerRoleAssignments()
+    {
+        Container c = lookupContainer();
+        if (c == null)
+            return List.of();
+
+        Set<Role> ownerRoles = Set.of(RoleManager.getRole(EditorRole.class),
+                RoleManager.getRole(FolderAdminRole.class));
+        List<RoleAssignment> owners = new ArrayList<>();
+        for (RoleAssignment assignment : c.getPolicy().getAssignments())
+            if (ownerRoles.contains(assignment.getRole()))
+                owners.add(assignment);
+        return owners;
     }
 
     /**

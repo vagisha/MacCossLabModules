@@ -493,26 +493,6 @@ public class SkylineToolsStoreController extends SpringActionController
         return new Pair<>(toolOwnersUsers,  toolOwnersInvalid);
     }
 
-    public static ArrayList<String> getToolOwners(SkylineTool tool)
-    {
-        return getToolRelevantUsers(tool, new Role[]{RoleManager.getRole(EditorRole.class), RoleManager.getRole(FolderAdminRole.class)});
-    }
-
-    public static ArrayList<String> getToolRelevantUsers(SkylineTool tool, Role[] roles)
-    {
-        HashSet<String> users = new HashSet<>();
-        for (RoleAssignment assignment : tool.lookupContainer().getPolicy().getAssignments())
-            if (Arrays.asList(roles).contains(assignment.getRole()))
-            {
-                User user = UserManager.getUser(assignment.getUserId());
-                if(user != null && user.getEmail() != null)
-                {
-                    users.add(user.getEmail());
-                }
-            }
-        return new ArrayList<>(users);
-    }
-
     public static HashMap<String, String> getSupplementaryFiles(SkylineTool tool) throws IOException
     {
         // Store supporting files in map <url, icon url>
@@ -1642,7 +1622,7 @@ public class SkylineToolsStoreController extends SpringActionController
             requireToolAddressableFrom(tool, getContainer());
             if (!reshow)
                 // Prefill the box. handlePost replaces the whole list, so a blank form strips every owner.
-                form.setToolOwners(StringUtils.join(getToolOwners(tool), ", "));
+                form.setToolOwners(StringUtils.join(tool.getOwners(), ", "));
 
             return new JspView<>("/org/labkey/skylinetoolsstore/view/SkylineToolManageOwners.jsp", form, errors);
         }

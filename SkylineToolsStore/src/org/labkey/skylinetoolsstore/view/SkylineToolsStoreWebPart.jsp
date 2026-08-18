@@ -120,6 +120,11 @@
         <p>
             <label for="toolOwnersManage">Tool owners </label><br />
             <input type="text" id="toolOwnersManage" class="toolOwners" name="toolOwners" /><br /><br />
+            <%-- One dialog serves every tool, so this is filled in by popToolOwners below. --%>
+            <span id="ownerGroupsNote" style="display:none;">
+                Groups with access: <span id="ownerGroupsNames"></span><br />
+                Group permissions are configured through the permissions UI.<br /><br />
+            </span>
             <input type="hidden" name="returnUrl" value="<%= h(getActionURL()) %>" />
             <%-- Set per tool when the dialog opens. Zero rather than blank, because an empty string
                  will not bind to the form's int and would fail before the action ever runs. --%>
@@ -180,6 +185,7 @@
 <div id="all-tools" style="clear: both; padding-top: 2px;">
 <%
     HashMap<Integer, String> toolOwners = new IntHashMap<>();
+    HashMap<Integer, String> toolOwnerGroups = new IntHashMap<>();
     for (SkylineTool tool : tools)
     {
         final String tableId = "table-" + tool.getName().replaceAll("[^A-Za-z0-9]", "");
@@ -191,8 +197,9 @@
         boolean hasDocs = tool.hasDocumentation();
         int docCount = suppFiles.size() + (hasDocs ? 1 : 0);
 
-        final String curToolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
+        final String curToolOwners = StringUtils.join(tool.getOwners(), ", ");
         toolOwners.put(tool.getRowId(), curToolOwners);
+        toolOwnerGroups.put(tool.getRowId(), StringUtils.join(tool.getOwnerGroups(), ", "));
         final boolean toolEditor = tool.isEditor(getUser());
         final SkylineTool[] allVersions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
         final boolean multipleVersions = allVersions.length > 1;
@@ -344,8 +351,10 @@
 
 <% if (admin) { %>
     var toolOwners = new Array();
+    var toolOwnerGroups = new Array();
 <% for (SkylineTool tool : tools) { %>
     toolOwners[<%= h(tool.getRowId()) %>] = "<%= h(toolOwners.get(tool.getRowId())) %>";
+    toolOwnerGroups[<%= h(tool.getRowId()) %>] = "<%= h(toolOwnerGroups.get(tool.getRowId())) %>";
 <%
         }
         SafeToRender users = SkylineToolsStoreController.getUsersForAutocomplete();
@@ -354,6 +363,8 @@
 
     function popToolOwners(id) {
         $('#ownersFormToolId').val(id);
+        $("#ownerGroupsNames").text(toolOwnerGroups[id]);
+        $("#ownerGroupsNote").toggle(!!toolOwnerGroups[id]);
         $('#manageOwnersPop').dialog('open');
         var ownersTxt = $("#toolOwnersManage");
         ownersTxt.focus();

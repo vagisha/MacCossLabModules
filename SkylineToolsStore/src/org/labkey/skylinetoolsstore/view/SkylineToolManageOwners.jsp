@@ -17,6 +17,9 @@
 %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreController" %>
+<%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreManager" %>
+<%@ page import="org.labkey.skylinetoolsstore.model.SkylineTool" %>
+<%@ page import="java.util.List" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
@@ -36,6 +39,9 @@
     final String jsDir = contextPath + "/skylinetoolsstore/js/";
 
     final String toolOwners = StringUtils.trimToEmpty(form.getToolOwners());
+    final SkylineTool ownedTool = SkylineToolsStoreManager.get().getTool(form.getToolId());
+    final List<String> toolOwnerGroups = ownedTool == null ? List.of() :
+            ownedTool.getOwnerGroups();
     final String returnUrl = form.getReturnUrl();
 
     final boolean admin = getUser().hasSiteAdminPermission();
@@ -53,6 +59,11 @@
              from every one of the tool's version folders. --%>
         <input style="width: 400px; max-width: 80%;" type="text" id="toolOwners" name="toolOwners"
                value="<%= h(toolOwners) %>" /><br /><br />
+<% if (!toolOwnerGroups.isEmpty()) { %>
+        <%-- This box lists and replaces users only, so a group keeps its access through a save. --%>
+        Groups with access: <%= h(StringUtils.join(toolOwnerGroups, ", ")) %><br />
+        Group permissions are configured through the permissions UI.<br /><br />
+<% } %>
         <br />
 <% if (returnUrl != null) { %>
         <input type="hidden" name="returnUrl" value="<%= h(returnUrl) %>" />
