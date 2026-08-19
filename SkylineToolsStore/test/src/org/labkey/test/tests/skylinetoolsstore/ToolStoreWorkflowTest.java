@@ -106,6 +106,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String ICON_STORE = "ToolStoreWorkflowTestIconReplace";
     private static final String ICON_TOOL_NAME = "IconReplaceProbe";
     private static final String ICON_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:iconreplace";
+    private static final String PENCIL_STORE = "ToolStoreWorkflowTestPencils";
+    private static final String PENCIL_TOOL_NAME = "PencilEditProbe";
+    private static final String PENCIL_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:penciledit";
     private static final String NO_EXT_STORE = "ToolStoreWorkflowTestNoExtSupplement";
     private static final String NO_EXT_TOOL_NAME = "NoExtSupplementProbe";
     private static final String NO_EXT_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:noextsupplement";
@@ -1128,6 +1131,84 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         return execute(request);
     }
 
+    /**
+     * Every pencil on the details page edits the property it sits beside.
+     *
+     * Where a pencil did not pass a property name, editTool took it from the title attribute of the
+     * element around it. jQuery UI tooltip empties that attribute while the element is hovered, and
+     * a pencil cannot be clicked without hovering it, so Description, Organization and Languages
+     * posted an empty name and were refused while Authors and Provider passed theirs and worked.
+     *
+     * This has to click the pencils rather than post to the action. The attribute is only empty
+     * during the hover, so a request built by hand carries the name the browser could not send.
+     */
+    @Test
+    public void testEveryPropertyPencilEditsItsOwnProperty()
+    {
+        _containerHelper.createProject(PENCIL_STORE, "Collaboration");
+        _containerHelper.enableModule(PENCIL_STORE, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        uploadToolFileTo(PENCIL_STORE, ToolStoreTestHelper.writeMinimalToolZip(
+                PENCIL_TOOL_NAME, PENCIL_TOOL_IDENTIFIER, "1.0"));
+
+        goToProjectHome(PENCIL_STORE);
+        clickAndWait(Locator.linkWithText(PENCIL_TOOL_NAME));
+
+        // Authors is here as the control. It passed its name already, so it passes either way, and
+        // a failure in it says the dialog is broken rather than the property name.
+        editToolProperty(Locator.css("#toolDescription > a"), "Edited description");
+        editToolProperty(barItemPencil("Organization:"), "Edited organization");
+        editToolProperty(barItemPencil("Languages:"), "Edited languages");
+        editToolProperty(barItemPencil("Authors:"), "Edited authors");
+
+        JSONObject tool = onlyToolInStore(PENCIL_STORE);
+        assertEquals("The Description pencil should edit Description",
+                "Edited description", tool.getString("Description"));
+        assertEquals("The Organization pencil should edit Organization",
+                "Edited organization", tool.getString("Organization"));
+        assertEquals("The Languages pencil should edit Languages",
+                "Edited languages", tool.getString("Languages"));
+        assertEquals("The Authors pencil should edit Authors",
+                "Edited authors", tool.getString("Authors"));
+    }
+
+    /** The pencil in the Tool Information box beside the given label. */
+    private Locator.XPathLocator barItemPencil(String label)
+    {
+        return Locator.xpath("//div[contains(@class,'barItem')][span[normalize-space()='" +
+                label + "']]/a");
+    }
+
+    /**
+     * Clicks a property's pencil, replaces the value and saves.
+     *
+     * The dialog posts over ajax and closes itself, so this waits for it to go rather than for a
+     * page load. A refused edit leaves it open showing the reason.
+     */
+    private void editToolProperty(Locator pencil, String value)
+    {
+        scrollIntoView(pencil);
+        waitAndClick(pencil);
+
+        // Whichever of the text input and the textarea the dialog decided to show. Which one it
+        // picks depends on the property name, so pinning the type here would fail on a name that
+        // did not arrive, ahead of the assertion that says so.
+        Locator.XPathLocator field = Locator.xpath(
+                "//div[@id='editToolDlg']//*[self::textarea or (self::input and @type='text')]")
+                .notHidden();
+        waitForElement(field);
+        setFormElement(field, value);
+
+        waitAndClick(Locator.xpath("//div[contains(@class,'ui-dialog')][.//div[@id='editToolDlg']]" +
+                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']")
+                .notHidden());
+
+        waitFor(() -> !isElementVisible(Locator.id("editToolDlg")),
+                "The edit dialog stayed open, so the edit was refused: " +
+                        Locator.id("editToolDlg").findElement(getDriver()).getText(),
+                WAIT_FOR_JAVASCRIPT);
+    }
+
     /** Decodes a served icon far enough to tell which image it is. */
     private int iconWidth(byte[] png) throws Exception
     {
@@ -1248,6 +1329,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(OLDER_STORE, false);
         _containerHelper.deleteProject(ICON_STORE, false);
         _containerHelper.deleteProject(NO_EXT_STORE, false);
+        _containerHelper.deleteProject(PENCIL_STORE, false);
         _containerHelper.deleteProject(GROUP_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);
         _containerHelper.deleteProject(NESTED_STORE, false);

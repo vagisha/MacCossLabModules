@@ -362,7 +362,7 @@ a { text-decoration: none; }
     <p id="toolDescription" class="toolProperty" title="Description">
         <span class="toolPropertyValue"><%= h(tool.getDescription(), true) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+        <%=simpleLink(editIconImgHtml).onClick("editTool($(this), 'description')")%>
 <% } %>
     </p>
     <div id="downloadArea">
@@ -408,7 +408,7 @@ a { text-decoration: none; }
         <span class="boldfont">Organization:</span>
         <span class="toolPropertyValue"><%= h(tool.getOrganization()) %></span>
 <% if (toolEditor) { %>
-       <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+       <%=simpleLink(editIconImgHtml).onClick("editTool($(this), 'organization')")%>
 <% } %>
     </div>
 <% } %>
@@ -428,7 +428,7 @@ a { text-decoration: none; }
         <span class="boldfont">Languages:</span>
         <span class="toolPropertyValue"><%= h(tool.getLanguages()) %></span>
 <% if (toolEditor) { %>
-        <%=simpleLink(editIconImgHtml).onClick("editTool($(this))")%>
+        <%=simpleLink(editIconImgHtml).onClick("editTool($(this), 'languages')")%>
 <% } %>
     </div>
 <% } %>
