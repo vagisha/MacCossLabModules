@@ -214,7 +214,7 @@ public class SkylineToolsStoreController extends SpringActionController
 
                         tool = new SkylineTool(new BufferedReader(new StringReader(new String(bytes, "UTF-8"))));
                     }
-                    else if (Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(lowerBaseName)))
+                    else if (isIconEntry(zipEntry.getName()))
                     {
                         toolIcon = unzip(zipStream);
                     }
@@ -230,6 +230,28 @@ public class SkylineToolsStoreController extends SpringActionController
         }
 
         return tool;
+    }
+
+    /**
+     * True for the entry holding a tool's icon, which is an image sitting directly under tool-inf.
+     *
+     * Anything nested below tool-inf is something else - documentation today, and whatever a later
+     * tool ships. All 21 tools published on skyline.ms keep their icon directly under tool-inf.
+     *
+     * Folder and extension are matched without regard to case, since MSstatsShiny ships
+     * tool-inf/MSstatsShinyLogo.PNG.
+     *
+     * @param entryName the zip entry's full path, in whatever case the zip carries
+     */
+    private static boolean isIconEntry(String entryName)
+    {
+        String lowerName = entryName.toLowerCase(Locale.ROOT);
+        if (!lowerName.startsWith("tool-inf/"))
+            return false;
+
+        String name = lowerName.substring("tool-inf/".length());
+        return !name.contains("/") &&
+                Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(name));
     }
 
     /** Reads the current zip entry. Throws on a corrupt zip rather than returning null. */
@@ -1816,12 +1838,8 @@ public class SkylineToolsStoreController extends SpringActionController
                                 zipOut.closeEntry();
                             }
                         }
-                        // Carries over every entry but the icon being replaced, which is an image
-                        // directly under tool-inf. getExtension reads the whole path, so a
-                        // documentation image has to be excluded by its folder rather than by name.
-                        else if (!lowerName.startsWith("tool-inf/") ||
-                                 lowerName.startsWith("tool-inf/docs/") ||
-                                 !Arrays.asList(VALID_ICON_EXTENSIONS).contains(FileUtil.getExtension(lowerName)))
+                        // Carries over every entry but the icon this upload replaces.
+                        else if (!isIconEntry(zipEntry.getName()))
                         {
                             try (InputStream in = zipIn.getInputStream(zipEntry))
                             {
