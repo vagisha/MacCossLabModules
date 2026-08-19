@@ -484,34 +484,40 @@ public class SkylineTool extends Entity
         newValue = newValue.replace("\r\n", "\\\r\n");
 
         boolean foundProperty = false;
-
         StringBuilder sb = new StringBuilder();
-        String line = reader.readLine();
-        while (line != null)
-        {
-            String originalLine = line;
-            line = line.trim();
-            int splitter;
-            String curPropName;
-            if (!line.isEmpty() && line.charAt(0) != '#' && (splitter = line.indexOf('=')) != -1
-                && (curPropName = line.substring(0, splitter).trim()).equalsIgnoreCase(propName))
-            {
-                foundProperty = true;
-                boolean wasMultiline = false;
-                while ((line = reader.readLine()) != null && line.trim().endsWith("\\"))
-                    wasMultiline = true;
-                if (!newValue.isEmpty())
-                {
-                    appendLine(sb, curPropName + " = " + newValue);
-                }
-                // Consume the last line of a property value that had multiple lines
-                if (!wasMultiline)
-                    continue;
-            }
-            else
-                appendLine(sb, originalLine);
 
-            line = reader.readLine();
+        for (String line = reader.readLine(); line != null; line = reader.readLine())
+        {
+            String trimmed = line.trim();
+            int splitter = trimmed.indexOf('=');
+
+            if (trimmed.isEmpty() || trimmed.charAt(0) == '#' || splitter == -1
+                    || !trimmed.substring(0, splitter).trim().equalsIgnoreCase(propName))
+            {
+                appendLine(sb, line);
+
+                // Carry the rest of another property's value over as it stands. Left to the loop,
+                // a continuation line holding an = would be read as a property of its own.
+                while (trimmed.endsWith("\\") && (line = reader.readLine()) != null)
+                {
+                    appendLine(sb, line);
+                    trimmed = line.trim();
+                }
+                continue;
+            }
+
+            foundProperty = true;
+            String curPropName = trimmed.substring(0, splitter).trim();
+
+            // Skip this property's own line and every continuation of it. A line continues onto
+            // the next when it ends with a backslash, so the test is on the line in hand rather
+            // than on the one after it.
+            while (trimmed.endsWith("\\") && (line = reader.readLine()) != null)
+                trimmed = line.trim();
+
+            // A blank value removes the property line rather than writing an empty one.
+            if (!newValue.isEmpty())
+                appendLine(sb, curPropName + " = " + newValue);
         }
 
         if (!foundProperty)
@@ -688,6 +694,68 @@ public class SkylineTool extends Entity
                     "Name = Foo\r\nProvider = http://old\r\nOrganization = Lab\r\n" +
                             "Identifier = URN:LSID:y",
                     editProperty(file, "identifier", "URN:LSID:y"));
+        }
+
+        /**
+         * A value spanning exactly two lines is the case the continuation scan gets wrong. One line
+         * has nothing to leave behind and three or more are consumed correctly.
+         */
+        private static final String TWO_LINE_VALUE =
+                "Name = Foo\r\nDescription = one line\\\r\ntwo line\r\nAuthor = Bob\r\n";
+
+        @Test
+        public void testEditingATwoLinePropertyLeavesNoOrphan()
+        {
+            String edited = editProperty(TWO_LINE_VALUE, "Description", "replaced");
+
+            assertTrue("The property should carry its new value, but got\n" + edited,
+                    edited.contains("Description = replaced"));
+            assertFalse("The second line of the old value must not be left behind, but got\n" + edited,
+                    edited.contains("two line"));
+        }
+
+        @Test
+        public void testBlankingATwoLinePropertyRemovesTheWholeValue()
+        {
+            String edited = editProperty(TWO_LINE_VALUE, "Description", "");
+
+            assertFalse("Blanking should remove the property, but got\n" + edited,
+                    edited.contains("Description"));
+            assertFalse("Blanking must not leave the second line behind, but got\n" + edited,
+                    edited.contains("two line"));
+            assertTrue("The property after it should survive, but got\n" + edited,
+                    edited.contains("Author = Bob"));
+        }
+
+        /**
+         * The details page turns each line of a textarea into a backslash continuation, so a value
+         * whose second line reads like a property entry is something an owner can type.
+         */
+        @Test
+        public void testAContinuationThatLooksLikeAPropertyIsLeftAlone()
+        {
+            String edited = editProperty(
+                    "Name = Foo\r\nAuthor = Bob\\\r\nDescription = part of what Bob typed\r\n" +
+                            "Description = the real one\r\nProvider = p\r\n",
+                    "Description", "replaced");
+
+            assertTrue("The line belonging to Author should be untouched, but got\n" + edited,
+                    edited.contains("Description = part of what Bob typed"));
+            assertTrue("The real property should carry its new value, but got\n" + edited,
+                    edited.contains("Description = replaced"));
+            assertEquals("Only the real property should have been replaced, but got\n" + edited,
+                    1, edited.split("Description = replaced", -1).length - 1);
+        }
+
+        @Test
+        public void testAThreeLinePropertyIsStillConsumedWhole()
+        {
+            String edited = editProperty(
+                    "Name = Foo\r\nDescription = a\\\r\nb\\\r\nc\r\nAuthor = Bob\r\n",
+                    "Description", "replaced");
+
+            assertEquals("Only the edited property should change",
+                    "Name = Foo\r\nDescription = replaced\r\nAuthor = Bob", edited);
         }
 
         private static String editProperty(String file, String propName, String newValue)
