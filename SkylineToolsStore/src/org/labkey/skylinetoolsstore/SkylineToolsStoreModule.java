@@ -42,10 +42,12 @@ public class SkylineToolsStoreModule extends DefaultModule
 {
     public static final String CONTROLLER_NAME = "skyts";
 
+    public static final String NAME = "SkylineToolsStore";
+
     @Override
     public String getName()
     {
-        return "SkylineToolsStore";
+        return NAME;
     }
 
     @Override

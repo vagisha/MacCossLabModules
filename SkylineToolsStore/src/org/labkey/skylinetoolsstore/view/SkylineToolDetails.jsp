@@ -15,12 +15,11 @@
  * limitations under the License.
  */
 %>
+<%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.api.data.Container" %>
 <%@ page import="org.labkey.api.data.ContainerManager" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
-<%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
-<%@ page import="org.labkey.api.security.permissions.InsertPermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.DOM" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
@@ -37,7 +36,6 @@
 <%@ page import="java.util.Arrays" %>
 <%@ page import="java.util.HashMap" %>
 <%@ page import="java.util.Iterator" %>
-<%@ page import="java.util.List" %>
 <%@ page import="java.util.Map" %>
 <%@ page import="static org.labkey.api.util.DOM.IMG" %>
 <%@ page import="static org.labkey.api.util.DOM.Attribute.src" %>
@@ -73,10 +71,12 @@
 
     final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
 
-    final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), InsertPermission.class);
+    final boolean toolEditor = tool.isEditor(getUser());
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
-    final boolean isLatestVersion = SkylineToolsStoreManager.get().getToolLatestByIdentifier(tool.getIdentifier()).getVersion().equals(tool.getVersion());
+    // UpdateToolAction refuses to update the tool unless the tool carries the Latest flag. Display the menu item to
+    // update tool only if we are looking at the latest version.
+    final boolean isLatestVersion = tool.getLatest();
     final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 
     ActionURL toolDetailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
@@ -243,42 +243,42 @@ a { text-decoration: none; }
 </div>
 <!--Manage Tool Owners Form-->
 <div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.SetOwnersAction.class))%>" method="post">
+    <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
         <p>
             <label for="toolOwners">Tool owners </label><br />
             <input type="text" id="toolOwners" name="toolOwners" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="updatetarget" value="<%= h(tool.getRowId()) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(toolDetailsUrl) %>" />
+            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Update Tool Owners" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Upload New Version Form-->
 <div id="uploadPop" title="Upload tool zip file" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.InsertAction.class))%>" enctype="multipart/form-data" method="post">
+    <labkey:form action="<%=SkylineToolStoreUrls.getUpdateToolUrl(tool)%>" enctype="multipart/form-data" method="post">
         <p>
             Browse to the zip file containing the tool you would like to upload.<br/><br/>
             <input type="file" size="50" name="toolZip" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="updatetarget" value="<%= h(tool.getRowId()) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(toolDetailsUrl) %>" />
+            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Upload Tool" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Upload Supplementary File Form-->
 <div id="uploadSuppPop" title="Upload supplementary file" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.InsertSupplementAction.class))%>" enctype="multipart/form-data" method="post">
+    <labkey:form action="<%=SkylineToolStoreUrls.getInsertSupplementUrl(tool)%>" enctype="multipart/form-data" method="post">
         <p>
             Browse to the supplementary file you would like to upload.<br/><br/>
             <input type="file" size="50" name="suppFile" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(toolDetailsUrl) %>" />
-            <input type="hidden" name="supptarget" value="<%= h(tool.getRowId()) %>" />
+            <input type="hidden" name="returnUrl" value="<%= h(toolDetailsUrl) %>" />
+            <input type="hidden" name="toolId" value="<%= h(tool.getRowId()) %>" />
             <input type="submit" value="Upload Supplementary File" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Delete Tool Dialog-->
-<div id="delToolAllDlg" title="Delete" style="display:none;">
+<div id="delToolAllDlg" title="Delete tool from store" style="display:none;">
     <p>Are you sure you want to completely delete <%= h(tool.getName()) %>?</p>
 </div>
 <!--Delete Tool Latest Version Dialog-->
@@ -332,13 +332,20 @@ a { text-decoration: none; }
     <div class="menuMouseArea sprocket">
         <img src="<%= h(imgDir) %>gear.png" title="Settings" alt="Sprocket" />
         <ul class="dropMenu">
+<%-- Publishing supersedes the version being viewed, so UpdateToolAction refuses anything but the
+     latest. Offering it on an older version's page cost the owner a whole upload before the
+     refusal. Supplementary files are per version, so that item stays on every version's page. --%>
+<% if (isLatestVersion) { %>
             <li><%=simpleLink("Upload new version").onClick("$('#uploadPop').dialog('open')")%></li>
+<% } %>
             <li><%=simpleLink("Upload supplementary file").onClick("$('#uploadSuppPop').dialog('open')")%></li>
-<% if (multipleVersions) { %>
+<%-- This removes the newest version whatever page it is clicked from, so on an older version's
+     page it would delete a version other than the one being viewed. --%>
+<% if (isLatestVersion && multipleVersions) { %>
             <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').dialog('open')")%></li>
 <% } %>
 <% if (admin) { %>
-            <li><%=simpleLink("Delete").onClick("$('#delToolAllDlg').dialog('open')")%></li>
+            <li><%=simpleLink("Delete tool from store").onClick("$('#delToolAllDlg').dialog('open')")%></li>
             <li><%=simpleLink("Manage tool owners").onClick("popToolOwners()")%></li>
 <% } %>
         </ul>
@@ -438,26 +445,34 @@ a { text-decoration: none; }
         $("#editIcon").position({my: "right bottom", at: "right bottom", of: $("#editIcon").siblings(".logoWrap:first")});
     });
 
-<% if (tool.lookupContainer().hasPermission(getUser(), DeletePermission.class)) { %>
+<% if (toolEditor) { %>
     $("#trashcan").droppable({
         accept: ".suppfile",
         drop: function(event, ui) {
             var offset = (ui.draggable).data("offset");
-            var targetDel = (ui.draggable).find(".suppfilename").html().trim();
+            // .text(), not .html(). html() hands back the escaped markup, so a file whose name has
+            // an ampersand or a quote in it was posted as the escaped form, which names no file on
+            // disk, and it could never be deleted.
+            var targetDel = (ui.draggable).find(".suppfilename").text().trim();
             if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?")) {
                 (ui.draggable).offset({top: offset.top, left: offset.left});
                 return;
             }
-            $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteSupplementAction.class))%>", {
-                "supptarget": <%= h(tool.getRowId()) %>,
-                "suppFile": targetDel
+            $.post("<%=h(SkylineToolStoreUrls.getDeleteSupplementUrl(tool))%>", {
+                "toolId": <%= h(tool.getRowId()) %>,
+                "suppFile": targetDel,
+                "X-LABKEY-CSRF": LABKEY.CSRF
             }).done(function() {
                 (ui.draggable).hide("explode");
                 if ($("#documentationbox").children(".suppfile:visible").length <= 1)
                     $("#documentationbox").hide("fade");
-            }).fail(function() {
+            }).fail(function(xhr) {
+                // The action refuses with a status and a message now, so show what it said rather
+                // than a fixed string. Nothing was deleted, so the tile goes back where it was.
                 (ui.draggable).offset({top: offset.top, left: offset.left});
-                alert("An error occurred while trying to delete the file.");
+                var failure = (xhr.responseJSON && xhr.responseJSON.exception) ||
+                        "An error occurred while trying to delete the file.";
+                alert(failure);
             });
         }
     });
@@ -527,6 +542,8 @@ a { text-decoration: none; }
     function popToolOwners() {
         var ownersTxt = $("#toolOwners");
         $("#manageOwnersPop").dialog("open");
+        // q(), not h(). This is a JavaScript string literal, so an HTML entity would survive into
+        // the box and be posted back as part of the address.
         ownersTxt.focus().val("<%= h(toolOwners) %>");
         if (ownersTxt.val())
             ownersTxt.val(ownersTxt.val() + ", ");
@@ -542,27 +559,60 @@ a { text-decoration: none; }
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                var url = "<%=h(urlFor(SkylineToolsStoreController.DeleteAction.class))%>";
-                var csrf = LABKEY.CSRF;
-                var form = $('<form action="' + url + '" method="post"> ' +
-                        '<input type="hidden" name="X-LABKEY-CSRF" value="' +  csrf + '" /> ' +
-                        '<input type="hidden" name="id" value="' + <%=tool.getRowId()%> + '" />' + '</form>');
-                $('body').append(form);
-                form.submit();
+                var dlg = $(this);
+                // Posted over ajax rather than by submitting a form. The action answers with the page
+                // to go to, so a refusal can be shown in this dialog instead of replacing the page
+                // with an error view.
+                $.post(<%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>, {
+                    "toolId": <%=tool.getRowId()%>,
+                    "X-LABKEY-CSRF": LABKEY.CSRF
+                }).done(function(data) {
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete " +
+                            <%=q(tool.getName())%> + ".");
+                });
             },
             Cancel: function() {$(this).dialog("close");}
+        },
+        open: function() {$(this).html($(this).data("originalHtml"));},
+        close: function() {
+            $(".ui-dialog-buttonpane button:contains('Ok')").button().show();
+            setButtonsEnabled(true);
         }
-    });
+    }).data("originalHtml", $("#delToolAllDlg").html());
 
     $("#delToolLatestDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                window.location = <%=q(urlFor(SkylineToolsStoreController.DeleteLatestAction.class).addParameter("id", tool.getRowId()).addParameter("sender", toolDetailsLatestUrl.getLocalURIString()))%>
+                var dlg = $(this);
+                // A POST, not a navigation. DeleteLatestAction deletes a container, so it must not be
+                // reachable by GET, and the CSRF token cannot ride on a navigation.
+                // Addressed to allVersions[0], not the version being viewed. This item is offered on
+                // an older version's page too, and the action always removes the newest one, so both
+                // the URL and the id have to name that version.
+                // returnUrl is the page to come back to. The action rewrites the name and version it
+                // carries when the deleted version supplied them, and returns the result.
+                $.post(<%=q(SkylineToolStoreUrls.getDeleteLatestUrl(allVersions[0]).getLocalURIString())%>, {
+                    "toolId": <%=allVersions[0].getRowId()%>,
+                    "returnUrl": <%=q(toolDetailsLatestUrl.getLocalURIString())%>,
+                    "X-LABKEY-CSRF": LABKEY.CSRF
+                }).done(function(data) {
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete the latest version of " +
+                            <%=q(allVersions[0].getName())%> + ".");
+                });
             },
             Cancel: function() {$(this).dialog("close");}
+        },
+        open: function() {$(this).html($(this).data("originalHtml"));},
+        close: function() {
+            $(".ui-dialog-buttonpane button:contains('Ok')").button().show();
+            setButtonsEnabled(true);
         }
-    });
+    }).data("originalHtml", $("#delToolLatestDlg").html());
 
     $("#editToolDlg").dialog({modal:true, autoOpen:false, create:function(){fixDlg($(this));}, width:'auto', show:DLG_EFFECT_SHOW, hide:DLG_EFFECT_HIDE, dialogClass:"noCloseDlg",
         buttons: {
@@ -575,21 +625,24 @@ a { text-decoration: none; }
                 if (!isIcon) {
                     propValue = $(this).children("input:text:visible, textarea:visible").first().val().replace(/r?\n/g, "\r\n").replace(/\\*$/, "");
                     postData = {
-                        "id": <%= tool.getRowId() %>,
+                        "toolId": <%= tool.getRowId() %>,
                         "propName": propName,
                         "propValue": propValue
                     };
                 } else {
                     postData = new FormData();
-                    postData.append("id", <%= tool.getRowId() %>);
+                    postData.append("toolId", <%= tool.getRowId() %>);
                     postData.append("propName", propName);
                     postData.append("propValue", document.getElementById("editIconFile").files[0]);
                 }
 
                 $(this).html("<p>Please wait...</p>");
+                // Raw jQuery does not attach the CSRF token the way LABKEY.Ajax does, so the header
+                // below sends it explicitly. That covers both the FormData and url-encoded cases.
                 $.ajax({
                     type: "POST",
-                    url: "<%=h(urlFor(SkylineToolsStoreController.UpdatePropertyAction.class))%>",
+                    headers: {"X-LABKEY-CSRF": LABKEY.CSRF},
+                    url: "<%=h(SkylineToolStoreUrls.getUpdatePropertyUrl(tool))%>",
                     data: postData,
                     success: function() {
                         $("#editToolDlg").dialog("close");
@@ -608,15 +661,23 @@ a { text-decoration: none; }
                         if (containerParent.is("a") && containerParent.attr("href") == container.text())
                             containerParent.attr("href", propValue);
                         container.parents(".toolProperty:first").fadeOut(REPLACE_TEXT_FADE_TIME, function() {
-                            var toolPropertyElement = container.closest(".toolProperty");
-                            container.html(propValue.replace(/\n/g, "<br />"));
+                            // Built from text nodes rather than markup, so a value containing HTML is
+                            // displayed rather than parsed.
+                            container.empty();
+                            propValue.split(/\n/).forEach(function(line, i) {
+                                if (i > 0)
+                                    container.append($("<br>"));
+                                container.append(document.createTextNode(line));
+                            });
                             $(this).fadeIn(REPLACE_TEXT_FADE_TIME);
                         });
                     },
-                    error: function() {
-                        $("#editToolDlg").html("<p>An error occurred trying to edit \"" + propName + "\".</p>");
-                        $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                        setButtonsEnabled(true);
+                    error: function(xhr) {
+                        // A refused edit now arrives as 400 with a JSON body naming the reason. Before
+                        // the action became an API action the refusal came back as an error page at
+                        // status 200 and success ran instead.
+                        showDialogError($("#editToolDlg"), xhr,
+                                "An error occurred trying to edit " + propName + ".");
                     },
                     contentType: (!isIcon ? "application/x-www-form-urlencoded; charset=UTF-8" : false),
                     processData: !isIcon

@@ -26,6 +26,9 @@ import org.labkey.api.query.FieldKey;
 import org.labkey.api.security.User;
 import org.labkey.skylinetoolsstore.model.SkylineTool;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class SkylineToolsStoreManager
 {
     private static final SkylineToolsStoreManager _instance = new SkylineToolsStoreManager();
@@ -67,10 +70,39 @@ public class SkylineToolsStoreManager
                                  filter, new Sort("Name")).getArray(SkylineTool.class);
     }
 
+    /**
+     * Every tool on the server, latest version only, regardless of container.
+     *
+     * Deliberately NOT container-scoped. Skyline hardcodes a container in its catalog and download
+     * URLs that is not the tool store folder, so it only reaches tools because these lookups ignore
+     * the request container. Adding a filter here would break tool installation in every shipped
+     * Skyline version. Use getToolsLatestForStoreListing for anything user-facing in the browser.
+     */
     public SkylineTool[] getToolsLatest()
     {
         SimpleFilter filter = new SimpleFilter();
         filter.addCondition(FieldKey.fromParts("Latest"), true);
+        return getTools(filter);
+    }
+
+    /**
+     * Latest version of every tool stored in a direct child of the given container.
+     *
+     * A store folder holds all its tools in a child folder per version. This is the listing query scoped to the
+     * tool store container. Skyline never calls it. It calls getToolsApi, which uses getToolsLatest instead.
+     */
+    public SkylineTool[] getToolsLatestForStoreListing(Container container)
+    {
+        List<Container> children = container.getChildren();
+        if (children.isEmpty())
+            return new SkylineTool[0];
+
+        List<String> containerIds = new ArrayList<>();
+        children.forEach(child -> containerIds.add(child.getId()));
+
+        SimpleFilter filter = new SimpleFilter();
+        filter.addCondition(FieldKey.fromParts("Latest"), true);
+        filter.addInClause(FieldKey.fromParts("Container"), containerIds);
         return getTools(filter);
     }
 

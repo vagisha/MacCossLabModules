@@ -15,46 +15,52 @@
  * limitations under the License.
  */
 %>
-<%@ page import="org.springframework.validation.BindingResult" %>
+<%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreController" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
 <%@ page import="org.labkey.api.util.SafeToRender" %>
+<%@ page import="org.labkey.api.view.HttpView" %>
+<%@ page import="org.labkey.api.view.JspView" %>
+<%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
 <%
-    Object errorAttribute = request.getAttribute(BindingResult.MODEL_KEY_PREFIX + "form");
-    if (errorAttribute != null)
-    {
-%><p class="labkey-error"><%= h(errorAttribute.toString()) %></p><%
-    }
+    JspView<SkylineToolsStoreController.SetOwnersForm> me =
+            (JspView<SkylineToolsStoreController.SetOwnersForm>) HttpView.currentView();
+    SkylineToolsStoreController.SetOwnersForm form = me.getModelBean();
 
     final String contextPath = AppProps.getInstance().getContextPath();
     final String cssDir = contextPath + "/skylinetoolsstore/css/";
     final String imgDir = contextPath + "/skylinetoolsstore/img/";
     final String jsDir = contextPath + "/skylinetoolsstore/js/";
 
-    final String toolOwners = (String)request.getAttribute(BindingResult.MODEL_KEY_PREFIX + "toolowners");
-    final String sender = (String)request.getAttribute(BindingResult.MODEL_KEY_PREFIX + "sender");
-    final String updateTarget = (String)request.getAttribute(BindingResult.MODEL_KEY_PREFIX + "updatetarget");
+    final String toolOwners = StringUtils.trimToEmpty(form.getToolOwners());
+    final String returnUrl = form.getReturnUrl();
 
     final boolean admin = getUser().hasSiteAdminPermission();
     final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
     pageContext.setAttribute("autocompleteUsers", autocompleteUsers);
 %>
 
-<form action="<%= h(urlFor(SkylineToolsStoreController.SetOwnersAction.class)) %>" enctype="multipart/form-data" method="post">
+<labkey:errors/>
+
+<labkey:form action="<%= urlFor(SkylineToolsStoreController.SetOwnersAction.class) %>" enctype="multipart/form-data" method="post">
     <p>
         <label for="toolOwners">Tool owners </label><br />
-        <input style="width: 400px; max-width: 80%;" type="text" id="toolOwners" name="toolOwners" /><br /><br />
+        <%-- Rendered here rather than set by the script below. The script needs jQuery from a CDN,
+             and where that does not load the box came up empty. Submitting it strips every owner
+             from every one of the tool's version folders. --%>
+        <input style="width: 400px; max-width: 80%;" type="text" id="toolOwners" name="toolOwners"
+               value="<%= h(toolOwners) %>" /><br /><br />
         <br />
-<% if (sender != null) { %>
-        <input type="hidden" name="sender" value="<%= h(sender) %>" />
+<% if (returnUrl != null) { %>
+        <input type="hidden" name="returnUrl" value="<%= h(returnUrl) %>" />
 <% } %>
-        <input type="hidden" name="updatetarget" value="<%= h(updateTarget) %>" />
+        <input type="hidden" name="toolId" value="<%= form.getToolId() %>" />
         <input type="submit" value="Update Tool Owners" />
     </p>
-</form>
+</labkey:form>
 
 <br />
 <%= PageFlowUtil.generateBackButton() %>
@@ -67,7 +73,6 @@
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
     var ownersTxt = $("#toolOwners");
     ownersTxt.focus();
-    ownersTxt.val("<%= h(toolOwners) %>");
 
     autocomplete(ownersTxt, ${autocompleteUsers});
     initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");
