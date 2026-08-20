@@ -19,6 +19,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.labkey.api.data.Container;
 import org.labkey.api.data.Entity;
 import org.labkey.api.files.FileContentService;
+import org.labkey.api.security.User;
+import org.labkey.api.security.permissions.DeletePermission;
+import org.labkey.api.security.permissions.InsertPermission;
+import org.labkey.api.security.permissions.UpdatePermission;
 import org.labkey.api.settings.AppProps;
 import org.labkey.api.util.Pair;
 import org.labkey.api.webdav.WebdavService;
@@ -28,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -39,6 +44,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Objects;
+import java.util.Set;
 
 public class SkylineTool extends Entity
 {
@@ -297,14 +303,27 @@ public class SkylineTool extends Entity
         if (_icon == null)
             return;
 
-        try (ByteArrayInputStream iconInputStream = new ByteArrayInputStream(_icon);
-             FileOutputStream iconOutputStream = new FileOutputStream(file))
+        // Decoded before the target is opened. Opening first truncated icon.png to zero bytes when
+        // the bytes turned out not to be an image, and getIconUrl only tests that the file exists,
+        // so the store then rendered a broken image.
+        BufferedImage image = decodeIcon();
+        try (FileOutputStream iconOutputStream = new FileOutputStream(file))
         {
-            ImageIO.write(ImageIO.read(iconInputStream), format, iconOutputStream);
+            ImageIO.write(image, format, iconOutputStream);
         }
-        catch (IOException e)
+    }
+
+    private BufferedImage decodeIcon() throws IOException
+    {
+        try (ByteArrayInputStream iconInputStream = new ByteArrayInputStream(_icon))
         {
-            throw e;
+            BufferedImage image = ImageIO.read(iconInputStream);
+            // null means no reader recognised the format. ImageIO.write would then throw
+            // IllegalArgumentException, which is not the IOException this declares, so no caller
+            // catch would see it and the upload died as a 500.
+            if (image == null)
+                throw new IOException("The tool's icon is not an image this server can read.");
+            return image;
         }
     }
 
@@ -333,6 +352,18 @@ public class SkylineTool extends Entity
         return (SkylineToolsStoreController.makeFile(lookupContainer(), "icon.png").exists()) ?
             getFolderUrl() + "icon.png" :
             AppProps.getInstance().getContextPath() + "/skylinetoolsstore/img/placeholder.png";
+    }
+
+    /**
+     * Whether the user may use the editing controls the store pages offer for this tool.
+     * Only tool owners may edit, and createVersionFolder grants them EditorRole, which carries
+     * Update, Insert and Delete.
+     */
+    public boolean isEditor(User user)
+    {
+        Container c = lookupContainer();
+        return c != null && (user.hasSiteAdminPermission() || c.hasPermissions(user,
+                Set.of(UpdatePermission.class, InsertPermission.class, DeletePermission.class)));
     }
 
     public String getPrettyCreated()

@@ -17,7 +17,6 @@
  */
 %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
-<%@ page import="org.labkey.api.security.permissions.UpdatePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.SafeToRender"%>
 <%@ page import="org.labkey.api.view.ActionURL"%>
@@ -54,6 +53,10 @@
 
     final boolean admin = getUser().hasSiteAdminPermission();
     final boolean loggedIn = !getUser().isGuest();
+    // This web part can be added to any folder's page, including a tool's own version folder,
+    // where InsertToolAction refuses an upload. Hide the button rather than offer one that
+    // cannot work.
+    final boolean canAddTool = admin && SkylineToolsStoreController.isStoreContainer(getContainer());
 
     final String contextPath = AppProps.getInstance().getContextPath();
     final String imgDir = contextPath + "/skylinetoolsstore/img/";
@@ -103,27 +106,33 @@
 
 </style>
 
-<% if (admin) { %>
+<% if (canAddTool) { %>
 <div style="float: left;">
     <button type="button" id="add-new-tool-btn" class="styled-button">Add New Tool</button>
-    <% addHandler("add-new-tool-btn", "click", "$('#uploadPopOwners').show(); $('#updatetarget').val(''); $('#uploadPop').dialog('open')"); %>
+    <% addHandler("add-new-tool-btn", "click",
+            "$('#uploadForm').attr('action', " + q(SkylineToolStoreUrls.getInsertToolUrl(getContainer())) + "); " +
+            "$('#uploadPopOwners').show(); $('#uploadFormToolId').val('0'); $('#uploadPop').dialog('open')"); %>
 </div>
 <% } %>
 <!--Manage Tool Owners Form-->
 <div id="manageOwnersPop" title="Manage tool owners" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.SetOwnersAction.class))%>" method="post">
+    <labkey:form action="<%=urlFor(SkylineToolsStoreController.SetOwnersAction.class)%>" method="post">
         <p>
             <label for="toolOwnersManage">Tool owners </label><br />
             <input type="text" id="toolOwnersManage" class="toolOwners" name="toolOwners" /><br /><br />
-            <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
-            <input type="hidden" id="updatetargetOwners" name="updatetarget" value="" />
+            <input type="hidden" name="returnUrl" value="<%= h(getActionURL()) %>" />
+            <%-- Set per tool when the dialog opens. Zero rather than blank, because an empty string
+                 will not bind to the form's int and would fail before the action ever runs. --%>
+            <input type="hidden" id="ownersFormToolId" name="toolId" value="0" />
             <input type="submit" value="Update Tool Owners" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Add Tool / Upload New Version Form-->
 <div id="uploadPop" title="Upload tool zip file" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.InsertAction.class))%>" enctype="multipart/form-data" method="post">
+    <%-- Serves both "Add New Tool" and per-tool "Upload new version", which are different actions in
+         different containers, so each handler below sets the action. Defaults to adding a new tool. --%>
+    <labkey:form id="uploadForm" action="<%=SkylineToolStoreUrls.getInsertToolUrl(getContainer())%>" enctype="multipart/form-data" method="post">
         <p>
             Browse to the zip file containing the tool you would like to upload.<br/><br />
             <input type="file" name="toolZip" /><br /><br />
@@ -131,25 +140,30 @@
                 <label for="toolOwnersNew">Tool owners </label><br />
                 <input type="text" id="toolOwnersNew" class="toolOwners" name="toolOwners" /><br /><br /><br />
             </span>
-            <input type="hidden" name="sender" value="<%= h(getActionURL()) %>" />
-            <input type="hidden" id="updatetarget" name="updatetarget" value="" />
+            <input type="hidden" name="returnUrl" value="<%= h(getActionURL()) %>" />
+            <%-- Zero for "Add New Tool", which InsertToolAction ignores. A blank value would not
+                 bind to the form's int, so the upload would fail before reaching the action. --%>
+            <input type="hidden" id="uploadFormToolId" name="toolId" value="0" />
             <input type="submit" value="Upload Tool" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!--Upload Supplementary File Form-->
 <div id="uploadSuppPop" title="Upload supplementary file" style="display:none;">
-    <form action="<%=h(urlFor(SkylineToolsStoreController.InsertSupplementAction.class))%>" enctype="multipart/form-data" method="post">
+    <%-- One dialog serves every tool, so the action is set per tool in the menu handler below.
+         insertSupplement is addressed to the tool's own container. --%>
+    <labkey:form id="uploadSuppForm" enctype="multipart/form-data" method="post">
         <p>
             Browse to the supplementary file you would like to upload.<br/><br/>
             <input type="file" name="suppFile" /><br /><br />
-            <input type="hidden" id="supptarget" name="supptarget" value="" />
+            <%-- Set per tool when the dialog opens. See the note on ownersFormToolId above. --%>
+            <input type="hidden" id="suppFormToolId" name="toolId" value="0" />
             <input type="submit" value="Upload Supplementary File" />
         </p>
-    </form>
+    </labkey:form>
 </div>
 <!-- Delete Tool Dialog -->
-<div id="delToolAllDlg" title="Delete" style="display:none;"></div>
+<div id="delToolAllDlg" title="Delete tool from store" style="display:none;"></div>
 <!-- Delete Tool Latest Version Dialog -->
 <div id="delToolLatestDlg" title="Delete latest version" style="display:none;"></div>
 
@@ -179,7 +193,7 @@
 
         final String curToolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
         toolOwners.put(tool.getRowId(), curToolOwners);
-        final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), UpdatePermission.class);
+        final boolean toolEditor = tool.isEditor(getUser());
         final SkylineTool[] allVersions = SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier());
         final boolean multipleVersions = allVersions.length > 1;
         final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
@@ -187,7 +201,10 @@
 
 <table id="<%= h(tableId) %>" class="tablewrap"
        data-toolId="<%= tool.getRowId() %>" data-toolName="<%= h(tool.getName()) %>" data-toolVersion="<%= h(tool.getVersion()) %>" data-toolLsid="<%= h(tool.getIdentifier()) %>"
-       data-toolDownloads="<%= numDownloads %>">
+       data-toolDownloads="<%= numDownloads %>"
+       <%-- One dialog serves every row, so the delete URL rides on the row. It names this tool's
+            own folder, which is the folder DeleteLatestAction removes. --%>
+       data-deleteLatestUrl="<%= h(SkylineToolStoreUrls.getDeleteLatestUrl(tool)) %>">
     <tr>
         <td class="leftfill"></td>
         <td class="contentleft">
@@ -200,13 +217,18 @@
                 <div class="menuMouseArea sprocket" alt="<%= h(tool.getName()) %>">
                     <img src="<%= h(imgDir) %>gear.png" title="Settings" />
                     <ul class="dropMenu">
-                        <li><%=simpleLink("Upload new version").onClick("$('#uploadPopOwners').hide(); $('#updatetarget').val(" + tool.getRowId() + "); $('#uploadPop').dialog('open')")%></li>
-                        <li><%=simpleLink("Upload supplementary file").onClick("$('#supptarget').val(" + tool.getRowId() + "); $('#uploadSuppPop').dialog('open')")%></li>
+                        <li><%=simpleLink("Upload new version").onClick(
+                                "$('#uploadForm').attr('action', " + q(SkylineToolStoreUrls.getUpdateToolUrl(tool)) + "); " +
+                                "$('#uploadPopOwners').hide(); $('#uploadFormToolId').val(" + tool.getRowId() + "); $('#uploadPop').dialog('open')")%></li>
+                        <li><%=simpleLink("Upload supplementary file").onClick(
+                                "$('#uploadSuppForm').attr('action', " +
+                                q(SkylineToolStoreUrls.getInsertSupplementUrl(tool)) + "); " +
+                                "$('#suppFormToolId').val(" + tool.getRowId() + "); $('#uploadSuppPop').dialog('open')")%></li>
 <% if (multipleVersions) { %>
                         <li><%=simpleLink("Delete latest version").onClick("delToolLatest($(this))")%></li>
 <% } %>
 <% if (admin) { %>
-                        <li><%=simpleLink("Delete").onClick("delToolAll($(this))")%></li>
+                        <li><%=simpleLink("Delete tool from store").onClick("delToolAll($(this))")%></li>
                         <li><%=simpleLink("Manage tool owners").onClick("popToolOwners(" + tool.getRowId() + ")")%></li>
 <% } %>
                     </ul>
@@ -331,7 +353,7 @@
     $(".toolOwners").each(function() {autocomplete($(this), <%=users%>);});
 
     function popToolOwners(id) {
-        $('#updatetargetOwners').val(id);
+        $('#ownersFormToolId').val(id);
         $('#manageOwnersPop').dialog('open');
         var ownersTxt = $("#toolOwnersManage");
         ownersTxt.focus();
@@ -341,23 +363,25 @@
     }
 <% } %>
 
+    // The question is built from a text node rather than an HTML string. jQuery.attr returns the
+    // attribute HTML-decoded, so the server-side escaping does not survive being pasted into markup.
     function delToolAll(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolAllDlg").data("toolTable", parentTable)
-                           .html("<p>Completely delete " + parentTable.attr("data-toolName") + "?</p>")
+                           .empty()
+                           .append($("<p></p>").text("Completely delete " +
+                                   parentTable.attr("data-toolName") + "?"))
                            .dialog("open");
     }
 
     function delToolLatest(sender) {
         var parentTable = sender.parents("table:first");
         $("#delToolLatestDlg").data("toolTable", parentTable)
-                              .html("<p>Delete version " + parentTable.attr("data-toolVersion") + " of " + parentTable.attr("data-toolName") + "?</p>")
+                              .empty()
+                              .append($("<p></p>").text("Delete version " +
+                                      parentTable.attr("data-toolVersion") + " of " +
+                                      parentTable.attr("data-toolName") + "?"))
                               .dialog("open");
-    }
-
-    function extractToolTable(data, lsid) {
-        var parsedData = $.parseHTML(data);
-        return $(parsedData).find('.tablewrap[data-toolLsid="' + lsid + '"]:first');
     }
 
     var DLG_EFFECT_SHOW = "fade";
@@ -371,18 +395,19 @@
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                $(this).html("<p>Please wait...</p>");
-                var toolTable = $(this).data("toolTable");
-                $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteAction.class))%>", {
-                    "id": toolTable.attr("data-toolId"),
+                var dlg = $(this);
+                var toolTable = dlg.data("toolTable");
+                dlg.empty().append($("<p></p>").text("Please wait..."));
+                // The action answers with the page to go to. Reloading it is what removes the tool's
+                // row, so nothing here has to guess whether the delete happened.
+                $.post(<%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>, {
+                    "toolId": toolTable.attr("data-toolId"),
                     "X-LABKEY-CSRF": LABKEY.CSRF
-                }).done(function() {
-                    $("#delToolAllDlg").dialog("close");
-                    toolTable.hide("explode");
-                }).fail(function() {
-                    $("#delToolAllDlg").html("<p>An error occurred trying to delete " + toolTable.attr("data-toolName") + ".</p>");
-                    $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                    setButtonsEnabled(true);
+                }).done(function(data) {
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete " +
+                            toolTable.attr("data-toolName") + ".");
                 });
             },
             Cancel: function() {$(this).dialog("close");}
@@ -397,25 +422,21 @@
         buttons: {
             Ok: function() {
                 setButtonsEnabled(false);
-                $(this).html("<p>Please wait...</p>");
-                var toolTable = $(this).data("toolTable");
-                $.post("<%=h(urlFor(SkylineToolsStoreController.DeleteLatestAction.class))%>", {
-                    "id": toolTable.attr("data-toolId")
+                var dlg = $(this);
+                var toolTable = dlg.data("toolTable");
+                dlg.empty().append($("<p></p>").text("Please wait..."));
+                // The reply names the page to go to, and reloading it draws the promoted version.
+                // This used to parse the reply as HTML and swap the tool's row in, because a refusal
+                // arrived as an error view at status 200 and could only be told apart by the row
+                // being missing from it.
+                $.post(toolTable.attr("data-deleteLatestUrl"), {
+                    "toolId": toolTable.attr("data-toolId"),
+                    "X-LABKEY-CSRF": LABKEY.CSRF
                 }).done(function(data) {
-                    var newToolTable = extractToolTable(data, toolTable.attr("data-toolLsid"));
-                    newToolTable.hide();
-                    newToolTable.find(".menuMouseArea").each(function() {initMenu($(this));});
-                    $("#delToolLatestDlg").dialog("close");
-                    toolTable.hide("explode", function() {
-                        $(this).replaceWith(newToolTable);
-                        $(newToolTable).show("explode", function() {
-                            adjustContent($(newToolTable).find(".content:first"));
-                        });
-                    });
-                }).fail(function() {
-                    $("#delToolLatestDlg").html("<p>An error occurred trying to delete the latest version of " + toolTable.attr("data-toolName") + ".</p>");
-                    $(".ui-dialog-buttonpane button:contains('Ok')").button().hide();
-                    setButtonsEnabled(true);
+                    window.location = data.successUrl;
+                }).fail(function(xhr) {
+                    showDialogError(dlg, xhr, "An error occurred trying to delete the latest version of " +
+                            toolTable.attr("data-toolName") + ".");
                 });
             },
             Cancel: function() {$(this).dialog("close");}
