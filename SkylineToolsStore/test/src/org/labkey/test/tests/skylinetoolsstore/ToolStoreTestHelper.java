@@ -45,11 +45,6 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Catalog helpers shared by the tool store tests.
- *
- * Tool identifiers are unique across the whole server rather than per store folder, and the sample data
- * has only one tool with two versions, so every test class here competes for the same identifiers.
- * A tool left behind by another class or an earlier run makes an upload fail as TOOL_ALREADY_EXISTS,
- * silently, because InsertAction renders that error with a 200.
  */
 public class ToolStoreTestHelper
 {
@@ -57,7 +52,7 @@ public class ToolStoreTestHelper
     {
     }
 
-    /** The catalog. Global by design, so the container asked is immaterial. */
+    /** The catalog. Global by design, so the given container path does not matter. */
     public static JSONArray toolsFromApi(String containerPath)
     {
         try (CloseableHttpClient client = WebTestHelper.getHttpClient())
@@ -90,8 +85,6 @@ public class ToolStoreTestHelper
     {
         String url = tool.getString("DownloadUrl");
         int idx = url.indexOf("id=");
-        // Without this the substring below silently starts two characters in and the parse fails with
-        // a NumberFormatException naming whatever it found, which says nothing about the real problem.
         assertTrue("DownloadUrl should carry an id parameter: " + url, idx >= 0);
         String tail = url.substring(idx + 3);
         int amp = tail.indexOf('&');
@@ -103,11 +96,7 @@ public class ToolStoreTestHelper
         String url = tool.getString("DownloadUrl");
         String path = url.substring(0, url.indexOf("/skyts-"));
 
-        // DownloadUrl comes from ActionURL.getPath(), which includes the servlet context path, while
-        // buildURL adds that back. Leaving it in produces /labkey/labkey/<container> on a deployment
-        // that uses one.
-        // Compared on a segment boundary, or a context path of /labkey would also strip the front of
-        // a project actually named labkeyFoo.
+        // Remove context path if it is part of the URL.
         String contextPath = WebTestHelper.getContextPath();
         if (!contextPath.isEmpty() && (path.equals(contextPath) || path.startsWith(contextPath + "/")))
             path = path.substring(contextPath.length());
@@ -115,18 +104,7 @@ public class ToolStoreTestHelper
         return StringUtils.strip(path, "/");
     }
 
-    /**
-     * The folder name SkylineToolsStoreController.toolFolderName builds for a tool version.
-     *
-     * The controller passes the name through FileUtil.getBaseName, which drops everything from the
-     * last dot on, so a tool called "MSstats 3.5" lives in _tool_MSstats 3_1.0. Rebuilding the path
-     * by plain concatenation pointed at a folder that does not exist, and a role check against a
-     * missing container just returns nothing, so the failure read as a permissions problem.
-     *
-     * The controller also applies makeLegalName, which is not repeated here. No sample tool name
-     * contains a character it rewrites, and the setup asserts the folder exists, so a fixture that
-     * broke that assumption would fail loudly rather than silently.
-     */
+    /** Mirrors SkylineToolsStoreController.toolFolderName, which cuts the tool name at its last dot. */
     public static String toolFolderName(String toolName, String version)
     {
         int lastDot = toolName.lastIndexOf('.');
@@ -134,9 +112,8 @@ public class ToolStoreTestHelper
     }
 
     /**
-     * A tool zip holding nothing but tool-inf/info.properties, since the sample zips carry a real
-     * tool's payload. Identifiers are server wide, so each caller needs its own name and identifier,
-     * and it must sit inside the namespace removeToolsFromCatalog will accept.
+     * A tool zip holding nothing but tool-inf/info.properties. Identifiers are server wide, so each
+     * caller needs its own name and an identifier under TEST_IDENTIFIER_PREFIX.
      */
     public static File writeMinimalToolZip(String name, String identifier, String version)
     {
@@ -162,11 +139,9 @@ public class ToolStoreTestHelper
     }
 
     /**
-     * A tool zip cut off part way through the compressed data of its only entry.
-     *
-     * The local header survives, so the entry is still found and reading it is still attempted, and
-     * that read then runs off the end of the stream. A file that is no kind of zip would be turned
-     * away earlier, by the no-entries path, and would never reach the read.
+     * Builds a tool zip truncated in the middle of its only entry. The entry header is intact, so
+     * the zip opens and the failure comes while reading the entry. Random bytes would be rejected
+     * before any read.
      */
     public static File writeTruncatedToolZip(String name, String identifier, String version)
     {
@@ -191,10 +166,9 @@ public class ToolStoreTestHelper
     }
 
     /**
-     * A tool zip whose tool-inf icon is not a decodable image. The controller picks the icon by file
-     * extension and stores the bytes without decoding them, so this passes upload parsing and then
-     * fails in writeIconToFile, which is after the version folder has been created. That is what
-     * makes it a fixture for an upload failing part way through storing a version.
+     * Builds a tool zip whose tool-inf icon is not a real image. The controller picks the icon by
+     * extension and stores it without decoding, so the upload fails in writeIconToFile after the
+     * version folder exists.
      */
     public static File writeToolZipWithUnreadableIcon(String name, String identifier, String version)
     {
@@ -258,22 +232,22 @@ public class ToolStoreTestHelper
         // The only thing separating a fixture from a real tool is the identifier, so refuse to run
         // at all against a zip from outside the test namespace rather than deleting someone's tool.
         // Do not try to tell them apart by folder name - a real store folder can be called anything.
-        Set<String> wanted = new HashSet<>();
+        Set<String> toRemove = new HashSet<>();
         for (File zip : zips)
         {
             String identifier = identifierOf(zip);
             assertTrue("Refusing to clean up " + zip.getName() + ". Its identifier " + identifier +
-                            " is outside " + TEST_IDENTIFIER_PREFIX + ", and this deletes every " +
-                            "version's folder wherever it lives, so it must only run on fixtures.",
+                            " is outside " + TEST_IDENTIFIER_PREFIX + ". Since this method deletes every " +
+                            "version folder of the tool, wherever it lives, it must only run on test fixtures.",
                     identifier.startsWith(TEST_IDENTIFIER_PREFIX));
-            wanted.add(identifier);
+            toRemove.add(identifier);
         }
 
         JSONArray tools = toolsFromApi(containerPath);
         for (int i = 0; i < tools.length(); i++)
         {
             JSONObject tool = tools.getJSONObject(i);
-            if (!wanted.contains(tool.optString("Identifier")))
+            if (!toRemove.contains(tool.optString("Identifier")))
                 continue;
 
             // DeleteAction redirects unless it is called in the tool's own store folder.
@@ -295,17 +269,14 @@ public class ToolStoreTestHelper
             {
                 throw new RuntimeException("Failed to remove leftover tool " + tool.optString("Name"), e);
             }
-            // DeleteAction is a MutatingApiAction, so a refusal arrives as an error status rather
-            // than as an error view at 200. Revert that and this assertion is what fails.
+            // DeleteAction is a MutatingApiAction, so a refusal returns an error status.
             assertEquals("Deleting leftover tool " + tool.optString("Name") + " returned HTTP " + status,
                     200, status);
         }
 
-        // The status says the action accepted the request. It does not prove the folders went, since
-        // a container delete can return false. Read the catalog back and fail here rather than
-        // leaving the next upload to fail as TOOL_ALREADY_EXISTS somewhere unrelated.
+        // Confirm that the tools are really removed.
         Set<String> stillPresent = new HashSet<>(catalogIdentifiers(containerPath));
-        stillPresent.retainAll(wanted);
+        stillPresent.retainAll(toRemove);
         assertTrue("Tools still in the catalog after cleanup: " + stillPresent, stillPresent.isEmpty());
     }
 }
