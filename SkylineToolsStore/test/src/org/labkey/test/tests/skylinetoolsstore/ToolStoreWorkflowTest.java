@@ -36,20 +36,16 @@ import org.labkey.test.categories.MacCossLabModules;
 import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.LogMethod;
-import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.PortalHelper;
 import org.labkey.test.util.PostgresOnlyTest;
 import org.labkey.test.util.WikiHelper;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -90,8 +86,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     // Its own store, because it puts a stray folder in a tool's file root and leaves it there.
     private static final String STRAY_STORE = "ToolStoreWorkflowTestStrayFolder";
-    private static final String STRAY_TOOL_NAME = "StrayFolderProbe";
-    private static final String STRAY_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:strayfolder";
 
     // Its own store, because it leaves behind a version folder that cannot be deleted.
     private static final String BLOCKED_STORE = "ToolStoreWorkflowTestBlockedDelete";
@@ -100,18 +94,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     // Its own store, because it needs a tool with two versions and the other stores assert on one.
     private static final String GROUP_STORE = "ToolStoreWorkflowTestOwnerGroup";
-    private static final String GROUP_TOOL_NAME = "OwnerGroupProbe";
-    private static final String GROUP_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:ownergroup";
-    private static final String OWNER_GROUP = "ToolStore Owner's Group";
     private static final String ICON_STORE = "ToolStoreWorkflowTestIconReplace";
-    private static final String ICON_TOOL_NAME = "IconReplaceProbe";
-    private static final String ICON_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:iconreplace";
     private static final String PENCIL_STORE = "ToolStoreWorkflowTestPencils";
-    private static final String PENCIL_TOOL_NAME = "PencilEditProbe";
-    private static final String PENCIL_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:penciledit";
     private static final String NO_EXT_STORE = "ToolStoreWorkflowTestNoExtSupplement";
-    private static final String NO_EXT_TOOL_NAME = "NoExtSupplementProbe";
-    private static final String NO_EXT_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:noextsupplement";
     private static final String OLDER_STORE = "ToolStoreWorkflowTestOlderVersion";
     private static final String OLDER_TOOL_NAME = "OlderVersionProbe";
     private static final String OLDER_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:olderversion";
@@ -184,8 +169,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 TestFileUtils.getSampleData(TOOL_V1), TestFileUtils.getSampleData(TOOL_OTHER),
                 _formsToolV1);
 
-        // wikiVisualBody=false so the HTML goes in through the source tab. The visual editor is not
-        // interactable for raw markup.
+        // Edit in the source tab rather than visual
         new WikiHelper(this).createWikiPage(WIKI_NAME, "HTML", WIKI_TITLE,
                 submissionFormHtml(), false, null, false);
     }
@@ -212,10 +196,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * Submission through to self-service maintenance, in the order it happens in production.
-     *
-     * One method rather than several because each stage depends on the last, and JUnit does not
-     * order test methods.
+     * Submission through to self-service maintenance, the full workflow in the order it happens in production.
      */
     @Test
     public void testSubmitPublishAndMaintainATool()
@@ -244,18 +225,19 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertTextPresent("user1-v1.zip");
 
         log("The author cannot add the tool to the store themselves");
-        Set<String> beforeAdminAdd = catalogIdentifiers();
+        Set<String> beforeToolAdd = catalogIdentifiers();
         impersonate(TOOL_AUTHOR);
         try
         {
-            uploadTool(TOOL_V1, null);
+            int status = uploadTool(TOOL_V1, null);
+            assertTrue("A submitter must not be able to add a tool, got HTTP " + status, status >= 400);
         }
         finally
         {
             stopImpersonating();
         }
         assertEquals("A submitter must not be able to add a tool to the store",
-                beforeAdminAdd, catalogIdentifiers());
+                beforeToolAdd, catalogIdentifiers());
 
         log("A site admin adds the tool and names the author as an owner");
         uploadTool(TOOL_V1, TOOL_AUTHOR);
@@ -318,8 +300,12 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         impersonate(TOOL_AUTHOR);
         try
         {
-            uploadTool(TOOL_OTHER, null);
-            setOwners(v2RowId, PasswordUtilUsername());
+            int uploadStatus = uploadTool(TOOL_OTHER, null);
+            assertTrue("Adding a different tool must be refused, got HTTP " + uploadStatus,
+                    uploadStatus >= 400);
+            int ownersStatus = setOwners(v2RowId, TOOL_SECOND_OWNER);
+            assertTrue("Reassigning ownership must be refused, got HTTP " + ownersStatus,
+                    ownersStatus >= 400);
         }
         finally
         {
@@ -346,7 +332,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     /**
      * One store folder must not list another's tools. The JSON API stays global on purpose, because
-     * Skyline asks a container that is not the store folder and only finds tools because of it.
+     * Skyline generates URLs that target /home, not the tool store folder to get a list of all external tools.
      */
     @Test
     public void testListingIsScopedToThisStoreButApiIsNot()
@@ -366,7 +352,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(PROJECT_NAME);
         assertTextNotPresent(otherName);
 
-        // The catalog is global, so the other store's tool is still there for Skyline.
+        // getToolsApi returns the global list of tools.
         assertTrue("getToolsApi must keep returning tools from every container",
                 catalogIdentifiers().contains(otherTool.getString("Identifier")));
     }
@@ -398,7 +384,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Publish a new version through the details page dialog");
         clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
-        clickSprocketMenuItem("Upload new version");
+        clickToolSettingsMenuItem("Upload new version");
         setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV2);
         clickAndWait(Locator.css("#uploadPop input[type='submit']"));
 
@@ -407,7 +393,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
 
         log("Delete the newest version through the details page dialog");
-        clickSprocketMenuItem("Delete latest version");
+        clickToolSettingsMenuItem("Delete latest version");
         clickDialogOk("delToolLatestDlg");
 
         // Read the version from the catalog rather than the page - the details page carries script
@@ -417,14 +403,13 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * The two delete items on the web part's own gear menu, which no other test reaches.
+     * The two delete items on a tool's settings menu in the web part, which no other test reaches.
      *
-     * Both post over ajax and then go to the page the action names in its reply. When a refusal came
-     * back as an error view at status 200 the caller could not tell it from a success, so the store
-     * page was left saying the tool had gone.
+     * Both post over ajax and then go to the page the action names in its reply, so a refusal has to
+     * be shown in the dialog rather than read as a success.
      */
     @Test
-    public void testWebPartDeleteItemsRemoveTheVersionAndThenTheTool()
+    public void testDeletingTheLatestVersionThenTheToolFromToolSettingsMenu()
     {
         _containerHelper.createProject(WEBPART_STORE, "Collaboration");
         _containerHelper.enableModule(WEBPART_STORE, "SkylineToolsStore");
@@ -440,7 +425,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Delete the newest version from the web part's menu");
         goToProjectHome(WEBPART_STORE);
-        clickSprocketMenuItem("Delete latest version");
+        clickToolSettingsMenuItem("Delete latest version");
         clickDialogOk("delToolLatestDlg");
 
         assertEquals("Deleting the newest version should leave 1.0 as the latest",
@@ -448,7 +433,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Delete the whole tool from the web part's menu");
         goToProjectHome(WEBPART_STORE);
-        clickSprocketMenuItem("Delete tool from store");
+        clickToolSettingsMenuItem("Delete tool from store");
         clickDialogOk("delToolAllDlg");
 
         assertEquals("Deleting the tool should leave the store empty",
@@ -456,10 +441,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * A version folder holding a folder of its own cannot be removed - ContainerManager.delete
-     * returns false rather than throwing. Promoting the previous version anyway left the tool with
-     * two rows flagged latest, and getToolLatestByIdentifier matches nothing when two rows match, so
-     * the lsid downloads shipped Skyline clients make stopped resolving for that tool.
+     * A tool version folder containing a subfolder cannot be removed - ContainerManager.delete
+     * returns false rather than throwing. If this happens we should not be left with two tool rows
+     * flagged as the latest. getToolLatestByIdentifier (lsid identifier) matches nothing when more
+     * one tool row is flagged as latest, so Skyline clients will stop resolving that tool.
      */
     @Test
     public void testADeleteLatestThatCannotRemoveTheFolderChangesNothing()
@@ -479,7 +464,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         int v2RowId = rowId(onlyToolInStore(BLOCKED_STORE));
         String v2FolderName = ToolStoreTestHelper.toolFolderName(BLOCKED_TOOL_NAME, "2.0");
 
-        // The child folder is the whole point - it is what makes the delete impossible.
+        // Create a child folder - this will make folder deletion fail
         _containerHelper.createSubfolder(BLOCKED_STORE, v2FolderName, "keepsTheFolderAlive",
                 "Collaboration", null);
 
@@ -492,24 +477,24 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         assertEquals("A folder that could not be deleted has to be refused, not reported as deleted",
                 400, status);
-        // Two rows flagged latest show up here as two tools, since the catalog lists every latest row.
+        // A failure to delete the tool folder should leave the store as it was, with only one
+        // version flagged as latest.
         assertEquals("The tool should still be listed once", 1, toolsInStore(BLOCKED_STORE));
         assertEquals("2.0 should still be the latest version",
                 "2.0", onlyToolInStore(BLOCKED_STORE).getString("Version"));
 
         log("The same refusal reaches the person who clicked the menu item");
         goToProjectHome(BLOCKED_STORE);
-        clickSprocketMenuItem("Delete latest version");
-        // Not clickDialogOk - this click is refused, so no page follows it. The dialog is where the
-        // reason has to appear. Reading it back as a success is the whole family of defects this
-        // conversion closes, so assert the reason is on screen rather than that nothing happened.
+        clickToolSettingsMenuItem("Delete latest version");
+        // Don't use clickDialogOk - it waits for a new page and none is loaded here. Clicking Ok is
+        // refused by the server and the reason is displayed in the dialog when the request returns.
         Locator.XPathLocator ok = Locator.xpath(
                 "//div[contains(@class,'ui-dialog')][.//div[@id='delToolLatestDlg']]" +
                 "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
         waitAndClick(ok.notHidden());
 
-        // "nothing was changed" only appears on the pre-check refusal. The post-commit one also
-        // says "could not be deleted", so that phrase alone would not pin which path ran.
+        // Two different refusals both say "could not be deleted". Only the one that happens before
+        // any row is changed adds "so nothing was changed", which is the path this test sets up.
         waitForElement(Locator.id("delToolLatestDlg").containing("nothing was changed"));
         assertEquals("2.0 should still be the latest version after the dialog was used",
                 "2.0", onlyToolInStore(BLOCKED_STORE).getString("Version"));
@@ -538,7 +523,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      * Opens a tool's gear menu and clicks one of its items. The details page and the web part draw
      * the same menu, and a store page listing one tool has one of them.
      */
-    private void clickSprocketMenuItem(String item)
+    private void clickToolSettingsMenuItem(String item)
     {
         click(Locator.css(".menuMouseArea.sprocket"));
 
@@ -568,9 +553,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      * Supplementary files are per version and the action accepts them on any version, so that item
      * has to stay. Checked here as well, to keep a later change from hiding the whole menu.
      *
-     * The last block covers the URL rather than the menu. Hiding an item only removes the way in
-     * that the UI offers, and UpdateToolAction used to draw its upload form for any version and
-     * refuse at the post, which spends the owner's whole upload before telling them no.
+     * The last block covers the URL rather than the menu, because hiding an item only removes the
+     * way in that the UI offers. The action itself has to refuse before it draws an upload form,
+     * or an owner spends a whole upload before being told no.
      */
     @Test
     public void testAnOlderVersionPageOffersOnlyWhatItCanDo()
@@ -783,10 +768,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 RETRY_TOOL_NAME, RETRY_TOOL_IDENTIFIER, RETRY_TOOL_VERSION));
 
         // createVersionFolder turns the failure into a message on the form, so nothing should reach the
-        // log as a server error. writeIconToFile used to let an IllegalArgumentException out, which
-        // is not the IOException it declares, so no catch saw it and the upload died as a 500.
-        // Read and cleared before asserting, so a failure here leaves nothing pending for the next
-        // test. resetErrors is server wide.
+        // log as a server error. Read and cleared before asserting, so a failure here leaves nothing
+        // pending for the next test. resetErrors is server wide.
         int errorsLogged = getServerErrorCount();
         resetErrors();
         assertEquals("An unreadable icon must be refused with a message, not a server error",
@@ -864,7 +847,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * @param containerPath  the store folder for a new tool, or the TOOL's own folder for a new
+     * @param containerPath  the store folder for a new tool, or the tool's own folder for a new
      *                       version - the two actions are addressed to different containers
      * @param updateTarget   row id of the tool being updated, or -1 for a brand-new tool
      */
@@ -1086,11 +1069,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     {
         return _permissionsHelper.getUserRoles(containerPath, user).stream()
                 .anyMatch(role -> role.endsWith("EditorRole"));
-    }
-
-    private String PasswordUtilUsername()
-    {
-        return org.labkey.test.util.PasswordUtil.getUsername();
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -57,9 +56,10 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Authorization tests for the Skyline Tool Store.
- * <p>
- * These use raw HTTP rather than the browser because the UI hides the controls these actions expose.
- * A browser-driven test would pass while the endpoint stayed open.
+ *
+ * These use raw HTTP rather than the browser because the UI does not draw the controls that reach
+ * these actions for a user who lacks the permission. A browser-driven test would pass while the
+ * endpoint stayed open.
  */
 @Category({External.class, MacCossLabModules.class})
 @BaseWebDriverTest.ClassTimeout(minutes = 3)
@@ -81,7 +81,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     private static final String NO_SESSION_USER = "toolstore_nosession@toolstore.test";
 
     // Holds Editor on the store folder, so it has InsertPermission there but is not a site admin.
-    // This is the account that distinguishes the site-admin rule from the old InsertPermission one.
+    // It is the account that tells the site-admin rule apart from a plain InsertPermission check.
     private static final String CONTRIBUTOR = "toolstore_contributor@toolstore.test";
 
     // Two versions of one tool: same identifier, different version.
@@ -154,7 +154,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     }
 
     // -------------------------------------------------------------------------
-    // STS-8 - SetOwnersAction has no permission check at all
+    // SetOwnersAction - changing tool owners is site admin only
     // -------------------------------------------------------------------------
 
     /**
@@ -176,7 +176,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     /**
      * setOwners must also reject a signed-in non-admin. Sent with a valid CSRF token so only the
      * authorization check can reject it, since a fix that merely rejects guests would leave this open.
-     * <p>
+     *
      * Impersonation reuses the admin's session with the target user's permissions, so the CSRF cookie
      * and header still match while the server sees ATTACKER_USER.
      */
@@ -242,10 +242,10 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     /**
      * Adding a new tool is offered only to site admins in the web part, so the action must enforce
      * that too rather than settling for InsertPermission on the folder.
-     * <p>
-     * CONTRIBUTOR holds Editor here, so it passes the old InsertPermission check and is refused only
-     * by the site-admin rule. TOOL_OTHER is a different tool, so a successful upload would show up as
-     * a new identifier in the catalog.
+     *
+     * CONTRIBUTOR holds Editor here, so InsertPermission alone would let it through and only the
+     * site-admin rule refuses it. TOOL_OTHER is a different tool, so a successful upload would show
+     * up as a new identifier in the catalog.
      */
     @Test
     public void testInsertRejectsNonAdminNewTool()
@@ -272,7 +272,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     /**
      * The refusal must come before the owner list is resolved. Otherwise the "unknown users" reply
      * tells any logged-in caller whether an email is a registered account.
-     * <p>
+     *
      * The form echoes the submitted owners value back into its input, so the test looks for the
      * enumeration message rather than for the address itself.
      */
@@ -303,7 +303,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     private static final String UNKNOWN_USERS_MESSAGE = "The following users are unknown";
 
     // -------------------------------------------------------------------------
-    // STS-9 - CSRF validation is skipped on the mutating actions
+    // CSRF - a mutating post without the CSRF header must be refused
     // -------------------------------------------------------------------------
 
     /**
@@ -352,8 +352,8 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     // -------------------------------------------------------------------------
 
     /**
-     * These actions used to answer a missing tool with a bare Exception or an IllegalStateException,
-     * so an ordinary bad request was reported as a 500 and alerted to mothership.
+     * A request naming a tool that does not exist is an ordinary bad request, so each action has to
+     * answer 404 rather than a server error that reaches the log and mothership.
      */
     @Test
     public void testMissingToolReturnsNotFoundNotServerError()
@@ -398,13 +398,13 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     }
 
     // -------------------------------------------------------------------------
-    // STS-10 - DeleteLatestAction deletes a container in response to a GET
+    // DeleteLatestAction - a container delete must not be reachable by GET
     // -------------------------------------------------------------------------
 
     /**
      * deleteLatest deletes a container, so it must not be reachable by GET. A GET is forgeable with an
      * img tag and no CSRF token can protect it.
-     * <p>
+     *
      * A GET here also trips SpringActionController.checkForMutatingSql on a dev server, which aborts
      * the request. Do not silence that with ignoreSqlUpdates() - correct for the download counter in
      * PR #608, but here it would hide the warning and leave the delete reachable by GET.
@@ -479,8 +479,8 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         // cannot tell a refusal from a success. It can still tell either from a server error.
         assertTrue("A refused publish must not be a server error, HTTP " + status, status < 500);
 
-        // The catalog holds one row per tool only if exactly one row is flagged latest. Two rows
-        // flagged latest is what this used to produce, and it lists the tool twice.
+        // The catalog holds one row per tool only if exactly one row is flagged latest. Two would
+        // list the tool twice.
         assertEquals("Publishing from 1.0 must not add a second latest row",
                 1, catalogEntriesFor(identifier));
         assertEquals("2.0 must still be the latest version",
