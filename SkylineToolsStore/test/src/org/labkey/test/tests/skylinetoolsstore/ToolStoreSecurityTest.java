@@ -22,16 +22,15 @@ import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.junit.runners.MethodSorters;
 import org.labkey.test.BaseWebDriverTest;
 import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
@@ -57,36 +56,31 @@ import static org.junit.Assert.assertTrue;
 /**
  * Authorization tests for the Skyline Tool Store.
  *
- * These use raw HTTP rather than the browser because the UI does not draw the controls that reach
- * these actions for a user who lacks the permission. A browser-driven test would pass while the
- * endpoint stayed open.
+ * These use raw HTTP rather than the browser because the UI does not render the controls that reach
+ * these actions for a user who lacks the permission.
  */
 @Category({External.class, MacCossLabModules.class})
 @BaseWebDriverTest.ClassTimeout(minutes = 3)
-// The two Z-prefixed methods have to run after the rest - they publish a second version, which moves
-// the tool the other methods address. JUnit 4 orders methods by an MD5 hash of their name by default,
-// so the prefixes alone decide nothing without this.
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class ToolStoreSecurityTest extends BaseWebDriverTest implements PostgresOnlyTest
 {
     private static final String PROJECT_NAME = "ToolStoreSecurityTest";
 
-    // Hold no role anywhere, so any role they end up with was granted by an exploit. One per test
-    // because a successful exploit changes the folder policy permanently, and these methods do not
-    // run in source order.
-    private static final String ATTACKER_ANON = "toolstore_attacker_anon@toolstore.test";
-    private static final String ATTACKER_USER = "toolstore_attacker_user@toolstore.test";
+    // Impersonated as the non-admin caller, and named as the new owner in the setOwners refusals. It
+    // has to be a real account. A made-up address is refused as an unknown user before the checks
+    // these tests are about, so a hole that opened would still look green. It holds no role anywhere,
+    // so finding it on a folder means an exploit.
+    private static final String ATTACKER = "toolstore_attacker@toolstore.test";
 
-    // Never signs in, so a client built for this user sends no session and no CSRF cookie.
+    // Deliberately never created. It is only the credentials for a client whose sign-in fails, which
+    // is how a request reaches the server with no session.
     private static final String NO_SESSION_USER = "toolstore_nosession@toolstore.test";
 
     // Holds Editor on the store folder, so it has InsertPermission there but is not a site admin.
     // It is the account that tells the site-admin rule apart from a plain InsertPermission check.
     private static final String CONTRIBUTOR = "toolstore_contributor@toolstore.test";
 
-    // Two versions of one tool: same identifier, different version.
-    private static final String TOOL_V1 = "skylinetoolsstore/user1-v1.zip";
-    private static final String TOOL_V2 = "skylinetoolsstore/user1-v2.zip";
+    // The tool this class adds to the store in doSetup.
+    private static final String TOOL = "skylinetoolsstore/user1-v1.zip";
     // A different tool, so uploading it would add a new identifier to the catalog.
     private static final String TOOL_OTHER = "skylinetoolsstore/user2-v1.zip";
 
@@ -94,12 +88,13 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     private static final String UNRELATED_FOLDER = "unrelated";
     private static final String UNRELATED_PATH = "/" + PROJECT_NAME + "/" + UNRELATED_FOLDER;
 
-    private static int _toolV1RowId = -1;
-    private static String _toolV1FolderPath;
-
-    // getToolsApi returns tools from every container, so the catalog also carries unrelated tools
-    // that exist on the server. Everything here is keyed off our own tool's LSID.
+    // The shared tool's identity, read once in doSetup. Nothing here publishes a new version onto
+    // it, so every test acts on the same version whatever order they run in. The catalog is server
+    // wide, so the LSID is what picks our tool out of it.
     private static String _toolIdentifier;
+    private static String _toolName;
+    private static String _toolFolderPath;
+    private static int _toolRowId;
 
     private final ApiPermissionsHelper _permissionsHelper = new ApiPermissionsHelper(this);
 
@@ -118,8 +113,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         new PortalHelper(this).addWebPart("Skyline Tool Store");
         _containerHelper.createSubfolder(PROJECT_NAME, UNRELATED_FOLDER);
 
-        _userHelper.createUser(ATTACKER_ANON);
-        _userHelper.createUser(ATTACKER_USER);
+        _userHelper.createUser(ATTACKER);
         _userHelper.createUser(CONTRIBUTOR);
         _permissionsHelper.addMemberToRole(CONTRIBUTOR, "Editor", PermissionsHelper.MemberType.user,
                 "/" + PROJECT_NAME);
@@ -127,66 +121,51 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         // Tool identifiers are server-global and the test classes here share sample data, so clear
         // any tool left behind by another class or an earlier run.
         ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME,
-                TestFileUtils.getSampleData(TOOL_V1), TestFileUtils.getSampleData(TOOL_OTHER));
+                TestFileUtils.getSampleData(TOOL), TestFileUtils.getSampleData(TOOL_OTHER));
 
-        // InsertAction renders its failures into the JSP and still returns 200, so a new identifier
-        // appearing in the catalog is the only reliable proof that the upload worked.
         Set<String> before = catalogIdentifiers();
-        uploadTool(TOOL_V1);
+        uploadTool(TOOL);
         Set<String> added = catalogIdentifiers();
         added.removeAll(before);
         assertEquals("Upload should have added exactly one tool identifier, got " + added,
                 1, added.size());
         _toolIdentifier = added.iterator().next();
 
-        // The module registers no UserSchema, so the query API cannot read SkylineTool. The row id
-        // comes from the DownloadUrl in the public JSON API instead.
         JSONObject tool = getOurTool();
-        _toolV1RowId = extractRowIdFromDownloadUrl(tool.getString("DownloadUrl"));
-        _toolV1FolderPath = toolFolderPath(tool.getString("Name"), tool.getString("Version"));
+        _toolName = tool.getString("Name");
+        _toolFolderPath = toolFolderPath(_toolName, tool.getString("Version"));
+        _toolRowId = extractRowIdFromDownloadUrl(tool.getString("DownloadUrl"));
 
         // A wrong folder path would make the security assertions pass vacuously.
-        assertTrue("Expected the upload to create tool folder " + _toolV1FolderPath,
-                _containerHelper.doesContainerExist(_toolV1FolderPath));
-        for (String attacker : List.of(ATTACKER_ANON, ATTACKER_USER))
-            assertFalse(attacker + " must start with no role on the tool folder",
-                    hasEditorRole(_toolV1FolderPath, attacker));
+        assertTrue("Expected the upload to create tool folder " + _toolFolderPath,
+                _containerHelper.doesContainerExist(_toolFolderPath));
+        assertFalse(ATTACKER + " must start with no role on the tool folder",
+                hasEditorRole(_toolFolderPath, ATTACKER));
     }
 
     // -------------------------------------------------------------------------
-    // SetOwnersAction - changing tool owners is site admin only
+    // SetOwnersAction - only site admin can change tool owners
     // -------------------------------------------------------------------------
 
-    /**
-     * setOwners must reject a request carrying no session and no CSRF token.
-     */
+    /** setOwners must reject a request carrying no session and no CSRF token. */
     @Test
     public void testSetOwnersRejectsAnonymousRequest()
     {
-        String folder = currentFolderPath();
-        int status = post("setOwners", ownerParams(ATTACKER_ANON), false, false);
+        int status = post("setOwners", ownerParams(ATTACKER), false, false);
 
-        // Assert the effect rather than the status. A rejection may surface as 401, a login redirect
-        // or a basic-auth challenge; what matters is that the policy did not change.
-        assertFalse("SECURITY: an unauthenticated setOwners request granted " + ATTACKER_ANON +
-                        " the Editor role on " + folder + " (HTTP " + status + ")",
-                hasEditorRole(folder, ATTACKER_ANON));
+        assertFalse("SECURITY: an unauthenticated setOwners request granted " + ATTACKER +
+                        " the Editor role on " + _toolFolderPath + " (HTTP " + status + ")",
+                hasEditorRole(_toolFolderPath, ATTACKER));
+        assertRefusalStatus("An anonymous setOwners", 401, status);
     }
 
-    /**
-     * setOwners must also reject a signed-in non-admin. Sent with a valid CSRF token so only the
-     * authorization check can reject it, since a fix that merely rejects guests would leave this open.
-     *
-     * Impersonation reuses the admin's session with the target user's permissions, so the CSRF cookie
-     * and header still match while the server sees ATTACKER_USER.
-     */
+    /** setOwners must reject a signed-in non-site admin. */
     @Test
     public void testSetOwnersRejectsNonAdminUser()
     {
-        String folder = currentFolderPath();
-        List<NameValuePair> params = ownerParams(ATTACKER_USER);
+        List<NameValuePair> params = ownerParams(ATTACKER);
         int status;
-        impersonate(ATTACKER_USER);
+        impersonate(ATTACKER);
         try
         {
             status = post("setOwners", params, true, true);
@@ -196,59 +175,44 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
             stopImpersonating();
         }
 
-        assertFalse("SECURITY: a non-admin setOwners request granted " + ATTACKER_USER +
-                        " the Editor role on " + folder + " (HTTP " + status + ")",
-                hasEditorRole(folder, ATTACKER_USER));
+        assertFalse("SECURITY: a non-site admin setOwners request granted " + ATTACKER +
+                        " the Editor role on " + _toolFolderPath + " (HTTP " + status + ")",
+                hasEditorRole(_toolFolderPath, ATTACKER));
+        assertRefusalStatus("setOwners as a signed-in non-site admin", 403, status);
     }
 
     /**
-     * setOwners must refuse a request addressed to a folder unrelated to the tool it names. Sent as
-     * the site admin with a session and CSRF token, so only that check can refuse it. Why the check
-     * is there is on requireToolAddressableFrom.
+     * setOwners must refuse a request addressed to a folder that is not the tool's folder or the parent
+     * tool store folder. Sent as site admin with a valid token, so only that check can refuse it.
+     * See requireToolAddressableFrom.
      */
     @Test
     public void testSetOwnersRefusesARequestAddressedElsewhere()
     {
-        String folder = currentFolderPath();
-        int status = postTo(UNRELATED_PATH, "setOwners", ownerParams(ATTACKER_USER), true, true);
+        Reply reply = postToForReply(UNRELATED_PATH, "setOwners", ownerParams(ATTACKER), true, true);
 
-        assertFalse("setOwners acted on a tool the request was not addressed to (HTTP " + status + ")",
-                hasEditorRole(folder, ATTACKER_USER));
+        assertFalse("setOwners acted on a tool the request was not addressed to (HTTP " +
+                        reply.status() + ")",
+                hasEditorRole(_toolFolderPath, ATTACKER));
+        assertNotFoundNaming("setOwners", _toolName, reply);
     }
 
     private List<NameValuePair> ownerParams(String newOwner)
     {
-        return List.of(new BasicNameValuePair("toolId", String.valueOf(currentRowId())),
+        return List.of(new BasicNameValuePair("toolId", String.valueOf(_toolRowId)),
                 new BasicNameValuePair("toolOwners", newOwner));
     }
 
-    // Resolved per call, not cached: testZDeleteLatest uploads a second version, which changes both
-    // the row id and the folder, and these methods do not run in source order.
-    private int currentRowId()
-    {
-        return extractRowIdFromDownloadUrl(getOurTool().getString("DownloadUrl"));
-    }
-
-    private String currentFolderPath()
-    {
-        JSONObject tool = getOurTool();
-        return toolFolderPath(tool.getString("Name"), tool.getString("Version"));
-    }
-
     // -------------------------------------------------------------------------
-    // InsertAction - new tools are site admin only, matching the Add New Tool button
+    // InsertToolAction - new tools can be added by site admin only
     // -------------------------------------------------------------------------
 
     /**
-     * Adding a new tool is offered only to site admins in the web part, so the action must enforce
-     * that too rather than settling for InsertPermission on the folder.
-     *
-     * CONTRIBUTOR holds Editor here, so InsertPermission alone would let it through and only the
-     * site-admin rule refuses it. TOOL_OTHER is a different tool, so a successful upload would show
-     * up as a new identifier in the catalog.
+     * The web part offers Add New Tool to site admins only, so the action must enforce it too.
+     * CONTRIBUTOR holds Editor here, so only the site-admin rule refuses it.
      */
     @Test
-    public void testInsertRejectsNonAdminNewTool()
+    public void testInsertNewToolRejectsNonSiteAdmin()
     {
         Set<String> before = catalogIdentifiers();
         int status;
@@ -270,37 +234,47 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * The refusal must come before the owner list is resolved. Otherwise the "unknown users" reply
-     * tells any logged-in caller whether an email is a registered account.
+     * The refusal must come before the owner list is resolved, or the "unknown users" reply tells
+     * any logged-in caller whether an email is a registered account. handlePost parses the owners
+     * first and only then reads the zip, so the enumeration is one line away from a caller the
+     * framework does not turn back.
      *
-     * The form echoes the submitted owners value back into its input, so the test looks for the
-     * enumeration message rather than for the address itself.
+     * The form echoes the submitted value back into its input, so the test looks for that message
+     * rather than for the address.
      */
     @Test
     public void testInsertDoesNotRevealWhetherAccountsExist()
     {
+        // Must match SkylineToolsStoreController.UNKNOWN_USERS, which is not on this source set's
+        // classpath. The control at the end is what catches a rewording.
+        final String unknownUsersMessage = "The following users are unknown";
         String unknown = "definitely_not_a_user_" + System.nanoTime() + "@toolstore.test";
 
-        String reply;
-        impersonate(ATTACKER_USER);
+        Reply asNonAdmin;
+        impersonate(ATTACKER);
         try
         {
-            reply = postOwnersOnly(unknown);
+            asNonAdmin = postOwnersOnly(unknown);
         }
         finally
         {
             stopImpersonating();
         }
 
+        assertTrue("Expected the site-admin refusal, got HTTP " + asNonAdmin.status(),
+                asNonAdmin.status() >= 400);
         assertFalse("SECURITY: the reply reported which accounts are unknown, which lets any " +
                         "logged-in user test whether an address is registered",
-                reply.contains(UNKNOWN_USERS_MESSAGE));
-    }
+                asNonAdmin.body().contains(unknownUsersMessage));
 
-    // Must match SkylineToolsStoreController.UNKNOWN_USERS. This source set does not have the
-    // module's classes on its classpath, so it cannot read the constant and has to repeat it. If the
-    // product wording changes and this does not, the assertion above passes while testing nothing.
-    private static final String UNKNOWN_USERS_MESSAGE = "The following users are unknown";
+        // The control. Asserting only that a phrase is absent passes just as well when the phrase
+        // has been reworded or the path is unreachable, so prove the same post does report it to
+        // someone allowed to get that far.
+        Reply asAdmin = postOwnersOnly(unknown);
+        assertTrue("The unknown-users message no longer appears even for a site admin, so the"
+                + " assertion above proves nothing. Body was " + asAdmin.body(),
+                asAdmin.body().contains(unknownUsersMessage));
+    }
 
     // -------------------------------------------------------------------------
     // CSRF - a mutating post without the CSRF header must be refused
@@ -316,23 +290,25 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         String originalDescription = getOurTool().getString("Description");
         String forged = "forged-by-csrf-" + System.nanoTime();
 
-        int status = postTo(currentFolderPath(), "updateProperty", descriptionParams(forged), true, false);
+        int status = postTo(_toolFolderPath, "updateProperty", descriptionParams(forged), true, false);
 
         assertEquals("SECURITY: updateProperty accepted a POST with no CSRF token (HTTP " + status + ")",
                 originalDescription, getOurTool().getString("Description"));
+        // A CSRF failure counts as unauthenticated whoever sent it, so 401 rather than 403.
+        assertRefusalStatus("updateProperty with no CSRF token", 401, status);
     }
 
     /**
-     * Positive control: with a valid token the same edit must still work, so CSRF enforcement cannot
-     * be satisfied by breaking the feature. Also guards SkylineToolDetails.jsp, which posts here
-     * through raw jQuery and must attach the token itself.
+     * The positive control - with a valid token the edit must work, so CSRF enforcement cannot be
+     * satisfied by breaking the feature. Also covers SkylineToolDetails.jsp, which attaches the
+     * token itself.
      */
     @Test
     public void testUpdatePropertySucceedsWithCsrfToken()
     {
         String newDescription = "edited-with-token-" + System.nanoTime();
 
-        int status = postTo(currentFolderPath(), "updateProperty", descriptionParams(newDescription), true, true);
+        int status = postTo(_toolFolderPath, "updateProperty", descriptionParams(newDescription), true, true);
 
         assertTrue("An authenticated updateProperty with a CSRF token should succeed, got HTTP " + status,
                 status < 400);
@@ -342,7 +318,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
 
     private List<NameValuePair> descriptionParams(String description)
     {
-        return List.of(new BasicNameValuePair("toolId", String.valueOf(currentRowId())),
+        return List.of(new BasicNameValuePair("toolId", String.valueOf(_toolRowId)),
                 new BasicNameValuePair("propName", "Description"),
                 new BasicNameValuePair("propValue", description));
     }
@@ -360,40 +336,40 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     {
         int absentId = 99999999;
 
+        // insertSupplement is a FormViewAction, so its 404 is an error page rather than JSON and
+        // only the status is worth asserting. The three below are MutatingApiActions.
         assertEquals("insertSupplement with an unknown tool id should be a 404",
                 404, post("insertSupplement",
                         List.of(new BasicNameValuePair("toolId", String.valueOf(absentId))), true, true));
 
-        assertEquals("deleteSupplement with an unknown tool id should be a 404",
-                404, postTo(currentFolderPath(), "deleteSupplement",
+        assertNotFoundNaming("deleteSupplement", String.valueOf(absentId),
+                postToForReply(_toolFolderPath, "deleteSupplement",
                         List.of(new BasicNameValuePair("toolId", String.valueOf(absentId)),
                                 new BasicNameValuePair("suppFile", "whatever.pdf")), true, true));
 
-        assertEquals("updateProperty with an unknown tool id should be a 404",
-                404, postTo(currentFolderPath(), "updateProperty",
+        assertNotFoundNaming("updateProperty", String.valueOf(absentId),
+                postToForReply(_toolFolderPath, "updateProperty",
                         List.of(new BasicNameValuePair("toolId", String.valueOf(absentId)),
                                 new BasicNameValuePair("propName", "Description"),
                                 new BasicNameValuePair("propValue", "x")), true, true));
 
-        assertEquals("deleteLatest with an unknown tool id should be a 404",
-                404, post("deleteLatest",
+        assertNotFoundNaming("deleteLatest", String.valueOf(absentId),
+                postToForReply(PROJECT_NAME, "deleteLatest",
                         List.of(new BasicNameValuePair("toolId", String.valueOf(absentId))), true, true));
     }
 
-    /**
-     * Asking for a supplementary file that is not one must not be a server fault either.
-     */
+    /** Asking for a supplementary file that is not one must not be a server fault either. */
     @Test
     public void testDeletingSomethingThatIsNotASupplementaryFileIsNotFound()
     {
-        assertEquals("Deleting a non-existent supplementary file should be a 404",
-                404, postTo(currentFolderPath(), "deleteSupplement",
-                        List.of(new BasicNameValuePair("toolId", String.valueOf(currentRowId())),
+        assertNotFoundNaming("deleteSupplement", "no-such-file.pdf",
+                postToForReply(_toolFolderPath, "deleteSupplement",
+                        List.of(new BasicNameValuePair("toolId", String.valueOf(_toolRowId)),
                                 new BasicNameValuePair("suppFile", "no-such-file.pdf")), true, true));
 
-        assertEquals("The tool's own icon is not a supplementary file",
-                404, postTo(currentFolderPath(), "deleteSupplement",
-                        List.of(new BasicNameValuePair("toolId", String.valueOf(currentRowId())),
+        assertNotFoundNaming("deleteSupplement", "icon.png",
+                postToForReply(_toolFolderPath, "deleteSupplement",
+                        List.of(new BasicNameValuePair("toolId", String.valueOf(_toolRowId)),
                                 new BasicNameValuePair("suppFile", "icon.png")), true, true));
     }
 
@@ -402,56 +378,63 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     // -------------------------------------------------------------------------
 
     /**
-     * deleteLatest deletes a container, so it must not be reachable by GET. A GET is forgeable with an
-     * img tag and no CSRF token can protect it.
+     * deleteLatest deletes a container, so it must not be reachable by GET, which an img tag can
+     * forge and no CSRF token can protect.
      *
-     * A GET here also trips SpringActionController.checkForMutatingSql on a dev server, which aborts
-     * the request. Do not silence that with ignoreSqlUpdates() - correct for the download counter in
-     * PR #608, but here it would hide the warning and leave the delete reachable by GET.
+     * A GET here also trips SpringActionController.checkForMutatingSql on a dev server. Do not
+     * silence that with ignoreSqlUpdates() - it would hide the warning and leave the GET reachable.
      */
     @Test
-    public void testZDeleteLatestRejectsGetRequest()
+    public void testDeleteLatestRejectsGetRequest()
     {
-        String v1Version = getOurTool().getString("Version");
-        uploadTool(TOOL_V2, _toolV1RowId);
+        // Its own tool, so the second version published here does not move the shared one.
+        String name = "GetDeleteLatestProbe";
+        String identifier = "URN:LSID:toolstore.test:getdeletelatest";
+        File v1 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "1.0");
+        File v2 = ToolStoreTestHelper.writeMinimalToolZip(name, identifier, "2.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(PROJECT_NAME, v1);
 
-        JSONObject latest = getOurTool();
+        uploadTool(v1);
+        String v1FolderPath = toolFolderPath(name, "1.0");
+        int v1RowId = extractRowIdFromDownloadUrl(toolInCatalog(identifier).getString("DownloadUrl"));
+        uploadNewVersionTo(v1FolderPath, v2, v1RowId);
+
+        JSONObject latest = toolInCatalog(identifier);
         // The upload returns 200 even on failure, so confirm the version actually moved.
         assertNotEquals("The second upload should have become the latest version",
-                v1Version, latest.getString("Version"));
+                "1.0", latest.getString("Version"));
         int latestRowId = extractRowIdFromDownloadUrl(latest.getString("DownloadUrl"));
-        String latestFolderPath = toolFolderPath(latest.getString("Name"), latest.getString("Version"));
+        String latestFolderPath = toolFolderPath(name, latest.getString("Version"));
 
         assertTrue("The second version folder should exist before the GET",
                 _containerHelper.doesContainerExist(latestFolderPath));
 
-        // Addressed to the tool's own version folder, which is the folder this action removes and
-        // the one its permission is checked against. Addressed to the project instead, the container
-        // check refused the request before the GET rule was reached, so this passed either way.
-        //
-        // Must also be the parameter the form actually binds. With a name the form ignores, the
-        // action would look up tool 0 and delete nothing, so the assertions below would pass anyway.
+        // Address the tool's own version folder. Addressed to the project, the container check
+        // refuses before the GET rule is reached and this passes either way. The parameter name has
+        // to be one the form binds, or the action looks up tool 0 and the assertions pass anyway.
         String url = WebTestHelper.buildURL("skyts", latestFolderPath, "deleteLatest") + "?toolId=" + latestRowId;
         int status = execute(new HttpGet(url), true, true);
 
-        // MutatingApiAction carries @MethodsAllowed(POST), and that check runs before the action, so
-        // the GET is refused as a method that is not allowed rather than reaching any of its code.
         assertEquals("A GET to deleteLatest has to be refused as a method that is not allowed",
                 405, status);
         assertTrue("SECURITY: a GET to deleteLatest deleted tool folder " + latestFolderPath +
                         " (HTTP " + status + ")",
                 _containerHelper.doesContainerExist(latestFolderPath));
         assertTrue("The original version must also survive",
-                _containerHelper.doesContainerExist(_toolV1FolderPath));
+                _containerHelper.doesContainerExist(v1FolderPath));
     }
 
+    // -------------------------------------------------------------------------
+    // UpdateToolAction - a new version must come from the latest one
+    // -------------------------------------------------------------------------
+
     /**
-     * Publishing demotes the version it supersedes, so doing it from an older version's page left the
-     * real latest flagged as well. The tool then appeared twice in the store and twice in the catalog
-     * Skyline reads, and the new version inherited the older one's owners and files.
+     * Publishing demotes the version it supersedes, so publishing from an older version would leave
+     * the real latest flagged as well. The tool would be listed twice and the new version would
+     * inherit the older one's owners and files.
      */
     @Test
-    public void testZZPublishingFromAnOldVersionIsRefused()
+    public void testPublishingFromAnOldVersionIsRefused()
     {
         String name = "StaleParentPublishProbe";
         String identifier = "URN:LSID:toolstore.test:staleparent";
@@ -494,16 +477,29 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     /** Adds a new tool to the store folder as the site admin, naming who owns it. */
     private void uploadToolOwnedBy(File zip, String owners)
     {
+        postInsertTool(zip, owners);
+    }
+
+    /** Adds a tool this test built, rather than one from sample data. */
+    private void uploadTool(File zip)
+    {
+        postInsertTool(zip, null);
+    }
+
+    private void postInsertTool(File zip, String owners)
+    {
+        MultipartEntityBuilder entity = MultipartEntityBuilder.create()
+                .addBinaryBody("toolZip", zip, ContentType.create("application/zip"), zip.getName());
+        if (owners != null)
+            entity.addTextBody("toolOwners", owners);
+
         HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", PROJECT_NAME, "insertTool"));
-        request.setEntity(MultipartEntityBuilder.create()
-                .addBinaryBody("toolZip", zip, ContentType.create("application/zip"), zip.getName())
-                .addTextBody("toolOwners", owners)
-                .build());
+        request.setEntity(entity.build());
         int status = execute(request, true, true);
         assertTrue("Adding " + zip.getName() + " failed, HTTP " + status, status < 400);
     }
 
-    /** Publishes a new version, which is addressed to the TOOL's own folder. */
+    /** Publishes a new version, which is addressed to the tool's own folder. */
     private void uploadNewVersionTo(String toolFolderPath, File zip, int toolId)
     {
         HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", toolFolderPath, "updateTool"));
@@ -542,34 +538,17 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * Uploads a brand-new tool through InsertAction as the site admin.
-     */
-    private void uploadTool(String sampleDataRelativePath)
-    {
-        uploadTool(sampleDataRelativePath, -1);
-    }
-
-    /**
-     * Uploads a tool zip as the site admin. The status code proves little, since a rejected upload
-     * re-renders the form with a 200, so callers verify the effect.
-     *
-     * @param updateTarget row id of the tool being updated, or -1 for a brand-new tool. A new version
-     *                     goes to updateTool in the TOOL's own container; a new tool goes to
-     *                     insertTool in the store folder.
+     * Adds a brand-new tool from sample data through insertTool as the site admin. A rejected upload
+     * re-renders the form at 200, so callers verify the effect rather than the status.
      */
     @LogMethod
-    private void uploadTool(String sampleDataRelativePath, int updateTarget)
+    private void uploadTool(String sampleDataRelativePath)
     {
         File zip = TestFileUtils.getSampleData(sampleDataRelativePath);
-        boolean newVersion = updateTarget >= 0;
-        String container = newVersion ? currentFolderPath() : PROJECT_NAME;
-        HttpPost request = new HttpPost(
-                WebTestHelper.buildURL("skyts", container, newVersion ? "updateTool" : "insertTool"));
-        MultipartEntityBuilder entity = MultipartEntityBuilder.create()
-                .addBinaryBody("toolZip", zip, ContentType.create("application/zip"), zip.getName());
-        if (newVersion)
-            entity.addTextBody("toolId", String.valueOf(updateTarget));
-        request.setEntity(entity.build());
+        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", PROJECT_NAME, "insertTool"));
+        request.setEntity(MultipartEntityBuilder.create()
+                .addBinaryBody("toolZip", zip, ContentType.create("application/zip"), zip.getName())
+                .build());
 
         int status = execute(request, true, true);
         assertTrue("Tool upload failed for " + zip.getName() + ", HTTP " + status, status < 400);
@@ -586,24 +565,14 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         return execute(request, true, true);
     }
 
-    /**
-     * Posts only a toolOwners value and returns the response body.
-     */
-    private String postOwnersOnly(String owner)
+    /** Posts only a toolOwners value, with no zip, and returns the status and body. */
+    private Reply postOwnersOnly(String owner)
     {
         HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", PROJECT_NAME, "insertTool"));
         request.setEntity(MultipartEntityBuilder.create()
                 .addTextBody("toolOwners", owner)
                 .build());
-        APITestHelper.injectCookies(request);
-        try (CloseableHttpClient client = WebTestHelper.getHttpClient())
-        {
-            return client.execute(request, response -> EntityUtils.toString(response.getEntity()));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("Failed to post toolOwners", e);
-        }
+        return executeForReply(request, true, true);
     }
 
     private int post(String action, List<NameValuePair> params, boolean withSession, boolean withCsrfToken)
@@ -612,15 +581,22 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * Actions that operate on a single tool are addressed to the tool's OWN container, so their
-     * permission annotation checks the folder that holds the tool. Use currentFolderPath() for those.
+     * Actions on a single tool are addressed to that tool's own container rather than the store, so
+     * their permission annotation checks the folder holding the tool. Pass _toolFolderPath there.
      */
     private int postTo(String containerPath, String action, List<NameValuePair> params,
                        boolean withSession, boolean withCsrfToken)
     {
+        return postToForReply(containerPath, action, params, withSession, withCsrfToken).status();
+    }
+
+    /** Like postTo, but keeps the reply body. Only the MutatingApiActions answer with JSON. */
+    private Reply postToForReply(String containerPath, String action, List<NameValuePair> params,
+                                 boolean withSession, boolean withCsrfToken)
+    {
         HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", containerPath, action));
         request.setEntity(new UrlEncodedFormEntity(new ArrayList<>(params)));
-        return execute(request, withSession, withCsrfToken);
+        return executeForReply(request, withSession, withCsrfToken);
     }
 
     /**
@@ -629,6 +605,14 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
      *                      simulates a cross-site post.
      */
     private int execute(HttpUriRequest request, boolean withSession, boolean withCsrfToken)
+    {
+        return executeForReply(request, withSession, withCsrfToken).status();
+    }
+
+    /** A reply's status and body. The body is empty for a response that carries none. */
+    private record Reply(int status, String body) {}
+
+    private Reply executeForReply(HttpUriRequest request, boolean withSession, boolean withCsrfToken)
     {
         if (withSession && withCsrfToken)
             APITestHelper.injectCookies(request);
@@ -640,8 +624,9 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
                 : WebTestHelper.getHttpClientBuilder(NO_SESSION_USER, "").build())
         {
             return client.execute(request, response -> {
-                EntityUtils.consumeQuietly(response.getEntity());
-                return response.getCode();
+                HttpEntity entity = response.getEntity();
+                String body = entity == null ? "" : EntityUtils.toString(entity);
+                return new Reply(response.getCode(), body);
             });
         }
         catch (Exception e)
@@ -650,9 +635,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         }
     }
 
-    /**
-     * Sends the session but not the CSRF header. injectCookies sets both, this sets only the one.
-     */
+    /** Sends the session but not the CSRF header. injectCookies sets both. */
     private void injectSessionOnly(HttpUriRequest request)
     {
         org.openqa.selenium.Cookie session =
@@ -663,18 +646,38 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * Reads the public JSON API. Returns the latest version of every tool in the store.
+     * Asserts the status a refused request has to carry.
+     *
+     * These tests lead with an absence - no role granted, no value changed - and an action that no
+     * longer exists satisfies every one of those. Pinning the status separates a real refusal from
+     * the 404 a renamed or moved action returns.
      */
-    // These three wrap ToolStoreTestHelper rather than repeating it, so a change to the getToolsApi
-    // response shape is made once. Kept as methods because the tests read better without the class
-    // name and the container argument repeated at every call site.
+    private void assertRefusalStatus(String what, int expectedStatus, int status)
+    {
+        assertEquals(what + " should have been refused", expectedStatus, status);
+    }
+
+    /**
+     * Asserts a 404 whose reply names what the request was about - the id it gave, the file it named,
+     * the tool it meant. Matching the name rather than the sentence keeps this from passing vacuously
+     * if the wording changes.
+     */
+    private void assertNotFoundNaming(String action, String expectedInBody, Reply reply)
+    {
+        assertEquals(action + " should answer 404, body was " + reply.body(), 404, reply.status());
+        assertTrue(action + " should name " + expectedInBody + " in its reply, got " + reply.body(),
+                reply.body().contains(expectedInBody));
+    }
+
+    /** Reads the public JSON API. Returns the latest version of every tool in the store. */
     private JSONArray getToolsFromApi()
     {
         return ToolStoreTestHelper.toolsFromApi(PROJECT_NAME);
     }
 
     /**
-     * The latest version of the tool this test uploaded, located by its LSID.
+     * Reads the shared tool out of the catalog. Its identity is held in fields, so this is for the
+     * properties that change during the run. Description is the only one.
      */
     private JSONObject getOurTool()
     {
@@ -693,9 +696,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         return ToolStoreTestHelper.catalogIdentifiers(PROJECT_NAME);
     }
 
-    /**
-     * DownloadUrl looks like .../skyts-downloadTool.view?id=123
-     */
+    /** DownloadUrl looks like .../skyts-downloadTool.view?id=123 */
     private int extractRowIdFromDownloadUrl(String downloadUrl)
     {
         return ToolStoreTestHelper.rowId(new JSONObject().put("DownloadUrl", downloadUrl));
@@ -716,7 +717,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     protected void doCleanup(boolean afterTest)
     {
         _containerHelper.deleteProject(PROJECT_NAME, afterTest);
-        _userHelper.deleteUsers(false, ATTACKER_ANON, ATTACKER_USER, CONTRIBUTOR);
+        _userHelper.deleteUsers(false, ATTACKER, CONTRIBUTOR);
     }
 
     @Override
