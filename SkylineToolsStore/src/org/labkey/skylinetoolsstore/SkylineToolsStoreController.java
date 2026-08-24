@@ -1227,8 +1227,9 @@ public class SkylineToolsStoreController extends SpringActionController
             }
 
             if (!tools[0].getRowId().equals(tool.getRowId()))
-                throw new IllegalStateException("Version " + tool.getVersion() + " of " + tool.getName() +
-                        " is flagged as the latest but is not the most recently created version.");
+            {
+                throw new IllegalStateException(latestIsNotNewestMessage(tool, tools[0]));
+            }
 
             // Exactly one row may be flagged latest, or getToolLatestByIdentifier returns null.
             for (SkylineTool other : tools)
@@ -1300,6 +1301,27 @@ public class SkylineToolsStoreController extends SpringActionController
             ApiSimpleResponse response = new ApiSimpleResponse("success", true);
             response.put("successUrl", successUrl.getLocalURIString());
             return response;
+        }
+
+        /**
+         * Names the folder a site admin has to delete to repair a tool whose latest version is not
+         * its newest, and what deleting it will do.
+         */
+        private static String latestIsNotNewestMessage(SkylineTool latest, SkylineTool newest)
+        {
+            String problem = "Version " + latest.getVersion() + " of " + latest.getName() +
+                    " is flagged as the latest, but version " + newest.getVersion() + " is newer.";
+
+            Container newestContainer = newest.lookupContainer();
+            if (newestContainer == null)
+                return problem + " The folder holding version " + newest.getVersion() + " is missing," +
+                        " so the tool row has to be removed from the database.";
+
+            return problem + " This state can be left behind when deleting the latest version of a" +
+                    " tool, if the newer version's folder could not be deleted. A site admin can" +
+                    " repair it by deleting the folder " + newestContainer.getPath() +
+                    " through Folder Management, which removes version " + newest.getVersion() +
+                    " and leaves version " + latest.getVersion() + " as both the latest and the newest.";
         }
     }
 
