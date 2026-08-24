@@ -266,9 +266,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(PROJECT_NAME);
         assertTextPresent("test.pdf");
 
-        // The supplementary file is attached BEFORE the new version is published on purpose. A new
-        // version copies the previous version's supplementary files into its own folder, and that
-        // copy loop only runs when the previous version has some.
+        // Attaching the supplementary file before publishing is deliberate. A new version copies the
+        // previous version's supplementary files, and that loop only runs when there are some.
         log("The author publishes a new version without admin help");
         impersonate(TOOL_AUTHOR);
         try
