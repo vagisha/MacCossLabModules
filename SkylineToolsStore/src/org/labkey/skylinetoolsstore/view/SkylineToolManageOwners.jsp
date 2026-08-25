@@ -18,22 +18,26 @@
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.skylinetoolsstore.SkylineToolsStoreController" %>
 <%@ page import="org.labkey.api.util.PageFlowUtil" %>
-<%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.HtmlString" %>
 <%@ page import="org.labkey.api.util.SafeToRender" %>
 <%@ page import="org.labkey.api.view.HttpView" %>
 <%@ page import="org.labkey.api.view.JspView" %>
+<%@ page import="org.labkey.api.view.template.ClientDependencies" %>
 <%@ taglib prefix="labkey" uri="http://www.labkey.org/taglib" %>
 <%@ page extends="org.labkey.api.jsp.JspBase" %>
+<%!
+    @Override
+    public void addClientDependencies(ClientDependencies dependencies)
+    {
+        dependencies.add("internal/jQuery");
+        dependencies.add("skylinetoolsstore/js/functions.js");
+        dependencies.add("skylinetoolsstore/css/toolstore.css");
+    }
+%>
 <%
     JspView<SkylineToolsStoreController.SetOwnersForm> me =
             (JspView<SkylineToolsStoreController.SetOwnersForm>) HttpView.currentView();
     SkylineToolsStoreController.SetOwnersForm form = me.getModelBean();
-
-    final String contextPath = AppProps.getInstance().getContextPath();
-    final String cssDir = contextPath + "/skylinetoolsstore/css/";
-    final String imgDir = contextPath + "/skylinetoolsstore/img/";
-    final String jsDir = contextPath + "/skylinetoolsstore/js/";
 
     final String toolOwners = StringUtils.trimToEmpty(form.getToolOwners());
     final String returnUrl = form.getReturnUrl();
@@ -51,7 +55,7 @@
         <%-- Rendered here rather than set by the script below. The script needs jQuery from a CDN,
              and where that does not load the box came up empty. Submitting it strips every owner
              from every one of the tool's version folders. --%>
-        <input style="width: 400px; max-width: 80%;" type="text" id="toolOwners" name="toolOwners"
+        <input style="width: 400px; max-width: 100%;" type="text" id="toolOwners" name="toolOwners"
                value="<%= h(toolOwners) %>" /><br /><br />
         <br />
 <% if (returnUrl != null) { %>
@@ -65,15 +69,9 @@
 <br />
 <%= PageFlowUtil.generateBackButton() %>
 
-<link rel="stylesheet" type="text/css" href="<%= h(cssDir) %>jquery-ui.css">
-<script type="text/javascript" src="<%= h(jsDir) %>functions.js"></script>
-<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-<script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
-
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
     var ownersTxt = $("#toolOwners");
     ownersTxt.focus();
 
     autocomplete(ownersTxt, ${autocompleteUsers});
-    initJqueryUiImages("<%= h(imgDir + "jquery-ui") %>");
 </script>
