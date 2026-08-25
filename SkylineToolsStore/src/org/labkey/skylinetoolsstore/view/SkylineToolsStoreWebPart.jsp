@@ -19,7 +19,6 @@
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.api.data.Container" %>
 <%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
-<%@ page import="org.labkey.api.security.permissions.UpdatePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.SafeToRender"%>
 <%@ page import="org.labkey.api.view.ActionURL"%>
@@ -268,7 +267,6 @@
         final String tableId = "table-" + tool.getName().replaceAll("[^A-Za-z0-9]", "");
         final ActionURL detailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
 
-        // Get supporting files in map <url, icon url>
         HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
         Iterator suppIter = suppFiles.entrySet().iterator();
         boolean hasDocs = tool.hasDocumentation();
@@ -279,7 +277,7 @@
         // anonymous page load, and leaves the addresses one careless edit away from being rendered.
         if (admin)
             toolOwners.put(tool.getRowId(), StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", "));
-        final boolean toolEditor = admin || tool.lookupContainer().hasPermission(getUser(), UpdatePermission.class);
+        final boolean toolEditor = tool.isEditor(getUser());
         final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
         final boolean multipleVersions = allVersions.length > 1;
 
@@ -478,7 +476,7 @@
          that when there is one. Added as a text node, so a message carrying markup is displayed
          rather than parsed. --%>
     function showModalError(modal, xhr, fallback) {
-        var message = (xhr && xhr.responseJSON && xhr.responseJSON.exception) || fallback;
+        var message = xhr?.responseJSON?.exception || fallback;
         modal.find(".modal-body").empty().append($("<p></p>").text(message));
         <%-- The confirm button, whatever it is styled as. The delete dialogs use btn-danger and the
              edit dialog btn-primary, while Cancel is the one carrying data-dismiss. --%>

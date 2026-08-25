@@ -170,7 +170,7 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
 
     public ConfirmDeleteDialog clickDelete()
     {
-        clickMenuItem("Delete");
+        clickMenuItem("Delete tool from store");
         return ConfirmDeleteDialog.deleteTool(getDriver());
     }
 
