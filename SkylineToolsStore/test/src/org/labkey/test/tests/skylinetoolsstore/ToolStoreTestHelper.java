@@ -117,6 +117,15 @@ public class ToolStoreTestHelper
      */
     public static File writeMinimalToolZip(String name, String identifier, String version)
     {
+        return writeToolZip(name, identifier, version, "");
+    }
+
+    /**
+     * A tool zip carrying extra info.properties lines beyond the three required ones, for a caller
+     * that needs the details page to have something to render.
+     */
+    public static File writeToolZip(String name, String identifier, String version, String extraProperties)
+    {
         try
         {
             // Short prefix - ZipName is 50 characters and createTempFile appends up to 19 digits.
@@ -127,7 +136,8 @@ public class ToolStoreTestHelper
                 out.putNextEntry(new ZipEntry("tool-inf/info.properties"));
                 out.write(("Name = " + name + "\n" +
                            "Version = " + version + "\n" +
-                           "Identifier = " + identifier + "\n").getBytes(StandardCharsets.UTF_8));
+                           "Identifier = " + identifier + "\n" +
+                           extraProperties).getBytes(StandardCharsets.UTF_8));
                 out.closeEntry();
             }
             return zip;

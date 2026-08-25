@@ -33,6 +33,11 @@ import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
+import org.labkey.test.components.skylinetoolsstore.ManageToolOwnersDialog;
+import org.labkey.test.components.skylinetoolsstore.SkylineToolStoreWebPart;
+import org.labkey.test.components.skylinetoolsstore.SupplementaryFileDialog;
+import org.labkey.test.pages.skylinetoolsstore.ManageToolOwnersPage;
+import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.LogMethod;
@@ -42,6 +47,10 @@ import org.labkey.test.util.WikiHelper;
 
 import java.io.File;
 import java.net.URI;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +58,7 @@ import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -66,6 +76,17 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OTHER_STORE = "ToolStoreWorkflowTestOtherStore";
     // Its own store so the tools this test adds cannot disturb the single-tool assertions elsewhere.
     private static final String FORMS_STORE = "ToolStoreWorkflowTestForms";
+    // Deliberately does NOT contain the library's name. The folder name is part of every url on its
+    // pages, including the favicon, so a folder named after the library defeats any url check.
+    private static final String NO_JQUERY_UI_STORE = "ToolStoreWorkflowTestNoUiLib";
+    // A store folder per test, so one test's tools cannot disturb another's counts.
+    private static final String NO_EXTENSION_STORE = "ToolStoreWorkflowTestNoExtension";
+    private static final String STALE_DELETE_STORE = "ToolStoreWorkflowTestStaleDelete";
+    private static final String OWNER_ESCAPING_STORE = "ToolStoreWorkflowTestOwnerEscaping";
+    private static final String ESCAPE_STORE = "ToolStoreWorkflowTestEscapeKey";
+    private static final String TAB_STORE = "ToolStoreWorkflowTestTabKey";
+    private static final String PROPERTIES_STORE = "ToolStoreWorkflowTestProperties";
+    private static final String SHIFT_TAB_STORE = "ToolStoreWorkflowTestShiftTab";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -84,19 +105,12 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String WEBPART_TOOL_NAME = "WebPartDeleteProbe";
     private static final String WEBPART_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:webpartdelete";
 
-    // Its own store, because it puts a stray folder in a tool's file root and leaves it there.
-    private static final String STRAY_STORE = "ToolStoreWorkflowTestStrayFolder";
 
     // Its own store, because it leaves behind a version folder that cannot be deleted.
     private static final String BLOCKED_STORE = "ToolStoreWorkflowTestBlockedDelete";
     private static final String BLOCKED_TOOL_NAME = "BlockedDeleteProbe";
     private static final String BLOCKED_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:blockeddelete";
 
-    // Its own store, because it needs a tool with two versions and the other stores assert on one.
-    private static final String GROUP_STORE = "ToolStoreWorkflowTestOwnerGroup";
-    private static final String ICON_STORE = "ToolStoreWorkflowTestIconReplace";
-    private static final String PENCIL_STORE = "ToolStoreWorkflowTestPencils";
-    private static final String NO_EXT_STORE = "ToolStoreWorkflowTestNoExtSupplement";
     private static final String OLDER_STORE = "ToolStoreWorkflowTestOlderVersion";
     private static final String OLDER_TOOL_NAME = "OlderVersionProbe";
     private static final String OLDER_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:olderversion";
@@ -123,6 +137,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     // A second owner, used to check that an owner change reaches every version's folder.
     private static final String TOOL_SECOND_OWNER = "toolstore_second@toolstore.test";
+
+    // Neither an owner nor an admin. Used where a test needs a second account that holds nothing.
+    private static final String OTHER_USER = "toolstore_bystander@toolstore.test";
 
     private static final String WIKI_NAME = "submit-a-tool";
     private static final String WIKI_TITLE = "Submit a Skyline Tool";
@@ -161,6 +178,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         _userHelper.createUser(TOOL_AUTHOR);
         _userHelper.createUser(TOOL_SECOND_OWNER);
+        _userHelper.createUser(OTHER_USER);
 
         _formsToolV1 = writeMinimalToolZip("1.0");
         _formsToolV2 = writeMinimalToolZip("2.0");
@@ -294,6 +312,23 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(PROJECT_NAME);
         assertTextPresent("test.pdf");
 
+        // Deleting a supplementary file is a trash icon on its row. It used to be a drag onto a
+        // trash can, and neither shape has ever been driven by a test.
+        log("The trash icon on the details page deletes a supplementary file");
+        SkylineToolDetailsPage detailsPage = new SkylineToolStoreWebPart(getDriver())
+                .getTool(latest.getString("Name")).clickToolName();
+        assertTrue("The details page should list the supplementary file",
+                detailsPage.getSupplementaryFileNames().contains("test.pdf"));
+        detailsPage.deleteSupplementaryFile("test.pdf");
+
+        // The row is removed by script on any 2xx, and a refused delete can still render 200, so the
+        // row going away proves nothing on its own. Reload and see whether the file is really gone.
+        refresh();
+        assertFalse("The supplementary file should be gone after a reload",
+                new SkylineToolDetailsPage(getDriver()).getSupplementaryFileNames()
+                        .contains("test.pdf"));
+        assertTextNotPresent("test.pdf");
+
         log("Owning one tool does not let the author add another, or reassign ownership");
         Set<String> beforeAuthorAttempts = catalogIdentifiers();
         impersonate(TOOL_AUTHOR);
@@ -346,10 +381,12 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         String otherName = otherTool.getString("Name");
 
         goToProjectHome(OTHER_STORE);
-        assertTextPresent(otherName);
+        assertTrue("The other store should list its own tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(otherName));
 
         goToProjectHome(PROJECT_NAME);
-        assertTextNotPresent(otherName);
+        assertFalse("This store must not list another store's tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(otherName));
 
         // getToolsApi returns the global list of tools.
         assertTrue("getToolsApi must keep returning tools from every container",
@@ -373,27 +410,57 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Add a tool through the web part's Add New Tool dialog");
         goToProjectHome(FORMS_STORE);
-        click(Locator.id("add-new-tool-btn"));
-        setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV1);
-        clickAndWait(Locator.css("#uploadPop input[type='submit']"));
+        new SkylineToolStoreWebPart(getDriver()).addTool(_formsToolV1, null);
 
         goToProjectHome(FORMS_STORE);
-        assertTextPresent(FORMS_TOOL_NAME);
+        assertTrue("The dialog should have added the tool to the listing",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(FORMS_TOOL_NAME));
         assertEquals("The dialog should have added exactly one tool", 1, toolsInStore(FORMS_STORE));
 
+        // The web part draws its own gear per row, separate from the details page one, and wires
+        // each menu item to a dialog shared by every row.
+        log("A web part row's gear menu opens the dialog its item names");
+        SupplementaryFileDialog suppDialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(FORMS_TOOL_NAME).clickUploadSupplementaryFile();
+        assertEquals("The dialog should be addressed to the row's tool",
+                String.valueOf(rowId(onlyToolInStore(FORMS_STORE))), suppDialog.getToolId());
+        suppDialog.dismiss("Cancel");
+
         log("Publish a new version through the details page dialog");
-        clickAndWait(Locator.linkWithText(FORMS_TOOL_NAME));
-        clickToolSettingsMenuItem("Upload new version");
-        setFormElement(Locator.css("#uploadPop input[name='toolZip']"), _formsToolV2);
-        clickAndWait(Locator.css("#uploadPop input[type='submit']"));
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
+                .getTool(FORMS_TOOL_NAME).clickToolName();
+        details = details.uploadNewVersion(_formsToolV2);
 
         assertEquals("The dialog should have published 2.0",
                 "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
+        assertEquals("The details page should show the version it just published",
+                "2.0", details.getVersion());
         assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
 
+        // The owners field completes a comma separated list from a hand written Bootstrap dropdown,
+        // so nothing else proves it filters, appends and leaves the separator the next name needs.
+        log("The owners field completes an address from its dropdown");
+        ManageToolOwnersDialog ownersDialog = details.clickManageToolOwners()
+                .typeOwner("toolstore_bystander")
+                .clickTypeAheadOption(OTHER_USER);
+        assertEquals("Picking from the dropdown should replace the term being typed and leave a " +
+                        "separator ready for the next address",
+                OTHER_USER + ", ", ownersDialog.getOwners());
+        ownersDialog.dismiss("Cancel");
+
+        // deleteLatest deletes the newest version whatever row id it is posted, and refuses any row
+        // id that is not the newest, so an older version's page must not offer the item at all.
+        log("An older version's page must not offer to delete the latest");
+        beginAt(WebTestHelper.buildURL("skyts", FORMS_STORE, "details",
+                Map.of("name", FORMS_TOOL_NAME, "version", "1.0")));
+        assertFalse("Version 1.0's page offered to delete the latest version, which would delete " +
+                        "2.0, a version the user is not looking at",
+                new SkylineToolDetailsPage(getDriver()).hasMenuItem("Delete latest version"));
+
         log("Delete the newest version through the details page dialog");
-        clickToolSettingsMenuItem("Delete latest version");
-        clickDialogOk("delToolLatestDlg");
+        goToProjectHome(FORMS_STORE);
+        new SkylineToolStoreWebPart(getDriver()).getTool(FORMS_TOOL_NAME).clickToolName()
+                .clickDeleteLatestVersion().confirmExpectingPageLoad();
 
         // Read the version from the catalog rather than the page - the details page carries script
         // constants that a bare text search for a version number picks up.
@@ -424,16 +491,16 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("Delete the newest version from the web part's menu");
         goToProjectHome(WEBPART_STORE);
-        clickToolSettingsMenuItem("Delete latest version");
-        clickDialogOk("delToolLatestDlg");
+        new SkylineToolStoreWebPart(getDriver()).getTool(WEBPART_TOOL_NAME)
+                .clickDeleteLatestVersion().confirmExpectingPageLoad();
 
         assertEquals("Deleting the newest version should leave 1.0 as the latest",
                 "1.0", onlyToolInStore(WEBPART_STORE).getString("Version"));
 
         log("Delete the whole tool from the web part's menu");
         goToProjectHome(WEBPART_STORE);
-        clickToolSettingsMenuItem("Delete tool from store");
-        clickDialogOk("delToolAllDlg");
+        new SkylineToolStoreWebPart(getDriver()).getTool(WEBPART_TOOL_NAME)
+                .clickDelete().confirmExpectingPageLoad();
 
         assertEquals("Deleting the tool should leave the store empty",
                 0, toolsInStore(WEBPART_STORE));
@@ -484,34 +551,307 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         log("The same refusal reaches the person who clicked the menu item");
         goToProjectHome(BLOCKED_STORE);
-        clickToolSettingsMenuItem("Delete latest version");
-        // Don't use clickDialogOk - it waits for a new page and none is loaded here. Clicking Ok is
-        // refused by the server and the reason is displayed in the dialog when the request returns.
-        Locator.XPathLocator ok = Locator.xpath(
-                "//div[contains(@class,'ui-dialog')][.//div[@id='delToolLatestDlg']]" +
-                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
-        waitAndClick(ok.notHidden());
+        // confirmExpectingRefusal, because no page is loaded here. The server refuses and the
+        // reason is shown in the modal when the request returns.
+        String refusal = new SkylineToolStoreWebPart(getDriver()).getTool(BLOCKED_TOOL_NAME)
+                .clickDeleteLatestVersion().confirmExpectingRefusal();
 
         // Two different refusals both say "could not be deleted". Only the one that happens before
         // any row is changed adds "so nothing was changed", which is the path this test sets up.
-        waitForElement(Locator.id("delToolLatestDlg").containing("nothing was changed"));
+        assertTrue("The dialog should say nothing was changed, got: " + refusal,
+                refusal.contains("nothing was changed"));
         assertEquals("2.0 should still be the latest version after the dialog was used",
                 "2.0", onlyToolInStore(BLOCKED_STORE).getString("Version"));
     }
 
     /**
-     * Clicks Ok on one dialog and waits for the page the action sends the caller to.
-     *
-     * Scoped to that dialog's own wrapper. A page holds several jQuery UI dialogs and the hidden
-     * ones have an Ok button too.
+     * The store dropped jQuery UI for Bootstrap. Nothing should pull it back, from a CDN or from the
+     * module's own webapp folder. A page that quietly reloaded it would let the converted widgets
+     * keep working by accident, so the removal would look finished when it was not.
      */
-    private void clickDialogOk(String dialogId)
+    @Test
+    public void testNoPageLoadsJQueryUi()
     {
-        Locator.XPathLocator ok = Locator.xpath(
-                "//div[contains(@class,'ui-dialog')][.//div[@id='" + dialogId + "']]" +
-                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']");
-        waitForElement(ok.notHidden());
-        clickAndWait(ok.notHidden());
+        String store = NO_JQUERY_UI_STORE;
+        _containerHelper.createProject(store, "Collaboration");
+        _containerHelper.enableModule(store, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+
+        File zip = ToolStoreTestHelper.writeMinimalToolZip("JQueryUiProbe",
+                "URN:LSID:toolstore.test:jqueryuiprobe", "1.0");
+        ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
+        uploadToolFileTo(store, zip, -1);
+        JSONObject tool = onlyToolInStore(store);
+
+        // Every page that used to carry a jQuery UI tag, in the order a user meets them.
+        goToProjectHome(store);
+        assertNoJQueryUi("the store web part");
+
+        new SkylineToolStoreWebPart(getDriver()).getTool(tool.getString("Name")).clickToolName();
+        assertNoJQueryUi("the tool details page");
+
+        beginAt(WebTestHelper.buildURL("skyts", store, "insertTool"));
+        assertNoJQueryUi("the add a tool page");
+
+        beginAt(WebTestHelper.buildURL("skyts", store, "setOwners",
+                Map.of("toolId", String.valueOf(rowId(tool)))));
+        assertNoJQueryUi("the manage owners page");
+    }
+
+    /**
+     * A delete the server refuses used to look like one that worked.
+     *
+     * The actions render a refusal as an error view with status 200, so the browser's .fail() never
+     * runs. The handler took that for success, closed the dialog and removed the row, telling the
+     * admin the tool was gone when it was the server saying no.
+     */
+    @Test
+    public void testDeletingAToolThatIsAlreadyGoneReportsTheRefusal()
+    {
+        String store = STALE_DELETE_STORE;
+        String tool = "StaleDeleteProbe";
+        File zip = ToolStoreTestHelper.writeMinimalToolZip(tool,
+                "URN:LSID:toolstore.test:staledelete", "1.0");
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(zip, null);
+
+        goToProjectHome(store);
+        SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
+
+        // Someone else deletes it while this page sits there, which is the state the handler got wrong.
+        ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
+
+        String message = webPart.getTool(tool).clickDelete().confirmExpectingRefusal();
+        // DeleteAction names the row it could not find. Matching that rather than the word "error"
+        // keeps this from passing on any refusal at all.
+        assertTrue("The dialog should report what the server said, got: " + message,
+                message.contains("does not exist"));
+    }
+
+    /**
+     * Tab completes the highlighted address instead of moving focus off the field.
+     *
+     * The jQuery UI widget did this, and the conversion dropped it. Arrowing to an address and
+     * pressing Tab left the partial text in the field, so Update Tool Owners posted something like
+     * "toolst", SetOwnersAction reported an unknown user, and the owner was never granted Editor.
+     */
+    @Test
+    public void testTabCompletesTheHighlightedAddress()
+    {
+        String store = TAB_STORE;
+        String tool = "TabProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:tabkey",
+                        "1.0"), null);
+
+        goToProjectHome(store);
+        ManageToolOwnersDialog dialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners();
+
+        // Typing first, because on a closed list the first Down only opens it without highlighting.
+        dialog.typeOwner("toolstore_a");
+        assertTrue("Typing should open the suggestion list", dialog.isTypeAheadShowing());
+
+        // The candidates are every active account on the server, which includes ones other test
+        // classes create, so which address sorts first is not this test's to assume. One Down
+        // highlights the first, so that is what Tab has to produce.
+        String firstOffered = dialog.getTypeAheadOptions().get(0);
+        dialog.pressDown().pressTab();
+
+        assertEquals("Tab should complete the highlighted address and leave a separator ready",
+                firstOffered + ", ", dialog.getOwners());
+    }
+
+    /**
+     * Two keyboard cases the first Tab fix got wrong.
+     *
+     * Shift+Tab is a user leaving the field backwards. Completing there put an address into the
+     * list that nobody chose, and Update Tool Owners would have granted it Editor. Up on a closed
+     * list has to highlight the last entry, the way Down highlights the first, rather than opening
+     * the list and selecting nothing.
+     */
+    @Test
+    public void testShiftTabLeavesTheFieldAndUpHighlightsFromAClosedList()
+    {
+        String store = SHIFT_TAB_STORE;
+        String tool = "ShiftTabProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:shifttab",
+                        "1.0"), null);
+
+        goToProjectHome(store);
+        ManageToolOwnersDialog dialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners();
+
+        dialog.typeOwner("toolstore_");
+        dialog.pressDown();
+        assertNotNull("Down should highlight an entry", dialog.getHighlightedOption());
+
+        dialog.pressShiftTab();
+        assertEquals("Shift+Tab must not complete anything",
+                "toolstore_", dialog.getOwners());
+
+        // Up on a closed list. One press should land on the last entry, not on nothing.
+        dialog.typeOwner("toolstore_");
+        dialog.pressEscape();
+        assertFalse("The list should be closed", dialog.isTypeAheadShowing());
+        dialog.pressUp();
+        assertNotNull("One Up press on a closed list should highlight an entry",
+                dialog.getHighlightedOption());
+    }
+
+    /**
+     * What the details page shows for one tool, read through the page component.
+     *
+     * The store has no other coverage of the page rendering a tool's own fields. Everything else
+     * reads the catalog over the API, which cannot tell whether the page drew what the catalog
+     * holds.
+     */
+    @Test
+    public void testTheDetailsPageShowsTheToolsProperties()
+    {
+        String store = PROPERTIES_STORE;
+        String tool = "PropertiesProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
+                .addTool(ToolStoreTestHelper.writeToolZip(tool,
+                        "URN:LSID:toolstore.test:properties", "1.0",
+                        "Description = A tool for exercising the details page.\n" +
+                        "Organization = MacCoss Lab\n"), null);
+
+        assertEquals("The page should name the tool it was asked for", tool, details.getToolName());
+        assertEquals("1.0", details.getVersion());
+        assertEquals("A tool nobody has downloaded yet", 0, details.getDownloadCount());
+
+        assertTrue("The description row should be on the page",
+                details.hasProperty(SkylineToolDetailsPage.DESCRIPTION));
+        assertEquals("A tool for exercising the details page.",
+                details.getProperty(SkylineToolDetailsPage.DESCRIPTION));
+        assertEquals("MacCoss Lab", details.getProperty(SkylineToolDetailsPage.ORGANIZATION));
+
+        assertTrue("A site admin should be offered the edit pencils", details.canEditProperties());
+
+        // The zip carries no documentation url and the tool has no supplementary files, so the
+        // whole box is absent rather than empty.
+        assertFalse("Nothing to document yet", details.isDocumentationBoxShowing());
+        assertFalse(details.hasOnlineDocumentationLink());
+
+        details = details.uploadSupplementaryFile(writeFileNamed("manual.pdf"));
+        assertTrue("A supplementary file should bring the documentation box out",
+                details.isDocumentationBoxShowing());
+        assertTrue(details.getSupplementaryFileNames().contains("manual.pdf"));
+    }
+
+    /**
+     * Escape has to reach the type-ahead without reaching the dialog around it.
+     *
+     * Bootstrap's modal hides on any Escape that bubbles up to it and does not check
+     * preventDefault, so dismissing the suggestion list used to throw away the whole dialog along
+     * with whatever had been typed into it. The old jQuery UI widget could not do this, because it
+     * called preventDefault on Escape and the jQuery UI dialog honoured that.
+     *
+     * The last two assertions carry as much weight as the first two. Stopping propagation whether
+     * or not the list is open would pass the middle of this test and leave a dialog that Escape
+     * cannot close at all.
+     */
+    @Test
+    public void testEscapeClosesTheTypeAheadBeforeTheDialog()
+    {
+        String store = ESCAPE_STORE;
+        String tool = "EscapeProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:escape",
+                        "1.0"), null);
+
+        goToProjectHome(store);
+        ManageToolOwnersDialog dialog = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners();
+
+        dialog.typeOwner("toolstore_");
+        assertTrue("Typing should open the suggestion list", dialog.isTypeAheadShowing());
+
+        dialog.pressEscape();
+        assertFalse("Escape should close the suggestion list", dialog.isTypeAheadShowing());
+        assertTrue("The Escape that closed the suggestion list must leave the dialog open",
+                dialog.isOpen());
+
+        dialog.pressEscape();
+        waitFor(() -> !dialog.isOpen(),
+                "Escape with no suggestion list showing should close the dialog", 5_000);
+    }
+
+    /**
+     * The owners box is prefilled from a script, so the value has to be escaped for JavaScript.
+     * Escaping it as HTML put the entities themselves in the box, and an admin correcting one bad
+     * address had to retype the whole list.
+     *
+     * This is also the only test that reaches the standalone page SetOwnersAction reshows on a
+     * refusal. It was dropped from this branch as a flake, and revived once both suspected causes
+     * were gone: the dialog no longer waits on an animated jQuery UI widget, and the page it lands
+     * on had its script blocked by the content security policy until the client dependencies fix.
+     */
+    @Test
+    public void testARefusedOwnerListComesBackUnchanged()
+    {
+        String store = OWNER_ESCAPING_STORE;
+        String tool = "OwnerEscapingProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool,
+                        "URN:LSID:toolstore.test:ownerescaping", "1.0"), null);
+
+        goToProjectHome(store);
+        String submitted = "a&b@toolstore.test";
+        ManageToolOwnersPage reshow = new SkylineToolStoreWebPart(getDriver())
+                .getTool(tool).clickManageToolOwners()
+                .setOwners(submitted)
+                .clickUpdateExpectingError();
+
+        assertTrue("An unknown address should be reported, got: " + reshow.getError(),
+                reshow.getError().contains("unknown"));
+        assertEquals("The address must come back exactly as it was typed",
+                submitted, reshow.getOwners());
+    }
+
+    /**
+     * A supplementary file whose name has no extension used to throw out of the icon lookup, which
+     * took out the whole store listing for every visitor rather than just that tool's page.
+     */
+    @Test
+    public void testASupplementaryFileWithNoExtensionDoesNotBreakTheStore()
+    {
+        String store = NO_EXTENSION_STORE;
+        String tool = "NoExtensionProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:noextension",
+                        "1.0"), null);
+
+        details = details.uploadSupplementaryFile(writeFileNamed("README"));
+        assertTrue("The details page should list the file",
+                details.getSupplementaryFileNames().contains("README"));
+
+        log("The store listing still renders, which is what used to break");
+        goToProjectHome(store);
+        assertTrue("The listing must still show the tool",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(tool));
     }
 
     // -------------------------------------------------------------------------
@@ -519,26 +859,22 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     // -------------------------------------------------------------------------
 
     /**
-     * Opens a tool's gear menu and clicks one of its items. The details page and the web part draw
-     * the same menu, and a store page listing one tool has one of them.
+     * Fails if the page currently loaded pulls jQuery UI from anywhere.
+     *
+     * Looks at the urls of the script and stylesheet elements, and matches the library's file name
+     * rather than the string anywhere in the url. Two loose versions of this check were both wrong:
+     * searching the page source matches the tool name in an ordinary link, and matching "jqueryui"
+     * anywhere in a url matches the folder name, which is a segment of every url on the page.
      */
-    private void clickToolSettingsMenuItem(String item)
+    private void assertNoJQueryUi(String pageDescription)
     {
-        click(Locator.css(".menuMouseArea.sprocket"));
-
-        // The menu slides open, so the item is in the DOM before it is visible, and once a tool has
-        // more than one version the menu is long enough to run past the bottom of the window.
-        Locator.XPathLocator link = Locator.linkWithText(item);
-        waitForElement(link.notHidden());
-
-        // Wait the slide out before clicking. Part way through it the item is already reported as
-        // visible while the menu around it is still clipped, and the click fails as not interactable.
-        waitFor(() -> Boolean.TRUE.equals(executeScript(
-                        "return !window.jQuery || jQuery('.dropMenu:animated').length === 0;")),
-                "The gear menu was still sliding open", WAIT_FOR_JAVASCRIPT);
-
-        scrollIntoView(link.notHidden());
-        waitAndClick(link.notHidden());
+        String loaded = executeScript(
+                "return Array.from(document.querySelectorAll('script[src], link[href]'))" +
+                        ".map(function(e) { return e.src || e.href; })" +
+                        ".filter(function(u) { return /jquery-?ui(\\.min)?\\.(js|css)/i.test(u); })" +
+                        ".join(', ');",
+                String.class);
+        assertEquals("jQuery UI is loaded on " + pageDescription, "", loaded);
     }
 
     /**
@@ -575,19 +911,19 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         beginAt(WebTestHelper.buildURL("skyts", OLDER_STORE, "details",
                 Map.of("name", OLDER_TOOL_NAME)));
         assertTrue("The latest version should still offer Upload new version",
-                sprocketHasItem("Upload new version"));
+                detailsPageHasMenuItem("Upload new version"));
         assertTrue("The latest version is the one Delete latest version acts on, so it belongs here",
-                sprocketHasItem("Delete latest version"));
+                detailsPageHasMenuItem("Delete latest version"));
 
         log("The older version's page offers only the supplementary file item");
         beginAt(WebTestHelper.buildURL("skyts", OLDER_STORE, "details",
                 Map.of("name", OLDER_TOOL_NAME, "version", "1.0")));
         assertFalse("Upload new version must not be offered where the action would refuse it",
-                sprocketHasItem("Upload new version"));
+                detailsPageHasMenuItem("Upload new version"));
         assertFalse("Delete latest version must not be offered where it would act on another version",
-                sprocketHasItem("Delete latest version"));
+                detailsPageHasMenuItem("Delete latest version"));
         assertTrue("Upload supplementary file works on any version and must stay",
-                sprocketHasItem("Upload supplementary file"));
+                detailsPageHasMenuItem("Upload supplementary file"));
 
         log("The URL behind the hidden item refuses before drawing the form");
         beginAt(WebTestHelper.buildURL("skyts", v1Folder, "updateTool",
@@ -675,25 +1011,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 ToolStoreTestHelper.catalogIdentifiers(NESTED_STORE).contains(NESTED_TOOL_IDENTIFIER));
     }
 
-    /** Creates a folder inside a container's file root, as the current user. */
-    private int makeWebdavFolder(String containerPath, String folderName)
-    {
-        String url = WebTestHelper.getBaseURL() + "/_webdav" + containerPath + "/@files/" + folderName;
-        HttpUriRequestBase request = new HttpUriRequestBase("MKCOL", URI.create(url));
-        APITestHelper.injectCookies(request);
-        try (CloseableHttpClient client = WebTestHelper.getHttpClient())
-        {
-            return client.execute(request, response -> {
-                EntityUtils.consumeQuietly(response.getEntity());
-                return response.getCode();
-            });
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("Could not create " + url, e);
-        }
-    }
-
     /**
      * A corrupt tool zip is refused with a message rather than a server error.
      *
@@ -725,12 +1042,45 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /** Whether the details page gear menu carries an item, without clicking it. */
-    private boolean sprocketHasItem(String item)
+    /**
+     * Whether the details page currently loaded offers a settings menu item.
+     *
+     * Items that do not apply are gated in the JSP, so an absent item is absent from the page
+     * rather than hidden. hasMenuItem opens the menu, which Bootstrap does without animating.
+     */
+    private boolean detailsPageHasMenuItem(String item)
     {
-        // Gated in the JSP, so an item that does not apply is absent from the page rather than
-        // hidden by CSS. A DOM check needs no hover and cannot race the menu animation.
-        return Locator.tagWithClass("ul", "dropMenu").append(Locator.linkWithText(item))
-                .existsIn(getDriver());
+        return new SkylineToolDetailsPage(getDriver()).hasMenuItem(item);
+    }
+
+    /** A store folder of its own, so one test's tools cannot disturb another's counts. */
+    private void createStore(String projectName)
+    {
+        _containerHelper.createProject(projectName, "Collaboration");
+        _containerHelper.enableModule(projectName, "SkylineToolsStore");
+        new PortalHelper(this).addWebPart("Skyline Tool Store");
+    }
+
+    /**
+     * A small file with an exact name. createTempFile always appends a suffix, and the name is the
+     * whole point when the extension is what is being tested, so this puts the file in a directory
+     * of its own instead.
+     */
+    private static File writeFileNamed(String name)
+    {
+        try
+        {
+            Path dir = Files.createTempDirectory("toolstore-supp");
+            dir.toFile().deleteOnExit();
+            Path file = dir.resolve(name);
+            Files.writeString(file, "supplementary file for the tool store tests");
+            file.toFile().deleteOnExit();
+            return file.toFile();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not write a file named " + name, e);
+        }
     }
 
     /** Number of tools the given store folder lists. */
@@ -964,100 +1314,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         return ToolStoreTestHelper.rowId(tool);
     }
 
-    /** Uploads one supplementary file through the action the dialogs post to. */
-    private int postSupplement(String folderPath, int toolId, String fileName)
-    {
-        HttpPost request = new HttpPost(
-                WebTestHelper.buildURL("skyts", folderPath, "insertSupplement"));
-        request.setEntity(MultipartEntityBuilder.create()
-                .addTextBody("toolId", String.valueOf(toolId))
-                .addBinaryBody("suppFile", "notes".getBytes(), ContentType.DEFAULT_BINARY, fileName)
-                .build());
-        return execute(request);
-    }
-
-    /** The pencil in the Tool Information box beside the given label. */
-    private Locator.XPathLocator barItemPencil(String label)
-    {
-        return Locator.xpath("//div[contains(@class,'barItem')][span[normalize-space()='" +
-                label + "']]/a");
-    }
-
-    /**
-     * Clicks a property's pencil, replaces the value and saves.
-     *
-     * The dialog posts over ajax and closes itself, so this waits for it to go rather than for a
-     * page load. A refused edit leaves it open showing the reason.
-     */
-    private void editToolProperty(Locator pencil, String value)
-    {
-        scrollIntoView(pencil);
-        waitAndClick(pencil);
-
-        // Whichever of the text input and the textarea the dialog decided to show. Which one it
-        // picks depends on the property name, so pinning the type here would fail on a name that
-        // did not arrive, ahead of the assertion that says so.
-        Locator.XPathLocator field = Locator.xpath(
-                "//div[@id='editToolDlg']//*[self::textarea or (self::input and @type='text')]")
-                .notHidden();
-        waitForElement(field);
-        setFormElement(field, value);
-
-        waitAndClick(Locator.xpath("//div[contains(@class,'ui-dialog')][.//div[@id='editToolDlg']]" +
-                "//div[contains(@class,'ui-dialog-buttonpane')]//button[normalize-space()='Ok']")
-                .notHidden());
-
-        waitFor(() -> !isElementVisible(Locator.id("editToolDlg")),
-                "The edit dialog stayed open, so the edit was refused: " +
-                        Locator.id("editToolDlg").findElement(getDriver()).getText(),
-                WAIT_FOR_JAVASCRIPT);
-    }
-
-    /** Decodes a served icon far enough to tell which image it is. */
-    private int iconWidth(byte[] png) throws Exception
-    {
-        java.awt.image.BufferedImage image =
-                javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(png));
-        assertTrue("The served icon should decode as an image", image != null);
-        return image.getWidth();
-    }
-
-    /** Posts one image to updateProperty as the icon, under the given filename. */
-    private int postIcon(String folderPath, int toolId, String fileName, byte[] image)
-    {
-        HttpPost request = new HttpPost(WebTestHelper.buildURL("skyts", folderPath, "updateProperty"));
-        request.setEntity(MultipartEntityBuilder.create()
-                .addTextBody("toolId", String.valueOf(toolId))
-                .addBinaryBody("propValue", image, ContentType.create("image/png"), fileName)
-                .build());
-        return execute(request);
-    }
-
-    /** Reads a URL the catalog handed us, as the current user. */
-    private byte[] getBytes(String url) throws Exception
-    {
-        // IconUrl and DownloadUrl already carry the context path, so the host alone goes in front.
-        HttpGet request = new HttpGet(WebTestHelper.getBaseUrlWithoutContextPath() + url);
-        APITestHelper.injectCookies(request);
-        try (CloseableHttpClient client = WebTestHelper.getHttpClient())
-        {
-            return client.execute(request, r -> EntityUtils.toByteArray(r.getEntity()));
-        }
-    }
-
-    private java.util.List<String> zipEntryNames(String downloadUrl) throws Exception
-    {
-        java.util.List<String> names = new java.util.ArrayList<>();
-        try (java.util.zip.ZipInputStream in =
-                     new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(getBytes(downloadUrl))))
-        {
-            java.util.zip.ZipEntry entry;
-            while ((entry = in.getNextEntry()) != null)
-                names.add(entry.getName());
-        }
-        return names;
-    }
-
     private String toolFolderPath(JSONObject tool)
     {
         return "/" + PROJECT_NAME + "/" +
@@ -1078,17 +1334,20 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(FORMS_STORE, false);
         _containerHelper.deleteProject(WEBPART_STORE, false);
         _containerHelper.deleteProject(BLOCKED_STORE, false);
-        _containerHelper.deleteProject(STRAY_STORE, false);
         _containerHelper.deleteProject(RETRY_STORE, false);
         _containerHelper.deleteProject(OLDER_STORE, false);
-        _containerHelper.deleteProject(ICON_STORE, false);
-        _containerHelper.deleteProject(NO_EXT_STORE, false);
-        _containerHelper.deleteProject(PENCIL_STORE, false);
-        _containerHelper.deleteProject(GROUP_STORE, false);
         _containerHelper.deleteProject(FOLDER_STORE, false);
         _containerHelper.deleteProject(NESTED_STORE, false);
         _containerHelper.deleteProject(CORRUPT_STORE, false);
-        _userHelper.deleteUsers(false, TOOL_AUTHOR, TOOL_SECOND_OWNER);
+        _containerHelper.deleteProject(NO_JQUERY_UI_STORE, false);
+        _containerHelper.deleteProject(NO_EXTENSION_STORE, false);
+        _containerHelper.deleteProject(STALE_DELETE_STORE, false);
+        _containerHelper.deleteProject(OWNER_ESCAPING_STORE, false);
+        _containerHelper.deleteProject(ESCAPE_STORE, false);
+        _containerHelper.deleteProject(TAB_STORE, false);
+        _containerHelper.deleteProject(PROPERTIES_STORE, false);
+        _containerHelper.deleteProject(SHIFT_TAB_STORE, false);
+        _userHelper.deleteUsers(false, TOOL_AUTHOR, TOOL_SECOND_OWNER, OTHER_USER);
     }
 
     @Override

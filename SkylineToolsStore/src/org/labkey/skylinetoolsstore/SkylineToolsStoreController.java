@@ -26,6 +26,8 @@ import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.jetbrains.annotations.NotNull;
+import org.junit.Assert;
+import org.junit.Test;
 import org.jetbrains.annotations.Nullable;
 import org.labkey.api.action.ApiSimpleResponse;
 import org.labkey.api.action.FormViewAction;
@@ -66,7 +68,6 @@ import org.labkey.api.security.roles.FolderAdminRole;
 import org.labkey.api.security.roles.ReaderRole;
 import org.labkey.api.security.roles.Role;
 import org.labkey.api.security.roles.RoleManager;
-import org.labkey.api.settings.AppProps;
 import org.labkey.api.util.FileUtil;
 import org.labkey.api.util.JavaScriptFragment;
 import org.labkey.api.util.PageFlowUtil;
@@ -500,20 +501,26 @@ public class SkylineToolsStoreController extends SpringActionController
 
     public static HashMap<String, String> getSupplementaryFiles(SkylineTool tool) throws IOException
     {
-        // Store supporting files in map <url, icon url>
-        final String[] knownExtensions = {"pdf", "zip"};
-        final String imgDir = AppProps.getInstance().getContextPath() + "/skylinetoolsstore/img/";
-
+        // Supporting files in map <download url, Font Awesome class for the file type>
         HashMap<String, String> suppFiles = new HashMap<>();
         for (String suppFile : getSupplementaryFileBasenames(tool))
         {
-            final String suppFileExtension = FileUtil.getExtension(suppFile).toLowerCase();
-            final String suppFileIcon = (Arrays.asList(knownExtensions).contains(suppFileExtension)) ?
-                imgDir + suppFileExtension + "-icon.png" : imgDir + "unknown-icon.jpg";
-            suppFiles.put(tool.getFolderUrl() + suppFile, suppFileIcon);
+            suppFiles.put(tool.getFolderUrl() + suppFile, suppFileIconClass(suppFile));
         }
 
         return suppFiles;
+    }
+
+    /** Font Awesome class for a supplementary file, chosen by extension. */
+    private static String suppFileIconClass(String suppFile)
+    {
+        // getExtension returns null for a name with no dot, and switching on null throws.
+        return switch (StringUtils.trimToEmpty(FileUtil.getExtension(suppFile)).toLowerCase())
+        {
+            case "pdf" -> "fa fa-file-pdf-o";
+            case "zip" -> "fa fa-file-archive-o";
+            default -> "fa fa-file-o";
+        };
     }
 
     public static HashSet<String> getSupplementaryFileBasenames(SkylineTool tool) throws IOException
@@ -900,7 +907,7 @@ public class SkylineToolsStoreController extends SpringActionController
     {
         if (zip == null || StringUtils.isEmpty(zip.getOriginalFilename()))
         {
-            errors.reject(ERROR_MSG, "You did not submit a file.");
+            errors.reject(ERROR_MSG, "Please submit a Skyline tool zip file.");
             return null;
         }
 
@@ -920,7 +927,7 @@ public class SkylineToolsStoreController extends SpringActionController
         }
         if (tool == null)
         {
-            errors.reject(ERROR_MSG, "The file was not a valid Skyline Tool zip file.");
+            errors.reject(ERROR_MSG, "The file was not a valid Skyline tool zip file.");
             return null;
         }
         if (!tool.getMissingValues().isEmpty())
@@ -1892,6 +1899,20 @@ public class SkylineToolsStoreController extends SpringActionController
         public void checkPermissions() throws UnauthorizedException
         {
 
+        }
+    }
+
+    public static class TestCase extends Assert
+    {
+        @Test
+        public void testSuppFileIconClass()
+        {
+            assertEquals("fa fa-file-pdf-o", suppFileIconClass("manual.pdf"));
+            assertEquals("fa fa-file-pdf-o", suppFileIconClass("MANUAL.PDF"));
+            assertEquals("fa fa-file-archive-o", suppFileIconClass("sources.zip"));
+            assertEquals("fa fa-file-o", suppFileIconClass("notes.txt"));
+            // The name comes from a folder listing rather than a form, so it may have no dot.
+            assertEquals("fa fa-file-o", suppFileIconClass("README"));
         }
     }
 }
