@@ -52,9 +52,9 @@
 <labkey:form action="<%= urlFor(SkylineToolsStoreController.SetOwnersAction.class) %>" enctype="multipart/form-data" method="post">
     <p>
         <label for="toolOwners">Tool owners </label><br />
-        <%-- Rendered here rather than set by the script below. The script needs jQuery from a CDN,
-             and where that does not load the box came up empty. Submitting it strips every owner
-             from every one of the tool's version folders. --%>
+        <%-- Rendered here rather than set by the script below. A script that does not run leaves
+             the box empty, and submitting it empty strips every owner from every one of the tool's
+             version folders. --%>
         <input style="width: 400px; max-width: 100%;" type="text" id="toolOwners" name="toolOwners"
                value="<%= h(toolOwners) %>" /><br /><br />
         <br />

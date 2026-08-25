@@ -67,7 +67,6 @@
 
     final SafeToRender autocompleteUsers = admin ? SkylineToolsStoreController.getUsersForAutocomplete() : HtmlString.unsafe("\"\"");
 
-    // Get supporting files in map <url, icon url>
     HashMap<String, String> suppFiles = SkylineToolsStoreController.getSupplementaryFiles(tool);
     Iterator suppIter = suppFiles.entrySet().iterator();
 
@@ -497,7 +496,10 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
             <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').modal('show')")%></li>
 <% } %>
 <% if (admin) { %>
-            <li><%=simpleLink("Delete").onClick("$('#delToolAllDlg').modal('show')")%></li>
+            <%-- Named for what it removes. It is offered on every version's page and takes the
+                 whole tool, so next to "Delete latest version" a bare "Delete" reads as this
+                 version. Matches the label the store listing uses. --%>
+            <li><%=simpleLink("Delete tool from store").onClick("$('#delToolAllDlg').modal('show')")%></li>
             <li><%=simpleLink("Manage tool owners").onClick("popToolOwners()")%></li>
 <% } %>
         </ul>
@@ -608,6 +610,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         }
 
         var suppFileItem = $(this).closest(".suppfile");
+        // .text(), not .html(). html() hands back the escaped markup, so a name carrying an
+        // ampersand or a quote would be posted in a form that names no file on disk.
         var targetDel = suppFileItem.find(".suppfilename").text().trim();
         if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?"))
             return;
@@ -620,8 +624,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
             suppFileItem.remove();
             if ($("#documentationbox").children(".suppfile").length === 0)
                 $("#documentationbox").hide();
-        }).fail(function() {
-            alert("An error occurred while trying to delete the file.");
+        }).fail(function(xhr) {
+            alert(xhr.responseJSON?.exception || "An error occurred while trying to delete the file.");
         });
     });
 <% } %>
@@ -659,7 +663,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
          that when there is one. Added as a text node, so a message carrying markup is displayed
          rather than parsed. --%>
     function showModalError(modal, xhr, fallback) {
-        var message = (xhr && xhr.responseJSON && xhr.responseJSON.exception) || fallback;
+        var message = xhr?.responseJSON?.exception || fallback;
         modal.find(".modal-body").empty().append($("<p></p>").text(message));
         <%-- The confirm button, whatever it is styled as. The delete dialogs use btn-danger and the
              edit dialog btn-primary, while Cancel is the one carrying data-dismiss. --%>
@@ -689,9 +693,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         setModalButtonsEnabled(dlg, false);
         // A POST, not a navigation. DeleteLatestAction deletes a container, so it must not be
         // reachable by GET, and the CSRF token cannot ride on a navigation.
-        // Addressed to allVersions[0], not the version being viewed. This item is offered on an
-        // older version's page too, and the action always removes the newest one, so both the URL
-        // and the id have to name that version.
+        // Addressed to allVersions[0], the newest version, which is the one the action removes.
+        // The menu item is offered only where that is also the version on screen.
         // returnUrl is the page to come back to. The action rewrites the name and version it
         // carries when the deleted version supplied them, and returns the result.
         $.post(<%=q(SkylineToolStoreUrls.getDeleteLatestUrl(allVersions[0]).getLocalURIString())%>, {
@@ -718,7 +721,9 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                 var isIcon = (propName.toLowerCase() == "icon") ? true : false;
                 var postData;
                 if (!isIcon) {
-                    propValue = body.children("input:text:visible, textarea:visible").first().val().replace(/r?\n/g, "\r\n").replace(/\\*$/, "");
+                    // Trailing backslashes are dropped. getInfoPropertiesStream escapes a line break
+                    // as a backslash, so one left at the end makes the next line part of this value.
+                    propValue = body.children("input:text:visible, textarea:visible").first().val().replace(/\\*$/, "");
                     postData = {
                         "toolId": <%= tool.getRowId() %>,
                         "propName": propName,

@@ -28,10 +28,12 @@ import org.openqa.selenium.WebElement;
  * a title by substring, and "Delete" is a substring of "Delete latest version", so a title lookup
  * can return either one.
  *
- * The same two dialogs behave differently on the two pages. On the store listing they post over
- * ajax and rewrite their own body, so a refusal leaves the dialog open with the message in it. On
- * the details page the handler builds a form and submits it, so a confirm navigates. Hence the two
- * confirm methods.
+ * Both pages post over ajax, and what a confirm does next depends on how the server answered.
+ *
+ * <ul>
+ * <li>Accepted, and the handler navigates to the page the reply names - confirmExpectingPageLoad</li>
+ * <li>Refused, and the dialog stays open with the reason in its body - confirmExpectingRefusal</li>
+ * </ul>
  *
  * Neither dialog can be dismissed while the post is in flight - they use a static backdrop and
  * their footer buttons are disabled for the duration.
@@ -41,13 +43,11 @@ public class ConfirmDeleteDialog extends ModalDialog
     public static final String DELETE_TOOL_DIALOG_ID = "delToolAllDlg";
     public static final String DELETE_LATEST_DIALOG_ID = "delToolLatestDlg";
 
-    private final String _dialogId;
     private final String _okButtonId;
 
     private ConfirmDeleteDialog(WebDriver driver, String dialogId, String okButtonId)
     {
         super(waitForOpenDialog(driver, dialogId), driver);
-        _dialogId = dialogId;
         _okButtonId = okButtonId;
         waitForReady();
     }
@@ -84,16 +84,6 @@ public class ConfirmDeleteDialog extends ModalDialog
     }
 
     /**
-     * Confirms a delete on the store listing, where the post is ajax and the dialog closes itself.
-     * On the details page use confirmExpectingPageLoad instead.
-     */
-    public void confirm()
-    {
-        getWrapper().click(okButton());
-        WebDriverWrapper.waitFor(() -> !isOpen(), "The delete dialog stayed open", 10_000);
-    }
-
-    /**
      * Confirms a delete and waits for the page the action names in its reply.
      *
      * The handler posts over ajax and then navigates, so the browser leaves the page rather than
@@ -106,11 +96,11 @@ public class ConfirmDeleteDialog extends ModalDialog
     }
 
     /**
-     * Confirms a delete the server is expected to refuse, and returns what it said.
+     * Confirms a tool delete the server is expected to refuse, and returns the error message.
      *
-     * A refusal arrives as an error status with a JSON body naming the reason, and the page shows
-     * that reason in this dialog rather than closing it. Waits for the confirm button to go, which
-     * is what the page hides once it has a refusal to display. Matching words in the message would
+     * A refusal returns an error status with a JSON body including the reason, and the page shows
+     * that reason in this dialog rather than closing it. Waits for the Ok button to go, which is
+     * what the page hides once it has a refusal to display. Matching words in the message would
      * pin the test to wording the server chooses.
      */
     public String confirmExpectingRefusal()
@@ -127,10 +117,14 @@ public class ConfirmDeleteDialog extends ModalDialog
         dismiss("Cancel");
     }
 
-    private boolean isOpen()
+    /**
+     * Whether the Ok button is on offer. Showing a refusal hides it, and closing the dialog is what
+     * puts it back, so this is how a reopened dialog is checked.
+     */
+    public boolean isConfirmOffered()
     {
-        WebElement dialog = Locator.id(_dialogId).findElementOrNull(getDriver());
-        return dialog != null && dialog.isDisplayed();
+        WebElement ok = okButton().findElementOrNull(getDriver());
+        return ok != null && ok.isDisplayed();
     }
 
     private Locator.XPathLocator okButton()

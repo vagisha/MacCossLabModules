@@ -33,6 +33,7 @@ import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
 import org.labkey.test.categories.External;
 import org.labkey.test.categories.MacCossLabModules;
+import org.labkey.test.components.skylinetoolsstore.ConfirmDeleteDialog;
 import org.labkey.test.components.skylinetoolsstore.ManageToolOwnersDialog;
 import org.labkey.test.components.skylinetoolsstore.SkylineToolStoreWebPart;
 import org.labkey.test.components.skylinetoolsstore.SupplementaryFileDialog;
@@ -87,6 +88,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String TAB_STORE = "ToolStoreWorkflowTestTabKey";
     private static final String PROPERTIES_STORE = "ToolStoreWorkflowTestProperties";
     private static final String SHIFT_TAB_STORE = "ToolStoreWorkflowTestShiftTab";
+    private static final String REOPEN_STORE = "ToolStoreWorkflowTestReopenAfterRefusal";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -631,6 +633,49 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
+     * A refused delete on the details page leaves the dialog usable on the next open.
+     *
+     * Showing a refusal replaces the dialog body with the reason and hides the confirm button.
+     * Bootstrap keeps a modal in the page after it closes, so both have to be put back, which is
+     * what restoreOnClose does. Without it the second open shows the old refusal with no button to
+     * confirm, and the only way out is reloading the page.
+     *
+     * The store listing does not need this, because its handlers rebuild the body every time they
+     * open a dialog. Only the details page renders the question server side, so only the details
+     * page can lose it. That is why this test does not go through the web part.
+     */
+    @Test
+    public void testADetailsPageDialogIsUsableAfterARefusal()
+    {
+        String store = REOPEN_STORE;
+        String tool = "ReopenProbe";
+        File zip = ToolStoreTestHelper.writeMinimalToolZip(tool,
+                "URN:LSID:toolstore.test:reopen", "1.0");
+        createStore(store);
+
+        goToProjectHome(store);
+        SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver()).addTool(zip, null);
+
+        // Deletes the tool over HTTP rather than through the UI. The browser page is still left open for the tool.
+        // Clicking delete will return a refusal from the server that is displayed in the dialog.
+        ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
+
+        ConfirmDeleteDialog refused = details.clickDelete();
+        String refusal = refused.confirmExpectingRefusal();
+        assertTrue("The dialog should report what the server said, got: " + refusal,
+                refusal.contains("does not exist"));
+
+        log("Cancel, then open the same dialog again");
+        refused.cancel();
+        ConfirmDeleteDialog reopened = details.clickDelete();
+
+        // The question names the tool and the refusal does not, so this tells the two bodies apart.
+        assertTrue("The dialog should ask its question again, got: " + reopened.getMessage(),
+                reopened.getMessage().contains(tool));
+        assertTrue("The confirm button should be back", reopened.isConfirmOffered());
+    }
+
+    /**
      * Tab completes the highlighted address instead of moving focus off the field.
      *
      * The jQuery UI widget did this, and the conversion dropped it. Arrowing to an address and
@@ -888,6 +933,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      * Supplementary files are per version and the action accepts them on any version, so that item
      * has to stay. Checked here as well, to keep a later change from hiding the whole menu.
      *
+     * Deleting the whole tool also stays, because DeleteAction takes every version wherever it is
+     * clicked from. Its label is asserted rather than just its presence. From an older version's
+     * page the tool being removed is not the one on screen, so "Delete" next to "Delete latest
+     * version" would read as this version.
+     *
      * The last block covers the URL rather than the menu, because hiding an item only removes the
      * way in that the UI offers. The action itself has to refuse before it draws an upload form,
      * or an owner spends a whole upload before being told no.
@@ -924,6 +974,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 detailsPageHasMenuItem("Delete latest version"));
         assertTrue("Upload supplementary file works on any version and must stay",
                 detailsPageHasMenuItem("Upload supplementary file"));
+        assertTrue("Deleting the whole tool works from any version and must say what it removes",
+                detailsPageHasMenuItem("Delete tool from store"));
 
         log("The URL behind the hidden item refuses before drawing the form");
         beginAt(WebTestHelper.buildURL("skyts", v1Folder, "updateTool",
@@ -1347,6 +1399,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(TAB_STORE, false);
         _containerHelper.deleteProject(PROPERTIES_STORE, false);
         _containerHelper.deleteProject(SHIFT_TAB_STORE, false);
+        _containerHelper.deleteProject(REOPEN_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, TOOL_SECOND_OWNER, OTHER_USER);
     }
 
