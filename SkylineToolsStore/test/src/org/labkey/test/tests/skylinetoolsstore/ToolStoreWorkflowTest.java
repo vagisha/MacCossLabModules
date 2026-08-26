@@ -66,7 +66,7 @@ import static org.junit.Assert.assertTrue;
  * The real Skyline Tool Store workflow, end to end.
  *
  * Outside authors cannot upload to the store. They attach a zip to a message board post via a wiki
- * page, a site admin adds the tool naming the author as an owner, and the author can then maintain
+ * page. A site admin adds the tool and names the author as an owner. The author can then maintain
  * their own tool without further admin help.
  */
 @Category({External.class, MacCossLabModules.class})
@@ -75,7 +75,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 {
     private static final String PROJECT_NAME = "ToolStoreWorkflowTest";
     private static final String OTHER_STORE = "ToolStoreWorkflowTestOtherStore";
-    // Its own store so the tools this test adds cannot disturb the single-tool assertions elsewhere.
+    // Its own store. The tools this test adds cannot then disturb the single-tool assertions
+    // elsewhere.
     private static final String FORMS_STORE = "ToolStoreWorkflowTestForms";
     // Deliberately does NOT contain the library's name. The folder name is part of every url on its
     // pages, including the favicon, so a folder named after the library defeats any url check.
@@ -95,8 +96,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static File _formsToolV1;
     private static File _formsToolV2;
 
-    // Its own store, because this test deliberately fails an upload and then retries the same
-    // version, which would disturb the single-tool assertions in the other stores.
+    // Its own store. This test deliberately fails an upload and then retries the same version, which
+    // would disturb the single-tool assertions in the other stores.
     private static final String RETRY_STORE = "ToolStoreWorkflowTestFailedUpload";
     private static final String RETRY_TOOL_NAME = "PartialUploadProbe";
     private static final String RETRY_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:partialupload";
@@ -117,7 +118,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String OLDER_TOOL_NAME = "OlderVersionProbe";
     private static final String OLDER_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:olderversion";
 
-    // Its own store, because it enables the module in a tool folder, which the other stores do not.
+    // Its own store. It enables the module in a tool folder, which the other stores do not.
     private static final String FOLDER_STORE = "ToolStoreWorkflowTestToolFolder";
     private static final String FOLDER_TOOL_NAME = "ToolFolderProbe";
     private static final String FOLDER_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:toolfolder";
@@ -172,7 +173,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         portalHelper.addWebPart("Messages");
         portalHelper.addWebPart("Wiki");
 
-        // Public store, and site users may post tool submissions to the message board. This mirrors
+        // Public store. Site users may post tool submissions to the message board. This mirrors
         // skyline.ms, where Message Board Contributor is granted to All Site Users.
         _permissionsHelper.setSiteGroupPermissions("Guests", "Reader");
         _permissionsHelper.setSiteGroupPermissions("All Site Users", "Reader");
@@ -287,7 +288,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertTextPresent("test.pdf");
 
         // Attaching the supplementary file before publishing is deliberate. A new version copies the
-        // previous version's supplementary files, and that loop only runs when there are some.
+        // previous version's supplementary files. That loop only runs when there are some.
         log("The author publishes a new version without admin help");
         impersonate(TOOL_AUTHOR);
         try
@@ -314,8 +315,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(PROJECT_NAME);
         assertTextPresent("test.pdf");
 
-        // Deleting a supplementary file is a trash icon on its row. It used to be a drag onto a
-        // trash can, and neither shape has ever been driven by a test.
+        // Deleting a supplementary file is a trash icon on its row. It used to be a drag onto a trash
+        // can. Neither shape has ever been driven by a test.
         log("The trash icon on the details page deletes a supplementary file");
         SkylineToolDetailsPage detailsPage = new SkylineToolStoreWebPart(getDriver())
                 .getTool(latest.getString("Name")).clickToolName();
@@ -323,8 +324,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 detailsPage.getSupplementaryFileNames().contains("test.pdf"));
         detailsPage.deleteSupplementaryFile("test.pdf");
 
-        // The row is removed by script on any 2xx, and a refused delete can still render 200, so the
-        // row going away proves nothing on its own. Reload and see whether the file is really gone.
+        // Script removes the row on any 2xx, and a refused delete can still render 200. The row going
+        // away proves nothing on its own. Reload and see whether the file is really gone.
         refresh();
         assertFalse("The supplementary file should be gone after a reload",
                 new SkylineToolDetailsPage(getDriver()).getSupplementaryFileNames()
@@ -419,8 +420,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 new SkylineToolStoreWebPart(getDriver()).hasTool(FORMS_TOOL_NAME));
         assertEquals("The dialog should have added exactly one tool", 1, toolsInStore(FORMS_STORE));
 
-        // The web part draws its own gear per row, separate from the details page one, and wires
-        // each menu item to a dialog shared by every row.
+        // The web part draws its own gear per row, separate from the details page one. Each menu item
+        // is wired to a dialog shared by every row.
         log("A web part row's gear menu opens the dialog its item names");
         SupplementaryFileDialog suppDialog = new SkylineToolStoreWebPart(getDriver())
                 .getTool(FORMS_TOOL_NAME).clickUploadSupplementaryFile();
@@ -439,8 +440,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 "2.0", details.getVersion());
         assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
 
-        // The owners field completes a comma separated list from a hand written Bootstrap dropdown,
-        // so nothing else proves it filters, appends and leaves the separator the next name needs.
+        // The owners field completes a comma separated list from a hand written Bootstrap dropdown.
+        // Nothing else proves it filters, appends and leaves the separator the next name needs.
         log("The owners field completes an address from its dropdown");
         ManageToolOwnersDialog ownersDialog = details.clickManageToolOwners()
                 .typeOwner("toolstore_bystander")
@@ -464,7 +465,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         new SkylineToolStoreWebPart(getDriver()).getTool(FORMS_TOOL_NAME).clickToolName()
                 .clickDeleteLatestVersion().confirmExpectingPageLoad();
 
-        // Read the version from the catalog rather than the page - the details page carries script
+        // Read the version from the catalog rather than the page. The details page carries script
         // constants that a bare text search for a version number picks up.
         assertEquals("Deleting the newest version should leave 1.0 as the latest",
                 "1.0", onlyToolInStore(FORMS_STORE).getString("Version"));
@@ -509,10 +510,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * A tool version folder containing a subfolder cannot be removed - ContainerManager.delete
-     * returns false rather than throwing. If this happens we should not be left with two tool rows
-     * flagged as the latest. getToolLatestByIdentifier (lsid identifier) matches nothing when more
-     * one tool row is flagged as latest, so Skyline clients will stop resolving that tool.
+     * A tool version folder containing a subfolder cannot be removed. ContainerManager.delete returns
+     * false rather than throwing. That must not leave two tool rows flagged as the latest.
+     * getToolLatestByIdentifier matches nothing when more than one row carries the flag, and Skyline
+     * clients then stop resolving that tool.
      */
     @Test
     public void testADeleteLatestThatCannotRemoveTheFolderChangesNothing()
@@ -558,8 +559,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         String refusal = new SkylineToolStoreWebPart(getDriver()).getTool(BLOCKED_TOOL_NAME)
                 .clickDeleteLatestVersion().confirmExpectingRefusal();
 
-        // Two different refusals both say "could not be deleted". Only the one that happens before
-        // any row is changed adds "so nothing was changed", which is the path this test sets up.
+        // Two different refusals both say "could not be deleted". Only the one that happens before any
+        // row is changed adds "so nothing was changed". That is the path this test sets up.
         assertTrue("The dialog should say nothing was changed, got: " + refusal,
                 refusal.contains("nothing was changed"));
         assertEquals("2.0 should still be the latest version after the dialog was used",
@@ -604,8 +605,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      * A delete the server refuses used to look like one that worked.
      *
      * The actions render a refusal as an error view with status 200, so the browser's .fail() never
-     * runs. The handler took that for success, closed the dialog and removed the row, telling the
-     * admin the tool was gone when it was the server saying no.
+     * runs. The handler took that for success, closed the dialog and removed the row. It told the
+     * admin the tool was gone when the server had said no.
      */
     @Test
     public void testDeletingAToolThatIsAlreadyGoneReportsTheRefusal()
@@ -622,12 +623,12 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(store);
         SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
 
-        // Someone else deletes it while this page sits there, which is the state the handler got wrong.
+        // Someone else deletes it while this page sits there. That is the state the handler got wrong.
         ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
 
         String message = webPart.getTool(tool).clickDelete().confirmExpectingRefusal();
-        // DeleteAction names the row it could not find. Matching that rather than the word "error"
-        // keeps this from passing on any refusal at all.
+        // DeleteAction names the row it could not find. Matching that rather than the word "error" keeps
+        // this from passing on any refusal at all.
         assertTrue("The dialog should report what the server said, got: " + message,
                 message.contains("does not exist"));
     }
@@ -651,8 +652,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(store);
         SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver()).addTool(zip, null);
 
-        // Deletes the tool over HTTP rather than through the UI. The browser page is still left open for the tool.
-        // Clicking delete will return a refusal from the server that is displayed in the dialog.
+        // Deletes the tool over HTTP rather than through the UI. The browser page is still left open for
+        // the tool. Clicking delete will return a refusal from the server that is displayed in the dialog.
         ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
 
         ConfirmDeleteDialog refused = details.clickDelete();
@@ -674,9 +675,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * Tab completes the highlighted address instead of moving focus off the field.
      *
-     * The jQuery UI widget did this, and the conversion dropped it. Arrowing to an address and
-     * pressing Tab left the partial text in the field, so Update Tool Owners posted something like
-     * "toolst", SetOwnersAction reported an unknown user, and the owner was never granted Editor.
+     * The jQuery UI widget did this, and the conversion dropped it. Arrowing to an address and pressing
+     * Tab left the partial text in the field. Update Tool Owners then posted something like "toolst".
+     * SetOwnersAction reported an unknown user, and the owner was never granted Editor.
      */
     @Test
     public void testTabCompletesTheHighlightedAddress()
@@ -698,9 +699,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         dialog.typeOwner("toolstore_a");
         assertTrue("Typing should open the suggestion list", dialog.isTypeAheadShowing());
 
-        // The candidates are every active account on the server, which includes ones other test
-        // classes create, so which address sorts first is not this test's to assume. One Down
-        // highlights the first, so that is what Tab has to produce.
+        // The candidates are every active account on the server, including ones other test classes
+        // create. Which address sorts first is not this test's to assume. One Down highlights the
+        // first, and that is what Tab has to produce.
         String firstOffered = dialog.getTypeAheadOptions().get(0);
         dialog.pressDown().pressTab();
 
@@ -711,10 +712,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * Two keyboard cases the first Tab fix got wrong.
      *
-     * Shift+Tab is a user leaving the field backwards. Completing there put an address into the
-     * list that nobody chose, and Update Tool Owners would have granted it Editor. Up on a closed
-     * list has to highlight the last entry, the way Down highlights the first, rather than opening
-     * the list and selecting nothing.
+     * Shift+Tab is a user leaving the field backwards. Completing there put an address into the list
+     * that nobody chose, and Update Tool Owners would have granted it Editor. Up on a closed list has
+     * to highlight the last entry, the way Down highlights the first. It must not open the list and
+     * select nothing.
      */
     @Test
     public void testShiftTabLeavesTheFieldAndUpHighlightsFromAClosedList()
@@ -752,9 +753,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * What the details page shows for one tool, read through the page component.
      *
-     * The store has no other coverage of the page rendering a tool's own fields. Everything else
-     * reads the catalog over the API, which cannot tell whether the page drew what the catalog
-     * holds.
+     * The store has no other coverage of the page rendering a tool's own fields. Everything else reads
+     * the catalog over the API. That cannot tell whether the page drew what the catalog holds.
      */
     @Test
     public void testTheDetailsPageShowsTheToolsProperties()
@@ -796,13 +796,13 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * Escape has to reach the type-ahead without reaching the dialog around it.
      *
-     * Bootstrap's modal hides on any Escape that bubbles up to it and does not check
-     * preventDefault, so dismissing the suggestion list used to throw away the whole dialog along
-     * with whatever had been typed into it. The old jQuery UI widget could not do this, because it
-     * called preventDefault on Escape and the jQuery UI dialog honoured that.
+     * Bootstrap's modal hides on any Escape that bubbles up to it and does not check preventDefault.
+     * Dismissing the suggestion list used to throw away the whole dialog along with whatever had been
+     * typed into it. The old jQuery UI widget could not do this. It called preventDefault on Escape
+     * and the jQuery UI dialog honoured that.
      *
-     * The last two assertions carry as much weight as the first two. Stopping propagation whether
-     * or not the list is open would pass the middle of this test and leave a dialog that Escape
+     * The last two assertions carry as much weight as the first two. Stopping propagation whether or
+     * not the list is open would pass the middle of this test. It would leave a dialog that Escape
      * cannot close at all.
      */
     @Test
@@ -836,13 +836,13 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     /**
      * The owners box is prefilled from a script, so the value has to be escaped for JavaScript.
-     * Escaping it as HTML put the entities themselves in the box, and an admin correcting one bad
-     * address had to retype the whole list.
+     * Escaping it as HTML put the entities themselves in the box. An admin correcting one bad address
+     * then had to retype the whole list.
      *
      * This is also the only test that reaches the standalone page SetOwnersAction reshows on a
-     * refusal. It was dropped from this branch as a flake, and revived once both suspected causes
-     * were gone: the dialog no longer waits on an animated jQuery UI widget, and the page it lands
-     * on had its script blocked by the content security policy until the client dependencies fix.
+     * refusal. It was dropped from this branch as a flake and revived once both suspected causes were
+     * gone. The dialog no longer waits on an animated jQuery UI widget, and the page it lands on had
+     * its script blocked by the content security policy until the client dependencies fix.
      */
     @Test
     public void testARefusedOwnerListComesBackUnchanged()

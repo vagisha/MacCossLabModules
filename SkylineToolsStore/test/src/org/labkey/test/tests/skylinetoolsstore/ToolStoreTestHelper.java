@@ -121,7 +121,7 @@ public class ToolStoreTestHelper
     }
 
     /**
-     * A tool zip carrying extra info.properties lines beyond the three required ones, for a caller
+     * A tool zip carrying extra info.properties lines beyond the three required ones. For a caller
      * that needs the details page to have something to render.
      */
     public static File writeToolZip(String name, String identifier, String version, String extraProperties)
