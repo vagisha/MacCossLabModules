@@ -19,7 +19,6 @@
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
 <%@ page import="org.labkey.api.data.Container" %>
 <%@ page import="org.labkey.api.data.ContainerManager" %>
-<%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
 <%@ page import="org.labkey.api.portal.ProjectUrls" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.DOM" %>
@@ -72,17 +71,12 @@
 
     final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
 
-    // Cannot be null here - the page was resolved from this tool.
-    final Container toolContainer = tool.lookupContainer();
     // UpdateToolAction refuses anything but the latest version, so the item that reaches it is
     // offered only there. On an older version's page it cost the owner a whole upload first.
     final boolean isLatestVersion = tool.getLatest();
     // isEditor is the store's own definition of who may use the editing controls, and it requires
     // Update, Insert and Delete together, which is what the Editor role on a tool folder carries.
     final boolean toolEditor = tool.isEditor(getUser());
-    // DeleteSupplementAction requires only Delete. Checked separately so the icon follows the
-    // permission the action actually enforces.
-    final boolean canDeleteSuppFiles = toolContainer.hasPermission(getUser(), DeletePermission.class);
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
 
@@ -91,11 +85,7 @@
     // which is not this page's folder when an older version is on screen, and owners are set one
     // folder at a time, so the two policies can differ.
     final SkylineTool latestVersion = allVersions[0];
-    final Container latestVersionContainer = latestVersion.lookupContainer();
-    // getRowId returns an Integer, so compare values rather than references.
-    final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId())
-            && latestVersionContainer != null
-            && latestVersionContainer.hasPermission(getUser(), DeletePermission.class);
+    final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId()) && toolEditor;
     final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 
     ActionURL toolDetailsUrl = SkylineToolStoreUrls.getToolDetailsUrl(tool);
@@ -411,7 +401,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                 <h4 class="modal-title">Delete latest version</h4>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete version <%= h(allVersions[0].getVersion()) %> of <%= h(allVersions[0].getName()) %>?</p>
+                <p>Are you sure you want to delete version <%= h(latestVersion.getVersion()) %> of <%= h(latestVersion.getName()) %>?</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
@@ -452,17 +442,16 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
             <h2><%= h(tool.getName()) %></h2>
             <p>
                 Version <%= h(tool.getVersion()) %>
-<% if (allVersions.length > 1) { %>
+<% if (multipleVersions) { %>
                 [<%=simpleLink("View All").onClick("$('#allVersionsPop').modal('show')")%>]
-            </p>
 <% } %>
             </p>
             <p>Uploaded <%= h(tool.getPrettyCreated()) %></p>
 
             <% if (!tool.getLatest()) { %>
             <p>
-                <a class="importantLink" href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(allVersions[0]))%>">See latest version</a>
-            <p>
+                <a class="importantLink" href="<%=h(SkylineToolStoreUrls.getToolDetailsUrl(latestVersion))%>">See latest version</a>
+            </p>
 <% } %>
         </div>
 
@@ -540,7 +529,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         <span class="<%=h(suppPair.getValue())%> suppFileIcon" aria-hidden="true"></span>
         <span class="suppfilename"><%= h(new File(suppPair.getKey().toString()).getName()) %></span>
         </a>
-<% if (canDeleteSuppFiles) { %>
+<% if (toolEditor) { %>
         <span class="fa fa-trash deleteSuppFile" title="Delete this file" role="button" tabindex="0"></span>
 <% } %>
     </div>
@@ -595,7 +584,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
 
 
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
-<% if (canDeleteSuppFiles) { %>
+<% if (toolEditor) { %>
     $(".deleteSuppFile").on("click keydown", function(e) {
         // The icon can be reached by keyboard, where only Enter (13) and Space (32) should delete.
         // keydown rather than keypress, which is deprecated, and Space has to be stopped or the
@@ -694,15 +683,15 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         // The menu item is offered only where that is also the version on screen.
         // returnUrl is the page to come back to. The action rewrites the name and version it
         // carries when the deleted version supplied them, and returns the result.
-        $.post(<%=q(SkylineToolStoreUrls.getDeleteLatestUrl(allVersions[0]).getLocalURIString())%>, {
-            "toolId": <%=allVersions[0].getRowId()%>,
+        $.post(<%=q(SkylineToolStoreUrls.getDeleteLatestUrl(latestVersion).getLocalURIString())%>, {
+            "toolId": <%=latestVersion.getRowId()%>,
             "returnUrl": <%=q(toolDetailsLatestUrl.getLocalURIString())%>,
             "X-LABKEY-CSRF": LABKEY.CSRF
         }).done(function(data) {
             window.location = data.successUrl;
         }).fail(function(xhr) {
             showModalError(dlg, xhr, "An error occurred trying to delete the latest version of " +
-                    <%=q(allVersions[0].getName())%> + ".");
+                    <%=q(latestVersion.getName())%> + ".");
         });
     });
 
