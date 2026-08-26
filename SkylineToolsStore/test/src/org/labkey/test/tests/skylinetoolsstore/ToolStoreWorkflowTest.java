@@ -315,8 +315,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(PROJECT_NAME);
         assertTextPresent("test.pdf");
 
-        // Deleting a supplementary file is a trash icon on its row. It used to be a drag onto a trash
-        // can. Neither shape has ever been driven by a test.
         log("The trash icon on the details page deletes a supplementary file");
         SkylineToolDetailsPage detailsPage = new SkylineToolStoreWebPart(getDriver())
                 .getTool(latest.getString("Name")).clickToolName();
@@ -324,8 +322,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 detailsPage.getSupplementaryFileNames().contains("test.pdf"));
         detailsPage.deleteSupplementaryFile("test.pdf");
 
-        // Script removes the row on any 2xx, and a refused delete can still render 200. The row going
-        // away proves nothing on its own. Reload and see whether the file is really gone.
+        // deleteSupplementaryFile waits for the script to remove the row. Reload so the assertion
+        // reads the list back from the server rather than from the page the script edited.
         refresh();
         assertFalse("The supplementary file should be gone after a reload",
                 new SkylineToolDetailsPage(getDriver()).getSupplementaryFileNames()
@@ -451,8 +449,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 OTHER_USER + ", ", ownersDialog.getOwners());
         ownersDialog.dismiss("Cancel");
 
-        // deleteLatest deletes the newest version whatever row id it is posted, and refuses any row
-        // id that is not the newest, so an older version's page must not offer the item at all.
+        // SkylineToolDetails.jsp posts the newest version's row id whatever version the page shows,
+        // so from an older version's page this item would delete a version the user is not viewing.
         log("An older version's page must not offer to delete the latest");
         beginAt(WebTestHelper.buildURL("skyts", FORMS_STORE, "details",
                 Map.of("name", FORMS_TOOL_NAME, "version", "1.0")));
@@ -474,8 +472,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * The two delete items on a tool's settings menu in the web part, which no other test reaches.
      *
-     * Both post over ajax and then go to the page the action names in its reply, so a refusal has to
-     * be shown in the dialog rather than read as a success.
+     * Both post over ajax and then go to the successUrl the action returns, so a refusal has to be
+     * shown in the dialog rather than read as a success.
      */
     @Test
     public void testDeletingTheLatestVersionThenTheToolFromToolSettingsMenu()
@@ -602,11 +600,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * A delete the server refuses used to look like one that worked.
+     * A delete the server refuses must be reported in the dialog rather than read as a success.
      *
-     * The actions render a refusal as an error view with status 200, so the browser's .fail() never
-     * runs. The handler took that for success, closed the dialog and removed the row. It told the
-     * admin the tool was gone when the server had said no.
+     * DeleteAction responds to a refusal with an error status, so the handler's .fail() runs and
+     * showModalError puts the reason in the dialog body.
      */
     @Test
     public void testDeletingAToolThatIsAlreadyGoneReportsTheRefusal()
@@ -623,7 +620,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(store);
         SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
 
-        // Someone else deletes it while this page sits there. That is the state the handler got wrong.
+        // Someone else deletes it while this page sits there, so the confirm below reaches a tool
+        // the server can no longer find.
         ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
 
         String message = webPart.getTool(tool).clickDelete().confirmExpectingRefusal();
@@ -675,9 +673,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * Tab completes the highlighted address instead of moving focus off the field.
      *
-     * The jQuery UI widget did this, and the conversion dropped it. Arrowing to an address and pressing
-     * Tab left the partial text in the field. Update Tool Owners then posted something like "toolst".
-     * SetOwnersAction reported an unknown user, and the owner was never granted Editor.
+     * Without it the field keeps the partial term, so Update Tool Owners posts something like
+     * "toolst" and SetOwnersAction refuses it as an unknown user.
      */
     @Test
     public void testTabCompletesTheHighlightedAddress()
@@ -695,7 +692,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         ManageToolOwnersDialog dialog = new SkylineToolStoreWebPart(getDriver())
                 .getTool(tool).clickManageToolOwners();
 
-        // Typing first, because on a closed list the first Down only opens it without highlighting.
+        // Typing narrows the list to addresses containing the term, which is the case a user meets.
         dialog.typeOwner("toolstore_a");
         assertTrue("Typing should open the suggestion list", dialog.isTypeAheadShowing());
 
@@ -835,14 +832,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * The owners box is prefilled from a script, so the value has to be escaped for JavaScript.
-     * Escaping it as HTML put the entities themselves in the box. An admin correcting one bad address
-     * then had to retype the whole list.
+     * A refused owner list comes back on the reshown page exactly as it was typed.
      *
-     * This is also the only test that reaches the standalone page SetOwnersAction reshows on a
-     * refusal. It was dropped from this branch as a flake and revived once both suspected causes were
-     * gone. The dialog no longer waits on an animated jQuery UI widget, and the page it lands on had
-     * its script blocked by the content security policy until the client dependencies fix.
+     * SkylineToolManageOwners.jsp renders the list into the input's value attribute with h(), and the
+     * browser decodes it again, so an address containing an ampersand survives the round trip. This is
+     * the only test that reaches the standalone page SetOwnersAction reshows on a refusal.
      */
     @Test
     public void testARefusedOwnerListComesBackUnchanged()
@@ -1089,7 +1083,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 ToolStoreTestHelper.catalogIdentifiers(CORRUPT_STORE).contains(CORRUPT_TOOL_IDENTIFIER));
     }
 
-    /** Whether the details page gear menu carries an item, without clicking it. */
     /**
      * Whether the details page currently loaded offers a settings menu item.
      *
@@ -1143,8 +1136,8 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      * version from then on - the owner retries with a good zip and is told the tool already exists,
      * with nothing to say the folder is the reason.
      *
-     * Asserts the effect rather than the status. A refusal here renders as an error view with
-     * status 200, so a status alone proves nothing.
+     * Asserts the effect rather than the status. InsertToolAction is a FormViewAction and re-renders
+     * the upload form at 200 on a refusal, so a status alone proves nothing.
      */
     @Test
     public void testAnUploadThatFailsPartWayLeavesNoFolderBehind()
@@ -1153,7 +1146,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.enableModule(RETRY_STORE, "SkylineToolsStore");
         new PortalHelper(this).addWebPart("Skyline Tool Store");
 
-        // resetErrorMark is server wide, so consuming this upload's errors below consumes everything
+        // resetErrors is server wide, so consuming this upload's errors below consumes everything
         // logged since the last mark. checkErrors() runs after every test method, so nothing should
         // be pending here - assert that rather than let the reset hide an error silently.
         assertEquals("Server errors were already pending before this test",

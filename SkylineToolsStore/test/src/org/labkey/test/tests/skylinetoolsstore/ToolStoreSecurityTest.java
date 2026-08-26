@@ -329,7 +329,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
 
     /**
      * A request naming a tool that does not exist is an ordinary bad request, so each action has to
-     * answer 404 rather than a server error that reaches the log and mothership.
+     * return 404 rather than a server error that reaches the log and mothership.
      */
     @Test
     public void testMissingToolReturnsNotFoundNotServerError()
@@ -380,9 +380,6 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
     /**
      * deleteLatest deletes a container, so it must not be reachable by GET, which an img tag can
      * forge and no CSRF token can protect.
-     *
-     * A GET here also trips SpringActionController.checkForMutatingSql on a dev server. Do not
-     * silence that with ignoreSqlUpdates() - it would hide the warning and leave the GET reachable.
      */
     @Test
     public void testDeleteLatestRejectsGetRequest()
@@ -409,9 +406,8 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         assertTrue("The second version folder should exist before the GET",
                 _containerHelper.doesContainerExist(latestFolderPath));
 
-        // Address the tool's own version folder. Addressed to the project, the container check
-        // refuses before the GET rule is reached and this passes either way. The parameter name has
-        // to be one the form binds, or the action looks up tool 0 and the assertions pass anyway.
+        // Address the tool's own version folder with the row id the form binds, so a GET that was
+        // accepted would really delete the version and the assertions below would catch it.
         String url = WebTestHelper.buildURL("skyts", latestFolderPath, "deleteLatest") + "?toolId=" + latestRowId;
         int status = execute(new HttpGet(url), true, true);
 
@@ -590,7 +586,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
         return postToForReply(containerPath, action, params, withSession, withCsrfToken).status();
     }
 
-    /** Like postTo, but keeps the reply body. Only the MutatingApiActions answer with JSON. */
+    /** Like postTo, but keeps the reply body. Only the MutatingApiActions respond with JSON. */
     private Reply postToForReply(String containerPath, String action, List<NameValuePair> params,
                                  boolean withSession, boolean withCsrfToken)
     {
@@ -664,7 +660,7 @@ public class ToolStoreSecurityTest extends BaseWebDriverTest implements Postgres
      */
     private void assertNotFoundNaming(String action, String expectedInBody, Reply reply)
     {
-        assertEquals(action + " should answer 404, body was " + reply.body(), 404, reply.status());
+        assertEquals(action + " should return 404, body was " + reply.body(), 404, reply.status());
         assertTrue(action + " should name " + expectedInBody + " in its reply, got " + reply.body(),
                 reply.body().contains(expectedInBody));
     }

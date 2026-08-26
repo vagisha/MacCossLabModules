@@ -24,7 +24,7 @@ import org.openqa.selenium.WebDriver;
  *
  * Nothing links here. SetOwnersAction is a FormViewAction, so a post carrying an address the server
  * does not recognise comes back as this page, with the submitted list still in the field. The tool id
- * rides in a hidden input rather than the url, so reloading this page fails.
+ * is set in a hidden input rather than the url, so reloading this page fails.
  */
 public class ManageToolOwnersPage extends LabKeyPage<ManageToolOwnersPage.ElementCache>
 {
@@ -38,7 +38,7 @@ public class ManageToolOwnersPage extends LabKeyPage<ManageToolOwnersPage.Elemen
         return getText(Locator.tagWithClass("div", "labkey-error"));
     }
 
-    /** Filled in by script from the submitted list, not by a value attribute on the input. */
+    /** The submitted list. The JSP renders it into the input's value attribute rather than by script. */
     public String getOwners()
     {
         return getFormElement(Locator.id("toolOwners"));

@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
 /**
  * The details page for one version of one tool.
  *
- * The settings gear and the edit pencils are drawn only for someone who may edit the tool. The
- * supplementary file trash icons are drawn only for someone who may delete. The can* methods are how
- * a test asks what is on offer.
+ * The settings gear, the edit pencils and the supplementary file trash icons all gate on one flag,
+ * tool.isEditor. That is a site admin, or a user holding Update, Insert and Delete together. The
+ * can* methods report what is on offer.
  */
 public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.ElementCache>
 {
@@ -72,8 +72,9 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
     }
 
     /**
-     * Properties are keyed by the title attribute their row carries. The edit dialog uses the same
-     * string, so the constants above serve both.
+     * Properties are keyed by the title attribute their row carries. The edit dialog takes the same
+     * string except for Authors and Provider's Website, which SkylineToolDetails.jsp passes to
+     * editTool as 'author' and 'provider'.
      */
     public String getProperty(String property)
     {
@@ -116,8 +117,8 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
     }
 
     /**
-     * Deletes over ajax behind a browser confirm, then waits for the row to go. The row is removed
-     * by script on any 2xx, so a caller that needs to know the file is really gone should reload.
+     * Deletes over ajax behind a browser confirm, then waits for the row to go. The script removes the
+     * row in .done() and alerts in .fail(), so the row going means the server accepted the delete.
      */
     public SkylineToolDetailsPage deleteSupplementaryFile(String fileName)
     {
