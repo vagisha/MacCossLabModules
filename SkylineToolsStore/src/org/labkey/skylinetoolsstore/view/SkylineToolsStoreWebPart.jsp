@@ -450,8 +450,8 @@
         $("#delToolAllDlg").data("toolTable", parentTable)
                            .find(".modal-body")
                            .empty()
-                           .append($("<p></p>").text(
-                                   "Completely delete " + parentTable.attr("data-toolName") + "?"));
+                           .append($("<p></p>").text("Are you sure you want to completely remove " +
+                                   parentTable.attr("data-toolName") + " from the store?"));
         $("#delToolAllDlg").modal("show");
     }
 
@@ -460,9 +460,9 @@
         $("#delToolLatestDlg").data("toolTable", parentTable)
                               .find(".modal-body")
                               .empty()
-                              .append($("<p></p>").text(
-                                      "Delete version " + parentTable.attr("data-toolVersion") +
-                                      " of " + parentTable.attr("data-toolName") + "?"));
+                              .append($("<p></p>").text("Are you sure you want to delete version " +
+                                      parentTable.attr("data-toolVersion") + " of " +
+                                      parentTable.attr("data-toolName") + "?"));
         $("#delToolLatestDlg").modal("show");
     }
 

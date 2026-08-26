@@ -635,14 +635,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     /**
      * A refused delete on the details page leaves the dialog usable on the next open.
      *
-     * Showing a refusal replaces the dialog body with the reason and hides the confirm button.
-     * Bootstrap keeps a modal in the page after it closes, so both have to be put back, which is
-     * what restoreOnClose does. Without it the second open shows the old refusal with no button to
-     * confirm, and the only way out is reloading the page.
-     *
-     * The store listing does not need this, because its handlers rebuild the body every time they
-     * open a dialog. Only the details page renders the question server side, so only the details
-     * page can lose it. That is why this test does not go through the web part.
+     * A refusal replaces the body with the error message and hides the Ok button. Closing the dialog causes
+     * the dialog state to be reset in restoreOnClose. Otherwise, opening the dialog a second time would show
+     * the old refusal message.
      */
     @Test
     public void testADetailsPageDialogIsUsableAfterARefusal()
@@ -669,9 +664,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         refused.cancel();
         ConfirmDeleteDialog reopened = details.clickDelete();
 
-        // The question names the tool and the refusal does not, so this tells the two bodies apart.
+        // Reopening the dialog should display the question that names the tool, not the refusal error message.
+        String question = "Are you sure you want to completely remove " + tool + " from the store?";
         assertTrue("The dialog should ask its question again, got: " + reopened.getMessage(),
-                reopened.getMessage().contains(tool));
+                reopened.getMessage().contains(question));
         assertTrue("The confirm button should be back", reopened.isConfirmOffered());
     }
 

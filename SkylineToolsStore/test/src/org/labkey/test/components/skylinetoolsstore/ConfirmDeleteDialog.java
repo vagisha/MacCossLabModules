@@ -96,19 +96,17 @@ public class ConfirmDeleteDialog extends ModalDialog
     }
 
     /**
-     * Confirms a tool delete the server is expected to refuse, and returns the error message.
-     *
-     * A refusal returns an error status with a JSON body including the reason, and the page shows
-     * that reason in this dialog rather than closing it. Waits for the Ok button to go, which is
-     * what the page hides once it has a refusal to display. Matching words in the message would
-     * pin the test to wording the server chooses.
+     * Clicks Ok on a delete the server will refuse, and returns the reason shown in the dialog.
      */
     public String confirmExpectingRefusal()
     {
         getWrapper().click(okButton());
-        WebDriverWrapper.waitFor(() -> !okButton().existsIn(getDriver())
-                        || !okButton().findElement(getDriver()).isDisplayed(),
-                "The delete dialog neither closed nor reported a refusal", 10_000);
+        // If the server returns an error message, showModalError hides the Ok button and displays the refusal.
+        // If the deletion was accepted, the handler navigated and the wait below will time out.
+        WebDriverWrapper.waitFor(() -> {
+            WebElement ok = okButton().findElementOrNull(getDriver());
+            return ok != null && !ok.isDisplayed();
+        }, "The delete dialog neither closed nor reported a refusal", 10_000);
         return getBodyText();
     }
 

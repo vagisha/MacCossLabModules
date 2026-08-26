@@ -394,7 +394,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                 <h4 class="modal-title">Delete</h4>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to completely delete <%= h(tool.getName()) %>?</p>
+                <p>Are you sure you want to completely remove <%= h(tool.getName()) %> from the store?</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
@@ -411,7 +411,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                 <h4 class="modal-title">Delete latest version</h4>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete <%= h(allVersions[0].getName()) %> version <%= h(allVersions[0].getVersion()) %>?</p>
+                <p>Are you sure you want to delete version <%= h(allVersions[0].getVersion()) %> of <%= h(allVersions[0].getName()) %>?</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
@@ -496,9 +496,6 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
             <li><%=simpleLink("Delete latest version").onClick("$('#delToolLatestDlg').modal('show')")%></li>
 <% } %>
 <% if (admin) { %>
-            <%-- Named for what it removes. It is offered on every version's page and takes the
-                 whole tool, so next to "Delete latest version" a bare "Delete" reads as this
-                 version. Matches the label the store listing uses. --%>
             <li><%=simpleLink("Delete tool from store").onClick("$('#delToolAllDlg').modal('show')")%></li>
             <li><%=simpleLink("Manage tool owners").onClick("popToolOwners()")%></li>
 <% } %>
@@ -610,8 +607,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         }
 
         var suppFileItem = $(this).closest(".suppfile");
-        // .text(), not .html(). html() hands back the escaped markup, so a name carrying an
-        // ampersand or a quote would be posted in a form that names no file on disk.
+        // .text(), not .html(). html() returns the escaped markup, so an ampersand in the name
+        // would post as &amp; and match no file on disk.
         var targetDel = suppFileItem.find(".suppfilename").text().trim();
         if (!confirm("Really delete the supplementary file \"" + targetDel + "\"?"))
             return;
