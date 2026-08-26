@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
 /**
  * The details page for one version of one tool.
  *
- * The settings gear and the edit pencils are drawn only for someone who may edit the tool, and the
- * supplementary file trash icons only for someone who may delete, so the can* methods are how a
- * test asks what is on offer.
+ * The settings gear and the edit pencils are drawn only for someone who may edit the tool. The
+ * supplementary file trash icons are drawn only for someone who may delete. The can* methods are how
+ * a test asks what is on offer.
  */
 public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.ElementCache>
 {
@@ -72,8 +72,8 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
     }
 
     /**
-     * Properties are keyed by the title attribute their row carries, which is the same string the
-     * edit dialog uses, so the constants above serve both.
+     * Properties are keyed by the title attribute their row carries. The edit dialog uses the same
+     * string, so the constants above serve both.
      */
     public String getProperty(String property)
     {
@@ -103,7 +103,7 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
         return Locator.linkWithText("Online Documentation").existsIn(getDriver());
     }
 
-    /** The box is hidden once its last supplementary file goes, without a page load. */
+    /** The box is hidden once its last supplementary file goes. There is no page load. */
     public boolean isDocumentationBoxShowing()
     {
         WebElement box = Locators.documentationBox.findElementOrNull(getDriver());
@@ -221,8 +221,8 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
     private static abstract class Locators
     {
         static final Locator.XPathLocator toolName = Locator.tagWithClass("div", "block").child("h2");
-        // The first paragraph of the header block. The ones after it are the upload date and, on
-        // an older version, a link to the latest.
+        // The first paragraph of the header block. The ones after it are the upload date and, on an
+        // older version, a link to the latest.
         static final Locator.XPathLocator versionLine = Locator.tagWithClass("div", "block").child("p");
         static final Locator.IdLocator downloadCount = Locator.id("downloadcounter");
         static final Locator.XPathLocator documentationBox = Locator.id("documentationbox");

@@ -96,8 +96,8 @@
     a.styled-button{text-decoration:none; color:#fff;}
     a.styled-button:visited{color:#fff;}
     .toolOwners {width: 80%; min-width: 300px;}
-    /* Kept off the row's top and right edges. The glyph is larger than the image it replaced and
-       sat hard against the corner without this. */
+    /* Kept off the row's top and right edges. The glyph is larger than the image it replaced. It sat
+       hard against the corner without this. */
     .sprocket {float: right; margin: 4px 6px 0 0;}
     /* The gear opens the menu, so it is a button and can be reached by keyboard. Strip the chrome a
        button comes with so it still looks like a bare icon. */
@@ -105,7 +105,7 @@
     .sprocketIcon {font-size: 26px; color: #666;}
     .sprocketToggle:hover .sprocketIcon, .sprocketToggle:focus .sprocketIcon {color: #126495;}
     /* Scoped to these two menus on purpose. A bare .dropdown-menu rule would also widen LabKey's own
-       header and admin menus, which are Bootstrap dropdowns on the same page. */
+       header and admin menus. Those are Bootstrap dropdowns on the same page. */
     .sprocket .dropdown-menu, .toolButtons .dropdown-menu {min-width: 240px;}
     /* The Documentation menu sits in a row of buttons that read left to right. */
     .toolButtons .dropdown {display: inline-block;}
@@ -124,8 +124,8 @@
 </div>
 <% } %>
 <!--Manage Tool Owners Form-->
-<%-- Site admin only, matching SetOwnersAction. Rendering it for everyone and relying on the menu
-     item being hidden would put a live owners form in every visitor's page, guests included. --%>
+<%-- Site admin only, matching SetOwnersAction. Rendering it for everyone and relying on the menu item
+     being hidden would put a live owners form in every visitor's page, guests included. --%>
 <% if (admin) { %>
 <div class="modal" id="manageOwnersPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
@@ -139,8 +139,8 @@
                     <label for="toolOwnersManage">Tool owners</label>
                     <input type="text" class="form-control toolOwners" id="toolOwnersManage" name="toolOwners" />
                     <input type="hidden" name="returnUrl" value="<%= h(getActionURL()) %>" />
-                    <%-- Set per tool when the dialog opens. Zero rather than blank, because an empty
-                         string will not bind to the form's int and would fail before the action runs. --%>
+                    <%-- Set per tool when the dialog opens. Zero rather than blank. An empty string
+                         will not bind to the form's int and would fail before the action runs. --%>
                     <input type="hidden" id="ownersFormToolId" name="toolId" value="0" />
                 </div>
                 <div class="modal-footer">
@@ -156,7 +156,7 @@
 <div class="modal" id="uploadPop" tabindex="-1" role="dialog" data-backdrop="static">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <%-- Serves both "Add New Tool" and per-tool "Upload new version", which are different
+            <%-- Serves both "Add New Tool" and per-tool "Upload new version". Those are different
                  actions in different containers, so each handler below sets the action. Defaults to
                  adding a new tool. --%>
             <labkey:form id="uploadForm" action="<%=SkylineToolStoreUrls.getInsertToolUrl(getContainer())%>" enctype="multipart/form-data" method="post">
@@ -168,7 +168,7 @@
                     <p>Browse to the zip file containing the tool you would like to upload.</p>
                     <input type="file" name="toolZip" />
 <%-- Only "Add New Tool" uses this, and that is site admin only. Publishing a new version hides it
-     with script, but hiding is not removing - a hidden input still posts, so it is gated here. --%>
+     with script. Hiding is not removing, and a hidden input still posts, so it is gated here. --%>
 <% if (admin) { %>
                     <span id="uploadPopOwners">
                         <label for="toolOwnersNew">Tool owners</label>
@@ -269,20 +269,17 @@
         boolean hasDocs = tool.hasDocumentation();
         int docCount = suppFiles.size() + (hasDocs ? 1 : 0);
 
-        // Only the owners dialog reads this, and only a site admin gets that dialog. Computing it
-        // for everyone walks the folder policy and looks up a user per assignment on every
-        // anonymous page load, and leaves the addresses one careless edit away from being rendered.
+        // Only the owners dialog reads this, and only a site admin gets that dialog. Computing it for
+        // everyone walks the folder policy and looks up a user per assignment on every anonymous page
+        // load. It also leaves the addresses one careless edit away from being rendered.
         if (admin)
             toolOwners.put(tool.getRowId(), StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", "));
         final boolean toolEditor = tool.isEditor(getUser());
         final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
         final boolean multipleVersions = allVersions.length > 1;
 
-        // DeleteLatestAction deletes the newest version and refuses a row id naming any other. This
-        // list comes from getToolsLatestInSubfolders, so the row is normally that version, but two
-        // rows can carry the Latest flag at once, in which case one of them is not the newest.
-        // The action also checks Delete on the newest version's own folder rather than this row's.
-        // Sorting above is what makes allVersions[0] the newest.
+        // Menu item to DeleteLatestAction should only be displayed for the newest tool version, so
+        // check if this row is the latest. Sorting above is what makes allVersions[0] the newest.
         final SkylineTool latestVersion = allVersions[0];
         final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId()) && toolEditor;
         final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
@@ -304,8 +301,8 @@
                 <span class="title"><a href="<%=h(detailsUrl)%>"><%= h(tool.getName()) %></a></span>
 <% if (toolEditor) { %>
                 <%-- Bootstrap 3 dropdown. data-toggle="dropdown" is all the wiring it needs, and it
-                     works for rows added after the page loads. The hidden tool name tells this
-                     row's gear apart from the others, the way the buttons below are named. --%>
+                     works for rows added after the page loads. The hidden tool name tells this row's
+                     gear apart from the others, the way the buttons below are named. --%>
                 <div class="dropdown sprocket">
                     <button type="button" id="toolSettingsMenu<%= tool.getRowId() %>"
                             class="sprocketToggle dropdown-toggle" data-toggle="dropdown"
@@ -463,21 +460,19 @@
         modal.find(".modal-footer button").prop("disabled", !enable);
     }
 
-    <%-- Reports a refused request inside the modal that made it, and leaves Cancel as the way out.
-         Scoped to that modal, so a refusal in one cannot disable the controls of another. The
-         actions answer a refusal with an error status and a JSON body naming the reason, so show
-         that when there is one. Added as a text node, so a message carrying markup is displayed
-         rather than parsed. --%>
+    // Reports a refused request inside the modal that made it and leaves Cancel as the way out.
+    // Scoped to that modal, so a refusal in one cannot disable the controls of another. The reason
+    // carries the tool's own name and version, which come from the uploaded zip, so it goes in as a
+    // text node.
     function showModalError(modal, xhr, fallback) {
         var message = xhr?.responseJSON?.exception || fallback;
         modal.find(".modal-body").empty().append($("<p></p>").text(message));
-        <%-- The confirm button, whatever it is styled as. The delete dialogs use btn-danger and the
-             edit dialog btn-primary, while Cancel is the one carrying data-dismiss. --%>
+        // Hide the Ok button. Its class varies by dialog, and only Cancel carries data-dismiss.
         modal.find(".modal-footer button:not([data-dismiss])").hide();
         setModalButtonsEnabled(modal, true);
     }
 
-    // Put each delete dialog back the way it opened, however it was closed.
+    // Puts each delete dialog back the way it opened, however it was closed.
     $("#delToolAllDlg").on("hidden.bs.modal", function() {
         $("#delToolAllOk").show();
         setModalButtonsEnabled($(this), true);
@@ -492,8 +487,8 @@
         var toolTable = dlg.data("toolTable");
         setModalButtonsEnabled(dlg, false);
         dlg.find(".modal-body").empty().append($("<p></p>").text("Please wait..."));
-        // The action answers with the page to go to. Reloading it is what removes the tool's row,
-        // so nothing here has to guess whether the delete happened.
+        // Navigate to the successUrl the action responds with on success. Otherwise, show the error
+        // message in the modal.
         $.post(<%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>, {
             "toolId": toolTable.attr("data-toolId"),
             "X-LABKEY-CSRF": LABKEY.CSRF

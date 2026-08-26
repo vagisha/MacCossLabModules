@@ -35,8 +35,8 @@ import org.openqa.selenium.WebElement;
  * <li>Refused, and the dialog stays open with the reason in its body - confirmExpectingRefusal</li>
  * </ul>
  *
- * Neither dialog can be dismissed while the post is in flight - they use a static backdrop and
- * their footer buttons are disabled for the duration.
+ * Neither dialog can be dismissed while the post is in flight. They use a static backdrop and their
+ * footer buttons are disabled for the duration.
  */
 public class ConfirmDeleteDialog extends ModalDialog
 {
@@ -63,8 +63,8 @@ public class ConfirmDeleteDialog extends ModalDialog
     }
 
     /**
-     * Every dialog is in the page from the start, so waiting for the element to exist proves
-     * nothing. This waits for the one with this id to be shown.
+     * Every dialog is in the page from the start, so waiting for the element to exist proves nothing.
+     * This waits for the one with this id to be shown.
      */
     private static WebElement waitForOpenDialog(WebDriver driver, String dialogId)
     {
@@ -86,9 +86,9 @@ public class ConfirmDeleteDialog extends ModalDialog
     /**
      * Confirms a delete and waits for the page the action names in its reply.
      *
-     * The handler posts over ajax and then navigates, so the browser leaves the page rather than
-     * the dialog closing. Waiting for the dialog to go would pass the moment navigation started,
-     * before the delete had happened.
+     * The handler posts over ajax and then navigates, so the browser leaves the page rather than the
+     * dialog closing. Waiting for the dialog to go would pass the moment navigation started, before
+     * the delete had happened.
      */
     public void confirmExpectingPageLoad()
     {
@@ -116,8 +116,8 @@ public class ConfirmDeleteDialog extends ModalDialog
     }
 
     /**
-     * Whether the Ok button is on offer. Showing a refusal hides it, and closing the dialog is what
-     * puts it back, so this is how a reopened dialog is checked.
+     * Whether the Ok button is on offer. Showing a refusal hides it. Closing the dialog puts it back.
+     * This is how a reopened dialog is checked.
      */
     public boolean isConfirmOffered()
     {

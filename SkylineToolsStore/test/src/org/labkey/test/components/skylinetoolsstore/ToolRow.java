@@ -142,9 +142,9 @@ public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
     }
 
     /**
-     * The jQuery UI version of this component clicked an item twice when the first click landed in
-     * the gap between the item becoming clickable and the sliding menu closing under it. Bootstrap
-     * does not animate the menu, so a single click is enough and the retry is gone.
+     * The jQuery UI version of this component clicked an item twice. The first click could land in the
+     * gap between the item becoming clickable and the sliding menu closing under it. Bootstrap does
+     * not animate the menu, so a single click is enough and the retry is gone.
      */
     private void clickMenuItem(String item)
     {

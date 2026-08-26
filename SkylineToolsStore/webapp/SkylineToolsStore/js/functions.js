@@ -6,11 +6,11 @@
 /**
  * Type-ahead for a field holding a comma separated list of addresses.
  *
- * The menu is a Bootstrap dropdown so it takes the theme's styling, but the behaviour is written
- * here. Bootstrap's own data-api only opens and closes a menu, it does not filter or complete.
+ * The menu is a Bootstrap dropdown, so it takes the theme's styling. The behaviour is written here.
+ * Bootstrap's data-api only opens and closes a menu. It does not filter or complete.
  *
  * txtbox - jQuery object holding the input
- * tags   - array of candidate addresses. Callers who may not see the list pass "" instead, and the
+ * tags   - array of candidate addresses. A caller who may not see the list passes "" instead. The
  *          field is then left as a plain text box.
  */
 function autocomplete(txtbox, tags) {
@@ -25,9 +25,9 @@ function autocomplete(txtbox, tags) {
     // Bootstrap places .dropdown-menu against the nearest positioned .dropdown, so the field is
     // wrapped in one. A span rather than a div, because two of these fields sit inside a paragraph.
     var wrap = $('<span class="dropdown autocompleteWrap"></span>');
-    // Moving the field into the wrapper detaches it, which drops any focus already on it. The
-    // standalone manage owners page focuses the field before calling this, so put it back. The
-    // dialogs cannot hit this - they call autocomplete at page load and focus much later.
+    // Moving the field into the wrapper detaches it and drops any focus on it. SkylineToolManageOwners
+    // focuses the field before calling this, so put it back. The dialogs call autocomplete at page
+    // load and focus much later, so they never hit this.
     var hadFocus = input.is(":focus");
     input.after(wrap);
     wrap.append(input);
@@ -74,7 +74,7 @@ function autocomplete(txtbox, tags) {
         scrollIntoMenu(item[0]);
     }
 
-    // The menu scrolls once it passes its capped height, so the highlight has to be brought into
+    // The menu scrolls once it passes the height cap in toolstore.css, so the highlight has to be brought into
     // the menu's own box. scrollIntoView would move the page instead.
     function scrollIntoMenu(item) {
         var box = menu[0];
@@ -110,8 +110,8 @@ function autocomplete(txtbox, tags) {
         highlight();
     }
 
-    // Replace the term being typed, keep the ones already chosen, and leave a trailing separator so
-    // the next address can be typed straight away.
+    // Replaces the term being typed and keeps the ones already chosen. The trailing separator lets the
+    // next address be typed straight away.
     function choose(value) {
         var terms = input.val().trim().split(/\s*,\s*/);
         terms.pop();
@@ -128,19 +128,18 @@ function autocomplete(txtbox, tags) {
         choose($(this).text());
     });
 
-    // Typing only. Rendering on focus as well dropped the whole list open the moment a dialog
-    // focused the field, and reopened it right after a name was picked, since choose() refocuses.
-    // The Down arrow still opens it on demand.
+    // Typing only. Rendering on focus too dropped the whole list open the moment a dialog focused the
+    // field. It also reopened the list right after a name was picked, because choose refocuses. The
+    // Down arrow still opens it on demand.
     input.on("input", render);
 
     input.on("keydown", function(e) {
         var items = menu.children();
         switch (e.keyCode) {
             case 27:                                     // Escape
-                // Bootstrap's modal hides on any Escape that reaches it, and does not check
-                // preventDefault, so the event has to be stopped before it bubbles that far.
-                // Only while the menu is open - with it closed, Escape should still close the
-                // dialog around the field.
+                // Bootstrap's modal hides on any Escape that reaches it and does not check
+                // preventDefault. The event has to be stopped before it bubbles that far. Only while
+                // the menu is open. With it closed, Escape should still close the dialog.
                 if (isOpen()) {
                     e.stopPropagation();
                     e.preventDefault();
@@ -148,10 +147,9 @@ function autocomplete(txtbox, tags) {
                 close();
                 break;
             case 9:                                      // Tab
-                // Tab completes the highlighted address, as the jQuery UI widget did. It suppressed
-                // the focus move for this case only, so the field keeps focus and the next address
-                // can be typed. With nothing highlighted, Tab just moves on.
-                // Shift+Tab is leaving the field backwards, never a completion.
+                // Tab completes the highlighted address, as the jQuery UI widget did. The focus move
+                // is suppressed for this case only, so the next address can be typed. With nothing
+                // highlighted, Tab just moves on. Shift+Tab is always leaving the field.
                 if (!e.shiftKey && isOpen() && activeIndex >= 0) {
                     e.preventDefault();
                     choose(items.eq(activeIndex).children("a").text());
@@ -167,8 +165,8 @@ function autocomplete(txtbox, tags) {
                     if (!isOpen())
                         break;
                 }
-                // Re-read after render, which empties and rebuilds the list. The snapshot taken at
-                // the top of this handler is the menu as it was before the key opened it.
+                // render empties and rebuilds the list, so re-read it. The snapshot at the top of this
+                // handler is the menu as it was before the key opened it.
                 items = menu.children();
                 // From -1 this lands on the first entry going down and the last going up, so the
                 // key that opened the menu also highlights something.
@@ -189,9 +187,9 @@ function autocomplete(txtbox, tags) {
         }
     });
 
-    // Bootstrap's clearMenus only closes menus whose toggle carries data-toggle="dropdown". This
-    // menu opens from typing and has no toggle, so it needs its own outside click handler. One
-    // handler serves every field on the page, rather than one per call, which would accumulate.
+    // Bootstrap's clearMenus only closes menus whose toggle carries data-toggle="dropdown". This menu
+    // opens from typing and has no toggle, so it needs its own outside click handler. One handler
+    // serves every field on the page. One per call would accumulate.
     autocomplete._instances = autocomplete._instances || [];
     autocomplete._instances.push({wrap: wrap, close: close});
     if (!autocomplete._closeBound) {

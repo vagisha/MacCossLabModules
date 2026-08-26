@@ -514,7 +514,7 @@ public class SkylineToolsStoreController extends SpringActionController
     /** Font Awesome class for a supplementary file, chosen by extension. */
     private static String suppFileIconClass(String suppFile)
     {
-        // getExtension returns null for a name with no dot, and switching on null throws.
+        // getExtension returns null for a filename with no extension. Convert that to empty string first.
         return switch (StringUtils.trimToEmpty(FileUtil.getExtension(suppFile)).toLowerCase())
         {
             case "pdf" -> "fa fa-file-pdf-o";
@@ -1911,7 +1911,6 @@ public class SkylineToolsStoreController extends SpringActionController
             assertEquals("fa fa-file-pdf-o", suppFileIconClass("MANUAL.PDF"));
             assertEquals("fa fa-file-archive-o", suppFileIconClass("sources.zip"));
             assertEquals("fa fa-file-o", suppFileIconClass("notes.txt"));
-            // The name comes from a folder listing rather than a form, so it may have no dot.
             assertEquals("fa fa-file-o", suppFileIconClass("README"));
         }
     }

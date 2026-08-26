@@ -22,9 +22,9 @@ import org.openqa.selenium.WebDriver;
 /**
  * The standalone Manage Tool Owners page.
  *
- * Nothing links here. SetOwnersAction is a FormViewAction, so this is what a post carrying an
- * address the server does not recognise comes back as, with the list the caller submitted still in
- * the field. The tool id rides in a hidden input rather than the url, so reloading this page fails.
+ * Nothing links here. SetOwnersAction is a FormViewAction, so a post carrying an address the server
+ * does not recognise comes back as this page, with the submitted list still in the field. The tool id
+ * rides in a hidden input rather than the url, so reloading this page fails.
  */
 public class ManageToolOwnersPage extends LabKeyPage<ManageToolOwnersPage.ElementCache>
 {
@@ -44,7 +44,7 @@ public class ManageToolOwnersPage extends LabKeyPage<ManageToolOwnersPage.Elemen
         return getFormElement(Locator.id("toolOwners"));
     }
 
-    /** The tool the resubmit will address, which the page never shows the user. */
+    /** The tool the resubmit will address. The page never shows it to the user. */
     public String getToolId()
     {
         return getAttribute(Locator.css("input[name='toolId']"), "value");

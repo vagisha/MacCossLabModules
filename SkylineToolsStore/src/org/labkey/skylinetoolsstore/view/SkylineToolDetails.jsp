@@ -71,19 +71,16 @@
 
     final String toolOwners = StringUtils.join(SkylineToolsStoreController.getToolOwners(tool), ", ");
 
-    // UpdateToolAction refuses anything but the latest version, so the item that reaches it is
-    // offered only there. On an older version's page it cost the owner a whole upload first.
+    // UpdateToolAction works only when called from the latest version of a tool.
     final boolean isLatestVersion = tool.getLatest();
-    // isEditor is the store's own definition of who may use the editing controls, and it requires
-    // Update, Insert and Delete together, which is what the Editor role on a tool folder carries.
+    // Only tool editors are allowed access to the editing controls.
     final boolean toolEditor = tool.isEditor(getUser());
+
     final SkylineTool[] allVersions = SkylineToolsStoreController.sortToolsByCreateDate(SkylineToolsStoreManager.get().getToolsByIdentifier(tool.getIdentifier()));
     final boolean multipleVersions = allVersions.length > 1;
 
-    // DeleteLatestAction deletes the newest version and refuses a row id naming any other, so the
-    // item belongs only on the newest version's page. It checks Delete on that version's own folder,
-    // which is not this page's folder when an older version is on screen, and owners are set one
-    // folder at a time, so the two policies can differ.
+    // Menu item to DeleteLatestAction should only be displayed on the newest tool version's page, so
+    // check if this is the latest.
     final SkylineTool latestVersion = allVersions[0];
     final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId()) && toolEditor;
     final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
@@ -102,15 +99,13 @@ a { text-decoration: none; }
 }
 /* The pencil sits in the bottom right corner of the tool logo. Bootstrap sets border-box globally,
    so the logo's 100px width already includes its 2px borders. With the 4px margin its far corner is
-   104px in, and the chip below is 18px square, so 82px insets it 4px from that corner. The source
-   branch measured this with jQuery UI at run time, which is no longer available. */
+   104px in. The chip below is 18px square, so 82px insets it 4px from that corner. */
 #editIcon {
     position: absolute;
     left: 82px;
     top: 82px;
 }
-/* Edit pencils. Font glyphs size from font-size - the ".barItem img" rule below covers only
-   images. */
+/* Edit pencils. Font glyphs size from font-size. The ".barItem img" rule below covers only images. */
 .editToolIcon {
     font-size: 13px;
     color: #999;
@@ -118,9 +113,8 @@ a { text-decoration: none; }
 }
 a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
 /* This pencil sits on top of the uploaded tool logo, so no single colour is readable on every
-   image. A translucent chip behind it gives the glyph something to sit on. The fixed line-height
-   makes the chip 18px square, which is what the offset above is measured against - the source
-   branch could place it with jQuery UI at run time, and this has to be arithmetic instead. */
+   image. A translucent chip behind it gives the glyph something to sit on. The fixed line-height makes
+   the chip 18px square, which is what the offset above is measured against. */
 #editIcon .editToolIcon {
     color: #333;
     background: rgba(255, 255, 255, 0.85);
@@ -259,21 +253,17 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
 .sprocketToggle {background: none; border: none; padding: 0; cursor: pointer;}
 .sprocketIcon {font-size: 26px; color: #666;}
 .sprocketToggle:hover .sprocketIcon, .sprocketToggle:focus .sprocketIcon {color: #126495;}
-/* Scoped to this menu on purpose. A bare .dropdown-menu rule would also widen LabKey's own header
-   and admin menus, which are Bootstrap dropdowns on the same page. */
+/* Scoped to this menu on purpose. A bare .dropdown-menu rule would also widen LabKey's own header and
+   admin menus. Those are Bootstrap dropdowns on the same page. */
 .sprocket .dropdown-menu {min-width: 240px;}
 .boldfont {font-weight: 700;}
 </style>
 <%-- Bootstrap 3 modals. The structure is fixed by LabKey's own test component,
-     components/bootstrap/ModalDialog, which finds a dialog by .modal-dialog plus .modal-title and
-     its buttons by visible text. Submits are <button> and not <input type="submit"> for the same
-     reason. Every dialog holding entered data uses a static backdrop, so a stray click beside it
-     cannot throw that data away. Only allVersionsPop, which is read only, closes on a backdrop
-     click.
-
-     No "fade" class. ModalDialog.waitForReady waits for the body to be displayed and non-empty and
-     does not wait out a CSS transition, so a fading modal hands back a dialog whose buttons are not
-     yet clickable. Animating them is what made these dialogs flaky before. --%>
+     components/bootstrap/ModalDialog, which finds a dialog by .modal-dialog plus .modal-title and its
+     buttons by visible text. Submits are <button> and not <input type="submit"> for the same reason.
+     Every dialog holding entered data uses a static backdrop. A stray click beside it then cannot
+     throw that data away. Only allVersionsPop closes on a backdrop click, and it is read only.
+ --%>
 <div class="modal" id="allVersionsPop" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -467,9 +457,9 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         <% } %>
     </div>
 <% if (toolEditor) { %>
-    <%-- Bootstrap 3 dropdown. data-toggle="dropdown" is all the wiring it needs. Bootstrap opens and
-         closes the menu, closes it on a click elsewhere or on Escape, and allows only one open at a
-         time. Right aligned because the gear floats at the right edge of the banner. --%>
+    <%-- Bootstrap 3 dropdown. data-toggle="dropdown" is all the wiring it needs. Bootstrap opens the
+         menu, closes it on a click elsewhere or on Escape, and allows only one open at a time. Right
+         aligned because the gear floats at the right edge of the banner. --%>
     <div class="dropdown sprocket">
         <button type="button" id="toolSettingsMenu" class="sprocketToggle dropdown-toggle"
                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Settings">
@@ -586,9 +576,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
 <script type="text/javascript" nonce="<%=getScriptNonce()%>">
 <% if (toolEditor) { %>
     $(".deleteSuppFile").on("click keydown", function(e) {
-        // The icon can be reached by keyboard, where only Enter (13) and Space (32) should delete.
-        // keydown rather than keypress, which is deprecated, and Space has to be stopped or the
-        // page scrolls behind the confirm.
+        // The icon is role="button", and a button activates on Enter (13) and Space (32).
+        // keydown rather than keypress, which is deprecated. Space also scrolls, so stop it.
         if (e.type === "keydown") {
             if (e.which !== 13 && e.which !== 32)
                 return;
@@ -632,27 +621,24 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
     function popToolOwners() {
         var ownersTxt = $("#toolOwners");
         $("#manageOwnersPop").modal("show");
-        <%-- q() and not h(). See SkylineToolManageOwners.jsp. --%>
+        // q() and not h(). Need a quoted JavaScript string literal here
         ownersTxt.focus().val(<%= q(toolOwners) %>);
         if (ownersTxt.val())
             ownersTxt.val(ownersTxt.val() + ", ");
     }
 
-    <%-- Scoped to one modal so it cannot reach another dialog on the page. --%>
+    // Scoped to one modal so it cannot reach another dialog on the page.
     function setModalButtonsEnabled(modal, enable) {
         modal.find(".modal-footer button").prop("disabled", !enable);
     }
 
-    <%-- Reports a refused request inside the modal that made it, and leaves Cancel as the way out.
-         Scoped to that modal, so a refusal in one cannot disable the controls of another. The
-         actions answer a refusal with an error status and a JSON body naming the reason, so show
-         that when there is one. Added as a text node, so a message carrying markup is displayed
-         rather than parsed. --%>
+    // The actions answer a refusal with an error status and a JSON body naming the reason. The reason
+    // carries the tool's own name and version, which come from the uploaded zip, so it goes in as a
+    // text node. Hide the Ok button, leaving Cancel as the way out.
     function showModalError(modal, xhr, fallback) {
         var message = xhr?.responseJSON?.exception || fallback;
         modal.find(".modal-body").empty().append($("<p></p>").text(message));
-        <%-- The confirm button, whatever it is styled as. The delete dialogs use btn-danger and the
-             edit dialog btn-primary, while Cancel is the one carrying data-dismiss. --%>
+        // Hide the Ok button. Its class varies by dialog, and only Cancel carries data-dismiss.
         modal.find(".modal-footer button:not([data-dismiss])").hide();
         setModalButtonsEnabled(modal, true);
     }
@@ -660,9 +646,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
     $("#delToolAllOk").click(function() {
         var dlg = $("#delToolAllDlg");
         setModalButtonsEnabled(dlg, false);
-        // Posted over ajax rather than by submitting a form. The action answers with the page to go
-        // to, so a refusal can be shown in this modal instead of replacing the page with an error
-        // view.
+        // Navigate to the successUrl the action responds with on success. Otherwise, show the error message
+        // in the modal.
         $.post(<%=q(urlFor(SkylineToolsStoreController.DeleteAction.class))%>, {
             "toolId": <%=tool.getRowId()%>,
             "X-LABKEY-CSRF": LABKEY.CSRF
@@ -677,12 +662,9 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
     $("#delToolLatestOk").click(function() {
         var dlg = $("#delToolLatestDlg");
         setModalButtonsEnabled(dlg, false);
-        // A POST, not a navigation. DeleteLatestAction deletes a container, so it must not be
-        // reachable by GET, and the CSRF token cannot ride on a navigation.
-        // Addressed to allVersions[0], the newest version, which is the one the action removes.
-        // The menu item is offered only where that is also the version on screen.
-        // returnUrl is the page to come back to. The action rewrites the name and version it
-        // carries when the deleted version supplied them, and returns the result.
+        // Addressed to the latest version, which is the one the action removes.
+        // The menu item is offered only on the details page of the latest version of a tool.
+        // returnUrl comes back rewritten to the version that is left.
         $.post(<%=q(SkylineToolStoreUrls.getDeleteLatestUrl(latestVersion).getLocalURIString())%>, {
             "toolId": <%=latestVersion.getRowId()%>,
             "returnUrl": <%=q(toolDetailsLatestUrl.getLocalURIString())%>,
@@ -695,7 +677,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         });
     });
 
-    // The body is rebuilt on every open, so keep the markup the page shipped with.
+    // editTool rebuilds the body on every open, so keep the markup the page shipped with.
     var editDlgOriginalBody = $("#editToolDlg .modal-body").html();
 
     $("#editToolOk").click(function() {
@@ -707,8 +689,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                 var isIcon = (propName.toLowerCase() == "icon") ? true : false;
                 var postData;
                 if (!isIcon) {
-                    // Trailing backslashes are dropped. getInfoPropertiesStream escapes a line break
-                    // as a backslash, so one left at the end makes the next line part of this value.
+                    // getInfoPropertiesStream escapes a line break as a backslash. A backslash left at
+                    // the end would make the next line of the file part of this property.
                     propValue = body.children("input:text:visible, textarea:visible").first().val().replace(/\\*$/, "");
                     postData = {
                         "toolId": <%= tool.getRowId() %>,
@@ -718,10 +700,7 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                 } else {
                     var iconFile = document.getElementById("editIconFile").files[0];
                     if (!iconFile) {
-                        // With nothing chosen this used to post the string "undefined", which
-                        // arrives as a text property named Icon rather than a file. The action
-                        // refuses that, but the refusal is an error view with status 200, so the
-                        // handler below took it for success and faded the icon away.
+                        // FormData would otherwise post the string "undefined" as the property value.
                         body.find(".labkey-error").remove();
                         body.append($('<p class="labkey-error"></p>').text("Please choose an image file."));
                         setModalButtonsEnabled(dlg, true);
@@ -745,20 +724,13 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                         $("#editToolDlg").modal("hide");
                         var container = $("#editToolDlg").data("propValueContainer");
                         if (isIcon) {
-                            // The tool's own icon url, not whatever the img is showing. A tool with
-                            // no icon yet shows the shared placeholder, and cache-busting that
-                            // re-requested the placeholder rather than the image just uploaded.
+                            // The tool's own icon url, not whatever the img is showing. A tool with no
+                            // icon yet shows the shared placeholder.
                             var newImgSrc = <%= q(tool.getFolderUrl() + "icon.png") %> +
                                     "?" + (new Date()).getTime();
                             container.animate({opacity: 0}, REPLACE_TEXT_FADE_TIME, function() {
-                                // one("load") rather than load(fn). jQuery 3 removed the event
-                                // shorthand and kept load() as the ajax method, so the callback
-                                // never ran and the icon stayed faded out until the page was
-                                // reloaded. Bound before the src is set, so a load that finishes
-                                // immediately cannot beat the handler.
-                                // "load error" and not just "load". An image that fails to load
-                                // would otherwise leave the logo at opacity 0, which is the state
-                                // this handler exists to get out of.
+                                // Bound before the src is set, so an immediate load cannot beat the
+                                // handler. "error" as well, or a failed image stays at opacity 0.
                                 container.one("load error", function() {
                                     $(this).animate({opacity: 1}, REPLACE_TEXT_FADE_TIME);
                                 }).attr("src", newImgSrc);
@@ -791,8 +763,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
                 });
     });
 
-    // Put a dialog back the way it opened, whether it closed on success, Cancel or the X. A refused
-    // request replaces the body with the reason and hides the confirm button, so both are restored.
+    // Puts a dialog back the way it opened, whether it closed on success or on Cancel. A refusal
+    // replaces the body with the error and hides the Ok button. Both are restored here.
     function restoreOnClose(dialogId) {
         var dlg = $("#" + dialogId);
         var original = dlg.find(".modal-body").html();
@@ -834,8 +806,8 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
         var dlg = $("#editToolDlg").data("propName", propName)
                                    .data("propValueContainer", propValueContainer);
         var body = dlg.find(".modal-body").html(editDlgOriginalBody);
-        // #editIcon carries .toolProperty itself, so closest() returns the link, whose title is the
-        // tooltip rather than the property name. Every other pencil sits inside its property's row.
+        // #editIcon carries .toolProperty itself, so closest returns the link. Its title is the tooltip
+        // rather than the property name. Every other pencil sits inside its property's row.
         body.children("h3:first").text(parent.is(sender) ? propName : parent.attr("title"));
         body.children(hideType).hide();
         dlg.modal("show");

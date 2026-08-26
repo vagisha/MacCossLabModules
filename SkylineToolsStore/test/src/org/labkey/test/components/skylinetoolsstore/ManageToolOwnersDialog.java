@@ -27,7 +27,7 @@ import org.openqa.selenium.WebElement;
  * be signed in as one.
  *
  * The owners field carries the store's type-ahead. Picking from it appends to the comma separated
- * list rather than replacing it, which is what setOwners has to work around.
+ * list rather than replacing it. setOwners works around that.
  */
 public class ManageToolOwnersDialog extends ModalDialog
 {
@@ -56,8 +56,8 @@ public class ManageToolOwnersDialog extends ModalDialog
     }
 
     /**
-     * Types a partial address and leaves the type-ahead open, which is what setOwners closes.
-     * Use this to drive the menu itself rather than to fill the field.
+     * Types a partial address and leaves the type-ahead open. Use this to drive the menu itself rather
+     * than to fill the field.
      */
     public ManageToolOwnersDialog typeOwner(String term)
     {
@@ -78,8 +78,8 @@ public class ManageToolOwnersDialog extends ModalDialog
     }
 
     /**
-     * Moves the highlight down the suggestion list, opening it first if it is closed. One press is
-     * enough to highlight an entry either way.
+     * Moves the highlight down the suggestion list and opens it first if it is closed. One press
+     * highlights an entry either way.
      */
     public ManageToolOwnersDialog pressDown()
     {
@@ -117,8 +117,8 @@ public class ManageToolOwnersDialog extends ModalDialog
     }
 
     /**
-     * Sends Escape to the owners field, where the type-ahead listens. One press closes the
-     * suggestion list, a second closes the dialog.
+     * Sends Escape to the owners field, where the type-ahead listens. One press closes the suggestion
+     * list. A second closes the dialog.
      */
     public ManageToolOwnersDialog pressEscape()
     {
@@ -168,7 +168,7 @@ public class ManageToolOwnersDialog extends ModalDialog
         return Locator.css("#" + DIALOG_ID + " [name='toolOwners']");
     }
 
-    /** Scoped to this dialog, since the add a tool page carries a type-ahead of its own. */
+    /** Scoped to this dialog. The add a tool page carries a type-ahead of its own. */
     private Locator.XPathLocator typeAheadOption(String address)
     {
         return Locator.id(DIALOG_ID)
