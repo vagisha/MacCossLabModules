@@ -17,8 +17,6 @@
  */
 %>
 <%@ page import="org.apache.commons.lang3.StringUtils" %>
-<%@ page import="org.labkey.api.data.Container" %>
-<%@ page import="org.labkey.api.security.permissions.DeletePermission" %>
 <%@ page import="org.labkey.api.settings.AppProps" %>
 <%@ page import="org.labkey.api.util.SafeToRender"%>
 <%@ page import="org.labkey.api.view.ActionURL"%>
@@ -54,7 +52,6 @@
     List<SkylineTool> tools = (List<SkylineTool>)me.getModelBean();
 
     final boolean admin = getUser().hasSiteAdminPermission();
-    final boolean loggedIn = !getUser().isGuest();
     // This web part can be added to any folder's page, including a tool's own version folder,
     // where InsertToolAction refuses an upload. Hide the button rather than offer one that
     // cannot work.
@@ -287,11 +284,7 @@
         // The action also checks Delete on the newest version's own folder rather than this row's.
         // Sorting above is what makes allVersions[0] the newest.
         final SkylineTool latestVersion = allVersions[0];
-        final Container latestVersionContainer = latestVersion.lookupContainer();
-        // getRowId returns an Integer, so compare values rather than references.
-        final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId())
-                && latestVersionContainer != null
-                && latestVersionContainer.hasPermission(getUser(), DeletePermission.class);
+        final boolean canDeleteLatest = Objects.equals(tool.getRowId(), latestVersion.getRowId()) && toolEditor;
         final int numDownloads = Arrays.stream(allVersions).mapToInt(SkylineTool::getDownloads).sum();
 %>
 
