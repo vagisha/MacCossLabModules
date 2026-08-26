@@ -133,7 +133,7 @@ public class ManageToolOwnersDialog extends ModalDialog
         return dialog != null && dialog.isDisplayed();
     }
 
-    /** Opens on typing, and on the Down arrow. Focusing the field alone does not open it. */
+    /** Opens on typing and on either arrow key. Focusing the field alone does not open it. */
     public boolean isTypeAheadShowing()
     {
         WebElement menu = Locator.css("#" + DIALOG_ID + " ul.autocompleteMenu")
@@ -168,7 +168,7 @@ public class ManageToolOwnersDialog extends ModalDialog
         return Locator.css("#" + DIALOG_ID + " [name='toolOwners']");
     }
 
-    /** Scoped to this dialog. The add a tool page carries a type-ahead of its own. */
+    /** Scoped to this dialog. The web part attaches one to the Add New Tool dialog on the same page. */
     private Locator.XPathLocator typeAheadOption(String address)
     {
         return Locator.id(DIALOG_ID)

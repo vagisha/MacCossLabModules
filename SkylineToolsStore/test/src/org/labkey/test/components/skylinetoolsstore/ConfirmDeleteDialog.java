@@ -28,10 +28,10 @@ import org.openqa.selenium.WebElement;
  * a title by substring, and "Delete" is a substring of "Delete latest version", so a title lookup
  * can return either one.
  *
- * Both pages post over ajax, and what a confirm does next depends on how the server answered.
+ * Both pages post over ajax, and what a confirm does next depends on how the server responded.
  *
  * <ul>
- * <li>Accepted, and the handler navigates to the page the reply names - confirmExpectingPageLoad</li>
+ * <li>Accepted, and the handler navigates to the successUrl the reply carries - confirmExpectingPageLoad</li>
  * <li>Refused, and the dialog stays open with the reason in its body - confirmExpectingRefusal</li>
  * </ul>
  *
@@ -77,18 +77,18 @@ public class ConfirmDeleteDialog extends ModalDialog
         return inner.findElement(driver);
     }
 
-    /** Written per tool when the dialog opens, so it names what is about to go. */
+    /** The dialog body. It holds the confirmation question, or the error message after a refusal. */
     public String getMessage()
     {
         return getBodyText();
     }
 
     /**
-     * Confirms a delete and waits for the page the action names in its reply.
+     * Confirms a delete and waits for the successUrl page to load.
      *
-     * The handler posts over ajax and then navigates, so the browser leaves the page rather than the
-     * dialog closing. Waiting for the dialog to go would pass the moment navigation started, before
-     * the delete had happened.
+     * The handler sets window.location inside .done(), so the browser leaves the page rather than the
+     * dialog closing. Waiting for the dialog to go would pass at unload, which says nothing about the
+     * new page having loaded.
      */
     public void confirmExpectingPageLoad()
     {

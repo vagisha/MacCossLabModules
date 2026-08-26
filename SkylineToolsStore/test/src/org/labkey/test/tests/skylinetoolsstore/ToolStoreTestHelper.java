@@ -260,7 +260,8 @@ public class ToolStoreTestHelper
             if (!toRemove.contains(tool.optString("Identifier")))
                 continue;
 
-            // DeleteAction redirects unless it is called in the tool's own store folder.
+            // requireToolAddressableFrom throws NotFoundException unless the request is addressed to
+            // the tool's own folder or to the store folder above it.
             HttpPost request = new HttpPost(
                     WebTestHelper.buildURL("skyts", storeContainerOf(tool), "delete"));
             request.setEntity(MultipartEntityBuilder.create()
