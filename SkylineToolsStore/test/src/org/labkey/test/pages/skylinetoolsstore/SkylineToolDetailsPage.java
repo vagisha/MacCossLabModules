@@ -110,6 +110,12 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
         return box != null && box.isDisplayed();
     }
 
+    /** Whether the trash icons are drawn, which follows tool.isEditor rather than Delete alone. */
+    public boolean canDeleteSupplementaryFiles()
+    {
+        return Locators.deleteSupplementaryFile.existsIn(getDriver());
+    }
+
     /**
      * Deletes over ajax behind a browser confirm, then waits for the row to go. The script removes the
      * row in .done() and alerts in .fail(), so the row going means the server accepted the delete.

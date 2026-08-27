@@ -39,6 +39,7 @@ import org.labkey.test.pages.skylinetoolsstore.ManageToolOwnersPage;
 import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
+import org.labkey.test.util.PermissionsHelper;
 import org.labkey.test.util.LogMethod;
 import org.labkey.test.util.PortalHelper;
 import org.labkey.test.util.PostgresOnlyTest;
@@ -87,6 +88,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String PROPERTIES_STORE = "ToolStoreWorkflowTestProperties";
     private static final String SHIFT_TAB_STORE = "ToolStoreWorkflowTestShiftTab";
     private static final String REOPEN_STORE = "ToolStoreWorkflowTestReopenAfterRefusal";
+    private static final String PARTIAL_PERMS_STORE = "ToolStoreWorkflowTestPartialPerms";
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
@@ -961,6 +963,82 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
+     * The editing controls need all three of Update, Insert and Delete, not just one of them.
+     *
+     * tool.isEditor requires the three together, and the settings gear, the edit pencils and the
+     * supplementary file trash icons all gate on it. Author holds Insert alone, so none of them is
+     * drawn, and adding Editor brings the other two so they come back.
+     */
+    @Test
+    public void testEditingControlsNeedAllThreePermissions()
+    {
+        String store = PARTIAL_PERMS_STORE;
+        String tool = "PartialPermsProbe";
+        createStore(store);
+
+        goToProjectHome(store);
+        new SkylineToolStoreWebPart(getDriver()).addTool(
+                ToolStoreTestHelper.writeMinimalToolZip(tool, "URN:LSID:toolstore.test:partialperms",
+                        "1.0"), null)
+                .uploadSupplementaryFile(TestFileUtils.getSampleData(SUPP_FILE));
+
+        // Two grants, because createVersionFolder saves an explicit policy on every tool folder -
+        // Guests and All Site Users as Readers, plus the owners as Editors. The folder therefore
+        // inherits nothing from the store, and isEditor reads the folder rather than the store.
+        // Author on the store is what makes the listing render. Author on the tool folder is the
+        // subset under test, Insert without Update or Delete.
+        String toolFolder = "/" + store + "/" + ToolStoreTestHelper.toolFolderName(tool, "1.0");
+        _permissionsHelper.addMemberToRole(OTHER_USER, "Author", PermissionsHelper.MemberType.user,
+                "/" + store);
+        _permissionsHelper.addMemberToRole(OTHER_USER, "Author", PermissionsHelper.MemberType.user,
+                toolFolder);
+
+        log("Author holds Insert but neither Update nor Delete");
+        impersonate(OTHER_USER);
+        try
+        {
+            goToProjectHome(store);
+            assertFalse("The web part row must not offer a settings menu",
+                    new SkylineToolStoreWebPart(getDriver()).getTool(tool).hasSettingsMenu());
+
+            SkylineToolDetailsPage page = new SkylineToolStoreWebPart(getDriver())
+                    .getTool(tool).clickToolName();
+            assertFalse("The details page must not offer a settings menu", page.hasSettingsMenu());
+            assertFalse("The details page must not offer the edit pencils", page.canEditProperties());
+            assertFalse("The details page must not offer the supplementary file trash icons",
+                    page.canDeleteSupplementaryFiles());
+
+            // Proves the details page rendered, so the three assertions above it are absences
+            // rather than a page that failed to load. getTool covers the web part the same way,
+            // since it throws when the row is not there.
+            assertTrue("The supplementary file should still be listed for a user who cannot edit",
+                    page.getSupplementaryFileNames().contains("test.pdf"));
+        }
+        finally
+        {
+            stopImpersonating();
+        }
+
+        log("Editor on the tool folder adds Update and Delete, so the controls come back");
+        _permissionsHelper.addMemberToRole(OTHER_USER, "Editor", PermissionsHelper.MemberType.user,
+                toolFolder);
+        impersonate(OTHER_USER);
+        try
+        {
+            goToProjectHome(store);
+            assertTrue("Holding all three, the web part row should offer a settings menu",
+                    new SkylineToolStoreWebPart(getDriver()).getTool(tool).hasSettingsMenu());
+            assertTrue("Holding all three, the details page should offer the edit pencils",
+                    new SkylineToolStoreWebPart(getDriver()).getTool(tool).clickToolName()
+                            .canEditProperties());
+        }
+        finally
+        {
+            stopImpersonating();
+        }
+    }
+
+    /**
      * A tool's own folder shows that tool rather than an empty store.
      *
      * The module is enabled in every tool folder on skyline.ms, and a version folder has no children,
@@ -1356,6 +1434,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         _containerHelper.deleteProject(PROPERTIES_STORE, false);
         _containerHelper.deleteProject(SHIFT_TAB_STORE, false);
         _containerHelper.deleteProject(REOPEN_STORE, false);
+        _containerHelper.deleteProject(PARTIAL_PERMS_STORE, false);
         _userHelper.deleteUsers(false, TOOL_AUTHOR, TOOL_SECOND_OWNER, OTHER_USER);
     }
 
