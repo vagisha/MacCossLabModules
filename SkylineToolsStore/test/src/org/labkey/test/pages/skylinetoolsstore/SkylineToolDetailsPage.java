@@ -35,8 +35,7 @@ import java.util.stream.Collectors;
  * The details page for one version of one tool.
  *
  * The settings gear, the edit pencils and the supplementary file trash icons all gate on one flag,
- * tool.isEditor. That is a site admin, or a user holding Update, Insert and Delete together. The
- * can* methods report what is on offer.
+ * tool.isEditor. That is a site admin, or a user holding Update, Insert and Delete together.
  */
 public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.ElementCache>
 {
@@ -109,11 +108,6 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
     {
         WebElement box = Locators.documentationBox.findElementOrNull(getDriver());
         return box != null && box.isDisplayed();
-    }
-
-    public boolean canDeleteSupplementaryFiles()
-    {
-        return Locators.deleteSupplementaryFile.existsIn(getDriver());
     }
 
     /**
