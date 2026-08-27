@@ -466,6 +466,9 @@
         setModalButtonsEnabled($(this), true);
     });
 
+    clearFileInputsOnClose("uploadPop");
+    clearFileInputsOnClose("uploadSuppPop");
+
     $("#delToolAllOk").click(function() {
         var dlg = $("#delToolAllDlg");
         var toolTable = dlg.data("toolTable");
