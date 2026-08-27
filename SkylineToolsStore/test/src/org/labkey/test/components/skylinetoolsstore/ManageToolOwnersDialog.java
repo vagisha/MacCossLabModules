@@ -79,8 +79,8 @@ public class ManageToolOwnersDialog extends ModalDialog
     }
 
     /**
-     * Picks an address the type-ahead is offering. The menu is drawn hidden until it has something
-     * to show, so this waits for the option to be visible rather than merely present.
+     * Picks an address the type-ahead is offering. The menu is hidden if there are no menu items to
+     * display, so this waits for the option to be visible rather than merely present.
      */
     public ManageToolOwnersDialog clickTypeAheadOption(String address)
     {

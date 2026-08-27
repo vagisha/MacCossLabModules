@@ -110,7 +110,7 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
         return box != null && box.isDisplayed();
     }
 
-    /** Whether the trash icons are drawn, which follows tool.isEditor rather than Delete alone. */
+    /** Whether the trash icons are displayed, which follows tool.isEditor rather than Delete alone. */
     public boolean canDeleteSupplementaryFiles()
     {
         return Locators.deleteSupplementaryFile.existsIn(getDriver());
@@ -141,8 +141,8 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
     public boolean hasMenuItem(String item)
     {
         if (!hasSettingsMenu())
-            throw new AssertionError("The details page has no settings menu, so it cannot be asked " +
-                    "whether '" + item + "' is on offer. It is drawn only for a tool editor.");
+            throw new AssertionError(
+                    "The details page has no settings menu. It is only displayed for tool editors.");
         openSettingsMenu();
         return Locator.linkWithText(item).existsIn(Locators.settingsMenu.findElement(getDriver()));
     }
