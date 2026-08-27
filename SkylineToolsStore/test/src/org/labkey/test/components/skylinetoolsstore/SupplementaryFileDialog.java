@@ -38,8 +38,19 @@ public class SupplementaryFileDialog extends ModalDialog
 
     public SupplementaryFileDialog setFile(File file)
     {
-        getWrapper().setFormElement(Locator.css("#" + DIALOG_ID + " [name='suppFile']"), file);
+        getWrapper().setFormElement(fileField(), file);
         return this;
+    }
+
+    /** The file input's value. A browser reports a fake path, so only empty or not is meaningful. */
+    public String getSelectedFile()
+    {
+        return getWrapper().getFormElement(fileField());
+    }
+
+    private Locator.CssLocator fileField()
+    {
+        return Locator.css("#" + DIALOG_ID + " [name='suppFile']");
     }
 
     public SkylineToolDetailsPage clickUpload()

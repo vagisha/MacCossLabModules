@@ -420,7 +420,20 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 .getTool(FORMS_TOOL_NAME).clickUploadSupplementaryFile();
         assertEquals("The dialog should be addressed to the row's tool",
                 String.valueOf(rowId(onlyToolInStore(FORMS_STORE))), suppDialog.getToolId());
+
+        // The modal is in the page from the start and is reused on every open, so a file chosen
+        // and then cancelled would be attached to the next upload. clearFileInputsOnClose empties
+        // it on hidden.bs.modal.
+        suppDialog.setFile(TestFileUtils.getSampleData(SUPP_FILE));
+        assertNotEquals("The file should be attached before the Cancel",
+                "", suppDialog.getSelectedFile());
         suppDialog.dismiss("Cancel");
+
+        SupplementaryFileDialog reopened = new SkylineToolStoreWebPart(getDriver())
+                .getTool(FORMS_TOOL_NAME).clickUploadSupplementaryFile();
+        assertEquals("Reopening must not keep the file the Cancel discarded",
+                "", reopened.getSelectedFile());
+        reopened.dismiss("Cancel");
 
         log("Publish a new version through the details page dialog");
         SkylineToolDetailsPage details = new SkylineToolStoreWebPart(getDriver())
