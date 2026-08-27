@@ -23,6 +23,8 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.labkey.api.util.FileUtil;
+import org.labkey.test.TestFileUtils;
 import org.labkey.test.WebTestHelper;
 import org.labkey.test.util.APITestHelper;
 
@@ -130,8 +132,7 @@ public class ToolStoreTestHelper
         try
         {
             // Short prefix - ZipName is 50 characters and createTempFile appends up to 19 digits.
-            File zip = File.createTempFile("ts-" + version + "-", ".zip");
-            zip.deleteOnExit();
+            File zip = newFixtureZip("ts-" + version + "-");
             try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(zip)))
             {
                 out.putNextEntry(new ZipEntry("tool-inf/info.properties"));
@@ -165,8 +166,7 @@ public class ToolStoreTestHelper
             int extraLength = (full[28] & 0xFF) | ((full[29] & 0xFF) << 8);
             int keep = Math.min(30 + nameLength + extraLength + 8, full.length);
 
-            File zip = File.createTempFile("ts-cut-" + version + "-", ".zip");
-            zip.deleteOnExit();
+            File zip = newFixtureZip("ts-cut-" + version + "-");
             Files.write(zip.toPath(), Arrays.copyOf(full, keep));
             return zip;
         }
@@ -185,8 +185,7 @@ public class ToolStoreTestHelper
     {
         try
         {
-            File zip = File.createTempFile("ts-badicon-" + version + "-", ".zip");
-            zip.deleteOnExit();
+            File zip = newFixtureZip("ts-badicon-" + version + "-");
             try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(zip)))
             {
                 out.putNextEntry(new ZipEntry("tool-inf/info.properties"));
@@ -227,6 +226,16 @@ public class ToolStoreTestHelper
         {
             throw new RuntimeException("Could not read the identifier from " + zip, e);
         }
+    }
+
+    /**
+     * Fixture zips go under build/testTemp, which the build cleans and a failed run leaves in
+     * place. FileUtil.createTempFile rather than File.createTempFile, per its own note.
+     */
+    private static File newFixtureZip(String prefix) throws IOException
+    {
+        return FileUtil.createTempFile(prefix, ".zip",
+                TestFileUtils.ensureTestTempDir("skylinetoolsstore"));
     }
 
     /** The LSID namespace every sample tool zip in this module uses. */

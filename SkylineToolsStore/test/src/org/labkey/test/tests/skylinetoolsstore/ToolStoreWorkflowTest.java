@@ -48,7 +48,6 @@ import org.labkey.test.util.WikiHelper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1163,20 +1162,16 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     }
 
     /**
-     * A small file with an exact name. createTempFile always appends a suffix, and the name is the
-     * whole point when the extension is what is being tested, so this puts the file in a directory
-     * of its own instead.
+     * A small file carrying exactly the name given. The callers pass "manual.pdf" and "README", and
+     * the extension, or its absence, is what those tests are about.
      */
     private static File writeFileNamed(String name)
     {
         try
         {
-            Path dir = Files.createTempDirectory("toolstore-supp");
-            dir.toFile().deleteOnExit();
-            Path file = dir.resolve(name);
-            Files.writeString(file, "supplementary file for the tool store tests");
-            file.toFile().deleteOnExit();
-            return file.toFile();
+            File file = TestFileUtils.ensureTestTempFile("skylinetoolsstore", "supp", name);
+            Files.writeString(file.toPath(), "supplementary file for the tool store tests");
+            return file;
         }
         catch (IOException e)
         {
