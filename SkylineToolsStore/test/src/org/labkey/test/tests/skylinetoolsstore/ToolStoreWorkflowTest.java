@@ -35,6 +35,7 @@ import org.labkey.test.components.skylinetoolsstore.ConfirmDeleteDialog;
 import org.labkey.test.components.skylinetoolsstore.ManageToolOwnersDialog;
 import org.labkey.test.components.skylinetoolsstore.SkylineToolStoreWebPart;
 import org.labkey.test.components.skylinetoolsstore.SupplementaryFileDialog;
+import org.labkey.test.components.skylinetoolsstore.ToolRow;
 import org.labkey.test.pages.skylinetoolsstore.ManageToolOwnersPage;
 import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.labkey.test.util.APITestHelper;
@@ -91,6 +92,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
     private static final String FORMS_TOOL_NAME = "FormBindingProbe";
     private static final String FORMS_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:formbinding";
+    // A second tool in the same store. One dialog serves every row, so a single row cannot show
+    // whether the handler addressed it to the right one.
+    private static final String FORMS_SECOND_TOOL_NAME = "FormBindingProbeTwo";
+    private static final String FORMS_SECOND_TOOL_IDENTIFIER =
+            "URN:LSID:toolstore.test:formbindingtwo";
     private static File _formsToolV1;
     private static File _formsToolV2;
 
@@ -105,6 +111,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     private static final String WEBPART_STORE = "ToolStoreWorkflowTestWebPartDeletes";
     private static final String WEBPART_TOOL_NAME = "WebPartDeleteProbe";
     private static final String WEBPART_TOOL_IDENTIFIER = "URN:LSID:toolstore.test:webpartdelete";
+    // Never deleted. Both menu items act on the row they were opened from, which one tool in the
+    // store cannot show.
+    private static final String WEBPART_OTHER_TOOL_NAME = "WebPartDeleteBystander";
+    private static final String WEBPART_OTHER_TOOL_IDENTIFIER =
+            "URN:LSID:toolstore.test:webpartbystander";
 
 
     // Its own store, because it leaves behind a version folder that cannot be deleted.
@@ -412,13 +423,30 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 new SkylineToolStoreWebPart(getDriver()).hasTool(FORMS_TOOL_NAME));
         assertEquals("The dialog should have added exactly one tool", 1, toolsInStore(FORMS_STORE));
 
-        // The web part draws its own gear per row, separate from the details page one. Each menu item
-        // is wired to a dialog shared by every row.
-        log("A web part row's gear menu opens the dialog its item names");
+        log("Add a second tool, so the shared dialog has a row it could be addressed to wrongly");
+        new SkylineToolStoreWebPart(getDriver()).addTool(ToolStoreTestHelper.writeMinimalToolZip(
+                FORMS_SECOND_TOOL_NAME, FORMS_SECOND_TOOL_IDENTIFIER, "1.0"), null);
+        goToProjectHome(FORMS_STORE);
+        assertEquals("The store should now hold both tools", 2, toolsInStore(FORMS_STORE));
+
+        // The web part displays a settings gear per tool row, but one dialog serves them all and the
+        // handler sets the tool id when it opens.
+        assertNotEquals("The two tools must have different ids",
+                new SkylineToolStoreWebPart(getDriver()).getTool(FORMS_TOOL_NAME).getToolId(),
+                new SkylineToolStoreWebPart(getDriver()).getTool(FORMS_SECOND_TOOL_NAME).getToolId());
+
+        log("Each row's gear opens the shared dialog addressed to that row's tool");
+        for (String name : List.of(FORMS_TOOL_NAME, FORMS_SECOND_TOOL_NAME))
+        {
+            ToolRow row = new SkylineToolStoreWebPart(getDriver()).getTool(name);
+            SupplementaryFileDialog rowDialog = row.clickUploadSupplementaryFile();
+            assertEquals("The dialog should carry " + name + "'s tool id",
+                    String.valueOf(row.getToolId()), rowDialog.getToolId());
+            rowDialog.dismiss("Cancel");
+        }
+
         SupplementaryFileDialog suppDialog = new SkylineToolStoreWebPart(getDriver())
                 .getTool(FORMS_TOOL_NAME).clickUploadSupplementaryFile();
-        assertEquals("The dialog should be addressed to the row's tool",
-                String.valueOf(rowId(onlyToolInStore(FORMS_STORE))), suppDialog.getToolId());
 
         // The modal is in the page from the start and is reused on every open, so a file chosen
         // and then cancelled would be attached to the next upload. clearFileInputsOnClose empties
@@ -440,13 +468,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         details = details.uploadNewVersion(_formsToolV2);
 
         assertEquals("The dialog should have published 2.0",
-                "2.0", onlyToolInStore(FORMS_STORE).getString("Version"));
+                "2.0", toolInStore(FORMS_STORE, FORMS_TOOL_NAME).getString("Version"));
         assertEquals("The details page should show the version it just published",
                 "2.0", details.getVersion());
-        assertEquals("Publishing a version must not add a second tool", 1, toolsInStore(FORMS_STORE));
+        assertEquals("Publishing a version must not add a tool", 2, toolsInStore(FORMS_STORE));
 
-        // The owners field completes a comma separated list from a hand written Bootstrap dropdown.
-        // Nothing else proves it filters, appends and leaves the separator the next name needs.
         log("The owners field completes an address from its dropdown");
         ManageToolOwnersDialog ownersDialog = details.clickManageToolOwners()
                 .typeOwner("toolstore_bystander")
@@ -454,6 +480,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertEquals("Picking from the dropdown should replace the term being typed and leave a " +
                         "separator ready for the next address",
                 OTHER_USER + ", ", ownersDialog.getOwners());
+
+        ownersDialog.appendOwner("toolstore_author").clickTypeAheadOption(TOOL_AUTHOR);
+        assertEquals("Picking a second address should append it after the first and leave a " +
+                        "separator ready",
+                OTHER_USER + ", " + TOOL_AUTHOR + ", ", ownersDialog.getOwners());
         ownersDialog.dismiss("Cancel");
 
         log("Delete the newest version through the details page dialog");
@@ -464,7 +495,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         // Read the version from the catalog rather than the page. The details page carries script
         // constants that a bare text search for a version number picks up.
         assertEquals("Deleting the newest version should leave 1.0 as the latest",
-                "1.0", onlyToolInStore(FORMS_STORE).getString("Version"));
+                "1.0", toolInStore(FORMS_STORE, FORMS_TOOL_NAME).getString("Version"));
     }
 
     /**
@@ -485,22 +516,34 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 ToolStoreTestHelper.toolFolderName(WEBPART_TOOL_NAME, "1.0");
         uploadToolFileTo(v1Folder, ToolStoreTestHelper.writeMinimalToolZip(
                 WEBPART_TOOL_NAME, WEBPART_TOOL_IDENTIFIER, "2.0"), v1RowId);
+        uploadToolFileTo(WEBPART_STORE, ToolStoreTestHelper.writeMinimalToolZip(
+                WEBPART_OTHER_TOOL_NAME, WEBPART_OTHER_TOOL_IDENTIFIER, "1.0"));
+
+        goToProjectHome(WEBPART_STORE);
+        SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
+        assertEquals("The listing should show the version just published",
+                "2.0", webPart.getTool(WEBPART_TOOL_NAME).getVersion());
+        assertEquals("The other tool should be listed at its own version",
+                "1.0", webPart.getTool(WEBPART_OTHER_TOOL_NAME).getVersion());
 
         log("Delete the newest version from the web part's menu");
-        goToProjectHome(WEBPART_STORE);
         new SkylineToolStoreWebPart(getDriver()).getTool(WEBPART_TOOL_NAME)
                 .clickDeleteLatestVersion().confirmExpectingPageLoad();
 
         assertEquals("Deleting the newest version should leave 1.0 as the latest",
-                "1.0", onlyToolInStore(WEBPART_STORE).getString("Version"));
+                "1.0", toolInStore(WEBPART_STORE, WEBPART_TOOL_NAME).getString("Version"));
+        assertEquals("Deleting one tool's version must not touch the other",
+                "1.0", toolInStore(WEBPART_STORE, WEBPART_OTHER_TOOL_NAME).getString("Version"));
+        assertEquals("Both tools should still be listed", 2, toolsInStore(WEBPART_STORE));
 
         log("Delete the whole tool from the web part's menu");
         goToProjectHome(WEBPART_STORE);
         new SkylineToolStoreWebPart(getDriver()).getTool(WEBPART_TOOL_NAME)
                 .clickDelete().confirmExpectingPageLoad();
 
-        assertEquals("Deleting the tool should leave the store empty",
-                0, toolsInStore(WEBPART_STORE));
+        assertEquals("Only the deleted tool should go", 1, toolsInStore(WEBPART_STORE));
+        assertTrue(WEBPART_OTHER_TOOL_NAME + " should still be listed",
+                new SkylineToolStoreWebPart(getDriver()).hasTool(WEBPART_OTHER_TOOL_NAME));
     }
 
     /**
@@ -1382,6 +1425,19 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 inStore.put(tool);
         }
         return inStore;
+    }
+
+    /** The named tool in the given store, for a store holding more than one. */
+    private JSONObject toolInStore(String containerPath, String toolName)
+    {
+        JSONArray tools = toolsInStoreJson(containerPath);
+        for (int i = 0; i < tools.length(); i++)
+        {
+            JSONObject tool = tools.getJSONObject(i);
+            if (toolName.equals(tool.optString("Name")))
+                return tool;
+        }
+        throw new AssertionError("No tool named " + toolName + " in " + containerPath);
     }
 
     /** The single tool whose folder sits under the given store, read from the global catalog. */
