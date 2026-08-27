@@ -134,10 +134,15 @@ public class SkylineToolDetailsPage extends LabKeyPage<SkylineToolDetailsPage.El
         return Locators.settingsToggle.existsIn(getDriver());
     }
 
+    /**
+     * Whether the settings menu offers an item. Fails when the page has no settings menu at all,
+     * because "no menu" would otherwise read the same as "the menu correctly omits this item".
+     */
     public boolean hasMenuItem(String item)
     {
         if (!hasSettingsMenu())
-            return false;
+            throw new AssertionError("The details page has no settings menu, so it cannot be asked " +
+                    "whether '" + item + "' is on offer. It is drawn only for a tool editor.");
         openSettingsMenu();
         return Locator.linkWithText(item).existsIn(Locators.settingsMenu.findElement(getDriver()));
     }

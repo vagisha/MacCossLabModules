@@ -41,6 +41,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -212,14 +213,14 @@ public class ToolStoreTestHelper
         try (ZipFile zf = new ZipFile(zip))
         {
             ZipEntry entry = zf.getEntry("tool-inf/info.properties");
-            assertTrue("No tool-inf/info.properties in " + zip.getName(), entry != null);
+            assertNotNull("No tool-inf/info.properties in " + zip.getName(), entry);
             Properties props = new Properties();
             try (InputStream in = zf.getInputStream(entry))
             {
                 props.load(in);
             }
             String identifier = props.getProperty("Identifier");
-            assertTrue("No Identifier in " + zip.getName(), identifier != null);
+            assertNotNull("No Identifier in " + zip.getName(), identifier);
             return identifier.trim();
         }
         catch (Exception e)
