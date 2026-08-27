@@ -763,6 +763,11 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
     restoreOnClose("delToolAllDlg");
     restoreOnClose("delToolLatestDlg");
 
+    // editToolDlg needs no call here. restoreOnClose rebuilds its body, which replaces the
+    // file input with a fresh one.
+    clearFileInputsOnClose("uploadPop");
+    clearFileInputsOnClose("uploadSuppPop");
+
     $("#editToolDlg").keydown(function (e) {
         var body = $(this).find(".modal-body");
         if (e.keyCode == 13 &&

@@ -227,3 +227,10 @@ function showModalError(modal, xhr, fallback) {
     setModalButtonsEnabled(modal, true);
 }
 
+// Bootstrap does not reset a modal's form on close, so a cancelled file would still be selected.
+function clearFileInputsOnClose(modalId) {
+    $("#" + modalId).on("hidden.bs.modal", function() {
+        $(this).find("input[type=file]").val("");
+    });
+}
+
