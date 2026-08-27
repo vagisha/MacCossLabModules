@@ -72,6 +72,12 @@ public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
         return Integer.parseInt(_el.getAttribute("data-toolId"));
     }
 
+    /** Absent for anyone who may not edit this tool. */
+    public boolean hasSettingsMenu()
+    {
+        return Locators.settingsMenu.existsIn(this);
+    }
+
     public SkylineToolDetailsPage clickToolName()
     {
         getWrapper().clickAndWait(elementCache().nameLink);
