@@ -210,3 +210,20 @@ function getCookie(name) {
     return null;
 }
 
+// Scoped to one modal so it cannot reach another dialog on the page.
+function setModalButtonsEnabled(modal, enable) {
+    modal.find(".modal-footer button").prop("disabled", !enable);
+}
+
+// Reports a refused request inside the modal that made it and leaves Cancel as the way out.
+// Scoped to that modal, so a refusal in one cannot disable the controls of another. The reason
+// carries the tool's own name and version, which come from the uploaded zip, so it goes in as a
+// text node.
+function showModalError(modal, xhr, fallback) {
+    var message = xhr?.responseJSON?.exception || fallback;
+    modal.find(".modal-body").empty().append($("<p></p>").text(message));
+    // Hide the Ok button. Its class varies by dialog, and only Cancel carries data-dismiss.
+    modal.find(".modal-footer button:not([data-dismiss])").hide();
+    setModalButtonsEnabled(modal, true);
+}
+
