@@ -27,7 +27,7 @@ import org.openqa.selenium.WebElement;
  * One tool in the Skyline Tool Store listing.
  *
  * The settings menu is rendered only for someone who may edit the tool, and which items it holds
- * varies by permission, so hasMenuItem is how a test asks what is on offer rather than assuming.
+ * varies by permission.
  */
 public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
 {
@@ -62,11 +62,6 @@ public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
         return _el.getAttribute("data-toolVersion");
     }
 
-    public String getIdentifier()
-    {
-        return _el.getAttribute("data-toolLsid");
-    }
-
     public int getDownloadCount()
     {
         return Integer.parseInt(_el.getAttribute("data-toolDownloads"));
@@ -75,20 +70,6 @@ public class ToolRow extends WebDriverComponent<ToolRow.ElementCache>
     public int getToolId()
     {
         return Integer.parseInt(_el.getAttribute("data-toolId"));
-    }
-
-    /** Absent for anyone who may not edit this tool. */
-    public boolean hasSettingsMenu()
-    {
-        return Locators.settingsMenu.existsIn(this);
-    }
-
-    public boolean hasMenuItem(String item)
-    {
-        if (!hasSettingsMenu())
-            return false;
-        openSettingsMenu();
-        return Locator.linkWithText(item).existsIn(elementCache().settingsMenu);
     }
 
     public SkylineToolDetailsPage clickToolName()

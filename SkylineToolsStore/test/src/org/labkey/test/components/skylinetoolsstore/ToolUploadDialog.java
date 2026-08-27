@@ -19,7 +19,6 @@ import org.labkey.test.Locator;
 import org.labkey.test.components.bootstrap.ModalDialog;
 import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
 
 import java.io.File;
 
@@ -60,31 +59,11 @@ public class ToolUploadDialog extends ModalDialog
         return this;
     }
 
-    /**
-     * Only Add New Tool offers this, and only to a site admin. Publishing a version hides it with
-     * script, so being in the page is not the same as being on offer.
-     */
-    public boolean hasOwnersField()
-    {
-        WebElement field = field("toolOwners").findElementOrNull(getDriver());
-        return field != null && field.isDisplayed();
-    }
-
     /** Both actions redirect to the details page of the tool they wrote. */
     public SkylineToolDetailsPage clickUpload()
     {
         getWrapper().clickAndWait(submitButton());
         return new SkylineToolDetailsPage(getDriver());
-    }
-
-    /**
-     * A refused upload renders the error into the page and still returns 200, so the message is the
-     * only thing that tells a refusal from a success.
-     */
-    public String clickUploadExpectingError()
-    {
-        getWrapper().clickAndWait(submitButton());
-        return getWrapper().getText(Locator.tagWithClass("div", "labkey-error"));
     }
 
     private Locator.CssLocator field(String name)

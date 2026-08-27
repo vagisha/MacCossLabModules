@@ -19,7 +19,6 @@ import org.labkey.test.Locator;
 import org.labkey.test.components.BodyWebPart;
 import org.labkey.test.pages.skylinetoolsstore.SkylineToolDetailsPage;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
 
 import java.io.File;
 import java.util.List;
@@ -28,8 +27,6 @@ import java.util.stream.Collectors;
 /**
  * The Skyline Tool Store web part, which lists the latest version of every tool in the folders
  * below this one.
- *
- * Add New Tool is site admin only, so canAddTool is how a test asks rather than assuming.
  */
 public class SkylineToolStoreWebPart extends BodyWebPart<SkylineToolStoreWebPart.ElementCache>
 {
@@ -50,11 +47,6 @@ public class SkylineToolStoreWebPart extends BodyWebPart<SkylineToolStoreWebPart
         return rows().stream().map(ToolRow::getName).collect(Collectors.toList());
     }
 
-    public int getToolCount()
-    {
-        return rows().size();
-    }
-
     public boolean hasTool(String toolName)
     {
         return getToolNames().contains(toolName);
@@ -67,12 +59,6 @@ public class SkylineToolStoreWebPart extends BodyWebPart<SkylineToolStoreWebPart
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No tool named '" + toolName +
                         "' in the store. Found " + getToolNames()));
-    }
-
-    public boolean canAddTool()
-    {
-        WebElement button = Locators.addNewTool.findElementOrNull(getComponentElement());
-        return button != null && button.isDisplayed();
     }
 
     public ToolUploadDialog clickAddNewTool()
