@@ -458,7 +458,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         SupplementaryFileDialog reopened = new SkylineToolStoreWebPart(getDriver())
                 .getTool(FORMS_TOOL_NAME).clickUploadSupplementaryFile();
-        assertEquals("Reopening must not keep the file the Cancel discarded",
+        assertEquals("The file chosen before the Cancel must be gone on reopen",
                 "", reopened.getSelectedFile());
         reopened.dismiss("Cancel");
 
@@ -654,14 +654,14 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         goToProjectHome(store);
         SkylineToolStoreWebPart webPart = new SkylineToolStoreWebPart(getDriver());
 
-        // Someone else deletes it while this page sits there, so the confirm below reaches a tool
-        // the server can no longer find.
+        // Deletes the tool over HTTP rather than through the UI. The browser page is still left open for
+        // the tool. Clicking delete will return a refusal from the server that is displayed in the dialog.
         ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
 
         String message = webPart.getTool(tool).clickDelete().confirmExpectingRefusal();
         // DeleteAction names the row it could not find. Matching that rather than the word "error" keeps
         // this from passing on any refusal at all.
-        assertTrue("The dialog should report what the server said, got: " + message,
+        assertTrue("The dialog should report the server's response, got: " + message,
                 message.contains("does not exist"));
     }
 
@@ -690,7 +690,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
 
         ConfirmDeleteDialog refused = details.clickDelete();
         String refusal = refused.confirmExpectingRefusal();
-        assertTrue("The dialog should report what the server said, got: " + refusal,
+        assertTrue("The dialog should report the server's response, got: " + refusal,
                 refusal.contains("does not exist"));
 
         log("Cancel, then open the same dialog again");
@@ -802,26 +802,30 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                         "Organization = MacCoss Lab\n"), null);
 
         assertEquals("The page should name the tool it was asked for", tool, details.getToolName());
-        assertEquals("1.0", details.getVersion());
+        assertEquals("The header should show the version", "1.0", details.getVersion());
         assertEquals("A tool nobody has downloaded yet", 0, details.getDownloadCount());
 
         assertTrue("The description row should be on the page",
                 details.hasProperty(SkylineToolDetailsPage.DESCRIPTION));
-        assertEquals("A tool for exercising the details page.",
+        assertEquals("The description should be the one in the zip",
+                "A tool for exercising the details page.",
                 details.getProperty(SkylineToolDetailsPage.DESCRIPTION));
-        assertEquals("MacCoss Lab", details.getProperty(SkylineToolDetailsPage.ORGANIZATION));
+        assertEquals("The organization should be the one in the zip",
+                "MacCoss Lab", details.getProperty(SkylineToolDetailsPage.ORGANIZATION));
 
         assertTrue("A site admin should be offered the edit pencils", details.canEditProperties());
 
         // The zip carries no documentation url and the tool has no supplementary files, so the
         // whole box is absent rather than empty.
         assertFalse("Nothing to document yet", details.isDocumentationBoxShowing());
-        assertFalse(details.hasOnlineDocumentationLink());
+        assertFalse("A tool with no docs url has no documentation link",
+                details.hasOnlineDocumentationLink());
 
         details = details.uploadSupplementaryFile(writeFileNamed("manual.pdf"));
         assertTrue("A supplementary file should bring the documentation box out",
                 details.isDocumentationBoxShowing());
-        assertTrue(details.getSupplementaryFileNames().contains("manual.pdf"));
+        assertTrue("The uploaded file should be listed",
+                details.getSupplementaryFileNames().contains("manual.pdf"));
     }
 
     /**
@@ -963,7 +967,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      * version" would read as this version.
      *
      * The last block covers the URL rather than the menu, because hiding an item only removes the
-     * way in that the UI offers. The action itself has to refuse before it draws an upload form,
+     * way in that the UI offers. The action itself has to refuse before it displays an upload form,
      * or an owner spends a whole upload before being told no.
      */
     @Test
@@ -982,27 +986,27 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         log("The latest version's page offers both items");
         beginAt(WebTestHelper.buildURL("skyts", OLDER_STORE, "details",
                 Map.of("name", OLDER_TOOL_NAME)));
-        assertTrue("The latest version should still offer Upload new version",
+        assertTrue("The latest version's page should offer Upload new version",
                 detailsPageHasMenuItem("Upload new version"));
-        assertTrue("The latest version is the one Delete latest version acts on, so it belongs here",
+        assertTrue("The latest version's page should offer Delete latest version",
                 detailsPageHasMenuItem("Delete latest version"));
 
         log("The older version's page offers only the supplementary file item");
         beginAt(WebTestHelper.buildURL("skyts", OLDER_STORE, "details",
                 Map.of("name", OLDER_TOOL_NAME, "version", "1.0")));
-        assertFalse("Upload new version must not be offered where the action would refuse it",
+        assertFalse("An older version's page must not offer Upload new version",
                 detailsPageHasMenuItem("Upload new version"));
-        assertFalse("Delete latest version must not be offered where it would act on another version",
+        assertFalse("An older version's page must not offer Delete latest version",
                 detailsPageHasMenuItem("Delete latest version"));
-        assertTrue("Upload supplementary file works on any version and must stay",
+        assertTrue("An older version's page should still offer Upload supplementary file",
                 detailsPageHasMenuItem("Upload supplementary file"));
-        assertTrue("Deleting the whole tool works from any version and must say what it removes",
+        assertTrue("An older version's page should still offer Delete tool from store",
                 detailsPageHasMenuItem("Delete tool from store"));
 
         log("The URL behind the hidden item refuses before drawing the form");
         beginAt(WebTestHelper.buildURL("skyts", v1Folder, "updateTool",
                 Map.of("toolId", String.valueOf(v1RowId))));
-        assertElementNotPresent("The upload form must not be drawn where the post would be refused",
+        assertElementNotPresent("An older version's updateTool page must not display the upload form",
                 Locator.css("input[name='toolZip']"));
         assertTextPresent("is not the latest version of");
 
@@ -1022,7 +1026,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
      *
      * tool.isEditor requires the three together, and the settings gear, the edit pencils and the
      * supplementary file trash icons all gate on it. Author holds Insert alone, so none of them is
-     * drawn, and adding Editor brings the other two so they come back.
+     * displayed, and adding Editor brings the other two so they come back.
      */
     @Test
     public void testEditingControlsNeedAllThreePermissions()
@@ -1081,9 +1085,9 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         try
         {
             goToProjectHome(store);
-            assertTrue("Holding all three, the web part row should offer a settings menu",
+            assertTrue("A user with all three permissions should be offered the settings menu",
                     new SkylineToolStoreWebPart(getDriver()).getTool(tool).hasSettingsMenu());
-            assertTrue("Holding all three, the details page should offer the edit pencils",
+            assertTrue("A user with all three permissions should be offered the edit pencils",
                     new SkylineToolStoreWebPart(getDriver()).getTool(tool).clickToolName()
                             .canEditProperties());
         }
@@ -1261,7 +1265,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
         assertEquals("An unreadable icon must be refused with a message, not a server error",
                 0, errorsLogged);
 
-        assertFalse("The upload was supposed to fail while storing the version",
+        assertFalse("An upload with an unreadable icon must add no tool",
                 ToolStoreTestHelper.catalogIdentifiers(RETRY_STORE).contains(RETRY_TOOL_IDENTIFIER));
 
         // Same name and version, so it needs the folder name the failed upload already used.
