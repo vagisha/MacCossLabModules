@@ -69,6 +69,16 @@ public class ManageToolOwnersDialog extends ModalDialog
     }
 
     /**
+     * Types onto the end of the field rather than replacing it, the way a user carries on after
+     * choose has left a separator.
+     */
+    public ManageToolOwnersDialog appendOwner(String term)
+    {
+        ownersField().findElement(getDriver()).sendKeys(term);
+        return this;
+    }
+
+    /**
      * Picks an address the type-ahead is offering. The menu is drawn hidden until it has something
      * to show, so this waits for the option to be visible rather than merely present.
      */
