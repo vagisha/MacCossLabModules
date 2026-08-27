@@ -18,6 +18,7 @@ package org.labkey.test.components.skylinetoolsstore;
 import org.labkey.test.Locator;
 import org.labkey.test.WebDriverWrapper;
 import org.labkey.test.components.bootstrap.ModalDialog;
+import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 
@@ -102,10 +103,18 @@ public class ConfirmDeleteDialog extends ModalDialog
     {
         getWrapper().click(okButton());
         // If the server returns an error message, showModalError hides the Ok button and displays the refusal.
-        // If the deletion was accepted, the handler navigated and the wait below will time out.
+        // If the deletion was accepted, the handler navigated and the wait below will time out. The catch
+        // covers that case, where the button can go stale under the wait as the page unloads.
         WebDriverWrapper.waitFor(() -> {
-            WebElement ok = okButton().findElementOrNull(getDriver());
-            return ok != null && !ok.isDisplayed();
+            try
+            {
+                WebElement ok = okButton().findElementOrNull(getDriver());
+                return ok != null && !ok.isDisplayed();
+            }
+            catch (StaleElementReferenceException ignored)
+            {
+                return false;
+            }
         }, "The delete dialog neither closed nor reported a refusal", 10_000);
         return getBodyText();
     }

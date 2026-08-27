@@ -16,11 +16,14 @@
 package org.labkey.test.components.skylinetoolsstore;
 
 import org.labkey.test.Locator;
+import org.labkey.test.WebDriverWrapper;
 import org.labkey.test.components.bootstrap.ModalDialog;
 import org.labkey.test.pages.skylinetoolsstore.ManageToolOwnersPage;
 import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+
+import java.util.List;
 
 /**
  * The "Manage tool owners" modal. Rendered for a site admin only, so a test that expects it must
@@ -142,7 +145,7 @@ public class ManageToolOwnersDialog extends ModalDialog
     }
 
     /** Addresses the type-ahead is currently offering. */
-    public java.util.List<String> getTypeAheadOptions()
+    public List<String> getTypeAheadOptions()
     {
         return getWrapper().getTexts(Locator.css("#" + DIALOG_ID + " ul.autocompleteMenu li a")
                 .findElements(getDriver()));
@@ -183,7 +186,10 @@ public class ManageToolOwnersDialog extends ModalDialog
 
     private void dismissTypeAhead()
     {
-        if (isTypeAheadShowing())
-            getWrapper().executeScript("document.body.click();");
+        if (!isTypeAheadShowing())
+            return;
+        getWrapper().executeScript("document.body.click();");
+        WebDriverWrapper.waitFor(() -> !isTypeAheadShowing(),
+                "The suggestion list stayed open over the dialog footer", 5_000);
     }
 }

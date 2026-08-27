@@ -15,9 +15,7 @@
  */
 package org.labkey.test.tests.skylinetoolsstore;
 
-import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ContentType;
@@ -47,11 +45,9 @@ import org.labkey.test.util.PostgresOnlyTest;
 import org.labkey.test.util.WikiHelper;
 
 import java.io.File;
-import java.net.URI;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +56,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -372,9 +369,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testListingIsScopedToThisStoreButApiIsNot()
     {
-        _containerHelper.createProject(OTHER_STORE, "Collaboration");
-        _containerHelper.enableModule(OTHER_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(OTHER_STORE);
 
         uploadToolTo(OTHER_STORE, TOOL_OTHER);
 
@@ -405,9 +400,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testStoreDialogsPostWhatTheActionsBind()
     {
-        _containerHelper.createProject(FORMS_STORE, "Collaboration");
-        _containerHelper.enableModule(FORMS_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(FORMS_STORE);
 
         log("Add a tool through the web part's Add New Tool dialog");
         goToProjectHome(FORMS_STORE);
@@ -449,15 +442,6 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
                 OTHER_USER + ", ", ownersDialog.getOwners());
         ownersDialog.dismiss("Cancel");
 
-        // SkylineToolDetails.jsp posts the newest version's row id whatever version the page shows,
-        // so from an older version's page this item would delete a version the user is not viewing.
-        log("An older version's page must not offer to delete the latest");
-        beginAt(WebTestHelper.buildURL("skyts", FORMS_STORE, "details",
-                Map.of("name", FORMS_TOOL_NAME, "version", "1.0")));
-        assertFalse("Version 1.0's page offered to delete the latest version, which would delete " +
-                        "2.0, a version the user is not looking at",
-                new SkylineToolDetailsPage(getDriver()).hasMenuItem("Delete latest version"));
-
         log("Delete the newest version through the details page dialog");
         goToProjectHome(FORMS_STORE);
         new SkylineToolStoreWebPart(getDriver()).getTool(FORMS_TOOL_NAME).clickToolName()
@@ -478,9 +462,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testDeletingTheLatestVersionThenTheToolFromToolSettingsMenu()
     {
-        _containerHelper.createProject(WEBPART_STORE, "Collaboration");
-        _containerHelper.enableModule(WEBPART_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(WEBPART_STORE);
 
         uploadToolFileTo(WEBPART_STORE, ToolStoreTestHelper.writeMinimalToolZip(
                 WEBPART_TOOL_NAME, WEBPART_TOOL_IDENTIFIER, "1.0"));
@@ -516,9 +498,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testADeleteLatestThatCannotRemoveTheFolderChangesNothing()
     {
-        _containerHelper.createProject(BLOCKED_STORE, "Collaboration");
-        _containerHelper.enableModule(BLOCKED_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(BLOCKED_STORE);
 
         uploadToolFileTo(BLOCKED_STORE, ToolStoreTestHelper.writeMinimalToolZip(
                 BLOCKED_TOOL_NAME, BLOCKED_TOOL_IDENTIFIER, "1.0"));
@@ -574,13 +554,10 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     public void testNoPageLoadsJQueryUi()
     {
         String store = NO_JQUERY_UI_STORE;
-        _containerHelper.createProject(store, "Collaboration");
-        _containerHelper.enableModule(store, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(store);
 
         File zip = ToolStoreTestHelper.writeMinimalToolZip("JQueryUiProbe",
                 "URN:LSID:toolstore.test:jqueryuiprobe", "1.0");
-        ToolStoreTestHelper.removeToolsFromCatalog(store, zip);
         uploadToolFileTo(store, zip, -1);
         JSONObject tool = onlyToolInStore(store);
 
@@ -935,9 +912,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testAnOlderVersionPageOffersOnlyWhatItCanDo()
     {
-        _containerHelper.createProject(OLDER_STORE, "Collaboration");
-        _containerHelper.enableModule(OLDER_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(OLDER_STORE);
 
         uploadToolFileTo(OLDER_STORE, ToolStoreTestHelper.writeMinimalToolZip(
                 OLDER_TOOL_NAME, OLDER_TOOL_IDENTIFIER, "1.0"));
@@ -995,9 +970,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testAToolsOwnFolderShowsThatTool()
     {
-        _containerHelper.createProject(FOLDER_STORE, "Collaboration");
-        _containerHelper.enableModule(FOLDER_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(FOLDER_STORE);
 
         uploadToolFileTo(FOLDER_STORE, ToolStoreTestHelper.writeMinimalToolZip(
                 FOLDER_TOOL_NAME, FOLDER_TOOL_IDENTIFIER, "1.0"));
@@ -1036,9 +1009,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testAToolCannotBeAddedFromInsideAnotherToolsFolder()
     {
-        _containerHelper.createProject(NESTED_STORE, "Collaboration");
-        _containerHelper.enableModule(NESTED_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(NESTED_STORE);
 
         uploadToolFileTo(NESTED_STORE, ToolStoreTestHelper.writeMinimalToolZip(
                 NESTED_HOST_TOOL_NAME, NESTED_HOST_TOOL_IDENTIFIER, "1.0"));
@@ -1063,9 +1034,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testACorruptZipIsRefusedWithoutAServerError()
     {
-        _containerHelper.createProject(CORRUPT_STORE, "Collaboration");
-        _containerHelper.enableModule(CORRUPT_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(CORRUPT_STORE);
 
         assertEquals("Server errors were already pending before this test", 0, getServerErrorCount());
 
@@ -1142,9 +1111,7 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
     @Test
     public void testAnUploadThatFailsPartWayLeavesNoFolderBehind()
     {
-        _containerHelper.createProject(RETRY_STORE, "Collaboration");
-        _containerHelper.enableModule(RETRY_STORE, "SkylineToolsStore");
-        new PortalHelper(this).addWebPart("Skyline Tool Store");
+        createStore(RETRY_STORE);
 
         // resetErrors is server wide, so consuming this upload's errors below consumes everything
         // logged since the last mark. checkErrors() runs after every test method, so nothing should
@@ -1342,11 +1309,11 @@ public class ToolStoreWorkflowTest extends BaseWebDriverTest implements Postgres
             if (tool.optString("IconUrl").contains("/" + containerPath + "/") ||
                 tool.optString("DownloadUrl").contains("/" + containerPath + "/"))
             {
-                assertTrue("Expected one tool in " + containerPath, found == null);
+                assertNull("Expected one tool in " + containerPath, found);
                 found = tool;
             }
         }
-        assertTrue("No tool found in " + containerPath, found != null);
+        assertNotNull("No tool found in " + containerPath, found);
         return found;
     }
 
