@@ -627,22 +627,6 @@ a:hover .editToolIcon, a:focus .editToolIcon {color: #126495;}
             ownersTxt.val(ownersTxt.val() + ", ");
     }
 
-    // Scoped to one modal so it cannot reach another dialog on the page.
-    function setModalButtonsEnabled(modal, enable) {
-        modal.find(".modal-footer button").prop("disabled", !enable);
-    }
-
-    // The actions answer a refusal with an error status and a JSON body naming the reason. The reason
-    // carries the tool's own name and version, which come from the uploaded zip, so it goes in as a
-    // text node. Hide the Ok button, leaving Cancel as the way out.
-    function showModalError(modal, xhr, fallback) {
-        var message = xhr?.responseJSON?.exception || fallback;
-        modal.find(".modal-body").empty().append($("<p></p>").text(message));
-        // Hide the Ok button. Its class varies by dialog, and only Cancel carries data-dismiss.
-        modal.find(".modal-footer button:not([data-dismiss])").hide();
-        setModalButtonsEnabled(modal, true);
-    }
-
     $("#delToolAllOk").click(function() {
         var dlg = $("#delToolAllDlg");
         setModalButtonsEnabled(dlg, false);
