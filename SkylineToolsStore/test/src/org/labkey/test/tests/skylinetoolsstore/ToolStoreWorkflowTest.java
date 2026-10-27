@@ -37,7 +37,6 @@ import org.labkey.test.util.APITestHelper;
 import org.labkey.test.util.ApiPermissionsHelper;
 import org.labkey.test.util.LogMethod;
 import org.labkey.test.util.PortalHelper;
-import org.labkey.test.util.PostgresOnlyTest;
 import org.labkey.test.util.WikiHelper;
 
 import java.io.File;
@@ -60,7 +59,7 @@ import static org.junit.Assert.assertTrue;
  */
 @Category({External.class, MacCossLabModules.class})
 @BaseWebDriverTest.ClassTimeout(minutes = 10)
-public class ToolStoreWorkflowTest extends BaseWebDriverTest implements PostgresOnlyTest
+public class ToolStoreWorkflowTest extends BaseWebDriverTest
 {
     private static final String PROJECT_NAME = "ToolStoreWorkflowTest";
     private static final String OTHER_STORE = "ToolStoreWorkflowTestOtherStore";
